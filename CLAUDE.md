@@ -121,7 +121,7 @@ The Kotlin `PathDSL` wraps these with cleaner names — prefer it.
 ### Panels telemetry
 
 ```kotlin
-val tm = PanelsTelemetry.INSTANCE.telemetry   // TelemetryManager
+val tm = PanelsTelemetry.telemetry   // TelemetryManager
 tm.addLine("hello")
 tm.addData("key", value)
 tm.update()                                    // flush to dashboard

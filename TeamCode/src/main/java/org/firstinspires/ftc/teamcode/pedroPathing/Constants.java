@@ -18,7 +18,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
  * Pedro reads this package via the exact name {@code pedroPathing.Constants} — it
  * must stay at this path. Everything here was tuned on our chassis; if you rebuild
  * the robot, re-run Pedro's forward/lateral and velocity tuners and paste the
- * numbers back into this file.
+ * numbers back  into this file.
  *
  * What lives where:
  *  - Physical constants (mass, zero-power accel, velocity caps, motor names + direction,

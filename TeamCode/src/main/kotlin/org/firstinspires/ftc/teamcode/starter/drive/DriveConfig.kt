@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.starter.drive
 
+import com.bylazar.configurables.annotations.Configurable
+
 /**
  * Runtime drive tuning knobs.
  *
@@ -11,7 +13,16 @@ package org.firstinspires.ftc.teamcode.starter.drive
  *
  * These are `var`s so Panels can mutate them live during tuning sessions.
  */
+@Configurable
 object DriveConfig {
+
+    /**
+     * Exponent for the stick input curve applied to forward, strafe, and turn.
+     * 1.0 = linear, 2.0 = squared (smooth at low speed), 3.0 = cubic.
+     * Sign is always preserved so the robot still drives in the correct direction.
+     * Mutate live via Panels / FTC Dashboard.
+     */
+    @JvmField var inputExponent: Double = 2.0
 
     /** Overall multiplier applied to every teleop motion input. */
     @JvmField var teleopPowerScale: Double = 1.0

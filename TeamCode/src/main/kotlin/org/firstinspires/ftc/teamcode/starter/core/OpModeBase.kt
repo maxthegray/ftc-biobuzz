@@ -55,7 +55,7 @@ abstract class OpModeBase : LinearOpMode() {
         driver = GamepadEx(gamepad1)
         operator = GamepadEx(gamepad2)
 
-        val panels = PanelsTelemetry.INSTANCE.telemetry
+        val panels = PanelsTelemetry.telemetry
         joinedTelemetry = JoinedTelemetry(telemetry, panels.wrapper)
         telemetryBag = TelemetryBag(joinedTelemetry, panels)
 

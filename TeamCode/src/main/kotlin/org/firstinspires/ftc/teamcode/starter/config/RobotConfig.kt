@@ -32,7 +32,7 @@ object RobotConfig {
     }
 
     object Vision {
-        const val WEBCAM = "Webcam 1"
+        const val WEBCAM = "hsc"
     }
 
     /** Game-level constants that change every season. Edit when the new game launches. */

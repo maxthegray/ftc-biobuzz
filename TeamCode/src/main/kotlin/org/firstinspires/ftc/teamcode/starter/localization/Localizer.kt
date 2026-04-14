@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.starter.localization
 
 import com.pedropathing.follower.Follower
 import com.pedropathing.geometry.Pose
+import com.pedropathing.math.Vector
 import com.qualcomm.robotcore.hardware.HardwareMap
 import org.firstinspires.ftc.teamcode.starter.core.SubsystemBase
 
@@ -29,7 +30,7 @@ class Localizer(private val follower: Follower) : SubsystemBase("Localizer") {
     }
 
     val pose: Pose get() = follower.pose
-    val velocity: Pose get() = follower.velocity
+    val velocity: Vector get() = follower.velocity
 
     fun setPose(p: Pose) {
         follower.pose = p

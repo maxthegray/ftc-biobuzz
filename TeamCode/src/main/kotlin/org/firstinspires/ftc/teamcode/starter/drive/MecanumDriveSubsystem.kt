@@ -2,10 +2,10 @@ package org.firstinspires.ftc.teamcode.starter.drive
 
 import com.pedropathing.follower.Follower
 import com.pedropathing.geometry.Pose
+import com.pedropathing.math.Vector
 import com.pedropathing.paths.PathChain
 import com.qualcomm.robotcore.hardware.HardwareMap
 import org.firstinspires.ftc.teamcode.starter.core.SubsystemBase
-import kotlin.math.hypot
 
 /**
  * The one subsystem that owns the mecanum drivetrain. It is a thin façade
@@ -55,9 +55,10 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
      */
     fun drive(forward: Double, strafe: Double, turn: Double, precision: Boolean = false) {
         val scale = DriveConfig.teleopPowerScale * (if (precision) DriveConfig.precisionPowerScale else 1.0)
-        val fwd = forward * scale
-        val strafeScaled = strafe * scale
-        val turnScaled = turn * scale
+        val exp = DriveConfig.inputExponent
+        val fwd = forward.curve(exp) * scale
+        val strafeScaled = -strafe.curve(exp) * scale
+        val turnScaled = -turn.curve(exp) * scale
         if (DriveConfig.fieldCentric) {
             follower.setTeleOpDrive(fwd, strafeScaled, turnScaled, false)
         } else {
@@ -100,17 +101,14 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
     }
 
     val pose: Pose get() = follower.pose
-    val velocity: Pose get() = follower.velocity
+    val velocity: Vector get() = follower.velocity
 
     /** True while Pedro is actively following a path. */
     val isFollowing: Boolean get() = follower.isBusy
 
     /** True if the robot is actually moving faster than [DriveConfig.stoppedVelocityThreshold]. */
     val isMoving: Boolean
-        get() {
-            val v = follower.velocity
-            return hypot(v.x, v.y) >= DriveConfig.stoppedVelocityThreshold
-        }
+        get() = follower.velocity.magnitude >= DriveConfig.stoppedVelocityThreshold
 
     /** Checks whether the robot is within the configured hold tolerance of a target pose. */
     fun atPose(target: Pose): Boolean =
@@ -134,3 +132,6 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
         follower.breakFollowing()
     }
 }
+
+/** Applies a signed power curve: preserves sign, scales magnitude by x^exponent. */
+private fun Double.curve(exponent: Double): Double = Math.copySign(Math.pow(Math.abs(this), exponent), this)
