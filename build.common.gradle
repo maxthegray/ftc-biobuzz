@@ -21,7 +21,7 @@ apply plugin: 'com.android.application'
 
 android {
 
-    compileSdkVersion 30
+    compileSdk 34
 
     signingConfigs {
         release {
@@ -107,7 +107,10 @@ android {
     }
 
     packagingOptions {
-        pickFirst '**/*.so'
+        jniLibs {
+            pickFirsts += ['**/*.so']
+        }
+        jniLibs.useLegacyPackaging true
     }
     ndkVersion '21.3.6528147'
 }

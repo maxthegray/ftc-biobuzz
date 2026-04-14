@@ -1,28 +1,55 @@
 //
 // build.gradle in TeamCode
 //
-// Most of the definitions for building your module reside in a common, shared
-// file 'build.common.gradle'. Being factored in this way makes it easier to
-// integrate updates to the FTC into your code. If you really need to customize
-// the build definitions, you can place those customizations in this file, but
-// please think carefully as to whether such customizations are really necessary
-// before doing so.
+// Season-agnostic starter: FTC SDK 11.1 + Kotlin + Pedro Pathing + Ivy +
+// FTControl Panels + Sloth hot reload.
+//
 
-
-// Custom definitions may go here
-
-// Include common definitions from above.
 apply from: '../build.common.gradle'
 apply from: '../build.dependencies.gradle'
+apply plugin: 'kotlin-android'
 
 android {
     namespace = 'org.firstinspires.ftc.teamcode'
+    compileSdk 34
+
+    defaultConfig {
+        minSdk 24
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
 
     packagingOptions {
+        jniLibs {
+            pickFirsts += ['**/*.so']
+        }
         jniLibs.useLegacyPackaging true
+    }
+
+    sourceSets {
+        main {
+            java.srcDirs += ['src/main/kotlin']
+        }
     }
 }
 
 dependencies {
     implementation project(':FtcRobotController')
+
+    // Kotlin
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+
+    // Pedro Pathing 2.1.1 + Ivy 1.0.0 command framework + telemetry adapter
+    implementation 'com.pedropathing:core:2.1.1'
+    implementation 'com.pedropathing:ftc:2.1.1'
+    implementation 'com.pedropathing:ivy:1.0.0'
+    implementation 'com.pedropathing:telemetry:1.0.0'
+
+    // FTControl Panels (dashboard + live tuning + telemetry)
+    implementation 'com.bylazar:fullpanels:1.0.12'
+
+    // Sloth hot reload (pulls Sinister 2.2.0 transitively)
+    implementation 'dev.frozenmilk.sinister:Sloth:0.2.4'
 }
