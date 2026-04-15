@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.starter.vision
+package org.firstinspires.ftc.teamcode.general.vision
 
 import com.pedropathing.ftc.InvertedFTCCoordinates
 import com.pedropathing.ftc.PoseConverter

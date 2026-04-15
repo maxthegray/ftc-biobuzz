@@ -1,10 +1,10 @@
-package org.firstinspires.ftc.teamcode.starter.localization
+package org.firstinspires.ftc.teamcode.general.localization
 
 import com.pedropathing.follower.Follower
 import com.pedropathing.geometry.Pose
 import com.pedropathing.math.Vector
 import com.qualcomm.robotcore.hardware.HardwareMap
-import org.firstinspires.ftc.teamcode.starter.core.SubsystemBase
+import org.firstinspires.ftc.teamcode.general.core.SubsystemBase
 
 /**
  * Read-only façade over the [Follower]'s internal localizer.

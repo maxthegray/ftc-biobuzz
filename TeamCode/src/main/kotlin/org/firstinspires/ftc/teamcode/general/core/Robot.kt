@@ -1,9 +1,9 @@
-package org.firstinspires.ftc.teamcode.starter.core
+package org.firstinspires.ftc.teamcode.general.core
 
 import com.pedropathing.ivy.Scheduler
 import com.qualcomm.hardware.lynx.LynxModule
 import com.qualcomm.robotcore.hardware.HardwareMap
-import org.firstinspires.ftc.teamcode.starter.hardware.BulkReadManager
+import org.firstinspires.ftc.teamcode.general.hardware.BulkReadManager
 
 /**
  * Robot is the single source of truth for the robot's hardware + subsystems

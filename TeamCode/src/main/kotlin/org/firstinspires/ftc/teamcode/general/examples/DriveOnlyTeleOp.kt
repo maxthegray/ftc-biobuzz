@@ -1,11 +1,11 @@
-package org.firstinspires.ftc.teamcode.starter.examples
+package org.firstinspires.ftc.teamcode.general.examples
 
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants
-import org.firstinspires.ftc.teamcode.starter.core.OpModeBase
-import org.firstinspires.ftc.teamcode.starter.drive.DriveConfig
-import org.firstinspires.ftc.teamcode.starter.drive.MecanumDriveSubsystem
-import org.firstinspires.ftc.teamcode.starter.localization.Localizer
+import org.firstinspires.ftc.teamcode.general.core.OpModeBase
+import org.firstinspires.ftc.teamcode.general.drive.DriveConfig
+import org.firstinspires.ftc.teamcode.general.drive.MecanumDriveSubsystem
+import org.firstinspires.ftc.teamcode.general.localization.Localizer
 
 /**
  * Minimal teleop that exercises the starter scaffolding end-to-end:

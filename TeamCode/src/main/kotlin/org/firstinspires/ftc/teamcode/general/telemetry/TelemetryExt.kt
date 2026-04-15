@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.starter.telemetry
+package org.firstinspires.ftc.teamcode.general.telemetry
 
 import com.bylazar.telemetry.TelemetryManager
 import com.pedropathing.geometry.Pose
@@ -46,7 +46,7 @@ class TelemetryBag(
 
     /**
      * Write the accumulated content to both the Driver Station and Panels,
-     * then clear the buffer. Called by [org.firstinspires.ftc.teamcode.starter
+     * then clear the buffer. Called by [org.firstinspires.ftc.teamcode.general
      * .core.OpModeBase] at the end of every loop tick.
      */
     fun flush() {

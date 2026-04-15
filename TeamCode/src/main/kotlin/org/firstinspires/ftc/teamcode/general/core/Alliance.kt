@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.starter.core
+package org.firstinspires.ftc.teamcode.general.core
 
 import com.pedropathing.geometry.Pose
 

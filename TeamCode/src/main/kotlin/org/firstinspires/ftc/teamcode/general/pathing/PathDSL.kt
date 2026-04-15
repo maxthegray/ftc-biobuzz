@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.starter.pathing
+package org.firstinspires.ftc.teamcode.general.pathing
 
 import com.pedropathing.follower.Follower
 import com.pedropathing.geometry.BezierCurve
@@ -6,8 +6,8 @@ import com.pedropathing.geometry.BezierLine
 import com.pedropathing.geometry.Pose
 import com.pedropathing.paths.PathBuilder
 import com.pedropathing.paths.PathChain
-import org.firstinspires.ftc.teamcode.starter.core.Alliance
-import org.firstinspires.ftc.teamcode.starter.drive.MecanumDriveSubsystem
+import org.firstinspires.ftc.teamcode.general.core.Alliance
+import org.firstinspires.ftc.teamcode.general.drive.MecanumDriveSubsystem
 
 /**
  * Kotlin DSL over Pedro's [PathBuilder].

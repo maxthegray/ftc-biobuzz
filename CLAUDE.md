@@ -184,7 +184,7 @@ JoinedTelemetry(telemetry, tm.wrapper)         // wrap both DS + Panels as one T
 
 ## When the user asks you to add a path or auton routine
 
-Prefer the `PathDSL` / `PedroAutoRunner` DSLs in `starter/pathing/`. They
+Prefer the `PathDSL` / `PedroAutoRunner` DSLs in `general/pathing/`. They
 already handle the Pedro API correctly and add alliance mirroring and
 parallel/race groups on top. Don't drop back to raw `PathBuilder` unless
 you have a reason.

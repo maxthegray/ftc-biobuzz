@@ -24,8 +24,8 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
  *  - Physical constants (mass, zero-power accel, velocity caps, motor names + direction,
  *    Pinpoint pod offsets, encoder resolution): this file.
  *  - Hardware-map names (plain strings): also this file, kept in sync with
- *    {@link org.firstinspires.ftc.teamcode.starter.config.RobotConfig}.
- *  - Runtime / game / driver feel knobs: {@link org.firstinspires.ftc.teamcode.starter.drive.DriveConfig}.
+ *    {@link org.firstinspires.ftc.teamcode.general.config.RobotConfig}.
+ *  - Runtime / game / driver feel knobs: {@link org.firstinspires.ftc.teamcode.general.drive.DriveConfig}.
  */
 public final class Constants {
 

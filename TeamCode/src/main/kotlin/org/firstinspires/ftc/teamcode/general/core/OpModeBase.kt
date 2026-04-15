@@ -1,10 +1,10 @@
-package org.firstinspires.ftc.teamcode.starter.core
+package org.firstinspires.ftc.teamcode.general.core
 
 import com.bylazar.telemetry.JoinedTelemetry
 import com.bylazar.telemetry.PanelsTelemetry
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode
 import org.firstinspires.ftc.robotcore.external.Telemetry
-import org.firstinspires.ftc.teamcode.starter.telemetry.TelemetryBag
+import org.firstinspires.ftc.teamcode.general.telemetry.TelemetryBag
 
 /**
  * Base for every op-mode in this codebase. A concrete op-mode fills in three

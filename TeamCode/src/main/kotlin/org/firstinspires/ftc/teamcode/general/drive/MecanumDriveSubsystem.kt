@@ -1,11 +1,11 @@
-package org.firstinspires.ftc.teamcode.starter.drive
+package org.firstinspires.ftc.teamcode.general.drive
 
 import com.pedropathing.follower.Follower
 import com.pedropathing.geometry.Pose
 import com.pedropathing.math.Vector
 import com.pedropathing.paths.PathChain
 import com.qualcomm.robotcore.hardware.HardwareMap
-import org.firstinspires.ftc.teamcode.starter.core.SubsystemBase
+import org.firstinspires.ftc.teamcode.general.core.SubsystemBase
 
 /**
  * The one subsystem that owns the mecanum drivetrain. It is a thin façade
@@ -13,7 +13,7 @@ import org.firstinspires.ftc.teamcode.starter.core.SubsystemBase
  * centric projection, the P/I/D/F loops, and path following. This class
  * exists to:
  *
- *  - Slot into [org.firstinspires.ftc.teamcode.starter.core.Robot]'s
+ *  - Slot into [org.firstinspires.ftc.teamcode.general.core.Robot]'s
  *    subsystem lifecycle so [Follower.update] runs at the right moment in
  *    every tick — specifically in [writeHardware], after commands have
  *    decided what the follower should be doing.

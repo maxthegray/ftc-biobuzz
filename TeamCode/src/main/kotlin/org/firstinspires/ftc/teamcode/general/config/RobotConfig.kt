@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.starter.config
+package org.firstinspires.ftc.teamcode.general.config
 
 /**
  * Central list of hardware-map names + wiring-level knobs.

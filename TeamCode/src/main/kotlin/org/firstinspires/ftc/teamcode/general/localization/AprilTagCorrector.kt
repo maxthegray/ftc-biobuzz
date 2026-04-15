@@ -1,7 +1,7 @@
-package org.firstinspires.ftc.teamcode.starter.localization
+package org.firstinspires.ftc.teamcode.general.localization
 
 import com.pedropathing.geometry.Pose
-import org.firstinspires.ftc.teamcode.starter.core.SubsystemBase
+import org.firstinspires.ftc.teamcode.general.core.SubsystemBase
 import kotlin.math.abs
 import kotlin.math.hypot
 

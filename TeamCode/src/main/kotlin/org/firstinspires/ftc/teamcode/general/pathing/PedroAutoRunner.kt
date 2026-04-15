@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.starter.pathing
+package org.firstinspires.ftc.teamcode.general.pathing
 
 import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.CommandBuilder
@@ -8,7 +8,7 @@ import com.pedropathing.ivy.groups.Groups
 import com.pedropathing.ivy.pedro.PedroCommands
 import com.pedropathing.paths.PathChain
 import com.pedropathing.geometry.Pose
-import org.firstinspires.ftc.teamcode.starter.drive.MecanumDriveSubsystem
+import org.firstinspires.ftc.teamcode.general.drive.MecanumDriveSubsystem
 
 /**
  * Builder + runner for an autonomous routine expressed as an Ivy command

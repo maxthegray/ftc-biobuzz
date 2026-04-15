@@ -35,7 +35,7 @@ TeamCode/src/main/
 ├── java/org/firstinspires/ftc/teamcode/pedroPathing/
 │   └── Constants.java                 # Pedro's required config path.
 │                                      # Physical constants + createFollower().
-└── kotlin/org/firstinspires/ftc/teamcode/starter/
+└── kotlin/org/firstinspires/ftc/teamcode/general/
     ├── core/           # Robot, OpModeBase, SubsystemBase, Alliance, GamepadEx
     ├── hardware/       # BulkReadManager, I2CBusThread, DeviceReaders
     ├── localization/   # Localizer façade, PinpointLocalizer helper, AprilTagCorrector
@@ -115,9 +115,9 @@ if (runner.isDone) requestOpModeStop()
 | I want to change…                               | Edit this                                                   |
 |-------------------------------------------------|-------------------------------------------------------------|
 | Motor physics (mass, zero-power accel, etc.)    | `pedroPathing/Constants.java`                               |
-| Motor / sensor hardware names                   | `pedroPathing/Constants.java` + `starter/config/RobotConfig.kt` |
-| Teleop feel (scaling, precision, field-centric) | `starter/drive/DriveConfig.kt`                              |
-| AprilTag correction tolerances                  | `starter/localization/AprilTagCorrector.kt` or op-mode      |
+| Motor / sensor hardware names                   | `pedroPathing/Constants.java` + `general/config/RobotConfig.kt` |
+| Teleop feel (scaling, precision, field-centric) | `general/drive/DriveConfig.kt`                              |
+| AprilTag correction tolerances                  | `general/localization/AprilTagCorrector.kt` or op-mode      |
 | Path constraints (max velocity, etc.)           | `pedroPathing/Constants.pathConstraints`                    |
 
 ## Further reading

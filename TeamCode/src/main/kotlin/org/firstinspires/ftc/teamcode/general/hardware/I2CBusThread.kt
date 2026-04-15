@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.starter.hardware
+package org.firstinspires.ftc.teamcode.general.hardware
 
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
