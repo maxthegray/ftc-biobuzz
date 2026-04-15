@@ -26,7 +26,7 @@ import kotlin.math.hypot
  */
 class AprilTagCorrector(
     private val localizer: Localizer,
-    var maxRangeInches: Double = 36.0,
+    var maxRangeInches: Double = 96.0,
     var stabilityToleranceInches: Double = 1.5,
     var stabilityToleranceRadians: Double = Math.toRadians(4.0),
 ) : SubsystemBase("AprilTagCorrector") {

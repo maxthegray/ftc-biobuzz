@@ -42,6 +42,10 @@ class VisionSubsystem(
     var lastDetections: List<AprilTagDetection> = emptyList()
         private set
 
+    /** Last Pedro-coordinate robot poses derived from AprilTag detections. */
+    var lastFieldPoses: List<AprilTagPipeline.RobotPoseFromTag> = emptyList()
+        private set
+
     override fun init(hardwareMap: HardwareMap) {
         val processor = pipeline.buildProcessor()
         this.processor = processor
@@ -49,8 +53,8 @@ class VisionSubsystem(
         val webcam = hardwareMap.get(WebcamName::class.java, cameraName)
         this.portal = VisionPortal.Builder()
             .setCamera(webcam)
-            .setCameraResolution(android.util.Size(1280, 720))
-            .enableLiveView(true)
+            .setCameraResolution(android.util.Size(640, 480))
+            .enableLiveView(false)
             .addProcessor(processor)
             .build()
     }
@@ -59,14 +63,14 @@ class VisionSubsystem(
         val p = processor ?: return
         val detections = p.detections ?: emptyList()
         lastDetections = detections
-        if (detections.isEmpty() || corrector == null) return
-        for (detection in detections) {
-            val robotPose = pipeline.detectionToFieldPose(detection) ?: continue
+        lastFieldPoses = detections.mapNotNull { pipeline.detectionToFieldPose(it) }
+        if (corrector == null) return
+        for (fp in lastFieldPoses) {
             corrector.submit(
                 AprilTagCorrector.Observation(
-                    fieldPose = robotPose.fieldPose,
-                    rangeInches = robotPose.rangeInches,
-                    tagId = robotPose.tagId,
+                    fieldPose = fp.fieldPose,
+                    rangeInches = fp.rangeInches,
+                    tagId = fp.tagId,
                 ),
             )
         }

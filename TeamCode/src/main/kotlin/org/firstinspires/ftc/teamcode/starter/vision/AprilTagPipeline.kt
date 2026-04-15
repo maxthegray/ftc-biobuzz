@@ -1,82 +1,92 @@
 package org.firstinspires.ftc.teamcode.starter.vision
 
+import com.pedropathing.ftc.InvertedFTCCoordinates
+import com.pedropathing.ftc.PoseConverter
+import com.pedropathing.geometry.PedroCoordinates
 import com.pedropathing.geometry.Pose
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D
+import org.firstinspires.ftc.robotcore.external.navigation.Position
+import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection
+import org.firstinspires.ftc.vision.apriltag.AprilTagGameDatabase
+import org.firstinspires.ftc.vision.apriltag.AprilTagLibrary
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor
 
 /**
- * Builds a configured [AprilTagProcessor] and converts detections into
- * field-centric robot poses usable by the starter's localisation stack.
+ * Builds an [AprilTagProcessor] and converts SDK-computed robot poses into Pedro
+ * field coordinates.
  *
- * Two things are configurable:
+ * The FTC SDK already does the camera-offset + tag-pose math for us: when you
+ * pass [cameraPosition] / [cameraOrientation] via `setCameraPose()` and a
+ * [tagLibrary] via `setTagLibrary()`, every detection comes back with a
+ * `robotPose` populated in the FTC field frame. We just translate that frame
+ * into Pedro's via [InvertedFTCCoordinates] (the official DECODE converter
+ * shipped by Pedro 2.1.1: 90° rotation + (72, 72) translation).
  *
- *  1. Camera-on-robot offset: where is the camera lens relative to the
- *     robot origin (center of rotation), in inches and radians. This lets
- *     the same detection logic work whether the camera is front-center,
- *     up high, or behind the turret.
+ * Earlier versions of this file did the math by hand from `ftcPose.x/y/yaw`.
+ * That was wrong in two places (missing camera-heading rotation, and a
+ * reflect-vs-rotate frame mismatch with Pedro), and reinvented work the SDK
+ * already does correctly. Don't add it back.
  *
- *  2. Tag library: a function `(tagId) -> fieldPose` supplied by the
- *     op-mode, since the real tag positions are game-specific and change
- *     every season. The default returns `null` for every id and so rejects
- *     every detection — you must provide this to use pose fusion.
+ * ## Camera pose convention (FTC, NOT Pedro)
+ * - [cameraPosition]: lens position in the robot frame where +x = right,
+ *   +y = forward, +z = up. Inches.
+ * - [cameraOrientation]: yaw/pitch/roll of the camera relative to the robot,
+ *   degrees. Yaw is rotation about +z (CCW positive) — 0 = pointing forward.
+ *
+ * ## Ignored tags
+ * [ignoredTagIds] defaults to {21, 22, 23} (DECODE Obelisk motif tags). They
+ * have no fixed field position, and the SDK library returns (0, 0, 0) for
+ * them — letting them through would teleport the robot to field origin.
  */
 class AprilTagPipeline(
-    val cameraOffset: Pose = Pose(0.0, 0.0, 0.0),
-    val tagLibrary: (Int) -> Pose? = { null },
+    val cameraPosition: Position = Position(DistanceUnit.INCH, 0.0, 0.0, 0.0, 0),
+    val cameraOrientation: YawPitchRollAngles = YawPitchRollAngles(AngleUnit.DEGREES, 0.0, 0.0, 0.0, 0),
+    val tagLibrary: AprilTagLibrary = AprilTagGameDatabase.getDecodeTagLibrary(),
+    val ignoredTagIds: Set<Int> = setOf(21, 22, 23),
 ) {
 
-    /** Build a pre-configured AprilTagProcessor ready to hand to a VisionPortal. */
     fun buildProcessor(): AprilTagProcessor =
         AprilTagProcessor.Builder()
             .setDrawAxes(true)
             .setDrawCubeProjection(true)
             .setDrawTagID(true)
             .setDrawTagOutline(true)
-            .setOutputUnits(DistanceUnit.INCH, org.firstinspires.ftc.robotcore.external.navigation.AngleUnit.RADIANS)
+            .setOutputUnits(DistanceUnit.INCH, AngleUnit.RADIANS)
+            .setTagLibrary(tagLibrary)
+            .setCameraPose(cameraPosition, cameraOrientation)
             .build()
 
     /**
-     * Compute a field-centric robot pose from a single [AprilTagDetection].
-     * Returns null if the tag id is unknown, the pose data is missing, or
-     * the detection's range is zero (lost-lock frame).
-     *
-     * This is a straightforward "tag known pose + camera-relative offset"
-     * transform. It intentionally does NOT do any smoothing or reject-on-
-     * jitter logic — that's the [org.firstinspires.ftc.teamcode.starter
-     * .localization.AprilTagCorrector]'s job.
+     * Convert one detection to a Pedro-frame robot pose. Returns null if the
+     * tag id is on the ignore list, the SDK couldn't compute a robot pose
+     * (unknown tag, lost-lock frame, missing intrinsics), or the detection
+     * range is zero.
      */
     fun detectionToFieldPose(detection: AprilTagDetection): RobotPoseFromTag? {
-        val tagField = tagLibrary(detection.id) ?: return null
+        if (detection.id in ignoredTagIds) return null
+        val robotPose = detection.robotPose ?: return null
         val ftcPose = detection.ftcPose ?: return null
         if (ftcPose.range <= 0.0) return null
 
-        // ftcPose: x is right, y is forward, yaw is heading (radians) — all
-        // in the camera's reference frame with units = inches/radians per
-        // our Builder config.
-        val camX = ftcPose.y       // forward becomes +X in robot frame
-        val camY = -ftcPose.x      // right becomes -Y in robot frame
-        val camYaw = ftcPose.yaw   // tag heading relative to camera
+        val pos = robotPose.position.toUnit(DistanceUnit.INCH)
+        val yawRad = robotPose.orientation.getYaw(AngleUnit.RADIANS)
 
-        // Transform camera-relative measurements into robot-relative, then
-        // into field-relative using the tag's known field pose and the
-        // inverse of the camera mount.
-        val robotRelX = camX - cameraOffset.x
-        val robotRelY = camY - cameraOffset.y
-        val robotHeading = tagField.heading - camYaw - cameraOffset.heading
-
-        val cos = Math.cos(robotHeading)
-        val sin = Math.sin(robotHeading)
-        val fieldX = tagField.x - (robotRelX * cos - robotRelY * sin)
-        val fieldY = tagField.y - (robotRelX * sin + robotRelY * cos)
+        val pedroPose = PoseConverter
+            .pose2DToPose(
+                Pose2D(DistanceUnit.INCH, pos.x, pos.y, AngleUnit.RADIANS, yawRad),
+                InvertedFTCCoordinates.INSTANCE,
+            )
+            .getAsCoordinateSystem(PedroCoordinates.INSTANCE)
 
         return RobotPoseFromTag(
-            fieldPose = Pose(fieldX, fieldY, robotHeading),
+            fieldPose = Pose(pedroPose.x, pedroPose.y, pedroPose.heading),
             rangeInches = ftcPose.range,
             tagId = detection.id,
         )
     }
 
-    /** Output bundle from [detectionToFieldPose]. */
     data class RobotPoseFromTag(val fieldPose: Pose, val rangeInches: Double, val tagId: Int)
 }
