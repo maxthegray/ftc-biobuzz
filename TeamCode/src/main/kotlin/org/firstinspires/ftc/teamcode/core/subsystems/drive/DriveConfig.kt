@@ -35,8 +35,8 @@ object DriveConfig {
 
     /**
      * When true the follower enters teleop with brake mode engaged: motors
-     * coast to zero when commanded zero instead of shorting. Set false if
-     * you need immediate stops (e.g. endgame balance).
+     * actively hold when commanded zero. Set false if you want zero-power
+     * coasting for smoother driver feel.
      */
     @JvmField var brakeOnTeleop: Boolean = true
 

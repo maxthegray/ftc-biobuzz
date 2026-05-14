@@ -2,7 +2,7 @@ package org.firstinspires.ftc.teamcode.core.hardware
 
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
-import kotlin.math.max
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * A single background thread that polls one I2C-bound device at a fixed
@@ -38,10 +38,17 @@ class I2CBusThread<T : Any>(
     initial: T? = null,
     private val poll: () -> T,
 ) {
+    init {
+        require(targetHz > 0.0) { "targetHz must be positive" }
+    }
+
     private val periodNs = (1_000_000_000.0 / targetHz).toLong().coerceAtLeast(250_000L)
     private val running = AtomicBoolean(false)
     private val iterations = AtomicLong(0)
+    private val failures = AtomicLong(0)
     private val lastPollNs = AtomicLong(0)
+    private val lastSuccessNs = AtomicLong(0)
+    private val lastErrorRef = AtomicReference<Throwable?>(null)
 
     val ref = Ref<T>(initial)
 
@@ -56,14 +63,25 @@ class I2CBusThread<T : Any>(
         }
     }
 
-    fun stop() {
+    fun stop(joinTimeoutMs: Long = 100L) {
         if (!running.compareAndSet(true, false)) return
-        thread?.interrupt()
-        thread = null
+        val t = thread
+        t?.interrupt()
+        if (t != null && t !== Thread.currentThread()) {
+            try {
+                t.join(joinTimeoutMs.coerceAtLeast(0L))
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            }
+        }
+        if (thread === t && (t == null || !t.isAlive)) thread = null
     }
 
     val pollCount: Long get() = iterations.get()
+    val failureCount: Long get() = failures.get()
     val lastPollDurationNs: Long get() = lastPollNs.get()
+    val lastSuccessfulPollNs: Long get() = lastSuccessNs.get()
+    val lastError: Throwable? get() = lastErrorRef.get()
     val isRunning: Boolean get() = running.get()
 
     private fun runLoop() {
@@ -71,10 +89,13 @@ class I2CBusThread<T : Any>(
             val startNs = System.nanoTime()
             try {
                 ref.publish(poll())
+                lastSuccessNs.set(System.nanoTime())
+                lastErrorRef.set(null)
             } catch (t: Throwable) {
-                // Swallow and keep polling — a transient I²C glitch should
-                // not kill the bus thread. The publish is skipped so the
-                // main loop keeps the last good value.
+                // Keep polling after a transient I2C glitch, but expose the
+                // failure so telemetry can show a stale or unhealthy sensor.
+                failures.incrementAndGet()
+                lastErrorRef.set(t)
                 Thread.yield()
             }
             val elapsed = System.nanoTime() - startNs

@@ -12,7 +12,7 @@ import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
  *
  * ```kotlin
  * val srsHub = register(SRSHubSubsystem())
- * val intakeColor   = srsHub.color(bus = 0)
+ * val intakeColor   = srsHub.color(bus = 1)
  * val liftEncoder   = srsHub.encoder(port = 1, type = SRSHub.Encoder.QUADRATURE)
  * val limitSwitch   = srsHub.digital(pin = 1)
  * val potentiometer = srsHub.analog(pin = 2)

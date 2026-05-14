@@ -38,13 +38,13 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
 
     /** Append a Pedro path to follow. */
     fun follow(chain: PathChain): PedroAutoRunner {
-        steps += drive.followCommand(chain)
+        steps += drive.followCommand(chain, holdEnd = false)
         return this
     }
 
     /** Append a Pedro path with a maximum power cap. */
     fun follow(chain: PathChain, maxPower: Double): PedroAutoRunner {
-        steps += drive.followCommand(chain, maxPower)
+        steps += drive.followCommand(chain, maxPower, holdEnd = false)
         return this
     }
 

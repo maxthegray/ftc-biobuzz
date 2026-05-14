@@ -110,14 +110,14 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
         mode = Mode.HOLDING
     }
 
-    fun followCommand(chain: PathChain, holdEnd: Boolean = true): Command =
+    fun followCommand(chain: PathChain, holdEnd: Boolean = false): Command =
         trackDriveMode(
             PedroCommands.follow(follower, chain, holdEnd),
             running = Mode.FOLLOWING,
             finished = if (holdEnd) Mode.HOLDING else Mode.IDLE,
         )
 
-    fun followCommand(chain: PathChain, maxPower: Double, holdEnd: Boolean = true): Command =
+    fun followCommand(chain: PathChain, maxPower: Double, holdEnd: Boolean = false): Command =
         trackDriveMode(
             PedroCommands.follow(follower, chain, holdEnd, maxPower),
             running = Mode.FOLLOWING,
