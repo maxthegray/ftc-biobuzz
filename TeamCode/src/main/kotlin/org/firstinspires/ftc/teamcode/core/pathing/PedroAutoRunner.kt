@@ -37,34 +37,24 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
     private var built: Command? = null
 
     /** Append a Pedro path to follow. */
-    fun follow(chain: PathChain): PedroAutoRunner {
-        steps += drive.followCommand(chain, holdEnd = false)
-        return this
-    }
+    fun follow(chain: PathChain): PedroAutoRunner =
+        append(drive.followCommand(chain, holdEnd = false))
 
     /** Append a Pedro path with a maximum power cap. */
-    fun follow(chain: PathChain, maxPower: Double): PedroAutoRunner {
-        steps += drive.followCommand(chain, maxPower, holdEnd = false)
-        return this
-    }
+    fun follow(chain: PathChain, maxPower: Double): PedroAutoRunner =
+        append(drive.followCommand(chain, maxPower, holdEnd = false))
 
     /** Append a Pedro path and hold the end pose once it completes. */
-    fun followAndHold(chain: PathChain): PedroAutoRunner {
-        steps += drive.followCommand(chain, holdEnd = true)
-        return this
-    }
+    fun followAndHold(chain: PathChain): PedroAutoRunner =
+        append(drive.followCommand(chain, holdEnd = true))
 
     /** Hold a fixed field pose (e.g. brake in place while mechanisms run). */
-    fun holdPose(pose: Pose): PedroAutoRunner {
-        steps += drive.holdCommand(pose)
-        return this
-    }
+    fun holdPose(pose: Pose): PedroAutoRunner =
+        append(drive.holdCommand(pose))
 
     /** Turn in place to an absolute heading in radians. */
-    fun turnTo(radians: Double): PedroAutoRunner {
-        steps += drive.turnToCommand(radians)
-        return this
-    }
+    fun turnTo(radians: Double): PedroAutoRunner =
+        append(drive.turnToCommand(radians))
 
     /**
      * Chase a moving target by feeding Pedro's holdPoint each tick. Ends
@@ -74,31 +64,23 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
     fun chase(
         target: () -> Pose?,
         done: (currentTarget: Pose?) -> Boolean = { false },
-    ): PedroAutoRunner {
-        steps += chaseTarget(drive, target, done)
-        return this
-    }
+    ): PedroAutoRunner =
+        append(chaseTarget(drive, target, done))
 
     /** Inject an arbitrary one-shot action (e.g. "drop pre-load"). */
-    fun run(action: Runnable): PedroAutoRunner {
-        steps += Commands.instant(action)
-        return this
-    }
+    fun run(action: Runnable): PedroAutoRunner =
+        append(Commands.instant(action))
 
     /** Wait [ms] milliseconds. */
-    fun wait(ms: Double): PedroAutoRunner {
-        steps += Commands.waitMs(ms)
-        return this
-    }
+    fun wait(ms: Double): PedroAutoRunner =
+        append(Commands.waitMs(ms))
 
     /** Wait [ms] milliseconds (long overload, converted). */
     fun wait(ms: Long): PedroAutoRunner = wait(ms.toDouble())
 
     /** Inline an existing Ivy command (raw escape hatch). */
-    fun then(command: Command): PedroAutoRunner {
-        steps += command
-        return this
-    }
+    fun then(command: Command): PedroAutoRunner =
+        append(command)
 
     /**
      * Group sub-steps that should run in parallel. All commands inside the
@@ -106,10 +88,10 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
      * finished ("drive to stack *and* start the intake").
      */
     fun parallel(block: PedroAutoRunner.() -> Unit): PedroAutoRunner {
+        requireMutable()
         val sub = PedroAutoRunner(drive).apply(block)
         require(sub.steps.isNotEmpty()) { "parallel { } block is empty" }
-        steps += Groups.parallel(*sub.steps.toTypedArray())
-        return this
+        return append(Groups.parallel(*sub.steps.toTypedArray()))
     }
 
     /**
@@ -118,10 +100,22 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
      * "drive for up to 2 s, or until the distance sensor detects the wall".
      */
     fun race(block: PedroAutoRunner.() -> Unit): PedroAutoRunner {
+        requireMutable()
         val sub = PedroAutoRunner(drive).apply(block)
         require(sub.steps.isNotEmpty()) { "race { } block is empty" }
-        steps += Groups.race(*sub.steps.toTypedArray())
+        return append(Groups.race(*sub.steps.toTypedArray()))
+    }
+
+    private fun append(step: Command): PedroAutoRunner {
+        requireMutable()
+        steps += step
         return this
+    }
+
+    private fun requireMutable() {
+        check(built == null) {
+            "PedroAutoRunner command has already been built; add all steps before accessing command or scheduling."
+        }
     }
 
     private fun buildInternal(): Command {

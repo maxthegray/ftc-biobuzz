@@ -67,6 +67,7 @@ abstract class OpModeBase : LinearOpMode() {
         } catch (t: Throwable) {
             telemetry.addLine("INIT FAILED: ${t.javaClass.simpleName}: ${t.message}")
             telemetry.update()
+            robot.stop()
             throw t
         }
 
@@ -79,10 +80,9 @@ abstract class OpModeBase : LinearOpMode() {
             return
         }
 
-        robot.start()
-        onStart()
-
         try {
+            robot.start()
+            onStart()
             while (opModeIsActive()) {
                 driver.update()
                 operator.update()

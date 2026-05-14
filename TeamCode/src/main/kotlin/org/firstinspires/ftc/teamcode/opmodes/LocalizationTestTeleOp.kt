@@ -65,7 +65,8 @@ class LocalizationTestTeleOp : OpModeBase() {
         when (state) {
             State.TELEOP -> {
                 // Standard drive controls (mirrors DriveOnlyTeleOp).
-                if (driver.start && driver.aPressed) {
+                val resetHeading = driver.start && driver.aPressed
+                if (resetHeading) {
                     localizer.setPose(drive.pose.withHeading(0.0))
                 }
                 if (driver.back && driver.bPressed) {
@@ -84,7 +85,7 @@ class LocalizationTestTeleOp : OpModeBase() {
                 if (driver.yPressed) {
                     goTo(Pose(waypointAX, waypointAY, 0.0), State.PATH_TO_WAYPOINT_A)
                 }
-                if (driver.aPressed) {
+                if (driver.aPressed && !resetHeading) {
                     goTo(Pose(fieldCenterX, fieldCenterY, 0.0), State.PATH_TO_CENTER)
                 }
             }
