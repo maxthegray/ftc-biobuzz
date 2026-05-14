@@ -67,6 +67,19 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
         return this
     }
 
+    /**
+     * Chase a moving target by feeding Pedro's holdPoint each tick. Ends
+     * when [done] returns true; compose inside a `race { }` for a timeout.
+     * See [chaseTarget] for details.
+     */
+    fun chase(
+        target: () -> Pose?,
+        done: (currentTarget: Pose?) -> Boolean = { false },
+    ): PedroAutoRunner {
+        steps += chaseTarget(drive, target, done)
+        return this
+    }
+
     /** Inject an arbitrary one-shot action (e.g. "drop pre-load"). */
     fun run(action: Runnable): PedroAutoRunner {
         steps += Commands.instant(action)
