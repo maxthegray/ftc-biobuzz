@@ -61,6 +61,16 @@ class DriveOnlyTeleOp : OpModeBase() {
             put("inputExponent", DriveConfig.inputExponent)
             put("precision", precision)
         }
+        val p = robot.profile
+        telemetryBag.section("Loop (ms)") {
+            put("total", p.totalNanos / 1e6, decimals = 2)
+            put("clearCaches", p.clearCachesNanos / 1e6, decimals = 2)
+            put("periodic", p.periodicNanos / 1e6, decimals = 2)
+            put("control", p.controlNanos / 1e6, decimals = 2)
+            put("scheduler", p.schedulerNanos / 1e6, decimals = 2)
+            put("writeHardware", p.writeHardwareNanos / 1e6, decimals = 2)
+            put("overhead", p.overheadNanos / 1e6, decimals = 2)
+        }
         telemetryBag.section("Robot") {
             put("loopHz", robot.loopHz, decimals = 1)
             put("loopCount", robot.loopCount)

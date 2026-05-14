@@ -34,6 +34,9 @@ class Robot(val hardwareMap: HardwareMap) {
     var lastLoopNanos: Long = 0
         private set
 
+    /** Per-phase breakdown of the most recent loop. Overwritten in place each tick. */
+    val profile = LoopProfile()
+
     private var lastTickEndNs: Long = 0
 
     /** Register a subsystem. Order matters only for tie-breaking in telemetry output. */
@@ -77,17 +80,36 @@ class Robot(val hardwareMap: HardwareMap) {
      * via telemetry.
      */
     fun loop(control: () -> Unit = {}): Long {
-        bulkRead.clearCaches()
-        for (s in subsystems) s.periodic()
-        control()
-        Scheduler.execute()
-        for (s in subsystems) s.writeHardware()
+        var phaseStart = System.nanoTime()
 
+        bulkRead.clearCaches()
+        phaseStart = mark(phaseStart) { profile.clearCachesNanos = it }
+
+        for (s in subsystems) s.periodic()
+        phaseStart = mark(phaseStart) { profile.periodicNanos = it }
+
+        control()
+        phaseStart = mark(phaseStart) { profile.controlNanos = it }
+
+        Scheduler.execute()
+        phaseStart = mark(phaseStart) { profile.schedulerNanos = it }
+
+        for (s in subsystems) s.writeHardware()
         val now = System.nanoTime()
+        profile.writeHardwareNanos = now - phaseStart
+
         lastLoopNanos = now - lastTickEndNs
+        profile.totalNanos = lastLoopNanos
         lastTickEndNs = now
         loopCount++
         return lastLoopNanos
+    }
+
+    /** Record the duration of the just-finished phase and return the new phase start. */
+    private inline fun mark(start: Long, assign: (Long) -> Unit): Long {
+        val now = System.nanoTime()
+        assign(now - start)
+        return now
     }
 
     /** Shutdown everything. Exceptions are swallowed so all subsystems get a chance to clean up. */
