@@ -3,12 +3,11 @@ package org.firstinspires.ftc.teamcode.core.util
 import com.qualcomm.robotcore.hardware.Gamepad
 import java.util.function.BooleanSupplier
 import kotlin.math.abs
-import kotlin.math.sign
 import kotlin.math.withSign
 
 /**
- * Thin wrapper around [Gamepad] that adds edge detection, deadbands, and
- * exponential sticks. Built for one-line use in op-modes:
+ * Thin wrapper around [Gamepad] that adds edge detection and deadbanded axes.
+ * Built for one-line use in op-modes:
  *
  * ```kotlin
  * val driver = GamepadEx(gamepad1)
@@ -24,9 +23,6 @@ class GamepadEx(val raw: Gamepad) {
     var rightStickDeadband: Double = 0.05
     var triggerDeadband: Double = 0.05
 
-    /** Exponential curve exponent applied to every stick axis (1.0 = linear). */
-    var stickExponent: Double = 2.0
-
     private val prev = ButtonState()
     private val curr = ButtonState()
 
@@ -36,10 +32,10 @@ class GamepadEx(val raw: Gamepad) {
         curr.read(raw)
     }
 
-    val leftStickX: Double get() = curve(raw.left_stick_x.toDouble(), leftStickDeadband)
-    val leftStickY: Double get() = curve(-raw.left_stick_y.toDouble(), leftStickDeadband)
-    val rightStickX: Double get() = curve(raw.right_stick_x.toDouble(), rightStickDeadband)
-    val rightStickY: Double get() = curve(-raw.right_stick_y.toDouble(), rightStickDeadband)
+    val leftStickX: Double get() = applyDeadband(raw.left_stick_x.toDouble(), leftStickDeadband)
+    val leftStickY: Double get() = applyDeadband(-raw.left_stick_y.toDouble(), leftStickDeadband)
+    val rightStickX: Double get() = applyDeadband(raw.right_stick_x.toDouble(), rightStickDeadband)
+    val rightStickY: Double get() = applyDeadband(-raw.right_stick_y.toDouble(), rightStickDeadband)
 
     val leftTrigger: Double get() = applyDeadband(raw.left_trigger.toDouble(), triggerDeadband)
     val rightTrigger: Double get() = applyDeadband(raw.right_trigger.toDouble(), triggerDeadband)
@@ -78,12 +74,6 @@ class GamepadEx(val raw: Gamepad) {
 
     private fun applyDeadband(value: Double, deadband: Double): Double =
         if (abs(value) < deadband) 0.0 else (value - deadband.withSign(value)) / (1.0 - deadband)
-
-    private fun curve(value: Double, deadband: Double): Double {
-        val db = applyDeadband(value, deadband)
-        if (db == 0.0) return 0.0
-        return Math.pow(abs(db), stickExponent) * sign(db)
-    }
 
     private class ButtonState {
         var a = false; var b = false; var x = false; var y = false

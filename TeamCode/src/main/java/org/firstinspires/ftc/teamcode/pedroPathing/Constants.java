@@ -10,6 +10,8 @@ import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
+import org.firstinspires.ftc.teamcode.core.runtime.RobotConfig;
+
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
 /**
@@ -32,7 +34,7 @@ public final class Constants {
     private Constants() {}
 
     /** Hardware-map name of the GoBilda Pinpoint driver. Exposed for tooling. */
-    public static final String pinpointHardwareName = "sensor_otos";
+    public static final String pinpointHardwareName = RobotConfig.Localization.PINPOINT;
 
     public static final FollowerConstants followerConstants = new FollowerConstants()
             .mass(17.35)
@@ -43,10 +45,10 @@ public final class Constants {
             .maxPower(1)
             .xVelocity(51.42526)
             .yVelocity(53.52238)
-            .rightFrontMotorName("frontRightMotor")
-            .rightRearMotorName("backRightMotor")
-            .leftRearMotorName("backLeftMotor")
-            .leftFrontMotorName("frontLeftMotor")
+            .rightFrontMotorName(RobotConfig.Drive.FRONT_RIGHT_MOTOR)
+            .rightRearMotorName(RobotConfig.Drive.BACK_RIGHT_MOTOR)
+            .leftRearMotorName(RobotConfig.Drive.BACK_LEFT_MOTOR)
+            .leftFrontMotorName(RobotConfig.Drive.FRONT_LEFT_MOTOR)
             .leftFrontMotorDirection(DcMotorSimple.Direction.REVERSE)
             .leftRearMotorDirection(DcMotorSimple.Direction.REVERSE)
             .rightFrontMotorDirection(DcMotorSimple.Direction.FORWARD)

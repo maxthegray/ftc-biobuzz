@@ -5,7 +5,6 @@ import com.pedropathing.ivy.CommandBuilder
 import com.pedropathing.ivy.Scheduler
 import com.pedropathing.ivy.commands.Commands
 import com.pedropathing.ivy.groups.Groups
-import com.pedropathing.ivy.pedro.PedroCommands
 import com.pedropathing.paths.PathChain
 import com.pedropathing.geometry.Pose
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
@@ -39,31 +38,31 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
 
     /** Append a Pedro path to follow. */
     fun follow(chain: PathChain): PedroAutoRunner {
-        steps += PedroCommands.follow(drive.follower, chain).requiring(drive)
+        steps += drive.followCommand(chain)
         return this
     }
 
     /** Append a Pedro path with a maximum power cap. */
     fun follow(chain: PathChain, maxPower: Double): PedroAutoRunner {
-        steps += PedroCommands.follow(drive.follower, chain, maxPower).requiring(drive)
+        steps += drive.followCommand(chain, maxPower)
         return this
     }
 
     /** Append a Pedro path and hold the end pose once it completes. */
     fun followAndHold(chain: PathChain): PedroAutoRunner {
-        steps += PedroCommands.follow(drive.follower, chain, true).requiring(drive)
+        steps += drive.followCommand(chain, holdEnd = true)
         return this
     }
 
     /** Hold a fixed field pose (e.g. brake in place while mechanisms run). */
     fun holdPose(pose: Pose): PedroAutoRunner {
-        steps += PedroCommands.hold(drive.follower, pose).requiring(drive)
+        steps += drive.holdCommand(pose)
         return this
     }
 
     /** Turn in place to an absolute heading in radians. */
     fun turnTo(radians: Double): PedroAutoRunner {
-        steps += PedroCommands.turnTo(drive.follower, radians).requiring(drive)
+        steps += drive.turnToCommand(radians)
         return this
     }
 

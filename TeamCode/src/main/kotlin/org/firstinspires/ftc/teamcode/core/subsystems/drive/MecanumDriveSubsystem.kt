@@ -2,6 +2,9 @@ package org.firstinspires.ftc.teamcode.core.subsystems.drive
 
 import com.pedropathing.follower.Follower
 import com.pedropathing.geometry.Pose
+import com.pedropathing.ivy.Command
+import com.pedropathing.ivy.behaviors.EndCondition
+import com.pedropathing.ivy.pedro.PedroCommands
 import com.pedropathing.math.Vector
 import com.pedropathing.paths.PathChain
 import com.qualcomm.robotcore.hardware.HardwareMap
@@ -34,6 +37,8 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
     var mode: Mode = Mode.IDLE
         private set
 
+    private var modeAfterFollow: Mode = Mode.IDLE
+
     override fun init(hardwareMap: HardwareMap) {
         // Follower is constructed in configure() from pedroPathing/Constants.
         // Nothing to resolve here.
@@ -42,6 +47,7 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
     /** Switch the follower into teleop drive mode. Call once at teleop start. */
     fun enableTeleop(brakeMode: Boolean = DriveConfig.brakeOnTeleop) {
         follower.startTeleOpDrive(brakeMode)
+        modeAfterFollow = Mode.IDLE
         mode = Mode.TELEOP
     }
 
@@ -79,26 +85,50 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
     /** Start following a pre-built path chain. */
     fun followPath(chain: PathChain, holdEnd: Boolean = true) {
         follower.followPath(chain, holdEnd)
+        modeAfterFollow = if (holdEnd) Mode.HOLDING else Mode.IDLE
         mode = Mode.FOLLOWING
     }
 
     /** Start following a path chain with a custom max-power cap. */
     fun followPath(chain: PathChain, maxPower: Double, holdEnd: Boolean = true) {
         follower.followPath(chain, maxPower, holdEnd)
+        modeAfterFollow = if (holdEnd) Mode.HOLDING else Mode.IDLE
         mode = Mode.FOLLOWING
     }
 
     /** Cancel whatever path is running and drift to idle. */
     fun breakPath() {
         follower.breakFollowing()
+        modeAfterFollow = Mode.IDLE
         mode = Mode.IDLE
     }
 
     /** Pin the follower to hold a field pose, typically called at the end of an auton leg. */
     fun holdPose(pose: Pose) {
         follower.holdPoint(pose)
+        modeAfterFollow = Mode.HOLDING
         mode = Mode.HOLDING
     }
+
+    fun followCommand(chain: PathChain, holdEnd: Boolean = true): Command =
+        trackDriveMode(
+            PedroCommands.follow(follower, chain, holdEnd),
+            running = Mode.FOLLOWING,
+            finished = if (holdEnd) Mode.HOLDING else Mode.IDLE,
+        )
+
+    fun followCommand(chain: PathChain, maxPower: Double, holdEnd: Boolean = true): Command =
+        trackDriveMode(
+            PedroCommands.follow(follower, chain, holdEnd, maxPower),
+            running = Mode.FOLLOWING,
+            finished = if (holdEnd) Mode.HOLDING else Mode.IDLE,
+        )
+
+    fun holdCommand(pose: Pose): Command =
+        trackDriveMode(PedroCommands.hold(follower, pose), running = Mode.HOLDING, finished = Mode.HOLDING)
+
+    fun turnToCommand(radians: Double): Command =
+        trackDriveMode(PedroCommands.turnTo(follower, radians), running = Mode.FOLLOWING, finished = Mode.IDLE)
 
     val pose: Pose get() = follower.pose
     val velocity: Vector get() = follower.velocity
@@ -119,6 +149,10 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
             DriveConfig.holdToleranceRadians,
         )
 
+    override fun periodic() {
+        if (mode == Mode.FOLLOWING && !follower.isBusy) mode = modeAfterFollow
+    }
+
     override fun writeHardware() {
         // Pedro's Follower.update() is a single mega-method that reads the
         // localizer, runs the path or teleop vectors, and writes motor powers.
@@ -130,7 +164,25 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
     override fun stop() {
         zero()
         follower.breakFollowing()
+        modeAfterFollow = Mode.IDLE
+        mode = Mode.IDLE
     }
+
+    private fun trackDriveMode(command: Command, running: Mode, finished: Mode): Command =
+        Command.build()
+            .requiring(this)
+            .setStart {
+                modeAfterFollow = finished
+                mode = running
+                command.start()
+            }
+            .setExecute(command::execute)
+            .setDone(command::done)
+            .setEnd { endCondition ->
+                command.end(endCondition)
+                mode = if (endCondition == EndCondition.INTERRUPTED) Mode.IDLE else finished
+                if (mode == Mode.IDLE) modeAfterFollow = Mode.IDLE
+            }
 }
 
 /** Applies a signed power curve: preserves sign, scales magnitude by x^exponent. */

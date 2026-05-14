@@ -69,15 +69,17 @@ class Robot(val hardwareMap: HardwareMap) {
      * Single main-loop tick. Order is fixed and tuned for correctness:
      *  1. Clear Lynx bulk caches so all reads this tick return fresh data
      *  2. [SubsystemBase.periodic] — pure reads, state updates
-     *  3. [Scheduler.execute] — commands tick, deciding motor/servo targets
-     *  4. [SubsystemBase.writeHardware] — flush those targets to hardware
+     *  3. [control] — OpMode code reacts to fresh state and schedules commands
+     *  4. [Scheduler.execute] — commands tick, deciding motor/servo targets
+     *  5. [SubsystemBase.writeHardware] — flush those targets to hardware
      *
      * Returns the tick duration in nanoseconds so callers can surface it
      * via telemetry.
      */
-    fun loop(): Long {
+    fun loop(control: () -> Unit = {}): Long {
         bulkRead.clearCaches()
         for (s in subsystems) s.periodic()
+        control()
         Scheduler.execute()
         for (s in subsystems) s.writeHardware()
 

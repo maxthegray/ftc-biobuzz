@@ -14,9 +14,9 @@ import org.firstinspires.ftc.teamcode.core.util.TelemetryBag
  *
  *  - [configure] — register subsystems on [robot] and wire default commands
  *  - [onStart]   — optional, runs the instant the start button is pressed
- *  - [onLoop]    — runs every tick during the main loop (after subsystems +
- *                  the Ivy scheduler have already executed; use it for
- *                  gamepad handling and telemetry, NOT hardware commands)
+ *  - [onLoop]    — runs every tick after subsystem reads but before Ivy
+ *                  commands and hardware writes. Use it for gamepad handling,
+ *                  scheduling commands, and telemetry.
  *
  * Telemetry is doubled up: the Driver Station's built-in [Telemetry] and
  * Panels's dashboard telemetry are both driven from the same [TelemetryBag]
@@ -86,8 +86,7 @@ abstract class OpModeBase : LinearOpMode() {
             while (opModeIsActive()) {
                 driver.update()
                 operator.update()
-                robot.loop()
-                onLoop()
+                robot.loop { onLoop() }
                 telemetryBag.flush()
             }
         } finally {
