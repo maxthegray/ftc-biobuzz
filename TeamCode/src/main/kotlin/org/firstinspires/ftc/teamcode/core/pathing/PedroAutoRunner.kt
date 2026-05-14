@@ -7,6 +7,7 @@ import com.pedropathing.ivy.commands.Commands
 import com.pedropathing.ivy.groups.Groups
 import com.pedropathing.paths.PathChain
 import com.pedropathing.geometry.Pose
+import java.util.function.BooleanSupplier
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
 
 /**
@@ -77,6 +78,13 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
 
     /** Wait [ms] milliseconds (long overload, converted). */
     fun wait(ms: Long): PedroAutoRunner = wait(ms.toDouble())
+
+    /**
+     * Wait until [condition] returns true. Has no timeout of its own — compose
+     * it inside a [race] block if the routine needs to give up after a while.
+     */
+    fun waitUntil(condition: BooleanSupplier): PedroAutoRunner =
+        append(Commands.waitUntil(condition))
 
     /** Inline an existing Ivy command (raw escape hatch). */
     fun then(command: Command): PedroAutoRunner =

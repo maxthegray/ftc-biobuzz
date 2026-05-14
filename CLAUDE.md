@@ -33,6 +33,21 @@ If you need to bump any version, **verify** the new version exists in the
 corresponding repo before editing `build.dependencies.gradle` /
 `TeamCode/build.gradle`. Don't guess.
 
+## Optimize for the best decision, not the cheapest
+
+This project has no constraints on time, budget, or engineering skill.
+When a decision forks between a pragmatic compromise and the genuinely
+better engineering answer, take the better one — "more work", "harder to
+implement", or "the quick way is fine for now" are not reasons to
+compromise here. State the optimal approach plainly; it will get built.
+
+This governs the *quality* of decisions, not the *quantity* of work. It is
+**not** licence to over-engineer, gold-plate, or add speculative
+abstractions — the "don't do this unless asked" rules below still hold,
+and the best engineers ship the right thing, not the most thing. Optimal
+means: at a real fork, choose what's better long-term over what's easier
+today.
+
 ## Critical API cheatsheet
 
 These are the Ivy / Pedro calls used throughout the codebase. They are
@@ -129,6 +144,30 @@ tm.wrapper                                     // an FTC Telemetry facade
 JoinedTelemetry(telemetry, tm.wrapper)         // wrap both DS + Panels as one Telemetry
 ```
 
+### Gamepad triggers
+
+`GamepadEx` binds buttons (and any boolean condition) to Ivy commands.
+Wire bindings once in `configure()` — don't poll `*Pressed` flags in
+`onLoop()` and call `Scheduler.schedule` by hand.
+
+```kotlin
+driver.button(GamepadEx.Button.A).onTrue(intake.grab())
+driver.button(GamepadEx.Button.LEFT_BUMPER).whileTrue(intake.eject())
+driver.button(GamepadEx.Button.X).toggleOnTrue(lift.raise())
+driver.trigger { driver.rightTrigger > 0.5 }.whileTrue(drive.slowMode())
+(driver.button(GamepadEx.Button.START) and driver.button(GamepadEx.Button.A))
+    .onTrue(resetHeading())
+```
+
+- `button(...)` is cached per button; `trigger { }` and `and`/`or`/`!`
+  each make a fresh one. All are polled in `GamepadEx.update()`, which
+  `OpModeBase` already calls every tick before the scheduler runs.
+- `onTrue` / `whileTrue` skip scheduling if the command is already
+  scheduled; `whileTrue`'s falling-edge cancel is safe on a command that
+  already finished.
+- The raw `driver.aPressed` / `driver.a` flags still exist — use them for
+  continuous reads (drive sticks), use triggers for command scheduling.
+
 ## Lifecycle rules (enforced by OpModeBase)
 
 1. **Bulk reads are MANUAL.** Every Lynx module is in
@@ -150,6 +189,26 @@ JoinedTelemetry(telemetry, tm.wrapper)         // wrap both DS + Panels as one T
 4. **Start in the right follower mode.** TeleOp op-modes must call
    `drive.enableTeleop()` from `onStart()`. Auton op-modes must NOT —
    the default post-init state is passive and ready for `followPath`.
+
+## Sloth hot reload + Panels: pin `@Configurable` classes
+
+Sloth only hot-reloads classes under `org.firstinspires.ftc.teamcode`,
+and each reload re-runs their static initialisers. Panels live-tuning
+writes into `@Configurable` statics — so a reload silently resets every
+tuned value back to its compiled-in default.
+
+The fix: annotate any `@Configurable` class whose tuned values must
+survive a reload with `@dev.frozenmilk.sinister.loading.Pinned`. A pinned
+class is loaded exactly once into Sloth's root classloader and never
+re-initialised. `DriveConfig` is already pinned for this reason.
+
+Trade-off: edits to a pinned class's *code* are not hot-reloaded — you
+need a full install for them to take effect. That's fine for config
+objects (they change rarely), and it's why `@Configurable` *op-modes*
+(the Pedro `Tuning` op-mode, `LocalizationTestTeleOp`) are deliberately
+left unpinned — you want their logic hot-reloadable. Their tunables just
+don't persist across a reload of that op-mode; move anything that must
+persist into a pinned config object.
 
 ## Things Claude gets wrong often
 
@@ -201,6 +260,27 @@ you have a reason.
   refactors.
 - Don't generate example game-specific code (intake, shooter, lift). The
   user will write those when the season starts.
+
+## Workflow
+
+Code is written in this repo (with Claude), then deployed to the robot one
+of two ways:
+
+- **Full install** — Android Studio's normal Run / install (`installDebug`).
+  A full APK build + install. Use this for the first deploy of a session,
+  and after changing anything Sloth can't hot-reload: `@Pinned` classes
+  (`DriveConfig`), non-teamcode code, dependencies, or the manifest.
+- **Hot reload** — `./gradlew deploySloth` (or a Gradle run configuration
+  in Android Studio pointed at it). Pushes only teamcode, ~1s. Use this for
+  ordinary iteration on subsystems, op-modes, and command logic.
+
+The Load plugin (`dev.frozenmilk.sinister.sloth.load`, applied in
+`TeamCode/build.gradle`) auto-wires `removeSlothRemote` into `installDebug`/
+`installRelease`, so a normal Android Studio install always clears any
+staged hot-reload jar first — the two paths don't fight each other.
+
+Because hot reload is live, `@Pinned` matters — see the **Sloth hot reload
++ Panels** section above.
 
 ## Running the project
 

@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.core.subsystems.drive
 
 import com.bylazar.configurables.annotations.Configurable
+import dev.frozenmilk.sinister.loading.Pinned
 
 /**
  * Runtime drive tuning knobs.
@@ -12,7 +13,13 @@ import com.bylazar.configurables.annotations.Configurable
  * things: driver feel, teleop scaling, and default brake behavior.
  *
  * These are `var`s so Panels can mutate them live during tuning sessions.
+ *
+ * [Pinned] so Sloth loads this object exactly once and never re-runs its
+ * static initialiser on hot reload. Without it, every reload would reset
+ * these fields to the defaults below and wipe whatever Panels tuned live.
+ * Trade-off: edits to *this file* need a full install, not a hot reload.
  */
+@Pinned
 @Configurable
 object DriveConfig {
 

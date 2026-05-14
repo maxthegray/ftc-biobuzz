@@ -5,9 +5,26 @@
 // FTControl Panels + Sloth hot reload.
 //
 
+// Sloth's Load plugin — adds the `deploySloth` (hot reload) and
+// `removeSlothRemote` Gradle tasks, and auto-wires `removeSlothRemote` into
+// `installDebug`/`installRelease` so a normal Android Studio install clears
+// any staged hot-reload jar first. Keep this version in lockstep with the
+// Sloth runtime dependency below.
+buildscript {
+    repositories {
+        mavenCentral()
+        maven { url = "https://repo.dairy.foundation/releases" }
+    }
+    dependencies {
+        classpath 'dev.frozenmilk:Load:0.2.4'
+    }
+}
+
 apply from: '../build.common.gradle'
 apply from: '../build.dependencies.gradle'
 apply plugin: 'kotlin-android'
+// Must come after build.common.gradle applies the Android application plugin.
+apply plugin: 'dev.frozenmilk.sinister.sloth.load'
 
 android {
     namespace = 'org.firstinspires.ftc.teamcode'
@@ -50,6 +67,9 @@ dependencies {
     // FTControl Panels (dashboard + live tuning + telemetry)
     implementation 'com.bylazar:fullpanels:1.0.12'
 
-    // Sloth hot reload (pulls Sinister 2.2.0 transitively)
+    // Sloth hot reload (pulls Sinister 2.2.0 transitively).
+    // @Configurable classes whose live-tuned values must survive a reload
+    // need @dev.frozenmilk.sinister.loading.Pinned, or Sloth's class re-init
+    // wipes Panels' edits — see CLAUDE.md. DriveConfig is pinned for this.
     implementation 'dev.frozenmilk.sinister:Sloth:0.2.4'
 }

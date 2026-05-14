@@ -45,6 +45,12 @@ public final class Constants {
             .maxPower(1)
             .xVelocity(51.42526)
             .yVelocity(53.52238)
+            // Voltage compensation normalises wheel output to nominalVoltage so
+            // paths stay consistent as the battery sags. xVelocity/yVelocity above
+            // are voltage-dependent — re-run Pedro's velocity tuners with this
+            // enabled, or the calibration point is just shifted, not fixed.
+            .useVoltageCompensation(true)
+            .nominalVoltage(12.0)
             .rightFrontMotorName(RobotConfig.Drive.FRONT_RIGHT_MOTOR)
             .rightRearMotorName(RobotConfig.Drive.BACK_RIGHT_MOTOR)
             .leftRearMotorName(RobotConfig.Drive.BACK_LEFT_MOTOR)
@@ -69,6 +75,14 @@ public final class Constants {
      * Build a fully-configured {@link Follower} with mecanum drive + Pinpoint
      * localisation. Call this exactly once per op-mode (typically from the
      * {@code configure()} hook on the starter's {@code OpModeBase}).
+     *
+     * <p>The Pinpoint is read synchronously inside {@code Follower.update()}.
+     * Moving that I2C read to a background thread was tried and reverted: the
+     * Pinpoint shares the Control Hub's Lynx serial link with the drive-motor
+     * writes, so a background poll just starves on link contention (~12–25 ms
+     * per read) while the main loop spins on a stale pose. The synchronous read
+     * keeps localisation in lockstep with the control loop — that is the right
+     * trade even though it caps loop rate around the Pinpoint read cost.
      */
     public static Follower createFollower(HardwareMap hardwareMap) {
         return new FollowerBuilder(followerConstants, hardwareMap)

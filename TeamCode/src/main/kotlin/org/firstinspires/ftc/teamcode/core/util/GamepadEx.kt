@@ -26,10 +26,27 @@ class GamepadEx(val raw: Gamepad) {
     private val prev = ButtonState()
     private val curr = ButtonState()
 
-    /** Call once per loop before reading any `*Pressed` / `*Released` flags. */
+    /** Buttons that can back a [Trigger]. Analog inputs go through [trigger] with a threshold. */
+    enum class Button {
+        A, B, X, Y,
+        LEFT_BUMPER, RIGHT_BUMPER,
+        DPAD_UP, DPAD_DOWN, DPAD_LEFT, DPAD_RIGHT,
+        START, BACK,
+        LEFT_STICK_BUTTON, RIGHT_STICK_BUTTON,
+    }
+
+    private val triggers = mutableListOf<Trigger>()
+    private val buttonTriggers = HashMap<Button, Trigger>()
+
+    /**
+     * Call once per loop before reading any `*Pressed` / `*Released` flags.
+     * Also samples every registered [Trigger], so trigger-bound commands are
+     * scheduled or cancelled here — before the command scheduler ticks.
+     */
     fun update() {
         prev.copyFrom(curr)
         curr.read(raw)
+        for (t in triggers) t.poll()
     }
 
     val leftStickX: Double get() = applyDeadband(raw.left_stick_x.toDouble(), leftStickDeadband)
@@ -52,6 +69,8 @@ class GamepadEx(val raw: Gamepad) {
     val dpadRight: Boolean get() = curr.right
     val start: Boolean get() = curr.start
     val back: Boolean get() = curr.back
+    val leftStickButton: Boolean get() = curr.leftStick
+    val rightStickButton: Boolean get() = curr.rightStick
 
     val aPressed: Boolean get() = curr.a && !prev.a
     val bPressed: Boolean get() = curr.b && !prev.b
@@ -63,6 +82,8 @@ class GamepadEx(val raw: Gamepad) {
     val dpadDownPressed: Boolean get() = curr.down && !prev.down
     val dpadLeftPressed: Boolean get() = curr.left && !prev.left
     val dpadRightPressed: Boolean get() = curr.right && !prev.right
+    val leftStickButtonPressed: Boolean get() = curr.leftStick && !prev.leftStick
+    val rightStickButtonPressed: Boolean get() = curr.rightStick && !prev.rightStick
 
     val aReleased: Boolean get() = !curr.a && prev.a
     val bReleased: Boolean get() = !curr.b && prev.b
@@ -72,6 +93,38 @@ class GamepadEx(val raw: Gamepad) {
     /** Returns a [BooleanSupplier] that fires once on the leading edge of `a`. */
     fun onAPressed(): BooleanSupplier = BooleanSupplier { aPressed }
 
+    /**
+     * A [Trigger] backed by [button]. Cached — repeated calls for the same
+     * button return the same Trigger, so bindings accumulate on one instance.
+     */
+    fun button(button: Button): Trigger =
+        buttonTriggers.getOrPut(button) { trigger { stateOf(button) } }
+
+    /**
+     * A [Trigger] backed by an arbitrary condition — an analog stick or trigger
+     * past a threshold, a sensor reading, anything. Sampled once per loop in
+     * [update]; each call returns a fresh Trigger.
+     */
+    fun trigger(condition: BooleanSupplier): Trigger =
+        Trigger(this, condition).also { triggers += it }
+
+    private fun stateOf(button: Button): Boolean = when (button) {
+        Button.A -> curr.a
+        Button.B -> curr.b
+        Button.X -> curr.x
+        Button.Y -> curr.y
+        Button.LEFT_BUMPER -> curr.lb
+        Button.RIGHT_BUMPER -> curr.rb
+        Button.DPAD_UP -> curr.up
+        Button.DPAD_DOWN -> curr.down
+        Button.DPAD_LEFT -> curr.left
+        Button.DPAD_RIGHT -> curr.right
+        Button.START -> curr.start
+        Button.BACK -> curr.back
+        Button.LEFT_STICK_BUTTON -> curr.leftStick
+        Button.RIGHT_STICK_BUTTON -> curr.rightStick
+    }
+
     private fun applyDeadband(value: Double, deadband: Double): Double =
         if (abs(value) < deadband) 0.0 else (value - deadband.withSign(value)) / (1.0 - deadband)
 
@@ -80,12 +133,14 @@ class GamepadEx(val raw: Gamepad) {
         var lb = false; var rb = false
         var up = false; var down = false; var left = false; var right = false
         var start = false; var back = false
+        var leftStick = false; var rightStick = false
 
         fun read(g: Gamepad) {
             a = g.a; b = g.b; x = g.x; y = g.y
             lb = g.left_bumper; rb = g.right_bumper
             up = g.dpad_up; down = g.dpad_down; left = g.dpad_left; right = g.dpad_right
             start = g.start; back = g.back
+            leftStick = g.left_stick_button; rightStick = g.right_stick_button
         }
 
         fun copyFrom(o: ButtonState) {
@@ -93,6 +148,7 @@ class GamepadEx(val raw: Gamepad) {
             lb = o.lb; rb = o.rb
             up = o.up; down = o.down; left = o.left; right = o.right
             start = o.start; back = o.back
+            leftStick = o.leftStick; rightStick = o.rightStick
         }
     }
 }
