@@ -31,10 +31,6 @@ object RobotConfig {
         const val PINPOINT = "sensor_otos"
     }
 
-    object Vision {
-        const val WEBCAM = "hsc"
-    }
-
     /** Game-level constants that change every season. Edit when the new game launches. */
     object Field {
         /** Distance from one end of the field to the other along the x-axis, in inches. */
