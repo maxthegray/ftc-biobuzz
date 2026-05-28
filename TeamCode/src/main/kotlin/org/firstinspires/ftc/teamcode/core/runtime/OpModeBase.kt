@@ -52,6 +52,29 @@ abstract class OpModeBase : LinearOpMode() {
     /** Called every tick during the main loop. */
     protected open fun onLoop() {}
 
+    /**
+     * Set to false to suppress the auto-published "Loop" telemetry section.
+     * Defaults on — the data is already collected by [Robot.profile] each
+     * tick, so surfacing it costs only the telemetry put calls (which are
+     * throttled by [TelemetryBag]).
+     */
+    protected open val publishLoopTelemetry: Boolean get() = true
+
+    private fun publishLoopProfile() {
+        if (!publishLoopTelemetry) return
+        val p = robot.profile
+        telemetryBag.section("Loop") {
+            put("hz", robot.loopHz, decimals = 1)
+            put("total ms", p.totalNanos / 1e6, decimals = 2)
+            put("clearCaches ms", p.clearCachesNanos / 1e6, decimals = 2)
+            put("periodic ms", p.periodicNanos / 1e6, decimals = 2)
+            put("control ms", p.controlNanos / 1e6, decimals = 2)
+            put("scheduler ms", p.schedulerNanos / 1e6, decimals = 2)
+            put("writeHardware ms", p.writeHardwareNanos / 1e6, decimals = 2)
+            put("overhead ms", p.overheadNanos / 1e6, decimals = 2)
+        }
+    }
+
     final override fun runOpMode() {
         robot = Robot(hardwareMap).also { it.alliance = alliance }
         driver = GamepadEx(gamepad1)
@@ -87,6 +110,7 @@ abstract class OpModeBase : LinearOpMode() {
                 driver.update()
                 operator.update()
                 robot.loop { onLoop() }
+                publishLoopProfile()
                 telemetryBag.flush()
             }
         } finally {
