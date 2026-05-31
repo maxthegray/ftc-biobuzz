@@ -73,6 +73,9 @@ fastlane/readme.md
 # Version control
 vcs.xml
 
+# Eclipse
+.project
+
 # lint
 lint/intermediates/
 lint/generated/
