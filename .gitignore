@@ -82,3 +82,5 @@ lint/generated/
 lint/outputs/
 lint/tmp/
 # lint/reports/
+# Local per-machine deploy state for the /deploy skill
+.claude/.last-deploy-sha
