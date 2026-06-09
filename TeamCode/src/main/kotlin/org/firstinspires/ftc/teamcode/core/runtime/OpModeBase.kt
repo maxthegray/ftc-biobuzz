@@ -12,11 +12,13 @@ import org.firstinspires.ftc.teamcode.core.util.TelemetryBag
  * Base for every op-mode in this codebase. A concrete op-mode fills in three
  * lifecycle hooks:
  *
- *  - [configure] — register subsystems on [robot] and wire default commands
- *  - [onStart]   — optional, runs the instant the start button is pressed
- *  - [onLoop]    — runs every tick after subsystem reads but before Ivy
- *                  commands and hardware writes. Use it for gamepad handling,
- *                  scheduling commands, and telemetry.
+ *  - [configure]   — register subsystems on [robot] and wire default commands
+ *  - [onInitLoop]  — optional, runs repeatedly between init and start (e.g.
+ *                    alliance selection, vision warm-up)
+ *  - [onStart]     — optional, runs the instant the start button is pressed
+ *  - [onLoop]      — runs every tick after subsystem reads but before Ivy
+ *                    commands and hardware writes. Use it for gamepad
+ *                    handling, scheduling commands, and telemetry.
  *
  * Telemetry is doubled up: the Driver Station's built-in [Telemetry] and
  * Panels's dashboard telemetry are both driven from the same [TelemetryBag]
@@ -45,6 +47,15 @@ abstract class OpModeBase : LinearOpMode() {
 
     /** Register subsystems on [robot] and set up default commands. */
     protected abstract fun configure()
+
+    /**
+     * Called repeatedly between init and start. Use it for init-time work:
+     * alliance / start-position selection on the gamepads, vision warm-up,
+     * Pinpoint status telemetry. Gamepad button state is refreshed each
+     * iteration (without firing trigger bindings) and [telemetryBag] is
+     * flushed automatically. Do not command actuators from here.
+     */
+    protected open fun onInitLoop() {}
 
     /** Called once on the first tick after start. */
     protected open fun onStart() {}
@@ -100,7 +111,15 @@ abstract class OpModeBase : LinearOpMode() {
         telemetry.addLine("Init complete — ${robot.subsystems().size} subsystems")
         telemetry.update()
 
-        waitForStart()
+        while (opModeInInit()) {
+            // Buttons are readable for init-time selection, but trigger
+            // bindings must not queue Ivy commands before start.
+            driver.update(pollTriggers = false)
+            operator.update(pollTriggers = false)
+            onInitLoop()
+            telemetryBag.flush()
+            idle()
+        }
         if (isStopRequested) {
             robot.stop()
             return

@@ -42,11 +42,18 @@ class GamepadEx(val raw: Gamepad) {
      * Call once per loop before reading any `*Pressed` / `*Released` flags.
      * Also samples every registered [Trigger], so trigger-bound commands are
      * scheduled or cancelled here — before the command scheduler ticks.
+     *
+     * Pass `pollTriggers = false` to refresh button state without firing
+     * trigger bindings — used during the init loop, where buttons should be
+     * readable (alliance/start-position selection) but bindings must not
+     * queue Ivy commands before the op-mode starts.
      */
-    fun update() {
+    fun update(pollTriggers: Boolean = true) {
         prev.copyFrom(curr)
         curr.read(raw)
-        for (t in triggers) t.poll()
+        if (pollTriggers) {
+            for (t in triggers) t.poll()
+        }
     }
 
     val leftStickX: Double get() = applyDeadband(raw.left_stick_x.toDouble(), leftStickDeadband)
