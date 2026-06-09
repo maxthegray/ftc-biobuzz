@@ -5,10 +5,7 @@ import com.pedropathing.geometry.BezierLine
 import com.pedropathing.geometry.Pose
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import kotlin.math.abs
-import org.firstinspires.ftc.teamcode.pedroPathing.Constants
-import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
-import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
 
 /**
  * Teleop for testing localization consistency over time.
@@ -28,7 +25,7 @@ import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsyste
  */
 @TeleOp(name = "Starter: Localization Test", group = "Starter")
 @Configurable
-class LocalizationTestTeleOp : OpModeBase() {
+class LocalizationTestTeleOp : TeleOpBase() {
 
     companion object {
         /** X coordinate of waypoint A (inches). Adjust for your field. */
@@ -45,43 +42,16 @@ class LocalizationTestTeleOp : OpModeBase() {
         @JvmField var stickInterruptThreshold: Double = 0.1
     }
 
-    private lateinit var drive: MecanumDriveSubsystem
-
     private enum class State { TELEOP, PATH_TO_WAYPOINT_A, PATH_TO_CENTER }
     private var state = State.TELEOP
-
-    override fun configure() {
-        val follower = Constants.createFollower(hardwareMap)
-        drive = robot.register(MecanumDriveSubsystem(follower))
-    }
-
-    override fun onStart() {
-        drive.enableTeleop()
-    }
 
     override fun onLoop() {
         when (state) {
             State.TELEOP -> {
-                // Standard drive controls (mirrors DriveOnlyTeleOp).
-                // Back+Y, not Start+A — Start+A is the Driver Station's
-                // gamepad re-bind chord and would fire on a mid-match re-pair.
-                val resetHeading = driver.back && driver.yPressed
-                if (resetHeading) {
-                    drive.setPose(drive.pose.withHeading(0.0))
-                }
-                if (driver.back && driver.bPressed) {
-                    DriveConfig.fieldCentric = !DriveConfig.fieldCentric
-                }
+                standardDriveControls()
 
-                val precision = driver.rightTrigger > 0.1
-                drive.drive(
-                    forward = driver.leftStickY,
-                    strafe = driver.leftStickX,
-                    turn = driver.rightStickX,
-                    precision = precision,
-                )
-
-                // Path triggers — must come after the drive call so stick reads are fresh.
+                // Path triggers — after the drive call so stick reads are
+                // fresh, and Y only when it isn't the Back+Y reset chord.
                 if (driver.yPressed && !driver.back) {
                     goTo(Pose(waypointAX, waypointAY, 0.0), State.PATH_TO_WAYPOINT_A)
                 }
