@@ -74,6 +74,25 @@ main loop. For those we spin up a dedicated bus thread via `I2CBusThread`:
 We do **not** touch motors or servos from bus threads. Those live on the
 main thread only.
 
+## Error philosophy: fail fast
+
+Init failures throw — a missing device surfaces as `HardwareConfigError`
+with the name baked in, the op-mode aborts loudly, and you fix the
+config. Loop failures also throw: there is no per-subsystem try/catch in
+`Robot.loop`, so an exception in a `periodic()` or a command kills the
+op-mode mid-match.
+
+That is deliberate. Swallowing exceptions to "survive the match" means
+driving on silently-wrong state — a drivetrain that thinks it's at the
+wrong pose is more dangerous than a dead one. If a specific sensor is
+known-flaky, handle it explicitly at the read site (stale-data flag,
+last-good-value, telemetry warning) rather than via a blanket rescue.
+
+Two narrow, intentional exceptions: subsystem `stop()` is best-effort
+(exceptions swallowed so every subsystem gets its shutdown), and
+`I2CBusThread` swallows transient I²C errors by design — it keeps
+publishing the last good value and exposes failure counters instead.
+
 ## Why the Pedro Follower *is* the drivetrain
 
 `MecanumDriveSubsystem` does not own motors or compute powers. Pedro's

@@ -39,8 +39,18 @@ class Robot(val hardwareMap: HardwareMap) {
 
     private var lastTickEndNs: Long = 0
 
-    /** Register a subsystem. Order matters only for tie-breaking in telemetry output. */
+    private var initialized = false
+
+    /**
+     * Register a subsystem. Must happen before [init] (i.e. in the op-mode's
+     * `configure()`) — a subsystem registered later would silently never get
+     * its `init`, so this throws instead. Order matters only for
+     * tie-breaking in telemetry output.
+     */
     fun <T : SubsystemBase> register(subsystem: T): T {
+        check(!initialized) {
+            "Cannot register ${subsystem.name} after Robot.init() — register subsystems in configure()."
+        }
         subsystems += subsystem
         return subsystem
     }
@@ -56,6 +66,7 @@ class Robot(val hardwareMap: HardwareMap) {
         bulkRead.init()
         Scheduler.reset()
         for (s in subsystems) s.init(hardwareMap)
+        initialized = true
     }
 
     /**

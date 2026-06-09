@@ -128,6 +128,10 @@ abstract class OpModeBase : LinearOpMode() {
         try {
             robot.start()
             onStart()
+            // Trigger bindings are wiring, not loop work — creating one per
+            // tick would leak. Lock creation now that configure/onStart ran.
+            driver.freezeBindings()
+            operator.freezeBindings()
             // Hoisted so the main loop doesn't allocate a capturing lambda
             // per tick.
             val onLoopBlock: () -> Unit = { onLoop() }

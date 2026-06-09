@@ -37,6 +37,17 @@ class GamepadEx(val raw: Gamepad) {
 
     private val triggers = mutableListOf<Trigger>()
     private val buttonTriggers = HashMap<Button, Trigger>()
+    private var bindingsFrozen = false
+
+    /**
+     * Called by `OpModeBase` once the main loop starts. Every [trigger] /
+     * [button] / composition call registers a binding that is polled
+     * forever — creating one per loop iteration leaks and double-fires, so
+     * after this point trigger creation throws instead.
+     */
+    fun freezeBindings() {
+        bindingsFrozen = true
+    }
 
     /**
      * Call once per loop before reading any `*Pressed` / `*Released` flags.
@@ -114,8 +125,12 @@ class GamepadEx(val raw: Gamepad) {
      * tick's value. That one-tick latency is fine for command scheduling;
      * don't use trigger conditions for anything that needs same-tick data.
      */
-    fun trigger(condition: BooleanSupplier): Trigger =
-        Trigger(this, condition).also { triggers += it }
+    fun trigger(condition: BooleanSupplier): Trigger {
+        check(!bindingsFrozen) {
+            "Triggers must be created in configure()/onStart, not mid-loop — each call registers a new binding that is polled forever."
+        }
+        return Trigger(this, condition).also { triggers += it }
+    }
 
     private fun stateOf(button: Button): Boolean = when (button) {
         Button.A -> curr.a
