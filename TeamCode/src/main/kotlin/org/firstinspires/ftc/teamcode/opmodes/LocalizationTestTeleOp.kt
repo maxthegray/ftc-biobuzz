@@ -149,8 +149,8 @@ class LocalizationTestTeleOp : OpModeBase() {
             put("velocity", drive.velocity)
             put("mode", drive.mode.name)
         }
+        // Loop rate/phase timing is already published by OpModeBase ("Loop").
         telemetryBag.section("Robot") {
-            put("loopHz", robot.loopHz, decimals = 1)
             put("loopCount", robot.loopCount)
         }
     }

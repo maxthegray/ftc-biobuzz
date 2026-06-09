@@ -44,6 +44,13 @@ class SRSHubSubsystem(name: String = "srsHub") : SubsystemBase(name) {
     val isReady: Boolean get() = ::hub.isInitialized && hub.ready()
     val isDisconnected: Boolean get() = ::hub.isInitialized && hub.disconnected()
 
+    /**
+     * Updates dropped to CRC mismatches. A mismatch does NOT flip
+     * [isDisconnected] — cached values silently go stale — so put this on
+     * telemetry whenever an SRSHub sensor feeds anything safety-relevant.
+     */
+    val crcMismatches: Long get() = if (::hub.isInitialized) hub.crcMismatchCount() else 0L
+
     fun analog(pin: Int): AnalogHandle {
         requireUnconfigured()
         config.setAnalogDigitalDevice(pin, SRSHub.AnalogDigitalDevice.ANALOG)

@@ -36,6 +36,7 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
 
     private val steps = mutableListOf<Command>()
     private var built: Command? = null
+    private var scheduled = false
 
     /** Append a Pedro path to follow. */
     fun follow(chain: PathChain): PedroAutoRunner =
@@ -135,12 +136,16 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
     /** Schedule the routine on Ivy's global scheduler. */
     fun schedule(): PedroAutoRunner {
         Scheduler.schedule(command)
+        scheduled = true
         return this
     }
 
-    /** True once the routine has either completed or been cancelled. */
+    /**
+     * True once the routine has either completed or been cancelled. Always
+     * false before [schedule] — merely building the command doesn't count.
+     */
     val isDone: Boolean
-        get() = built != null && !Scheduler.isScheduled(command)
+        get() = scheduled && !Scheduler.isScheduled(command)
 
     /** Cancel the routine mid-flight. Safe to call even if nothing is scheduled. */
     fun cancel() {

@@ -112,7 +112,16 @@ class Robot(val hardwareMap: HardwareMap) {
         return now
     }
 
-    /** Shutdown everything. Exceptions are swallowed so all subsystems get a chance to clean up. */
+    /**
+     * Shutdown everything. Exceptions are swallowed so all subsystems get a
+     * chance to clean up.
+     *
+     * Note: Ivy's [Scheduler.reset] clears its queues *without* calling
+     * `end()` on running commands (Ivy 1.0.0 has no public cancel-all), so
+     * command-level cleanup does not run here. [SubsystemBase.stop] is the
+     * safety net — every subsystem must leave its hardware safe regardless
+     * of what command was mid-flight.
+     */
     fun stop() {
         Scheduler.reset()
         for (s in subsystems) {

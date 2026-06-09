@@ -43,6 +43,13 @@ public class SRSHub extends I2cDeviceSynchDevice<I2cDeviceSynchSimple> {
     private boolean ready = false;
     private boolean disconnected = false;
 
+    /**
+     * Number of updates dropped due to a CRC mismatch. A mismatch leaves
+     * {@link #disconnected()} false while every cached value silently goes
+     * stale, so callers should surface this in telemetry.
+     */
+    private long crcMismatchCount = 0;
+
     private final double[] analogDigitalValues =
         new double[12];
 
@@ -1216,6 +1223,7 @@ public class SRSHub extends I2cDeviceSynchDevice<I2cDeviceSynchSimple> {
         );
 
         if (receivedCRC != computedCRC) {
+            crcMismatchCount++;
             RobotLog.addGlobalWarningMessage("CRC Mismatch");
             return;
         }
@@ -1398,6 +1406,13 @@ public class SRSHub extends I2cDeviceSynchDevice<I2cDeviceSynchSimple> {
      */
     public boolean disconnected() {
         return disconnected;
+    }
+
+    /**
+     * @return how many updates have been dropped due to a CRC mismatch
+     */
+    public long crcMismatchCount() {
+        return crcMismatchCount;
     }
 
     /**

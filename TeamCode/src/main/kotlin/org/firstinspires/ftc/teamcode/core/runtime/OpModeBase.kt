@@ -109,10 +109,13 @@ abstract class OpModeBase : LinearOpMode() {
         try {
             robot.start()
             onStart()
+            // Hoisted so the main loop doesn't allocate a capturing lambda
+            // per tick.
+            val onLoopBlock: () -> Unit = { onLoop() }
             while (opModeIsActive()) {
                 driver.update()
                 operator.update()
-                robot.loop { onLoop() }
+                robot.loop(onLoopBlock)
                 publishLoopProfile()
                 telemetryBag.flush()
             }

@@ -39,7 +39,9 @@ object PinpointLocalizer {
      */
     fun recalibrate(hardwareMap: HardwareMap, follower: Follower, resetPose: Pose = Pose()) {
         val odo = raw(hardwareMap)
-        odo.recalibrateIMU()
+        // resetPosAndIMU() already includes the IMU recalibration — do not
+        // also call recalibrateIMU() first; the second command would stomp
+        // the first's ~250 ms calibration window.
         odo.resetPosAndIMU()
         // Give the Pinpoint its ~250 ms calibration window.
         Thread.sleep(300)

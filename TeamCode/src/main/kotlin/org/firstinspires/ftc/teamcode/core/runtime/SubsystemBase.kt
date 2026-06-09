@@ -41,6 +41,11 @@ abstract class SubsystemBase(val name: String) {
     /**
      * Called once at the end of the OpMode. Zero motors, stop threads,
      * release any resources. Never throw from here.
+     *
+     * This is the safety net for shutdown: the scheduler reset that runs
+     * first does NOT call `end()` on in-flight commands, so don't rely on
+     * command cleanup having happened — leave the hardware safe
+     * unconditionally.
      */
     open fun stop() {}
 

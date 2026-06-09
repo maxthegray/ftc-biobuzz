@@ -101,6 +101,11 @@ class GamepadEx(val raw: Gamepad) {
      * A [Trigger] backed by an arbitrary condition — an analog stick or trigger
      * past a threshold, a sensor reading, anything. Sampled once per loop in
      * [update]; each call returns a fresh Trigger.
+     *
+     * Note: [update] runs *before* the Lynx bulk caches are cleared for the
+     * tick, so a condition that reads a motor/encoder/sensor sees last
+     * tick's value. That one-tick latency is fine for command scheduling;
+     * don't use trigger conditions for anything that needs same-tick data.
      */
     fun trigger(condition: BooleanSupplier): Trigger =
         Trigger(this, condition).also { triggers += it }
