@@ -31,6 +31,14 @@ object RobotConfig {
         const val PINPOINT = "sensor_otos"
     }
 
+    object Hubs {
+        /**
+         * Hardware-map name of the SRSHub. Doubles as the subsystem name —
+         * the `SRSHubSubsystem` constructor uses it for both.
+         */
+        const val SRSHUB = "srsHub"
+    }
+
     /** Game-level constants that change every season. Edit when the new game launches. */
     object Field {
         /** Distance from one end of the field to the other along the x-axis, in inches. */

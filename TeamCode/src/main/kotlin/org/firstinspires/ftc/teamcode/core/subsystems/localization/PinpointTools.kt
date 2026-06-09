@@ -13,11 +13,12 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants
  * and should only happen once at init while the robot is physically still.
  *
  * The `PinpointLocalizer` Pedro uses is still constructed via
- * [Constants.createFollower] — this file is NOT a replacement, it is a
- * companion that you call by hand when you need to reset the IMU or read
- * raw device status for diagnostics.
+ * [Constants.createFollower] — this object is NOT a localizer (hence the
+ * name: Pedro has a class called `PinpointLocalizer`), it is a companion
+ * you call by hand when you need to reset the IMU or read raw device
+ * status for diagnostics, typically from `onInitLoop()`.
  */
-object PinpointLocalizer {
+object PinpointTools {
 
     /**
      * Looks up the raw Pinpoint driver using the same hardware name declared

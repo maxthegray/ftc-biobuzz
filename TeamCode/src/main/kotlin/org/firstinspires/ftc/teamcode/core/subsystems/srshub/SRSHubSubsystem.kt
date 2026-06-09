@@ -1,7 +1,9 @@
-package org.firstinspires.ftc.teamcode.core.hardware
+package org.firstinspires.ftc.teamcode.core.subsystems.srshub
 
 import com.qualcomm.robotcore.hardware.HardwareMap
+import org.firstinspires.ftc.teamcode.core.hardware.SRSHub
 import org.firstinspires.ftc.teamcode.core.runtime.HardwareConfigError
+import org.firstinspires.ftc.teamcode.core.runtime.RobotConfig
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 
 /**
@@ -32,7 +34,7 @@ import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
  * the most recent `hub.update()` decoded. The hub itself is configured once
  * during [init] from the registrations made before init.
  */
-class SRSHubSubsystem(name: String = "srsHub") : SubsystemBase(name) {
+class SRSHubSubsystem(name: String = RobotConfig.Hubs.SRSHUB) : SubsystemBase(name) {
 
     private lateinit var hub: SRSHub
     private val config = SRSHub.Config()

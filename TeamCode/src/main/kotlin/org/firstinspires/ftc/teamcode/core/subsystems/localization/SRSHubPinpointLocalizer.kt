@@ -3,7 +3,7 @@ package org.firstinspires.ftc.teamcode.core.subsystems.localization
 import com.pedropathing.geometry.Pose
 import com.pedropathing.localization.Localizer
 import com.pedropathing.math.Vector
-import org.firstinspires.ftc.teamcode.core.hardware.SRSHubSubsystem
+import org.firstinspires.ftc.teamcode.core.subsystems.srshub.SRSHubSubsystem
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.hypot
