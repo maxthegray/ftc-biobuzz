@@ -90,9 +90,6 @@ class GamepadEx(val raw: Gamepad) {
     val xReleased: Boolean get() = !curr.x && prev.x
     val yReleased: Boolean get() = !curr.y && prev.y
 
-    /** Returns a [BooleanSupplier] that fires once on the leading edge of `a`. */
-    fun onAPressed(): BooleanSupplier = BooleanSupplier { aPressed }
-
     /**
      * A [Trigger] backed by [button]. Cached — repeated calls for the same
      * button return the same Trigger, so bindings accumulate on one instance.

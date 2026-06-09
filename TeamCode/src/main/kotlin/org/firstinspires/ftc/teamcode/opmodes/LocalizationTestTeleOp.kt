@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.opmodes
 
 import com.bylazar.configurables.annotations.Configurable
+import com.pedropathing.geometry.BezierLine
 import com.pedropathing.geometry.Pose
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import kotlin.math.abs
@@ -9,7 +10,6 @@ import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.Localizer
-import org.firstinspires.ftc.teamcode.core.pathing.path
 
 /**
  * Teleop for testing localization consistency over time.
@@ -109,10 +109,10 @@ class LocalizationTestTeleOp : OpModeBase() {
     // -------------------------------------------------------------------------
 
     private fun goTo(target: Pose, newState: State) {
-        val chain = drive.path(startPose = drive.pose) {
-            lineTo(target)
-            constantHeading(drive.pose.heading)
-        }
+        val chain = drive.follower.pathBuilder()
+            .addPath(BezierLine(drive.pose, target))
+            .setConstantHeadingInterpolation(drive.pose.heading)
+            .build()
         drive.followPath(chain, holdEnd = false)
         state = newState
     }
