@@ -23,6 +23,9 @@ import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
  *     xDir = SRSHub.GoBildaPinpoint.EncoderDirection.FORWARD,
  *     yDir = SRSHub.GoBildaPinpoint.EncoderDirection.REVERSED,
  * )
+ * // To localise Pedro off the SRSHub-attached Pinpoint, hand the adapter
+ * // to the follower instead of the direct-I2C localizer:
+ * val follower = Constants.createFollower(hardwareMap, SRSHubPinpointLocalizer(pinpoint))
  * ```
  *
  * Handles are stored by the caller; reads after [periodic] return whatever
@@ -38,6 +41,7 @@ class SRSHubSubsystem(name: String = "srsHub") : SubsystemBase(name) {
     private val digitalPins = mutableListOf<Int>()
     private val encoders = mutableListOf<Int>()
     private val i2cDevices = mutableListOf<SRSHub.I2CDevice>()
+    private val pendingCommands = mutableListOf<SRSHub.Command>()
 
     private var configured = false
 
@@ -100,12 +104,17 @@ class SRSHubSubsystem(name: String = "srsHub") : SubsystemBase(name) {
     ): PinpointHandle {
         val dev = SRSHub.GoBildaPinpoint(xPodOffsetMm, yPodOffsetMm, ticksPerMm, xDir, yDir)
         register(bus, dev)
-        return PinpointHandle(bus, dev) { cmd -> hub.runCommand(cmd) }
+        return PinpointHandle(bus, dev, ::send)
     }
 
-    /** Forward a write-side command (e.g. Pinpoint reset). */
+    /**
+     * Forward a write-side command (e.g. Pinpoint reset). Commands sent
+     * before [init] are queued and flushed once the hub is up — Pedro's
+     * Follower calls the localizer's `resetIMU()` from its *constructor*,
+     * which runs in `configure()` before any subsystem is initialised.
+     */
     fun send(command: SRSHub.Command) {
-        hub.runCommand(command)
+        if (configured) hub.runCommand(command) else pendingCommands += command
     }
 
     override fun init(hardwareMap: HardwareMap) {
@@ -118,6 +127,8 @@ class SRSHubSubsystem(name: String = "srsHub") : SubsystemBase(name) {
         }
         hub.init(config)
         configured = true
+        for (c in pendingCommands) hub.runCommand(c)
+        pendingCommands.clear()
     }
 
     override fun periodic() {
