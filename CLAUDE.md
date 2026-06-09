@@ -131,7 +131,10 @@ follower.pathBuilder()
     .build()  // -> PathChain
 ```
 
-The Kotlin `PathDSL` wraps these with cleaner names — prefer it.
+This is the canonical way to build paths — there is no wrapper DSL. For
+both-side routines, mirror poses with `Alliance.mirror(pose)` and the
+radian arguments of the heading-interpolation setters with
+`Alliance.mirror(heading)`.
 
 ### Panels telemetry
 
@@ -243,10 +246,16 @@ persist into a pinned config object.
 
 ## When the user asks you to add a path or auton routine
 
-Prefer the `PathDSL` / `PedroAutoRunner` DSLs in `general/pathing/`. They
-already handle the Pedro API correctly and add alliance mirroring and
-parallel/race groups on top. Don't drop back to raw `PathBuilder` unless
-you have a reason.
+Build paths with Pedro's native `PathBuilder` (`follower.pathBuilder()`,
+see the cheatsheet above). For routines that must run on both alliances,
+write the poses in RED coordinates and pass each pose through
+`Alliance.mirror(pose)` and each heading-interpolation radian argument
+through `Alliance.mirror(heading)`.
+
+Sequence the routine with `PedroAutoRunner` in `core/pathing/` — it wires
+the drive subsystem's follow/hold/turn commands and Ivy's
+sequential/parallel/race groups correctly, and `runner.cancel()` is safe
+mid-path (interrupted drive commands break following).
 
 ## Things not to do unless explicitly asked
 

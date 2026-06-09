@@ -12,18 +12,22 @@ A single op-mode tick always looks like this:
 ┌───────────────────────────────────────────────────────────────────┐
 │  OpModeBase.runOpMode() main loop                                 │
 │                                                                   │
-│   driver.update(), operator.update()       ← edge-detect gamepads │
-│                                                                   │
+│   driver.update(), operator.update()       ← edge-detect gamepads,│
+│                                              fire trigger bindings│
 │   Robot.loop():                                                   │
 │     1. BulkReadManager.clearCaches()       ← fresh Lynx data      │
 │     2. for s in subsystems: s.periodic()   ← reads + state        │
-│     3. Scheduler.execute()                 ← Ivy ticks commands   │
-│     4. for s in subsystems: s.writeHardware() ← motors, servos    │
+│     3. onLoop()                            ← op-mode control code │
+│     4. Scheduler.execute()                 ← Ivy ticks commands   │
+│     5. for s in subsystems: s.writeHardware() ← motors, servos    │
 │                                                                   │
-│   onLoop()                                 ← gamepad-driven work  │
-│   telemetryBag.flush()                     ← DS + Panels in 1 go  │
+│   publishLoopProfile() + telemetryBag.flush() ← DS + Panels in 1  │
 └───────────────────────────────────────────────────────────────────┘
 ```
+
+Before start, a separate init loop runs `onInitLoop()` (with gamepad
+button state refreshed but trigger bindings muted) — use it for alliance
+/ start-position selection and vision warm-up.
 
 The order matters:
 
@@ -37,21 +41,22 @@ The order matters:
    `periodic()` is for "update my internal state from the latest bulk read
    + localiser". Leave actuator decisions to commands.
 
-3. **Commands run via the Ivy scheduler.** Commands that need hardware
+3. **`onLoop()` runs inside the tick, between the fresh reads and the
+   scheduler.** Use it for gamepad handling that can't be expressed as a
+   trigger binding, for scheduling commands (they take effect the same
+   tick), and for telemetry gathering. Do not command motors from here
+   unless you are absolutely sure no command is contending for them.
+
+4. **Commands run via the Ivy scheduler.** Commands that need hardware
    declare `requiring(subsystem)`. The scheduler resolves conflicts (one
    command per requirement, with priority / override / queue / cancel
    behaviour configurable per-command). This is how default-commands and
    driver-initiated actions coexist without stepping on each other.
 
-4. **Subsystems write in `writeHardware()`.** By the time this runs, a
+5. **Subsystems write in `writeHardware()`.** By the time this runs, a
    command has decided what the subsystem should be doing this tick.
    `MecanumDriveSubsystem.writeHardware()` calls `Follower.update()`,
    which is where Pedro actually computes and writes motor powers.
-
-5. **`onLoop()` runs after everything.** Use it for gamepad handling that
-   can't be expressed as a default command, and for telemetry gathering.
-   Do not command motors from here unless you are absolutely sure no
-   command is contending for them.
 
 ## Threading model
 
@@ -88,24 +93,19 @@ The trade-off is that we can't easily swap out Pedro for another follower
 without rewriting this subsystem. That's acceptable — Pedro is specifically
 why this starter exists.
 
-## Localisation fusion
+## Localisation correction (the hook point)
 
-The Follower owns the primary localiser (Pinpoint), so wheel-odometry
-drift accumulates at a few percent per path. For routines where that
-matters — late-auton, long paths — we layer AprilTag correction on top:
+The Follower owns the primary localiser (Pinpoint), so odometry drift
+accumulates slowly over a match. No vision code ships in this starter —
+it's season-specific — but the correction hook is already in place:
+`Localizer.setPose` hard-snaps the follower's pose estimate.
 
-1. `VisionSubsystem` runs the FTC `VisionPortal` + `AprilTagProcessor`.
-2. On every tag frame, `AprilTagPipeline.detectionToFieldPose` projects
-   the detection through the camera's known mount offset into a field
-   pose.
-3. That field pose feeds `AprilTagCorrector.submit`, which gates it on
-   range and frame-over-frame stability before committing via
-   `Localizer.setPose`.
-
-Everything is a hard snap — no Kalman filter. Jitter rejection comes from
-requiring two successive agreeing detections of the same tag ID before
-committing. If you want something smoother, swap `AprilTagCorrector` for
-an implementation that blends instead of snaps.
+The intended season pattern: a vision subsystem reads AprilTags in
+`periodic()`, projects detections into a field pose, gates them on range
+and frame-over-frame stability, and commits via `Localizer.setPose`.
+Keep it a hard snap unless you have a measured reason to blend — simple
+gating (two successive agreeing detections of the same tag) rejects most
+jitter.
 
 ## Telemetry: two audiences, one call
 
@@ -130,10 +130,16 @@ just be duplicating lines.
 ## Hot reload, Sinister, and Sloth
 
 `Sloth` (via the Sinister runtime) is a zero-config hot-reload library
-from the Dairy Foundation. Pulling in `dev.frozenmilk.sinister:Sloth` is
-enough: Sinister scans the APK at boot and wires up anything annotated
-or registered for hot-reloading. We don't use it for any explicit feature
-here — it's just present so you can pull it in when you start tuning live.
+from the Dairy Foundation. `./gradlew deploySloth` (or `make hot`) pushes
+just the teamcode classes to the robot in about a second; a normal
+Android Studio install clears any staged hot-reload jar automatically.
+
+The one interaction to be aware of: a hot reload re-runs static
+initialisers of reloaded classes, which wipes Panels-tuned
+`@Configurable` values. Config objects whose tuned values must survive a
+reload are annotated `@Pinned` (`DriveConfig` is) at the cost of needing
+a full install for code changes to *that* class. CLAUDE.md covers the
+full trade-off.
 
 ## What doesn't live in this codebase
 
@@ -142,8 +148,8 @@ here — it's just present so you can pull it in when you start tuning live.
   season.
 - Pedro path files. Teams usually keep these in a `paths/` subfolder with
   one Kotlin file per routine. Create it when you have a real auton.
-- A Kalman filter for pose fusion. Intentionally left as a hook point —
-  the current AprilTag corrector is deliberately simple.
+- Vision / AprilTag correction. Intentionally left as a hook point —
+  see "Localisation correction" above.
 - Auto-generated Panels controls. Panels supports `@Configurable` fields;
   wire them up on the specific subsystems you want to tune, don't
   pre-annotate placeholders.
