@@ -9,6 +9,7 @@ import com.pedropathing.math.Vector
 import com.pedropathing.paths.PathChain
 import com.qualcomm.robotcore.hardware.HardwareMap
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
+import kotlin.math.abs
 
 /**
  * The one subsystem that owns the mecanum drivetrain. It is a thin façade
@@ -124,8 +125,25 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
             finished = if (holdEnd) Mode.HOLDING else Mode.IDLE,
         )
 
+    /**
+     * Command that holds [pose] — position *and* heading. Deliberately not
+     * built on Ivy's `PedroCommands.hold`, which freezes the heading the
+     * robot happened to have when the command started and ignores
+     * `pose.heading`; this uses `Follower.holdPoint(Pose)` directly so both
+     * [holdPose] and this command agree. Done once the follower is within
+     * its configured path constraints, matching Ivy's semantics.
+     */
     fun holdCommand(pose: Pose): Command =
-        trackDriveMode(PedroCommands.hold(follower, pose), running = Mode.HOLDING, finished = Mode.HOLDING)
+        trackDriveMode(
+            Command.build()
+                .setStart { follower.holdPoint(pose) }
+                .setDone {
+                    follower.translationalError.magnitude < follower.constraints.translationalConstraint &&
+                        abs(follower.headingError) < follower.constraints.headingConstraint
+                },
+            running = Mode.HOLDING,
+            finished = Mode.HOLDING,
+        )
 
     fun turnToCommand(radians: Double): Command =
         trackDriveMode(PedroCommands.turnTo(follower, radians), running = Mode.FOLLOWING, finished = Mode.IDLE)
@@ -180,8 +198,16 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
             .setDone(command::done)
             .setEnd { endCondition ->
                 command.end(endCondition)
-                mode = if (endCondition == EndCondition.INTERRUPTED) Mode.IDLE else finished
-                if (mode == Mode.IDLE) modeAfterFollow = Mode.IDLE
+                if (endCondition == EndCondition.INTERRUPTED) {
+                    // Ivy's pedro commands have no end handler, so an
+                    // interrupted follow would otherwise keep driving the
+                    // path — update() runs unconditionally in writeHardware.
+                    follower.breakFollowing()
+                    mode = Mode.IDLE
+                    modeAfterFollow = Mode.IDLE
+                } else {
+                    mode = finished
+                }
             }
 }
 

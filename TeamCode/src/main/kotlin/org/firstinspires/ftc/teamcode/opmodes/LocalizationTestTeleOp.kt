@@ -19,6 +19,7 @@ import org.firstinspires.ftc.teamcode.core.subsystems.localization.Localizer
  *  - **Triangle (Y)** — Pedro-follows to waypoint A (configurable in Panels).
  *    Press again, or move a stick, or press Cross to cancel mid-path.
  *  - **Cross (A)** — Pedro-follows to field center. Same interrupt rules.
+ *  - **Back + Y** — reset heading to zero (Back+B toggles field-centric).
  *
  * After each path (completed or interrupted) control returns to manual teleop
  * automatically. Drive around, press again, and compare where the robot thinks
@@ -65,7 +66,9 @@ class LocalizationTestTeleOp : OpModeBase() {
         when (state) {
             State.TELEOP -> {
                 // Standard drive controls (mirrors DriveOnlyTeleOp).
-                val resetHeading = driver.start && driver.aPressed
+                // Back+Y, not Start+A — Start+A is the Driver Station's
+                // gamepad re-bind chord and would fire on a mid-match re-pair.
+                val resetHeading = driver.back && driver.yPressed
                 if (resetHeading) {
                     localizer.setPose(drive.pose.withHeading(0.0))
                 }
@@ -82,10 +85,10 @@ class LocalizationTestTeleOp : OpModeBase() {
                 )
 
                 // Path triggers — must come after the drive call so stick reads are fresh.
-                if (driver.yPressed) {
+                if (driver.yPressed && !driver.back) {
                     goTo(Pose(waypointAX, waypointAY, 0.0), State.PATH_TO_WAYPOINT_A)
                 }
-                if (driver.aPressed && !resetHeading) {
+                if (driver.aPressed) {
                     goTo(Pose(fieldCenterX, fieldCenterY, 0.0), State.PATH_TO_CENTER)
                 }
             }

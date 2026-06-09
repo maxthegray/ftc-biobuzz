@@ -4,9 +4,12 @@ import com.pedropathing.geometry.Pose
 import com.pedropathing.localization.Localizer
 import com.pedropathing.math.Vector
 import org.firstinspires.ftc.teamcode.core.hardware.SRSHubSubsystem
+import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.hypot
+import kotlin.math.sin
 
-private const val MM_PER_INCH = 25.4f
+private const val MM_PER_INCH = 25.4
 
 /**
  * Pedro [Localizer] backed by a GoBilda Pinpoint plugged into an SRSHub.
@@ -16,8 +19,11 @@ private const val MM_PER_INCH = 25.4f
  * pose/velocity into Pedro's coordinate convention (inches + radians) so
  * the follower can use it as a drop-in localizer in `Constants.kt`.
  *
- * Heading sign and pod offsets are baked into the Pinpoint at registration
- * time; this class does not invert anything.
+ * The Pinpoint accumulates displacement in its own reset frame; everything
+ * it reports is re-rooted at [startPose] by rotating that displacement by
+ * `startPose.heading` — the same convention as Pedro's reference
+ * `PinpointLocalizer`. Heading sign and pod offsets are baked into the
+ * Pinpoint at registration time; this class does not invert anything.
  */
 class SRSHubPinpointLocalizer(
     private val pinpoint: SRSHubSubsystem.PinpointHandle,
@@ -27,22 +33,32 @@ class SRSHubPinpointLocalizer(
     private var totalHeading: Double = 0.0
     private var lastRawHeading: Double = 0.0
 
-    override fun getPose(): Pose = Pose(
-        startPose.x + pinpoint.xMm / MM_PER_INCH,
-        startPose.y + pinpoint.yMm / MM_PER_INCH,
-        startPose.heading + pinpoint.headingRad.toDouble(),
-    )
+    override fun getPose(): Pose {
+        val h = startPose.heading
+        val dx = pinpoint.xMm / MM_PER_INCH
+        val dy = pinpoint.yMm / MM_PER_INCH
+        return Pose(
+            startPose.x + dx * cos(h) - dy * sin(h),
+            startPose.y + dx * sin(h) + dy * cos(h),
+            startPose.heading + pinpoint.headingRad.toDouble(),
+        )
+    }
 
-    override fun getVelocity(): Pose = Pose(
-        pinpoint.xVelMmPerSec / MM_PER_INCH.toDouble(),
-        pinpoint.yVelMmPerSec / MM_PER_INCH.toDouble(),
-        pinpoint.headingVelRadPerSec.toDouble(),
-    )
+    override fun getVelocity(): Pose {
+        val h = startPose.heading
+        val vx = pinpoint.xVelMmPerSec / MM_PER_INCH
+        val vy = pinpoint.yVelMmPerSec / MM_PER_INCH
+        return Pose(
+            vx * cos(h) - vy * sin(h),
+            vx * sin(h) + vy * cos(h),
+            pinpoint.headingVelRadPerSec.toDouble(),
+        )
+    }
 
     override fun getVelocityVector(): Vector {
-        val vxIn = pinpoint.xVelMmPerSec / MM_PER_INCH.toDouble()
-        val vyIn = pinpoint.yVelMmPerSec / MM_PER_INCH.toDouble()
-        return Vector(hypot(vxIn, vyIn), Math.atan2(vyIn, vxIn))
+        val vx = pinpoint.xVelMmPerSec / MM_PER_INCH
+        val vy = pinpoint.yVelMmPerSec / MM_PER_INCH
+        return Vector(hypot(vx, vy), atan2(vy, vx) + startPose.heading)
     }
 
     override fun setStartPose(setStart: Pose) {
@@ -50,9 +66,14 @@ class SRSHubPinpointLocalizer(
     }
 
     override fun setPose(setPose: Pose) {
+        // Rotate the field-frame offset from startPose by -startPose.heading
+        // back into the Pinpoint's own frame before writing it to the device.
+        val h = startPose.heading
+        val dx = setPose.x - startPose.x
+        val dy = setPose.y - startPose.y
         pinpoint.setPose(
-            ((setPose.x - startPose.x) * MM_PER_INCH).toFloat(),
-            ((setPose.y - startPose.y) * MM_PER_INCH).toFloat(),
+            ((dx * cos(h) + dy * sin(h)) * MM_PER_INCH).toFloat(),
+            ((-dx * sin(h) + dy * cos(h)) * MM_PER_INCH).toFloat(),
             (setPose.heading - startPose.heading).toFloat(),
         )
     }

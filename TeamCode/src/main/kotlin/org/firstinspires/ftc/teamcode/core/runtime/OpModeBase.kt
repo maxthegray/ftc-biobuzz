@@ -82,7 +82,10 @@ abstract class OpModeBase : LinearOpMode() {
 
         val panels = PanelsTelemetry.telemetry
         joinedTelemetry = JoinedTelemetry(telemetry, panels.wrapper)
-        telemetryBag = TelemetryBag(joinedTelemetry, panels)
+        // The bag writes to Panels explicitly, so its DS sink must be the raw
+        // DS telemetry — passing joinedTelemetry would push every line to
+        // Panels twice (once via the wrapper, once directly).
+        telemetryBag = TelemetryBag(telemetry, panels)
 
         try {
             configure()

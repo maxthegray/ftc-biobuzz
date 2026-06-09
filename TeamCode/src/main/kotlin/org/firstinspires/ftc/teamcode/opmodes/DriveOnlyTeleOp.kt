@@ -13,7 +13,7 @@ import org.firstinspires.ftc.teamcode.core.subsystems.localization.Localizer
  *  - Subsystems registered on [robot]
  *  - Pedro Follower built from [Constants.createFollower]
  *  - Field-centric mecanum drive with precision trigger
- *  - Reset pose on `start` for a quick "zero the heading" handy for drivers
+ *  - Back+Y resets the heading on the fly, handy when odometry drifts
  *  - Telemetry via [telemetryBag] (one call feeds both Driver Station + Panels)
  *
  * Wiring: copy this file, rename the class, and build up subsystems as needed.
@@ -36,7 +36,9 @@ class DriveOnlyTeleOp : OpModeBase() {
 
     override fun onLoop() {
         // Allow the driver to reset heading on the fly if odometry drifts.
-        if (driver.start && driver.aPressed) {
+        // Back+Y, not Start+A — Start+A is the Driver Station's gamepad
+        // re-bind chord and would fire on a mid-match re-pair.
+        if (driver.back && driver.yPressed) {
             localizer.setPose(drive.pose.withHeading(0.0))
         }
 
