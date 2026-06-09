@@ -9,7 +9,6 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants
 import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
-import org.firstinspires.ftc.teamcode.core.subsystems.localization.Localizer
 
 /**
  * Teleop for testing localization consistency over time.
@@ -47,7 +46,6 @@ class LocalizationTestTeleOp : OpModeBase() {
     }
 
     private lateinit var drive: MecanumDriveSubsystem
-    private lateinit var localizer: Localizer
 
     private enum class State { TELEOP, PATH_TO_WAYPOINT_A, PATH_TO_CENTER }
     private var state = State.TELEOP
@@ -55,7 +53,6 @@ class LocalizationTestTeleOp : OpModeBase() {
     override fun configure() {
         val follower = Constants.createFollower(hardwareMap)
         drive = robot.register(MecanumDriveSubsystem(follower))
-        localizer = robot.register(Localizer(follower))
     }
 
     override fun onStart() {
@@ -70,7 +67,7 @@ class LocalizationTestTeleOp : OpModeBase() {
                 // gamepad re-bind chord and would fire on a mid-match re-pair.
                 val resetHeading = driver.back && driver.yPressed
                 if (resetHeading) {
-                    localizer.setPose(drive.pose.withHeading(0.0))
+                    drive.setPose(drive.pose.withHeading(0.0))
                 }
                 if (driver.back && driver.bPressed) {
                     DriveConfig.fieldCentric = !DriveConfig.fieldCentric

@@ -98,11 +98,11 @@ why this starter exists.
 The Follower owns the primary localiser (Pinpoint), so odometry drift
 accumulates slowly over a match. No vision code ships in this starter —
 it's season-specific — but the correction hook is already in place:
-`Localizer.setPose` hard-snaps the follower's pose estimate.
+`MecanumDriveSubsystem.setPose` hard-snaps the follower's pose estimate.
 
 The intended season pattern: a vision subsystem reads AprilTags in
 `periodic()`, projects detections into a field pose, gates them on range
-and frame-over-frame stability, and commits via `Localizer.setPose`.
+and frame-over-frame stability, and commits via `drive.setPose`.
 Keep it a hard snap unless you have a measured reason to blend — simple
 gating (two successive agreeing detections of the same tag) rejects most
 jitter.

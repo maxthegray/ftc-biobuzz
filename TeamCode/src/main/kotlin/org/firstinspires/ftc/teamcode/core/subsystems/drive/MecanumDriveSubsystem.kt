@@ -151,6 +151,20 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
     val pose: Pose get() = follower.pose
     val velocity: Vector get() = follower.velocity
 
+    /**
+     * Hard-snap the localizer's pose estimate. Use for driver heading
+     * resets and vision (AprilTag) corrections. Takes effect on the next
+     * [writeHardware] tick.
+     */
+    fun setPose(pose: Pose) {
+        follower.pose = pose
+    }
+
+    /** Re-root the localizer: [pose] becomes the origin prior movement is measured from. */
+    fun setStartingPose(pose: Pose) {
+        follower.setStartingPose(pose)
+    }
+
     /** True while Pedro is actively following a path. */
     val isFollowing: Boolean get() = follower.isBusy
 

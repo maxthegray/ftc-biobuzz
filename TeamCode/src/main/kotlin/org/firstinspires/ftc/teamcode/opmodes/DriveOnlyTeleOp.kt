@@ -5,7 +5,6 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants
 import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
-import org.firstinspires.ftc.teamcode.core.subsystems.localization.Localizer
 
 /**
  * Minimal teleop that exercises the starter scaffolding end-to-end:
@@ -22,12 +21,10 @@ import org.firstinspires.ftc.teamcode.core.subsystems.localization.Localizer
 class DriveOnlyTeleOp : OpModeBase() {
 
     private lateinit var drive: MecanumDriveSubsystem
-    private lateinit var localizer: Localizer
 
     override fun configure() {
         val follower = Constants.createFollower(hardwareMap)
         drive = robot.register(MecanumDriveSubsystem(follower))
-        localizer = robot.register(Localizer(follower))
     }
 
     override fun onStart() {
@@ -39,7 +36,7 @@ class DriveOnlyTeleOp : OpModeBase() {
         // Back+Y, not Start+A — Start+A is the Driver Station's gamepad
         // re-bind chord and would fire on a mid-match re-pair.
         if (driver.back && driver.yPressed) {
-            localizer.setPose(drive.pose.withHeading(0.0))
+            drive.setPose(drive.pose.withHeading(0.0))
         }
 
         // Toggle field-centric vs robot-centric with back + B.
