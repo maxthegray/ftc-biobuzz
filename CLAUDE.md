@@ -241,8 +241,11 @@ persist into a pinned config object.
 3. Read in `periodic()`, write targets in `writeHardware()`.
 4. Expose a clean API. Commands that touch this subsystem declare
    `requiring(this@MySubsystem)`.
-5. Register it on the `Robot` from the op-mode's `configure()` hook —
-   not from anywhere else.
+5. Register it on the `Robot` from the op-mode's configure hook — for
+   teleops that is `TeleOpBase.configureTeleop()`, for autons
+   `OpModeBase.configure()` — not from anywhere else. Trigger bindings
+   are wired there too; `GamepadEx` throws if you create triggers
+   mid-loop.
 
 ## When the user asks you to add a path or auton routine
 
@@ -256,6 +259,13 @@ Sequence the routine with `PedroAutoRunner` in `core/pathing/` — it wires
 the drive subsystem's follow/hold/turn commands and Ivy's
 sequential/parallel/race groups correctly, and `runner.cancel()` is safe
 mid-path (interrupted drive commands break following).
+
+`opmodes/ExampleAuto.kt` is the canonical skeleton: copy it for new
+routines. It shows the full lifecycle — starting pose, RED-authored
+poses mirrored per alliance, scheduling in `onStart()`, **no**
+`enableTeleop()`, and stopping on `runner.isDone`. New teleops start
+from `TeleOpBase` instead (drive registration + standard controls are
+already there).
 
 ## Things not to do unless explicitly asked
 
