@@ -18,6 +18,7 @@ class RobotLoopTest {
     ) : SubsystemBase(name) {
         override fun periodic() { events += "periodic" }
         override fun writeHardware() { events += "write" }
+        override fun onCommandFault() { events += "fault" }
         override fun stop() { events += "stop" }
     }
 
@@ -166,6 +167,60 @@ class RobotLoopTest {
         robot.loop()
 
         assertEquals(2, defaultStarts)
+    }
+
+    @Test
+    fun uncontainedCommandFaultPropagates() {
+        val bad = CommandBuilder()
+            .setExecute { error("boom") }
+            .setDone { false }
+
+        robot.start()
+        try {
+            robot.loop(control = { Scheduler.schedule(bad) })
+            org.junit.Assert.fail("expected the command fault to propagate")
+        } catch (e: IllegalStateException) {
+            assertEquals("boom", e.message)
+        }
+        assertEquals(0, robot.commandFaultCount)
+    }
+
+    @Test
+    fun containedCommandFaultSafesSubsystemsAndKeepsLooping() {
+        robot.containCommandFaults = true
+        val bad = CommandBuilder()
+            .setExecute { error("boom") }
+            .setDone { false }
+
+        robot.start()
+        robot.loop(control = { Scheduler.schedule(bad) })
+
+        assertEquals(1, robot.commandFaultCount)
+        assertEquals("boom", robot.lastCommandFault?.message)
+        assertTrue(!Scheduler.isScheduled(bad))
+        // The fault hook ran, and the loop still completed its write phase.
+        assertEquals(listOf("periodic", "fault", "write"), events)
+
+        // Default commands resume on the next tick.
+        val subsystem = robot.subsystems().first()
+        var defaultStarted = false
+        subsystem.defaultCommand = CommandBuilder()
+            .requiring(subsystem)
+            .setStart { defaultStarted = true }
+            .setDone { false }
+        robot.loop()
+        assertTrue(defaultStarted)
+    }
+
+    @Test
+    fun containedFaultInTriggerPollingKeepsLooping() {
+        robot.containCommandFaults = true
+
+        robot.start()
+        robot.loop(input = { error("binding blew up") })
+
+        assertEquals(1, robot.commandFaultCount)
+        assertEquals(listOf("periodic", "fault", "write"), events)
     }
 
     @Test

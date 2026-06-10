@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.core.runtime
 import com.pedropathing.ivy.Scheduler
 import com.qualcomm.hardware.lynx.LynxModule
 import com.qualcomm.robotcore.hardware.HardwareMap
+import com.qualcomm.robotcore.util.RobotLog
 import org.firstinspires.ftc.teamcode.core.logging.FlightRecorder
 import org.firstinspires.ftc.teamcode.core.util.Alliance
 import org.firstinspires.ftc.teamcode.core.util.Clock
@@ -31,6 +32,30 @@ class Robot(
     val bulkRead = BulkReadManager(hardwareMap)
 
     var alliance: Alliance = Alliance.RED
+
+    /**
+     * When true, an exception thrown from the command layer (trigger polling,
+     * default scheduling, `Scheduler.execute`) is *contained* instead of
+     * killing the op-mode: the scheduler is cleared, every subsystem gets
+     * [SubsystemBase.onCommandFault] to safe its actuators, and the loop
+     * keeps running — default commands (including teleop drive) resume on
+     * the next tick.
+     *
+     * Off by default. Teleop op-modes turn it on (a dead robot for the rest
+     * of a match is strictly worse than one mechanism going limp); auton
+     * leaves it off, where driving on silently-wrong state is the greater
+     * danger. Subsystem `periodic()`/`writeHardware()` and the op-mode's
+     * `onLoop()` always fail fast — they have no clean recovery story.
+     */
+    var containCommandFaults: Boolean = false
+
+    /** Number of contained command faults this op-mode. Surfaced in health telemetry. */
+    var commandFaultCount: Int = 0
+        private set
+
+    /** The most recent contained fault, for telemetry and post-match triage. */
+    var lastCommandFault: Throwable? = null
+        private set
 
     /** Monotonic tick counter, useful for log throttling. */
     var loopCount: Long = 0
@@ -75,7 +100,14 @@ class Robot(
 
     fun recordEvent(message: String) {
         flightRecorder?.event(message)
+        recentEvents.addLast("[loop $loopCount] $message")
+        while (recentEvents.size > RECENT_EVENT_LIMIT) recentEvents.removeFirst()
     }
+
+    private val recentEvents = ArrayDeque<String>()
+
+    /** The last few recorded events, oldest first — crash reports include these. */
+    fun recentEvents(): List<String> = recentEvents.toList()
 
     fun closeFlightRecorder() {
         flightRecorder?.close()
@@ -136,22 +168,24 @@ class Robot(
         for (s in subsystems) s.periodic()
         phaseStart = mark(phaseStart) { profile.periodicNanos = it }
 
-        input()
+        commandPhase { input() }
         phaseStart = mark(phaseStart) { profile.inputNanos = it }
 
         control()
         phaseStart = mark(phaseStart) { profile.controlNanos = it }
 
-        for (s in subsystems) {
-            val default = s.defaultCommand
-            if (default != null && !Scheduler.isScheduled(default)) {
-                Scheduler.schedule(default)
-                if (Scheduler.isScheduled(default)) {
-                    recordEvent("schedule default ${s.name}: $default")
+        commandPhase {
+            for (s in subsystems) {
+                val default = s.defaultCommand
+                if (default != null && !Scheduler.isScheduled(default)) {
+                    Scheduler.schedule(default)
+                    if (Scheduler.isScheduled(default)) {
+                        recordEvent("schedule default ${s.name}: $default")
+                    }
                 }
             }
+            Scheduler.execute()
         }
-        Scheduler.execute()
         phaseStart = mark(phaseStart) { profile.schedulerNanos = it }
 
         for (s in subsystems) s.writeHardware()
@@ -165,10 +199,12 @@ class Robot(
         if (recorder == null) {
             profile.recordNanos = 0
         } else {
+            // Measure twice on purpose: the first reading is what gets logged
+            // (the recorder can't time its own final write), the second adds
+            // that write's cost so the profile accounts for the full phase.
             val recordStart = clock.nanos()
             recorder.record(this)
-            profile.recordNanos = clock.nanos() - recordStart
-            recorder.recordRecorderNanos(profile.recordNanos)
+            recorder.recordRecorderNanos(clock.nanos() - recordStart)
             profile.recordNanos = clock.nanos() - recordStart
         }
         val now = clock.nanos()
@@ -199,6 +235,36 @@ class Robot(
         return now
     }
 
+    /** Run a command-layer phase, containing faults if [containCommandFaults] is on. */
+    private inline fun commandPhase(block: () -> Unit) {
+        if (!containCommandFaults) {
+            block()
+            return
+        }
+        try {
+            block()
+        } catch (t: Throwable) {
+            handleCommandFault(t)
+        }
+    }
+
+    private fun handleCommandFault(t: Throwable) {
+        commandFaultCount++
+        lastCommandFault = t
+        try {
+            RobotLog.ee("Robot", t, "Command fault contained (#$commandFaultCount)")
+        } catch (_: Throwable) {
+            // Host-side tests stub Android logging.
+        }
+        recordEvent("COMMAND FAULT: ${t.javaClass.simpleName}: ${t.message}")
+        // Scheduler.reset() skips end handlers, so subsystems must safe their
+        // own actuators below. Default commands reschedule on the next tick.
+        Scheduler.reset()
+        for (s in subsystems) {
+            try { s.onCommandFault() } catch (_: Throwable) { /* best-effort */ }
+        }
+    }
+
     /**
      * Shutdown everything. Ivy's `Scheduler.reset()` clears command state without
      * calling command end handlers, so critical hardware cleanup belongs in each
@@ -222,4 +288,8 @@ class Robot(
     /** Average loop frequency in Hz over the most recent tick. */
     val loopHz: Double
         get() = if (lastLoopNanos > 0) 1e9 / lastLoopNanos else 0.0
+
+    private companion object {
+        const val RECENT_EVENT_LIMIT = 20
+    }
 }

@@ -30,6 +30,14 @@ class FlightRecorder private constructor(
     private var enabled = true
     private var lastRunningCommands = ""
 
+    // Resolved once and reused: record() runs every tick, so no per-tick
+    // subsystem filtering or array allocation.
+    private var driveSubsystem: MecanumDriveSubsystem? = null
+    private var driveResolved = false
+    private val poseValues = DoubleArray(3)
+    private val velocityValues = DoubleArray(3)
+    private val axesValues = DoubleArray(6)
+
     private val pose = writer.startEntry("pose", "double[]")
     private val velocity = writer.startEntry("velocity", "double[]")
     private val driveMode = writer.startEntry("driveMode", "string")
@@ -49,23 +57,51 @@ class FlightRecorder private constructor(
     private val battery = writer.startEntry("battery", "double")
     private val runningCommands = writer.startEntry("commands/running", "string")
     private val events = writer.startEntry("events", "string")
+    private val followTranslationalError = writer.startEntry("follow/translationalErrorIn", "double")
+    private val followHeadingError = writer.startEntry("follow/headingErrorRad", "double")
 
     fun record(robot: Robot) {
         if (!enabled) return
         guard {
             val ts = timestampUs()
-            val drive = robot.subsystems().filterIsInstance<MecanumDriveSubsystem>().firstOrNull()
+            if (!driveResolved) {
+                driveResolved = true
+                for (subsystem in robot.subsystems()) {
+                    if (subsystem is MecanumDriveSubsystem) {
+                        driveSubsystem = subsystem
+                        break
+                    }
+                }
+            }
+            val drive = driveSubsystem
             if (drive != null) {
                 val p = drive.pose
-                writer.appendDoubleArray(pose, doubleArrayOf(p.x, p.y, p.heading), ts)
+                poseValues[0] = p.x
+                poseValues[1] = p.y
+                poseValues[2] = p.heading
+                writer.appendDoubleArray(pose, poseValues, ts)
                 val v = drive.velocity
-                val angular = try { drive.follower.angularVelocity } catch (_: Throwable) { 0.0 }
-                writer.appendDoubleArray(
-                    velocity,
-                    doubleArrayOf(v.xComponent, v.yComponent, angular),
-                    ts,
-                )
+                velocityValues[0] = v.xComponent
+                velocityValues[1] = v.yComponent
+                velocityValues[2] = try { drive.follower.angularVelocity } catch (_: Throwable) { 0.0 }
+                writer.appendDoubleArray(velocity, velocityValues, ts)
                 writer.appendString(driveMode, drive.mode.name, ts)
+                if (drive.mode == MecanumDriveSubsystem.Mode.FOLLOWING ||
+                    drive.mode == MecanumDriveSubsystem.Mode.HOLDING
+                ) {
+                    // The follower's error terms answer "was the path bad or
+                    // did the PID oscillate?" — Pedro API access is guarded
+                    // so a library change degrades to missing channels.
+                    try {
+                        writer.appendDouble(
+                            followTranslationalError,
+                            drive.follower.translationalError.magnitude,
+                            ts,
+                        )
+                        writer.appendDouble(followHeadingError, drive.follower.headingError, ts)
+                    } catch (_: RuntimeException) {
+                    }
+                }
             }
 
             writeGamepad(gamepad1(), gamepad1Axes, gamepad1Buttons, ts)
@@ -116,18 +152,13 @@ class FlightRecorder private constructor(
 
     private fun writeGamepad(pad: GamepadEx?, axesEntry: Int, buttonsEntry: Int, timestampUs: Long) {
         if (pad == null) return
-        writer.appendDoubleArray(
-            axesEntry,
-            doubleArrayOf(
-                pad.leftStickX,
-                pad.leftStickY,
-                pad.rightStickX,
-                pad.rightStickY,
-                pad.leftTrigger,
-                pad.rightTrigger,
-            ),
-            timestampUs,
-        )
+        axesValues[0] = pad.leftStickX
+        axesValues[1] = pad.leftStickY
+        axesValues[2] = pad.rightStickX
+        axesValues[3] = pad.rightStickY
+        axesValues[4] = pad.leftTrigger
+        axesValues[5] = pad.rightTrigger
+        writer.appendDoubleArray(axesEntry, axesValues, timestampUs)
         writer.appendInt64(buttonsEntry, buttonMask(pad), timestampUs)
     }
 

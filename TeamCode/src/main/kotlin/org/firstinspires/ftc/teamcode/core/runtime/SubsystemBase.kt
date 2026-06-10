@@ -60,6 +60,14 @@ abstract class SubsystemBase(val name: String) {
     open fun health(): String? = null
 
     /**
+     * Called after [Robot] contains a command fault (teleop only): the
+     * scheduler has just been cleared *without* running command end handlers,
+     * so put actuators in a safe state here — break a path follow, hold a
+     * lift in place. Default commands resume on the next tick. Never throw.
+     */
+    open fun onCommandFault() {}
+
+    /**
      * Called once at the end of the OpMode. Zero motors, stop threads,
      * release any resources. Never throw from here.
      */

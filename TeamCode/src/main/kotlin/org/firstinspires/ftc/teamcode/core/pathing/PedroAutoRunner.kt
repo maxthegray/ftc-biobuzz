@@ -33,33 +33,42 @@ import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsyste
  * the whole sequence is wrapped in `Groups.sequential` so the Ivy scheduler
  * owns execution — which means interrupting an auton routine mid-path is
  * just `runner.cancel()`.
+ *
+ * Pass an [onEvent] sink (typically `robot::recordEvent`) and the runner
+ * emits a labelled event as each step starts — every flight log then carries
+ * a navigable timeline of the routine.
  */
-class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
+class PedroAutoRunner(
+    private val drive: MecanumDriveSubsystem,
+    private val onEvent: ((String) -> Unit)? = null,
+) {
 
-    private val steps = mutableListOf<Command>()
+    private class Step(val label: String, val command: Command)
+
+    private val steps = mutableListOf<Step>()
     private var built: Command? = null
     private var scheduled = false
     private var timeoutMs: Double? = null
 
     /** Append a Pedro path to follow. */
     fun follow(chain: PathChain): PedroAutoRunner =
-        append(drive.followCommand(chain, holdEnd = false))
+        append("follow", drive.followCommand(chain, holdEnd = false))
 
     /** Append a Pedro path with a maximum power cap. */
     fun follow(chain: PathChain, maxPower: Double): PedroAutoRunner =
-        append(drive.followCommand(chain, maxPower, holdEnd = false))
+        append("follow (maxPower=$maxPower)", drive.followCommand(chain, maxPower, holdEnd = false))
 
     /** Append a Pedro path and hold the end pose once it completes. */
     fun followAndHold(chain: PathChain): PedroAutoRunner =
-        append(drive.followCommand(chain, holdEnd = true))
+        append("followAndHold", drive.followCommand(chain, holdEnd = true))
 
     /** Hold a fixed field pose (e.g. brake in place while mechanisms run). */
     fun holdPose(pose: Pose): PedroAutoRunner =
-        append(drive.holdCommand(pose))
+        append("holdPose", drive.holdCommand(pose))
 
     /** Turn in place to an absolute heading in radians. */
     fun turnTo(radians: Double): PedroAutoRunner =
-        append(drive.turnToCommand(radians))
+        append("turnTo %.0f deg".format(java.util.Locale.US, Math.toDegrees(radians)), drive.turnToCommand(radians))
 
     /**
      * Chase a moving target by feeding Pedro's holdPoint each tick. Ends
@@ -74,6 +83,7 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
         onEnd: (EndCondition) -> Unit = { drive.breakPath() },
     ): PedroAutoRunner =
         append(
+            "chase",
             chaseTarget(
                 drive,
                 target,
@@ -86,11 +96,11 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
 
     /** Inject an arbitrary one-shot action (e.g. "drop pre-load"). */
     fun run(action: Runnable): PedroAutoRunner =
-        append(Commands.instant(action))
+        append("run", Commands.instant(action))
 
     /** Wait [ms] milliseconds. */
     fun wait(ms: Double): PedroAutoRunner =
-        append(Commands.waitMs(ms))
+        append("wait ${ms.toLong()} ms", Commands.waitMs(ms))
 
     /** Wait [ms] milliseconds (long overload, converted). */
     fun wait(ms: Long): PedroAutoRunner = wait(ms.toDouble())
@@ -100,11 +110,11 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
      * it inside a [race] block if the routine needs to give up after a while.
      */
     fun waitUntil(condition: BooleanSupplier): PedroAutoRunner =
-        append(Commands.waitUntil(condition))
+        append("waitUntil", Commands.waitUntil(condition))
 
     /** Inline an existing Ivy command (raw escape hatch). */
     fun then(command: Command): PedroAutoRunner =
-        append(command)
+        append("command", command)
 
     /**
      * Group sub-steps that should run in parallel. All commands inside the
@@ -115,8 +125,8 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
         requireMutable()
         val sub = PedroAutoRunner(drive).apply(block)
         require(sub.steps.isNotEmpty()) { "parallel { } block is empty" }
-        requireNoSharedRequirements(sub.steps, "parallel")
-        return append(Groups.parallel(*sub.steps.toTypedArray()))
+        requireNoSharedRequirements(sub.commands(), "parallel")
+        return append(sub.groupLabel("parallel"), Groups.parallel(*sub.commands().toTypedArray()))
     }
 
     /**
@@ -128,8 +138,8 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
         requireMutable()
         val sub = PedroAutoRunner(drive).apply(block)
         require(sub.steps.isNotEmpty()) { "race { } block is empty" }
-        requireNoSharedRequirements(sub.steps, "race")
-        return append(Groups.race(*sub.steps.toTypedArray()))
+        requireNoSharedRequirements(sub.commands(), "race")
+        return append(sub.groupLabel("race"), Groups.race(*sub.commands().toTypedArray()))
     }
 
     /**
@@ -140,10 +150,10 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
         requireMutable()
         val sub = PedroAutoRunner(drive).apply(block)
         require(sub.steps.isNotEmpty()) { "deadline { } block is empty" }
-        requireNoSharedRequirements(sub.steps, "deadline")
-        val deadline = sub.steps.first()
-        val others = sub.steps.drop(1).toTypedArray()
-        return append(Groups.deadline(deadline, *others))
+        requireNoSharedRequirements(sub.commands(), "deadline")
+        val deadline = sub.commands().first()
+        val others = sub.commands().drop(1).toTypedArray()
+        return append(sub.groupLabel("deadline"), Groups.deadline(deadline, *others))
     }
 
     /** Race the entire built sequence against [ms] milliseconds. */
@@ -157,11 +167,16 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
     /** Race the entire built sequence against [ms] milliseconds. */
     fun timeout(ms: Long): PedroAutoRunner = timeout(ms.toDouble())
 
-    private fun append(step: Command): PedroAutoRunner {
+    private fun append(label: String, step: Command): PedroAutoRunner {
         requireMutable()
-        steps += step
+        steps += Step(label, step)
         return this
     }
+
+    private fun commands(): List<Command> = steps.map { it.command }
+
+    private fun groupLabel(groupName: String): String =
+        steps.joinToString(prefix = "$groupName[", postfix = "]") { it.label }
 
     private fun requireMutable() {
         check(built == null) {
@@ -182,7 +197,20 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
 
     private fun buildInternal(): Command {
         require(steps.isNotEmpty()) { "PedroAutoRunner has no steps" }
-        val sequence = Groups.sequential(*steps.toTypedArray())
+        val events = onEvent
+        val sequenced: List<Command> = if (events == null) {
+            commands()
+        } else {
+            val total = steps.size
+            buildList {
+                steps.forEachIndexed { index, step ->
+                    add(Commands.instant { events("auto step ${index + 1}/$total: ${step.label}") })
+                    add(step.command)
+                }
+                add(Commands.instant { events("auto routine complete") })
+            }
+        }
+        val sequence = Groups.sequential(*sequenced.toTypedArray())
             .withAtLeastPriority(CommandPriorities.AUTON_ROUTINE)
         val timeout = timeoutMs
         return if (timeout == null) {
@@ -226,18 +254,22 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
  * trailing DSL block:
  *
  * ```kotlin
- * val runner = autoRoutine(drive) {
+ * val runner = autoRoutine(drive, robot::recordEvent) {
  *     follow(toPreload)
  *     run { intake.score() }
  *     wait(300)
  *     follow(park)
  * }
  * ```
+ *
+ * Pass `robot::recordEvent` as [onEvent] to get a labelled step timeline in
+ * the flight log; omit it for silent sequencing.
  */
 inline fun autoRoutine(
     drive: MecanumDriveSubsystem,
+    noinline onEvent: ((String) -> Unit)? = null,
     block: PedroAutoRunner.() -> Unit,
-): PedroAutoRunner = PedroAutoRunner(drive).apply(block)
+): PedroAutoRunner = PedroAutoRunner(drive, onEvent).apply(block)
 
 private fun CommandBuilder.withAtLeastPriority(priority: Int): CommandBuilder =
     setPriority(kotlin.math.max(priority(), priority))

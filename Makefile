@@ -50,4 +50,10 @@ pull-logs: ## Pull flight-recorder .wpilog files into ./robot-logs
 	mkdir -p robot-logs
 	adb pull /sdcard/FIRST/logs robot-logs
 
-.PHONY: help build clean install hot connect disconnect devices reset-adb logs logs-all pull-logs
+analyze: pull-logs ## Pull logs and print a one-page summary of the newest match log
+	python3 tools/analyze_wpilog.py
+
+analyze-last: ## Summarize the newest already-pulled log (no adb needed)
+	python3 tools/analyze_wpilog.py
+
+.PHONY: help build clean install hot connect disconnect devices reset-adb logs logs-all pull-logs analyze analyze-last

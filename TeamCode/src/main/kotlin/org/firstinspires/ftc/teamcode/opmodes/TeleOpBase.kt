@@ -41,10 +41,19 @@ abstract class TeleOpBase : OpModeBase() {
     /** Override to false for teleops that must not inherit auton's field pose. */
     protected open val restorePoseFromAuton: Boolean get() = true
 
+    /**
+     * Teleop contains command faults: a buggy mechanism command goes limp
+     * (and shows in Health telemetry) instead of killing the whole robot for
+     * the rest of the match. See [org.firstinspires.ftc.teamcode.core.runtime.Robot.containCommandFaults].
+     */
+    override val containCommandFaults: Boolean get() = true
+
     final override fun configure() {
         val follower = createFollower()
+        // Drive first, localizer second: the localizer samples pose history
+        // right after the drive's writeHardware() runs Follower.update().
         drive = robot.register(MecanumDriveSubsystem(follower))
-        localizer = robot.register(LocalizerSubsystem(follower))
+        localizer = robot.register(LocalizerSubsystem(follower, onEvent = robot::recordEvent))
         drive.defaultCommand = drive.teleopCommand {
             TeleopInput(
                 forward = driver.leftStickY,

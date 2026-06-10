@@ -42,8 +42,10 @@ class ExampleAuto : OpModeBase() {
 
     override fun configure() {
         val follower = Constants.createFollower(hardwareMap)
+        // Drive first, localizer second — pose history is sampled after
+        // Follower.update() in the drive's writeHardware.
         drive = robot.register(MecanumDriveSubsystem(follower))
-        localizer = robot.register(LocalizerSubsystem(follower))
+        localizer = robot.register(LocalizerSubsystem(follower, onEvent = robot::recordEvent))
         selector = AutonSelector(robot, telemetryBag)
             .register("Out and back") { outAndBack() }
     }
@@ -58,7 +60,7 @@ class ExampleAuto : OpModeBase() {
             lineTo(startRed)
             linearHeading(Math.toRadians(90.0), 0.0)
         }
-        return autoRoutine(drive) {
+        return autoRoutine(drive, robot::recordEvent) {
             if (selector.startDelaySec > 0) wait(selector.startDelaySec * 1000L)
             follow(outPath)
             holdPose(alliance.mirror(outRed))              // settle on the target pose

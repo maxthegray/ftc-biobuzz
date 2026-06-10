@@ -223,7 +223,11 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
 
     override fun health(): String = "mode=$mode"
 
-    override fun stop() {
+    override fun onCommandFault() = halt()
+
+    override fun stop() = halt()
+
+    private fun halt() {
         zero()
         follower.breakFollowing()
         modeAfterFollow = Mode.IDLE

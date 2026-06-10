@@ -8,7 +8,11 @@ import com.qualcomm.robotcore.util.RobotLog
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
+import java.util.Locale
 import org.firstinspires.ftc.robotcore.external.Telemetry
+import org.firstinspires.ftc.teamcode.core.logging.FieldView
+import org.firstinspires.ftc.teamcode.core.logging.SchedulerIntrospection
+import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.PinpointDirect
 import org.firstinspires.ftc.teamcode.core.util.Alliance
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx
@@ -91,13 +95,24 @@ abstract class OpModeBase : LinearOpMode() {
     /** Set false for op-modes that want to own all health telemetry themselves. */
     protected open val publishHealthTelemetry: Boolean get() = true
 
+    /** Set false to suppress the live robot/path drawing on the Panels field view. */
+    protected open val publishFieldView: Boolean get() = true
+
     /** Rumble both gamepads once when the match reaches endgame. */
     protected open val endgameRumble: Boolean get() = true
 
+    /**
+     * When true, command-layer exceptions are contained instead of killing
+     * the op-mode — see [Robot.containCommandFaults]. [org.firstinspires.ftc.teamcode.opmodes.TeleOpBase]
+     * turns this on; auton op-modes keep the fail-fast default.
+     */
+    protected open val containCommandFaults: Boolean get() = false
+
     private var voltageSensor: VoltageSensor? = null
     private var cachedVoltage = Double.NaN
-    private var voltageReadHealthTick = Long.MIN_VALUE
-    private var healthTick = 0L
+    private var lastVoltageReadNs = Long.MIN_VALUE
+    private val fieldView = FieldView()
+    private var fieldViewDrive: MecanumDriveSubsystem? = null
     private val logDir = File("/sdcard/FIRST/logs")
     private val lastCrashFile = File(logDir, "lastcrash.txt")
     protected val matchTimer = MatchTimer()
@@ -157,9 +172,33 @@ abstract class OpModeBase : LinearOpMode() {
             val trace = StringWriter().also { writer ->
                 t.printStackTrace(PrintWriter(writer))
             }.toString()
-            robot.recordEvent("$message\n$trace")
+            // "What was happening" beats "where it died": capture scheduler
+            // state and the recent event timeline before anything shuts down.
+            val running = try {
+                SchedulerIntrospection.DEFAULT.runningCommandNames()
+            } catch (_: Throwable) {
+                emptyList()
+            }
+            val report = buildString {
+                appendLine(message)
+                appendLine(
+                    "loop ${robot.loopCount}, ${"%.1f".format(Locale.US, matchTimer.elapsedSec)} s into the match, " +
+                        "${robot.commandFaultCount} contained fault(s)",
+                )
+                if (running.isNotEmpty()) {
+                    appendLine("running commands:")
+                    for (name in running) appendLine("  $name")
+                }
+                val events = robot.recentEvents()
+                if (events.isNotEmpty()) {
+                    appendLine("recent events:")
+                    for (event in events) appendLine("  $event")
+                }
+                append(trace)
+            }
+            robot.recordEvent(report)
             robot.closeFlightRecorder()
-            writeLastCrash("$message\n$trace")
+            writeLastCrash(report)
             telemetry.addLine(message)
             telemetry.update()
             RobotLog.ee(logTag, t, message)
@@ -198,21 +237,36 @@ abstract class OpModeBase : LinearOpMode() {
         null
     }
 
-    private fun cachedBatteryVoltage(): Double? {
-        val sensor = voltageSensor ?: return null
-        if (cachedVoltage.isNaN() || healthTick - voltageReadHealthTick >= 25) {
-            cachedVoltage = sensor.voltage
-            voltageReadHealthTick = healthTick
+    /**
+     * Refresh the cached battery voltage, throttled to one hardware read per
+     * 250 ms. Runs every tick regardless of [publishHealthTelemetry] so the
+     * flight recorder's battery channel never silently depends on a
+     * telemetry flag.
+     */
+    private fun refreshVoltage() {
+        val sensor = voltageSensor ?: return
+        val now = System.nanoTime()
+        if (!cachedVoltage.isNaN() &&
+            lastVoltageReadNs != Long.MIN_VALUE &&
+            now - lastVoltageReadNs < 250_000_000L
+        ) {
+            return
         }
-        return cachedVoltage
+        cachedVoltage = sensor.voltage
+        lastVoltageReadNs = now
     }
 
     private fun publishHealth(includeInitOnly: Boolean) {
         if (!publishHealthTelemetry) return
-        healthTick++
         telemetryBag.section("Health") {
-            val voltage = cachedBatteryVoltage()
-            if (voltage != null) put("battery V", voltage, decimals = 2)
+            if (!cachedVoltage.isNaN()) put("battery V", cachedVoltage, decimals = 2)
+            if (robot.commandFaultCount > 0) {
+                val last = robot.lastCommandFault
+                put(
+                    "command faults",
+                    "${robot.commandFaultCount} (last: ${last?.javaClass?.simpleName}: ${last?.message})",
+                )
+            }
             for (subsystem in robot.subsystems()) {
                 val health = subsystem.health()
                 if (health != null) put(subsystem.name, health)
@@ -224,6 +278,9 @@ abstract class OpModeBase : LinearOpMode() {
                     "${t.javaClass.simpleName}: ${t.message}"
                 }
                 put("Pinpoint status", status)
+                if (!cachedVoltage.isNaN() && cachedVoltage < LOW_BATTERY_WARN_VOLTS) {
+                    put("battery WARNING", "LOW — swap before the match")
+                }
             }
         }
     }
@@ -238,7 +295,10 @@ abstract class OpModeBase : LinearOpMode() {
     }
 
     final override fun runOpMode() {
-        robot = Robot(hardwareMap).also { it.alliance = initialAlliance }
+        robot = Robot(hardwareMap).also {
+            it.alliance = initialAlliance
+            it.containCommandFaults = containCommandFaults
+        }
         driver = GamepadEx(gamepad1)
         operator = GamepadEx(gamepad2)
 
@@ -261,6 +321,8 @@ abstract class OpModeBase : LinearOpMode() {
             configure()
             robot.init()
             voltageSensor = firstVoltageSensor()
+            fieldViewDrive =
+                robot.subsystems().firstOrNull { it is MecanumDriveSubsystem } as? MecanumDriveSubsystem
 
             telemetry.addLine("Init complete — ${robot.subsystems().size} subsystems")
             telemetry.update()
@@ -272,7 +334,9 @@ abstract class OpModeBase : LinearOpMode() {
                 driver.update(pollTriggers = false)
                 operator.update(pollTriggers = false)
                 onInitLoop()
+                refreshVoltage()
                 publishHealth(includeInitOnly = true)
+                if (publishFieldView) fieldView.draw(fieldViewDrive)
                 safeFlush()
                 sleep(20)
             }
@@ -308,8 +372,10 @@ abstract class OpModeBase : LinearOpMode() {
                         updateEndgameRumble()
                     },
                     telemetry = {
+                        refreshVoltage()
                         publishLoopProfile()
                         publishHealth(includeInitOnly = false)
+                        if (publishFieldView) fieldView.draw(fieldViewDrive)
                         if (safeFlush()) robot.profile.resetMaxima()
                     },
                 )
@@ -320,5 +386,10 @@ abstract class OpModeBase : LinearOpMode() {
         } finally {
             robot.stop()
         }
+    }
+
+    private companion object {
+        /** Resting voltage below which the init screen warns to swap the battery. */
+        const val LOW_BATTERY_WARN_VOLTS = 12.0
     }
 }
