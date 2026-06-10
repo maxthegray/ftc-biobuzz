@@ -11,8 +11,6 @@ enum class Alliance {
     RED,
     BLUE;
 
-    val sign: Double get() = if (this == RED) 1.0 else -1.0
-
     /**
      * Returns `pose` unchanged for RED; mirrors across the field for BLUE so a
      * single set of path poses can run on either alliance. The mirror axis is

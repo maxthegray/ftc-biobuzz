@@ -46,10 +46,4 @@ class AllianceTest {
         // Heading comes back normalized into [0, 2pi).
         assertEquals(p.heading, twice.heading, eps)
     }
-
-    @Test
-    fun signMatchesAlliance() {
-        assertEquals(1.0, Alliance.RED.sign, 0.0)
-        assertEquals(-1.0, Alliance.BLUE.sign, 0.0)
-    }
 }
