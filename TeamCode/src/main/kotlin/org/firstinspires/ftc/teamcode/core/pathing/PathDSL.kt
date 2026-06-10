@@ -128,7 +128,7 @@ class PathDSL internal constructor(
     private fun applyAlliance(pose: Pose): Pose = alliance.mirror(pose)
 
     private fun applyAllianceHeading(heading: Double): Double =
-        if (alliance == Alliance.BLUE) MathFunctions.normalizeAngle(Math.PI - heading) else heading
+        if (alliance == Alliance.BLUE) MathFunctions.normalizeAngle(alliance.mirror(heading)) else heading
 
     private fun requireSegment(operation: String) {
         require(hasSegment) { "$operation requires at least one path segment" }
