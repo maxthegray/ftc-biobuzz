@@ -3,8 +3,10 @@ package org.firstinspires.ftc.teamcode.core.runtime
 import com.pedropathing.ivy.Scheduler
 import com.qualcomm.hardware.lynx.LynxModule
 import com.qualcomm.robotcore.hardware.HardwareMap
+import org.firstinspires.ftc.teamcode.core.logging.FlightRecorder
 import org.firstinspires.ftc.teamcode.core.util.Alliance
 import org.firstinspires.ftc.teamcode.core.util.Clock
+import org.firstinspires.ftc.teamcode.core.util.GamepadEx
 
 /**
  * Robot is the single source of truth for the robot's hardware + subsystems
@@ -42,6 +44,7 @@ class Robot(
     val profile = LoopProfile()
 
     private var lastTickEndNs: Long = 0
+    private var flightRecorder: FlightRecorder? = null
 
     /** Register a subsystem. Order matters only for tie-breaking in telemetry output. */
     fun <T : SubsystemBase> register(subsystem: T): T {
@@ -50,6 +53,24 @@ class Robot(
     }
 
     fun subsystems(): List<SubsystemBase> = subsystems
+
+    fun enableFlightRecorder(
+        opModeClassName: String,
+        driver: () -> GamepadEx?,
+        operator: () -> GamepadEx?,
+        batteryVoltage: () -> Double?,
+    ) {
+        flightRecorder = FlightRecorder.open(opModeClassName, driver, operator, batteryVoltage)
+    }
+
+    fun recordEvent(message: String) {
+        flightRecorder?.event(message)
+    }
+
+    fun closeFlightRecorder() {
+        flightRecorder?.close()
+        flightRecorder = null
+    }
 
     /**
      * Initialise every registered subsystem. Any exception from a subsystem's
@@ -112,7 +133,10 @@ class Robot(
 
         for (s in subsystems) {
             val default = s.defaultCommand
-            if (default != null && !Scheduler.isScheduled(default)) Scheduler.schedule(default)
+            if (default != null && !Scheduler.isScheduled(default)) {
+                recordEvent("schedule default ${s.name}: $default")
+                Scheduler.schedule(default)
+            }
         }
         Scheduler.execute()
         phaseStart = mark(phaseStart) { profile.schedulerNanos = it }
@@ -121,8 +145,10 @@ class Robot(
         phaseStart = mark(phaseStart) { profile.writeHardwareNanos = it }
 
         telemetry()
+        val afterTelemetry = clock.nanos()
+        profile.telemetryNanos = afterTelemetry - phaseStart
+        flightRecorder?.record(this)
         val now = clock.nanos()
-        profile.telemetryNanos = now - phaseStart
 
         lastLoopNanos = now - lastTickEndNs
         profile.totalNanos = lastLoopNanos
@@ -157,6 +183,7 @@ class Robot(
      * get a chance to clean up.
      */
     fun stop() {
+        recordEvent("stop")
         if (loopCount > 0) {
             for (s in subsystems) {
                 try { s.persistState() } catch (_: Throwable) { /* best-effort */ }
@@ -166,6 +193,7 @@ class Robot(
         for (s in subsystems) {
             try { s.stop() } catch (_: Throwable) { /* best-effort */ }
         }
+        closeFlightRecorder()
     }
 
     /** Average loop frequency in Hz over the most recent tick. */

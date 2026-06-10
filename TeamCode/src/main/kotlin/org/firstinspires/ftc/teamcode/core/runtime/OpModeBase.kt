@@ -5,6 +5,9 @@ import com.bylazar.telemetry.PanelsTelemetry
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode
 import com.qualcomm.robotcore.hardware.VoltageSensor
 import com.qualcomm.robotcore.util.RobotLog
+import java.io.File
+import java.io.PrintWriter
+import java.io.StringWriter
 import org.firstinspires.ftc.robotcore.external.Telemetry
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.PinpointDirect
 import org.firstinspires.ftc.teamcode.core.util.Alliance
@@ -88,6 +91,8 @@ abstract class OpModeBase : LinearOpMode() {
     private var cachedVoltage = Double.NaN
     private var voltageReadHealthTick = Long.MIN_VALUE
     private var healthTick = 0L
+    private val logDir = File("/sdcard/FIRST/logs")
+    private val lastCrashFile = File(logDir, "lastcrash.txt")
 
     private fun publishLoopProfile() {
         if (!publishLoopTelemetry) return
@@ -138,11 +143,40 @@ abstract class OpModeBase : LinearOpMode() {
     private fun reportLoopCrash(t: Throwable) {
         try {
             val message = "LOOP CRASHED: ${t.javaClass.simpleName}: ${t.message}"
+            val trace = StringWriter().also { writer ->
+                t.printStackTrace(PrintWriter(writer))
+            }.toString()
+            robot.recordEvent("$message\n$trace")
+            robot.closeFlightRecorder()
+            writeLastCrash("$message\n$trace")
             telemetry.addLine(message)
             telemetry.update()
             RobotLog.ee(logTag, t, message)
         } catch (_: Throwable) {
             // Preserve the original loop exception even if diagnostics fail.
+        }
+    }
+
+    private fun surfacePreviousCrash() {
+        try {
+            if (!lastCrashFile.exists()) return
+            val firstLine = lastCrashFile.useLines { lines -> lines.firstOrNull() }
+            if (!firstLine.isNullOrBlank()) {
+                telemetry.addLine("previous run crashed: $firstLine")
+                telemetry.update()
+            }
+            lastCrashFile.delete()
+        } catch (t: Throwable) {
+            RobotLog.ee(logTag, t, "Failed to surface previous crash")
+        }
+    }
+
+    private fun writeLastCrash(contents: String) {
+        try {
+            logDir.mkdirs()
+            lastCrashFile.writeText(contents)
+        } catch (t: Throwable) {
+            RobotLog.ee(logTag, t, "Failed to write lastcrash.txt")
         }
     }
 
@@ -194,6 +228,13 @@ abstract class OpModeBase : LinearOpMode() {
         // (which also forwards to Panels via the wrapper) would double-log
         // every line on the dashboard.
         telemetryBag = TelemetryBag(telemetry, panels)
+        robot.enableFlightRecorder(
+            javaClass.simpleName,
+            driver = { driver },
+            operator = { operator },
+            batteryVoltage = { if (cachedVoltage.isNaN()) null else cachedVoltage },
+        )
+        surfacePreviousCrash()
 
         try {
             Preflight.check(hardwareMap, requiredDevices)
@@ -232,6 +273,7 @@ abstract class OpModeBase : LinearOpMode() {
 
         try {
             robot.start()
+            robot.recordEvent("start")
             onStart()
             while (opModeIsActive()) {
                 robot.loop(
