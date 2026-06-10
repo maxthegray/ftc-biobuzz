@@ -1,4 +1,3 @@
-#MAybe switch to Bazel
 # Convenience targets for the day-to-day Control Hub workflow.
 # Run `make` (or `make help`) to list everything.
 
@@ -47,4 +46,8 @@ logs: ## Stream robot logs (RobotCore / OpMode / System.err)
 logs-all: ## Stream full unfiltered logcat
 	adb logcat
 
-.PHONY: help build clean install hot connect disconnect devices reset-adb logs logs-all
+pull-logs: ## Pull flight-recorder .wpilog files into ./robot-logs
+	mkdir -p robot-logs
+	adb pull /sdcard/FIRST/logs robot-logs
+
+.PHONY: help build clean install hot connect disconnect devices reset-adb logs logs-all pull-logs
