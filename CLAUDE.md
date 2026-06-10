@@ -96,6 +96,14 @@ Groups.race(a, b, c)
 Groups.deadline(deadlineCmd, a, b)
 ```
 
+Framework priority convention:
+
+```kotlin
+CommandPriorities.DEFAULT       // 0: subsystem default commands
+CommandPriorities.DRIVER_ACTION // 10: driver-triggered actions
+CommandPriorities.AUTON_ROUTINE // 10: autonomous routines
+```
+
 ### Pedro Follower
 
 ```kotlin
@@ -132,6 +140,34 @@ follower.pathBuilder()
 ```
 
 The Kotlin `PathDSL` wraps these with cleaner names — prefer it.
+
+### Drive subsystem defaults
+
+Teleop should be a default command, not an imperative `onLoop()` call:
+
+```kotlin
+drive.defaultCommand = drive.teleopCommand {
+    MecanumDriveSubsystem.TeleopInput(
+        driver.leftStickY,
+        driver.leftStickX,
+        driver.rightStickX,
+        precision = driver.rightTrigger > 0.1,
+    )
+}
+```
+
+`driveRaw()` remains public for tuning/bring-up only. The old imperative
+drive/path helpers are internal; use `followCommand`, `holdCommand`,
+`turnToCommand`, `PedroAutoRunner`, and trigger bindings for real op-modes.
+
+Useful runtime hooks:
+
+```kotlin
+localizer.restorePersistedPose()                 // auton → teleop pose handoff
+localizer.applyCorrection(measured, timestampNs) // latency-compensated vision seam
+val selector = AutonSelector(robot, telemetryBag)
+robot.recordEvent("marker")                      // also writes to WPILOG
+```
 
 ### Panels telemetry
 
@@ -186,9 +222,14 @@ driver.trigger { driver.rightTrigger > 0.5 }.whileTrue(drive.slowMode())
    `MecanumDriveSubsystem.writeHardware()`.** Calling it twice per tick
    will double the PID step and gives you weird oscillation.
 
-4. **Start in the right follower mode.** TeleOp op-modes must call
-   `drive.enableTeleop()` from `onStart()`. Auton op-modes must NOT —
-   the default post-init state is passive and ready for `followPath`.
+4. **Teleop mode starts from the default command.** TeleOp op-modes set
+   `drive.defaultCommand = drive.teleopCommand { ... }` in `configure()`.
+   Do not call `drive.drive(...)` from `onLoop()`; command requirements
+   are what let teleop resume cleanly after a path or driver action.
+
+5. **Bindings are init-only.** Wire `GamepadEx` triggers in `configure()`.
+   The init loop updates gamepad edges with trigger polling disabled, and
+   `OpModeBase` locks bindings at start so per-loop binding creation throws.
 
 ## Sloth hot reload + Panels: pin `@Configurable` classes
 
@@ -250,7 +291,7 @@ you have a reason.
 
 ## Things not to do unless explicitly asked
 
-- Don't rename hardware-map strings (`frontLeftMotor`, `sensor_otos`,
+- Don't rename hardware-map strings (`frontLeftMotor`, `pinpoint`,
   etc.). Those match the user's actual robot config.
 - Don't move files between `java/` and `kotlin/` source roots.
 - Don't bump FTC SDK, Pedro, Kotlin, or AGP versions.
@@ -282,15 +323,14 @@ staged hot-reload jar first — the two paths don't fight each other.
 Because hot reload is live, `@Pinned` matters — see the **Sloth hot reload
 + Panels** section above.
 
+Logs live on the robot at `/sdcard/FIRST/logs`. Use `make pull-logs` and
+open `.wpilog` files in AdvantageScope.
+
 ## Running the project
 
-There is no bundled test suite — FTC code runs on the robot and is
-effectively tested by deploying to hardware. For type-checking, import
-into Android Studio and let Gradle sync. You can also run:
+Run the host unit tests and Android debug assemble with JDK 17:
 
 ```
-./gradlew :TeamCode:assembleDebug
+JAVA_HOME="/Users/maximilianreich/Library/Java/JavaVirtualMachines/corretto-17.0.13/Contents/Home" \
+  ./gradlew :TeamCode:testDebugUnitTest :TeamCode:assembleDebug
 ```
-
-which will compile everything (Java + Kotlin) and surface errors. This
-is the closest thing to "CI" this codebase has.

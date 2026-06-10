@@ -20,8 +20,8 @@ A single op-mode tick always looks like this:
 │     5. default commands                    ← idle subsystem work  │
 │     6. Scheduler.execute()                 ← Ivy ticks commands   │
 │     7. for s in subsystems: s.writeHardware() ← motors, servos    │
+│     8. telemetry + flight recorder         ← DS, Panels, WPILOG   │
 │                                                                   │
-│   telemetryBag.flush()                     ← DS + Panels in 1 go  │
 └───────────────────────────────────────────────────────────────────┘
 ```
 
@@ -58,6 +58,14 @@ The order matters:
    command has decided what the subsystem should be doing this tick.
    `MecanumDriveSubsystem.writeHardware()` calls `Follower.update()`,
    which is where Pedro actually computes and writes motor powers.
+
+`Robot.initTick()` is the init-loop subset: clear caches and run subsystem
+`periodic()` only. Gamepad edges work in init, but trigger bindings are not
+polled until start and bindings are locked once the op-mode starts.
+
+Before `configure()`, `OpModeBase` runs `Preflight.check()` against the
+op-mode's `requiredDevices`, so missing drive motors or the `pinpoint`
+device fail before Pedro tries to construct a follower.
 
 ## Threading model
 
@@ -97,16 +105,20 @@ why this starter exists.
 ## Localisation Hooks
 
 The Follower owns the primary localiser (Pinpoint), so wheel-odometry
-drift accumulates over long paths. The starter exposes two hooks:
+drift accumulates over long paths. The starter exposes three hooks:
 
 1. `LocalizerSubsystem` is a small subsystem facade over the Follower pose and
-   velocity.
+   velocity. It records a fixed-size pose history and exposes
+   `applyCorrection(measured, timestampNanos)` for latency-compensated
+   AprilTag or vision measurements.
 2. `PinpointDirect` reaches down to the raw Pinpoint driver for
    init-time IMU recalibration and status reads.
+3. `PersistedPose` stores the last live drive pose across op-mode handoff.
+   Teleop op-modes opt in with `localizer.restorePersistedPose()`.
 
-Vision-based correction is intentionally not included in this template. If
-a season fork needs camera correction or sensor fusion, add that subsystem
-in the fork and feed accepted field-pose corrections through `LocalizerSubsystem`.
+Vision pipelines are intentionally not included in this template. If a
+season fork needs cameras, add that subsystem in the fork and feed accepted
+field-pose corrections through `LocalizerSubsystem.applyCorrection`.
 
 ## Telemetry: two audiences, one call
 
@@ -127,6 +139,17 @@ telemetryBag.section("Drive") {
 `OpModeBase` calls `telemetryBag.flush()` at the bottom of every tick.
 Don't hand-write to `telemetry` or to `PanelsTelemetry` directly — you'd
 just be duplicating lines.
+
+## Flight Recording
+
+`Robot` owns a WPILOG flight recorder enabled by `OpModeBase` for every
+op-mode. It records pose, velocity, drive mode, gamepad axes/buttons, loop
+phase timings, battery voltage, running command names, and events. Any I/O
+failure disables the recorder for that run; it never throws into the loop.
+
+Loop crashes write a final event, close the log, and save
+`/sdcard/FIRST/logs/lastcrash.txt`. The next init displays the first line
+and deletes the file.
 
 ## Hot reload, Sinister, and Sloth
 

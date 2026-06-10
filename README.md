@@ -37,8 +37,9 @@ TeamCode/src/main/
 └── kotlin/org/firstinspires/ftc/teamcode/
     ├── core/
     │   ├── hardware/       # SRSHub wrapper + optional I2C bus thread
+    │   ├── logging/        # WPILOG flight recorder + scheduler introspection
     │   ├── pathing/        # PathDSL, chaseTarget, PedroAutoRunner
-    │   ├── runtime/        # Robot, OpModeBase, SubsystemBase, RobotConfig
+    │   ├── runtime/        # Robot, OpModeBase, SubsystemBase, selector/config
     │   ├── subsystems/
     │   │   ├── drive/      # MecanumDriveSubsystem, DriveConfig
     │   │   └── localization/ # LocalizerSubsystem + PinpointDirect helper
@@ -48,25 +49,35 @@ TeamCode/src/main/
 
 ## Writing a new op-mode
 
-Extend `OpModeBase` and override three hooks:
+Extend `OpModeBase` and wire controls once in `configure()`:
 
 ```kotlin
 @TeleOp(name = "Match Teleop", group = "Competition")
 class MatchTeleop : OpModeBase() {
     private lateinit var drive: MecanumDriveSubsystem
+    private lateinit var localizer: LocalizerSubsystem
 
     override fun configure() {
         val follower = Constants.createFollower(hardwareMap)
         drive = robot.register(MecanumDriveSubsystem(follower))
+        localizer = robot.register(LocalizerSubsystem(follower))
+        drive.defaultCommand = drive.teleopCommand {
+            MecanumDriveSubsystem.TeleopInput(
+                driver.leftStickY,
+                driver.leftStickX,
+                driver.rightStickX,
+                precision = driver.rightTrigger > 0.1,
+            )
+        }
         // register more subsystems here...
     }
 
     override fun onStart() {
-        drive.enableTeleop()
+        // Optional auton-to-teleop pose handoff.
+        localizer.restorePersistedPose()
     }
 
     override fun onLoop() {
-        drive.drive(driver.leftStickY, driver.leftStickX, driver.rightStickX)
         telemetryBag.section("Drive") {
             put("pose", drive.pose)
             put("loopHz", robot.loopHz, decimals = 1)
@@ -85,7 +96,7 @@ The `path { }` DSL sits over Pedro's `PathBuilder`:
 ```kotlin
 val toScore = drive.path(Pose(9.0, 60.0, 0.0), alliance = Alliance.RED) {
     lineTo(Pose(30.0, 60.0))
-    splineTo(Pose(48.0, 40.0, Math.toRadians(-45.0)))
+    splineTo(Pose(38.0, 58.0), Pose(48.0, 40.0, Math.toRadians(-45.0)))
     constantHeading(Math.toRadians(-45.0))
 }
 ```
@@ -109,6 +120,19 @@ runner.schedule()
 if (runner.isDone) requestOpModeStop()
 ```
 
+## Logs and verification
+
+Run the host tests and Android debug assemble with JDK 17:
+
+```
+JAVA_HOME="/Users/maximilianreich/Library/Java/JavaVirtualMachines/corretto-17.0.13/Contents/Home" \
+  ./gradlew :TeamCode:testDebugUnitTest :TeamCode:assembleDebug
+```
+
+Every op-mode writes a WPILOG flight-recorder file under
+`/sdcard/FIRST/logs`. Pull logs with `make pull-logs`, then open the newest
+`.wpilog` in AdvantageScope.
+
 ## Where to tune what
 
 | I want to change…                               | Edit this                                                   |
@@ -122,4 +146,6 @@ if (runner.isDone) requestOpModeStop()
 ## Further reading
 
 - Architecture decisions and lifecycle timing: [ARCHITECTURE.md](ARCHITECTURE.md)
+- Robot bring-up checklist: [BRINGUP.md](BRINGUP.md)
+- Season fork guide: [FORKING.md](FORKING.md)
 - Guidance for AI-assisted edits: [CLAUDE.md](CLAUDE.md)
