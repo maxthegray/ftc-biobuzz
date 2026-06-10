@@ -160,6 +160,13 @@ drive.defaultCommand = drive.teleopCommand {
 drive/path helpers are internal; use `followCommand`, `holdCommand`,
 `turnToCommand`, `PedroAutoRunner`, and trigger bindings for real op-modes.
 
+Season teleops should extend `TeleOpBase` instead of wiring this by hand:
+it registers drive + localizer, installs the teleop default command,
+restores the persisted auton pose, and wires the standard driver chords —
+**Back+Y** heading reset and **Back+B** field-centric toggle (Back, not
+Start: Start+A/B are the Driver Station's gamepad re-bind chords). Wire
+season subsystems and bindings in `configureTeleop()`.
+
 Useful runtime hooks:
 
 ```kotlin
@@ -287,7 +294,14 @@ persist into a pinned config object.
 Prefer the `PathDSL` / `PedroAutoRunner` DSLs in `core/pathing/`. They
 already handle the Pedro API correctly and add alliance mirroring and
 parallel/race groups on top. Don't drop back to raw `PathBuilder` unless
-you have a reason.
+you have a reason — and if you do, remember `Alliance.mirror(heading)`
+for the heading-interpolation arguments; pose mirroring alone doesn't
+cover them.
+
+`ExampleAuto` is the copyable skeleton: `AutonSelector` on dpad in the
+init loop (A to lock), RED-coordinate poses mirrored by the DSL, routine
+built at start from the locked alliance, sequenced with `autoRoutine`,
+final pose persisted automatically for teleop to restore.
 
 ## Things not to do unless explicitly asked
 

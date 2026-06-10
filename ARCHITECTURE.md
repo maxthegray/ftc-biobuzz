@@ -159,6 +159,28 @@ enough: Sinister scans the APK at boot and wires up anything annotated
 or registered for hot-reloading. We don't use it for any explicit feature
 here — it's just present so you can pull it in when you start tuning live.
 
+## Error philosophy: fail fast
+
+Init failures throw — a missing device surfaces as `HardwareConfigError`
+with the name baked in, the op-mode aborts loudly, and you fix the
+config. Loop failures also throw: there is no per-subsystem try/catch in
+`Robot.loop`, so an exception in a `periodic()` or a command kills the
+op-mode mid-match (`OpModeBase` records the crash to the flight recorder
+and `lastcrash.txt` first, then rethrows).
+
+That is deliberate. Swallowing exceptions to "survive the match" means
+driving on silently-wrong state — a drivetrain that thinks it's at the
+wrong pose is more dangerous than a dead one. If a specific sensor is
+known-flaky, handle it explicitly at the read site (stale-data flag,
+last-good-value, telemetry warning) rather than via a blanket rescue.
+
+Three narrow, intentional exceptions: subsystem `stop()` is best-effort
+(exceptions swallowed so every subsystem gets its shutdown), telemetry
+flushes are swallowed after logging (a Panels websocket hiccup must not
+stop the robot), and `I2CBusThread` swallows transient I²C errors by
+design — it keeps publishing the last good value and exposes failure
+counters instead.
+
 ## What doesn't live in this codebase
 
 - Game-specific logic: scoring, intake state machines, shooter RPM tables.

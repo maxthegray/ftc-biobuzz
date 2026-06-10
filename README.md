@@ -49,32 +49,15 @@ TeamCode/src/main/
 
 ## Writing a new op-mode
 
-Extend `OpModeBase` and wire controls once in `configure()`:
+Teleops extend `TeleOpBase` — it registers drive + localizer, installs the
+stick-driven teleop default command, restores the persisted auton pose, and
+wires the standard chords (Back+Y heading reset, Back+B field-centric):
 
 ```kotlin
 @TeleOp(name = "Match Teleop", group = "Competition")
-class MatchTeleop : OpModeBase() {
-    private lateinit var drive: MecanumDriveSubsystem
-    private lateinit var localizer: LocalizerSubsystem
-
-    override fun configure() {
-        val follower = Constants.createFollower(hardwareMap)
-        drive = robot.register(MecanumDriveSubsystem(follower))
-        localizer = robot.register(LocalizerSubsystem(follower))
-        drive.defaultCommand = drive.teleopCommand {
-            MecanumDriveSubsystem.TeleopInput(
-                driver.leftStickY,
-                driver.leftStickX,
-                driver.rightStickX,
-                precision = driver.rightTrigger > 0.1,
-            )
-        }
-        // register more subsystems here...
-    }
-
-    override fun onStart() {
-        // Optional auton-to-teleop pose handoff.
-        localizer.restorePersistedPose()
+class MatchTeleop : TeleOpBase() {
+    override fun configureTeleop() {
+        // register season subsystems and trigger bindings here...
     }
 
     override fun onLoop() {
@@ -86,8 +69,11 @@ class MatchTeleop : OpModeBase() {
 }
 ```
 
-`OpModeBase` handles the rest: Lynx bulk-read mode, Ivy scheduler ticking,
-gamepad edge detection, joined Driver Station + Panels telemetry flushing.
+Autons extend `OpModeBase` directly — copy `ExampleAuto` as the skeleton
+(alliance/routine/delay selection on dpad in init, paths mirrored from RED
+coordinates, sequencing via `autoRoutine`). `OpModeBase` handles the rest:
+Lynx bulk-read mode, Ivy scheduler ticking, gamepad edge detection, joined
+Driver Station + Panels telemetry flushing.
 
 ## Writing a path
 
