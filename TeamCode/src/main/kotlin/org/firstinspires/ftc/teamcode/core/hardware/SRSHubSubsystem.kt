@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.core.hardware
 import com.qualcomm.robotcore.hardware.HardwareMap
 import org.firstinspires.ftc.teamcode.core.runtime.HardwareConfigError
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
+import org.firstinspires.ftc.teamcode.core.subsystems.localization.PinpointSource
 
 /**
  * Subsystem that owns an SRSHub and bulk-reads every sensor attached to it
@@ -117,6 +118,13 @@ class SRSHubSubsystem(name: String = "srsHub") : SubsystemBase(name) {
         if (::hub.isInitialized && hub.ready()) hub.update()
     }
 
+    override fun health(): String = when {
+        !::hub.isInitialized -> "not initialized"
+        hub.disconnected() -> "disconnected"
+        hub.ready() -> "ready"
+        else -> "not ready"
+    }
+
     private fun register(bus: Int, device: SRSHub.I2CDevice) {
         requireUnconfigured()
         config.addI2CDevice(bus, device)
@@ -165,18 +173,18 @@ class SRSHubSubsystem(name: String = "srsHub") : SubsystemBase(name) {
         val bus: Int,
         private val dev: SRSHub.GoBildaPinpoint,
         private val send: (SRSHub.Command) -> Unit,
-    ) {
-        val xMm: Float get() = dev.xPosition
-        val yMm: Float get() = dev.yPosition
-        val headingRad: Float get() = dev.hOrientation
-        val xVelMmPerSec: Float get() = dev.xVelocity
-        val yVelMmPerSec: Float get() = dev.yVelocity
-        val headingVelRadPerSec: Float get() = dev.hVelocity
+    ) : PinpointSource {
+        override val xMm: Float get() = dev.xPosition
+        override val yMm: Float get() = dev.yPosition
+        override val headingRad: Float get() = dev.hOrientation
+        override val xVelMmPerSec: Float get() = dev.xVelocity
+        override val yVelMmPerSec: Float get() = dev.yVelocity
+        override val headingVelRadPerSec: Float get() = dev.hVelocity
         val deviceStatus: Short get() = dev.deviceStatus
         val disconnected: Boolean get() = dev.disconnected
 
-        fun resetImu() = send(SRSHub.GoBildaPinpoint.ResetIMUCommand(bus))
-        fun setPose(xMm: Float, yMm: Float, headingRad: Float) =
+        override fun resetImu() = send(SRSHub.GoBildaPinpoint.ResetIMUCommand(bus))
+        override fun setPose(xMm: Float, yMm: Float, headingRad: Float) =
             send(SRSHub.GoBildaPinpoint.SetPositionCommand(bus, xMm, yMm, headingRad))
     }
 }

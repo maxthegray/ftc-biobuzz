@@ -152,6 +152,11 @@ class Robot(
      * get a chance to clean up.
      */
     fun stop() {
+        if (loopCount > 0) {
+            for (s in subsystems) {
+                try { s.persistState() } catch (_: Throwable) { /* best-effort */ }
+            }
+        }
         Scheduler.reset()
         for (s in subsystems) {
             try { s.stop() } catch (_: Throwable) { /* best-effort */ }

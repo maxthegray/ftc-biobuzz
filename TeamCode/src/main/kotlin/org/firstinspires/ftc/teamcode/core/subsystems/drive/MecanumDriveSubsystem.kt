@@ -9,6 +9,7 @@ import com.pedropathing.math.MathFunctions
 import com.pedropathing.math.Vector
 import com.pedropathing.paths.PathChain
 import com.qualcomm.robotcore.hardware.HardwareMap
+import org.firstinspires.ftc.teamcode.core.runtime.PersistedPose
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import kotlin.math.abs
 
@@ -164,6 +165,12 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
         // setTeleOpDrive / followPath / holdPoint call to issue.
         follower.update()
     }
+
+    override fun persistState() {
+        PersistedPose.record(follower.pose)
+    }
+
+    override fun health(): String = "mode=$mode"
 
     override fun stop() {
         zero()

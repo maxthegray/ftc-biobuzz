@@ -99,4 +99,30 @@ class RobotLoopTest {
         robot.stop()
         assertEquals(listOf("stop", "thrower", "stop"), events)
     }
+
+    @Test
+    fun stopBeforeFirstLoopDoesNotPersistSubsystemState() {
+        val persisted = mutableListOf<String>()
+        robot.register(object : SubsystemBase("persist") {
+            override fun persistState() { persisted += "persist" }
+        })
+
+        robot.stop()
+
+        assertTrue(persisted.isEmpty())
+    }
+
+    @Test
+    fun stopAfterLoopPersistsSubsystemState() {
+        val persisted = mutableListOf<String>()
+        robot.register(object : SubsystemBase("persist") {
+            override fun persistState() { persisted += "persist" }
+        })
+
+        robot.start()
+        robot.loop()
+        robot.stop()
+
+        assertEquals(listOf("persist"), persisted)
+    }
 }

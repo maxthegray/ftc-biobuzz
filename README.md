@@ -21,7 +21,7 @@ Built on:
 1. Open the project in Android Studio Giraffe+ / Hedgehog+.
 2. Make sure the Control Hub's active Configuration has these hardware names:
    - Motors: `frontLeftMotor`, `frontRightMotor`, `backLeftMotor`, `backRightMotor`
-   - Pinpoint I²C: `sensor_otos` (historical name — kept from prior OTOS config)
+   - Pinpoint I²C: `pinpoint`
 3. Build & push to the Robot Controller. Select the op-mode
    **Starter: Drive Only** to sanity-check the drivetrain and telemetry.
 4. Open the Panels dashboard at `http://192.168.43.1:8001` while the robot

@@ -3,8 +3,10 @@ package org.firstinspires.ftc.teamcode.core.runtime
 import com.bylazar.telemetry.JoinedTelemetry
 import com.bylazar.telemetry.PanelsTelemetry
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode
+import com.qualcomm.robotcore.hardware.VoltageSensor
 import com.qualcomm.robotcore.util.RobotLog
 import org.firstinspires.ftc.robotcore.external.Telemetry
+import org.firstinspires.ftc.teamcode.core.subsystems.localization.PinpointDirect
 import org.firstinspires.ftc.teamcode.core.util.Alliance
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx
 import org.firstinspires.ftc.teamcode.core.util.TelemetryBag
@@ -49,6 +51,10 @@ abstract class OpModeBase : LinearOpMode() {
     /** Override to pick a side for auton; defaults to RED (fine for teleop). */
     open val alliance: Alliance get() = Alliance.RED
 
+    /** Hardware devices this op-mode expects before [configure] resolves them. */
+    protected open val requiredDevices: List<Preflight.Requirement>
+        get() = Preflight.standard
+
     /** Register subsystems on [robot] and set up default commands. */
     protected abstract fun configure()
 
@@ -74,6 +80,14 @@ abstract class OpModeBase : LinearOpMode() {
      * throttled by [TelemetryBag]).
      */
     protected open val publishLoopTelemetry: Boolean get() = true
+
+    /** Set false for op-modes that want to own all health telemetry themselves. */
+    protected open val publishHealthTelemetry: Boolean get() = true
+
+    private var voltageSensor: VoltageSensor? = null
+    private var cachedVoltage = Double.NaN
+    private var voltageReadHealthTick = Long.MIN_VALUE
+    private var healthTick = 0L
 
     private fun publishLoopProfile() {
         if (!publishLoopTelemetry) return
@@ -132,6 +146,43 @@ abstract class OpModeBase : LinearOpMode() {
         }
     }
 
+    private fun firstVoltageSensor(): VoltageSensor? = try {
+        val iterator = hardwareMap.voltageSensor.iterator()
+        if (iterator.hasNext()) iterator.next() else null
+    } catch (_: Throwable) {
+        null
+    }
+
+    private fun cachedBatteryVoltage(): Double? {
+        val sensor = voltageSensor ?: return null
+        if (cachedVoltage.isNaN() || healthTick - voltageReadHealthTick >= 25) {
+            cachedVoltage = sensor.voltage
+            voltageReadHealthTick = healthTick
+        }
+        return cachedVoltage
+    }
+
+    private fun publishHealth(includeInitOnly: Boolean) {
+        if (!publishHealthTelemetry) return
+        healthTick++
+        telemetryBag.section("Health") {
+            val voltage = cachedBatteryVoltage()
+            if (voltage != null) put("battery V", voltage, decimals = 2)
+            for (subsystem in robot.subsystems()) {
+                val health = subsystem.health()
+                if (health != null) put(subsystem.name, health)
+            }
+            if (includeInitOnly) {
+                val status = try {
+                    PinpointDirect.status(hardwareMap).toString()
+                } catch (t: Throwable) {
+                    "${t.javaClass.simpleName}: ${t.message}"
+                }
+                put("Pinpoint status", status)
+            }
+        }
+    }
+
     final override fun runOpMode() {
         robot = Robot(hardwareMap).also { it.alliance = alliance }
         driver = GamepadEx(gamepad1)
@@ -145,8 +196,10 @@ abstract class OpModeBase : LinearOpMode() {
         telemetryBag = TelemetryBag(telemetry, panels)
 
         try {
+            Preflight.check(hardwareMap, requiredDevices)
             configure()
             robot.init()
+            voltageSensor = firstVoltageSensor()
 
             telemetry.addLine("Init complete — ${robot.subsystems().size} subsystems")
             telemetry.update()
@@ -158,6 +211,7 @@ abstract class OpModeBase : LinearOpMode() {
                 driver.update(pollTriggers = false)
                 operator.update(pollTriggers = false)
                 onInitLoop()
+                publishHealth(includeInitOnly = true)
                 safeFlush()
                 sleep(20)
             }
@@ -188,6 +242,7 @@ abstract class OpModeBase : LinearOpMode() {
                     control = { onLoop() },
                     telemetry = {
                         publishLoopProfile()
+                        publishHealth(includeInitOnly = false)
                         if (safeFlush()) robot.profile.resetMaxima()
                     },
                 )

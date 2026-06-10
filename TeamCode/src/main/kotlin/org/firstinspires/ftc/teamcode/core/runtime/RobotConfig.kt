@@ -22,13 +22,8 @@ object RobotConfig {
     }
 
     object Localization {
-        /**
-         * Hardware-map name of the GoBilda Pinpoint. Named "sensor_otos"
-         * because the robot kept the config entry after migrating off the
-         * SparkFun OTOS — change this if you re-name the device on the
-         * Driver Station.
-         */
-        const val PINPOINT = "sensor_otos"
+        /** Hardware-map name of the GoBilda Pinpoint. */
+        const val PINPOINT = "pinpoint"
     }
 
     /** Game-level constants that change every season. Edit when the new game launches. */

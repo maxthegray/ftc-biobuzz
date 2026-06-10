@@ -39,6 +39,19 @@ abstract class SubsystemBase(val name: String) {
     open fun writeHardware() {}
 
     /**
+     * Persist subsystem state that should survive op-mode handoff. Called
+     * during [Robot.stop] only after at least one real loop has run, so an
+     * init-cancelled op-mode cannot overwrite useful state with defaults.
+     */
+    open fun persistState() {}
+
+    /**
+     * Short health string for Driver Station / Panels telemetry, or null if
+     * the subsystem has nothing useful to report this tick.
+     */
+    open fun health(): String? = null
+
+    /**
      * Called once at the end of the OpMode. Zero motors, stop threads,
      * release any resources. Never throw from here.
      */

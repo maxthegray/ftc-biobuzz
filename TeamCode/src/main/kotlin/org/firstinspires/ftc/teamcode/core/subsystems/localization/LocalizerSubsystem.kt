@@ -4,6 +4,7 @@ import com.pedropathing.follower.Follower
 import com.pedropathing.geometry.Pose
 import com.pedropathing.math.Vector
 import com.qualcomm.robotcore.hardware.HardwareMap
+import org.firstinspires.ftc.teamcode.core.runtime.PersistedPose
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 
 /**
@@ -38,5 +39,18 @@ class LocalizerSubsystem(private val follower: Follower) : SubsystemBase("Locali
 
     fun setStartingPose(p: Pose) {
         follower.setStartingPose(p)
+    }
+
+    /**
+     * Restore a recently persisted field pose, usually from auton into teleop.
+     *
+     * @return true if a valid, fresh pose was applied to the follower.
+     */
+    fun restorePersistedPose(maxAgeMs: Long = 120_000): Boolean {
+        if (!PersistedPose.valid) return false
+        val ageMs = System.currentTimeMillis() - PersistedPose.wallTimeMs
+        if (ageMs < 0 || ageMs > maxAgeMs) return false
+        follower.setPose(Pose(PersistedPose.x, PersistedPose.y, PersistedPose.headingRad))
+        return true
     }
 }
