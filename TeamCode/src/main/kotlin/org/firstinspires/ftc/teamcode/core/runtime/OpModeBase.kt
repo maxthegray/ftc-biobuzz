@@ -104,7 +104,10 @@ abstract class OpModeBase : LinearOpMode() {
 
         val panels = PanelsTelemetry.telemetry
         joinedTelemetry = JoinedTelemetry(telemetry, panels.wrapper)
-        telemetryBag = TelemetryBag(joinedTelemetry, panels)
+        // The bag fans out to DS + Panels itself — handing it joinedTelemetry
+        // (which also forwards to Panels via the wrapper) would double-log
+        // every line on the dashboard.
+        telemetryBag = TelemetryBag(telemetry, panels)
 
         try {
             configure()

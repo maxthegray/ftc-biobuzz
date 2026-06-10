@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.core.hardware
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
+import org.firstinspires.ftc.teamcode.core.util.Clock
 
 /**
  * A single background thread that polls one I2C-bound device at a fixed
@@ -36,6 +37,7 @@ class I2CBusThread<T : Any>(
     private val name: String,
     targetHz: Double,
     initial: T? = null,
+    private val clock: Clock = Clock.SYSTEM,
     private val poll: () -> T,
 ) {
     init {
@@ -86,10 +88,10 @@ class I2CBusThread<T : Any>(
 
     private fun runLoop() {
         while (running.get() && !Thread.currentThread().isInterrupted) {
-            val startNs = System.nanoTime()
+            val startNs = clock.nanos()
             try {
                 ref.publish(poll())
-                lastSuccessNs.set(System.nanoTime())
+                lastSuccessNs.set(clock.nanos())
                 lastErrorRef.set(null)
             } catch (t: Throwable) {
                 // Keep polling after a transient I2C glitch, but expose the
@@ -98,7 +100,7 @@ class I2CBusThread<T : Any>(
                 lastErrorRef.set(t)
                 Thread.yield()
             }
-            val elapsed = System.nanoTime() - startNs
+            val elapsed = clock.nanos() - startNs
             lastPollNs.set(elapsed)
             iterations.incrementAndGet()
             val sleepNs = periodNs - elapsed

@@ -125,9 +125,6 @@ class GamepadEx(val raw: Gamepad) {
         Button.RIGHT_STICK_BUTTON -> curr.rightStick
     }
 
-    private fun applyDeadband(value: Double, deadband: Double): Double =
-        if (abs(value) < deadband) 0.0 else (value - deadband.withSign(value)) / (1.0 - deadband)
-
     private class ButtonState {
         var a = false; var b = false; var x = false; var y = false
         var lb = false; var rb = false
@@ -152,3 +149,11 @@ class GamepadEx(val raw: Gamepad) {
         }
     }
 }
+
+/**
+ * Scaled deadband: inputs inside ±[deadband] read 0, and the remaining range
+ * is re-normalised so output still spans the full ±1 — no dead jump at the
+ * deadband edge.
+ */
+internal fun applyDeadband(value: Double, deadband: Double): Double =
+    if (abs(value) < deadband) 0.0 else (value - deadband.withSign(value)) / (1.0 - deadband)

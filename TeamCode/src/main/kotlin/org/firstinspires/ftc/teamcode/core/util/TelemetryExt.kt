@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.core.util
 
 import com.bylazar.telemetry.TelemetryManager
 import com.pedropathing.geometry.Pose
+import java.util.Locale
 import org.firstinspires.ftc.robotcore.external.Telemetry
 
 /**
@@ -42,13 +43,42 @@ import org.firstinspires.ftc.robotcore.external.Telemetry
  * [line] entries are "events" — they accumulate across the throttle window so
  * nothing logged between transmissions is dropped.
  */
-class TelemetryBag(
-    private val dsTelemetry: Telemetry,
-    private val panels: TelemetryManager,
-    transmitIntervalMs: Double = 50.0,
+class TelemetryBag internal constructor(
+    private val sinks: List<Sink>,
+    transmitIntervalMs: Double,
+    private val clock: Clock,
 ) {
+    constructor(
+        dsTelemetry: Telemetry,
+        panels: TelemetryManager,
+        transmitIntervalMs: Double = 50.0,
+    ) : this(
+        listOf(TelemetrySink(dsTelemetry), PanelsSink(panels)),
+        transmitIntervalMs,
+        Clock.SYSTEM,
+    )
+
+    /** One transmission target. Production sinks adapt the DS [Telemetry] and Panels. */
+    interface Sink {
+        fun addLine(text: String)
+        fun addData(key: String, value: String)
+        fun update()
+    }
+
+    private class TelemetrySink(private val telemetry: Telemetry) : Sink {
+        override fun addLine(text: String) { telemetry.addLine(text) }
+        override fun addData(key: String, value: String) { telemetry.addData(key, value) }
+        override fun update() { telemetry.update() }
+    }
+
+    private class PanelsSink(private val panels: TelemetryManager) : Sink {
+        override fun addLine(text: String) { panels.addLine(text) }
+        override fun addData(key: String, value: String) { panels.addData(key, value) }
+        override fun update() { panels.update() }
+    }
+
     private val transmitIntervalNs = (transmitIntervalMs * 1_000_000.0).toLong()
-    private var lastTransmitNs = 0L
+    private var lastTransmitNs = Long.MIN_VALUE
 
     private val sections = linkedMapOf<String, SectionData>()
     private val loose = mutableListOf<String>()
@@ -77,26 +107,22 @@ class TelemetryBag(
      * @return true when telemetry was actually transmitted.
      */
     fun flush(): Boolean {
-        val now = System.nanoTime()
-        if (now - lastTransmitNs < transmitIntervalNs) return false
+        val now = clock.nanos()
+        if (lastTransmitNs != Long.MIN_VALUE && now - lastTransmitNs < transmitIntervalNs) return false
         lastTransmitNs = now
 
         for ((name, data) in sections) {
             if (data.entries.isEmpty()) continue
-            dsTelemetry.addLine("== $name ==")
-            panels.addLine("== $name ==")
+            for (sink in sinks) sink.addLine("== $name ==")
             for ((k, v) in data.entries) {
                 val formatted = formatValue(v)
-                dsTelemetry.addData(k, formatted)
-                panels.addData(k, formatted)
+                for (sink in sinks) sink.addData(k, formatted)
             }
         }
         for (text in loose) {
-            dsTelemetry.addLine(text)
-            panels.addLine(text)
+            for (sink in sinks) sink.addLine(text)
         }
-        dsTelemetry.update()
-        panels.update()
+        for (sink in sinks) sink.update()
 
         // Reuse the section/entry maps — clear contents, not the structure.
         for (data in sections.values) data.entries.clear()
@@ -113,13 +139,13 @@ class TelemetryBag(
     class Section internal constructor(private val entries: LinkedHashMap<String, Any?>) {
         /** Store a value as-is; it is formatted at transmit time, not now. */
         fun put(key: String, value: Any?) {
-            // Avoid swapping out a reusable double holder for a boxed Double.
             if (value is Double) {
-                // Resolves to put(String, Double, Int), not this overload.
-                put(key, value)
-                return
+                // Route through the holder-reusing path so a boxed Double never
+                // replaces a reusable FormattedDouble for the same key.
+                put(key, value, decimals = 3)
+            } else {
+                entries[key] = value
             }
-            entries[key] = value
         }
 
         /**
@@ -141,16 +167,19 @@ class TelemetryBag(
     private class FormattedDouble(var value: Double, var decimals: Int)
 
     companion object {
+        // Locale pinned so output never switches to comma decimals on a
+        // non-US-locale JVM (host-side tests, hub locale changes).
         internal fun formatValue(value: Any?): String = when (value) {
             null -> "null"
-            is FormattedDouble -> "%.${value.decimals}f".format(value.value)
+            is FormattedDouble -> "%.${value.decimals}f".format(Locale.US, value.value)
             is Pose -> "(%.2f, %.2f, %.1f°)".format(
+                Locale.US,
                 value.x,
                 value.y,
                 Math.toDegrees(value.heading),
             )
-            is Double -> "%.3f".format(value)
-            is Float -> "%.3f".format(value)
+            is Double -> "%.3f".format(Locale.US, value)
+            is Float -> "%.3f".format(Locale.US, value)
             else -> value.toString()
         }
     }

@@ -4,6 +4,7 @@ import com.pedropathing.ivy.Scheduler
 import com.qualcomm.hardware.lynx.LynxModule
 import com.qualcomm.robotcore.hardware.HardwareMap
 import org.firstinspires.ftc.teamcode.core.util.Alliance
+import org.firstinspires.ftc.teamcode.core.util.Clock
 
 /**
  * Robot is the single source of truth for the robot's hardware + subsystems
@@ -19,7 +20,10 @@ import org.firstinspires.ftc.teamcode.core.util.Alliance
  * [OpModeBase] handles the actual OpMode plumbing; you rarely construct
  * Robot yourself.
  */
-class Robot(val hardwareMap: HardwareMap) {
+class Robot(
+    val hardwareMap: HardwareMap,
+    private val clock: Clock = Clock.SYSTEM,
+) {
 
     private val subsystems = mutableListOf<SubsystemBase>()
     val bulkRead = BulkReadManager(hardwareMap)
@@ -64,7 +68,7 @@ class Robot(val hardwareMap: HardwareMap) {
      * first [lastLoopNanos] reading isn't skewed by init time.
      */
     fun start() {
-        lastTickEndNs = System.nanoTime()
+        lastTickEndNs = clock.nanos()
         loopCount = 0
     }
 
@@ -80,7 +84,7 @@ class Robot(val hardwareMap: HardwareMap) {
      * via telemetry.
      */
     fun loop(control: () -> Unit = {}): Long {
-        var phaseStart = System.nanoTime()
+        var phaseStart = clock.nanos()
 
         bulkRead.clearCaches()
         phaseStart = mark(phaseStart) { profile.clearCachesNanos = it }
@@ -95,7 +99,7 @@ class Robot(val hardwareMap: HardwareMap) {
         phaseStart = mark(phaseStart) { profile.schedulerNanos = it }
 
         for (s in subsystems) s.writeHardware()
-        val now = System.nanoTime()
+        val now = clock.nanos()
         profile.writeHardwareNanos = now - phaseStart
 
         lastLoopNanos = now - lastTickEndNs
@@ -107,7 +111,7 @@ class Robot(val hardwareMap: HardwareMap) {
 
     /** Record the duration of the just-finished phase and return the new phase start. */
     private inline fun mark(start: Long, assign: (Long) -> Unit): Long {
-        val now = System.nanoTime()
+        val now = clock.nanos()
         assign(now - start)
         return now
     }

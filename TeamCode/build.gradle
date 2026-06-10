@@ -38,6 +38,14 @@ android {
         jvmTarget = '1.8'
     }
 
+    testOptions {
+        unitTests {
+            // FTC SDK classes occasionally touch android.* APIs in unit tests;
+            // stub them to defaults instead of throwing "not mocked".
+            returnDefaultValues = true
+        }
+    }
+
     packagingOptions {
         jniLibs {
             pickFirsts += ['**/*.so']
@@ -72,4 +80,8 @@ dependencies {
     // need @dev.frozenmilk.sinister.loading.Pinned, or Sloth's class re-init
     // wipes Panels' edits — see CLAUDE.md. DriveConfig is pinned for this.
     implementation 'dev.frozenmilk.sinister:Sloth:0.2.4'
+
+    // JVM unit tests (run on the host via :TeamCode:testDebugUnitTest).
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation "org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version"
 }
