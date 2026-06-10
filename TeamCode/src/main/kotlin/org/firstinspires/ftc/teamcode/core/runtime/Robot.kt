@@ -134,8 +134,10 @@ class Robot(
         for (s in subsystems) {
             val default = s.defaultCommand
             if (default != null && !Scheduler.isScheduled(default)) {
-                recordEvent("schedule default ${s.name}: $default")
                 Scheduler.schedule(default)
+                if (Scheduler.isScheduled(default)) {
+                    recordEvent("schedule default ${s.name}: $default")
+                }
             }
         }
         Scheduler.execute()
@@ -147,7 +149,17 @@ class Robot(
         telemetry()
         val afterTelemetry = clock.nanos()
         profile.telemetryNanos = afterTelemetry - phaseStart
-        flightRecorder?.record(this)
+
+        val recorder = flightRecorder
+        if (recorder == null) {
+            profile.recordNanos = 0
+        } else {
+            val recordStart = clock.nanos()
+            recorder.record(this)
+            profile.recordNanos = clock.nanos() - recordStart
+            recorder.recordRecorderNanos(profile.recordNanos)
+            profile.recordNanos = clock.nanos() - recordStart
+        }
         val now = clock.nanos()
 
         lastLoopNanos = now - lastTickEndNs

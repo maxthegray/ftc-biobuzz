@@ -2,7 +2,7 @@ package org.firstinspires.ftc.teamcode.core.subsystems.localization
 
 import com.pedropathing.geometry.Pose
 import com.pedropathing.math.MathFunctions
-import kotlin.math.abs
+import org.firstinspires.ftc.teamcode.core.util.shortestHeadingDelta
 
 /**
  * Fixed-capacity pose ring buffer with no per-tick allocation.
@@ -64,9 +64,4 @@ class PoseHistory(private val capacity: Int = 512) {
         (next - size + logicalIndex + capacity) % capacity
 
     private fun poseAt(index: Int): Pose = Pose(xs[index], ys[index], headings[index])
-
-    private fun shortestHeadingDelta(from: Double, to: Double): Double {
-        val delta = MathFunctions.normalizeAngleSigned(to - from)
-        return if (abs(delta + Math.PI) < 1e-12) Math.PI else delta
-    }
 }

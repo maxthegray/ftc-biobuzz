@@ -7,7 +7,7 @@ import kotlin.math.max
  * owned by [Robot] and overwritten in place every tick — no per-loop
  * allocation. Latest durations and rolling maxima are nanoseconds.
  *
- * The seven phase fields sum to the time spent *inside* [Robot.loop]; the
+ * The named phase fields sum to the time spent *inside* [Robot.loop]; the
  * remainder up to [totalNanos] is [overheadNanos] — loop dispatch and
  * whatever the FTC event loop steals between ticks.
  *
@@ -87,6 +87,16 @@ class LoopProfile {
     var maxTelemetryNanos: Long = 0
         private set
 
+    /** Flight-recorder writes. Zero when recording is disabled. */
+    var recordNanos: Long = 0
+        internal set(value) {
+            field = value
+            maxRecordNanos = max(maxRecordNanos, value)
+        }
+
+    var maxRecordNanos: Long = 0
+        private set
+
     /** Full loop wall-clock, matching [Robot.lastLoopNanos]. */
     var totalNanos: Long = 0
         internal set(value) {
@@ -104,7 +114,8 @@ class LoopProfile {
     /** Residue of [totalNanos] not covered by a named phase. */
     val overheadNanos: Long
         get() = (totalNanos - clearCachesNanos - periodicNanos - inputNanos -
-            controlNanos - schedulerNanos - writeHardwareNanos - telemetryNanos)
+            controlNanos - schedulerNanos - writeHardwareNanos - telemetryNanos -
+            recordNanos)
             .coerceAtLeast(0)
 
     fun resetMaxima() {
@@ -115,6 +126,7 @@ class LoopProfile {
         maxSchedulerNanos = 0
         maxWriteHardwareNanos = 0
         maxTelemetryNanos = 0
+        maxRecordNanos = 0
         maxTotalNanos = 0
         maxOverheadNanos = 0
     }

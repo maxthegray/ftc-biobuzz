@@ -52,8 +52,11 @@ abstract class OpModeBase : LinearOpMode() {
 
     private val logTag = "OpModeBase"
 
-    /** Override to pick a side for auton; defaults to RED (fine for teleop). */
-    open val alliance: Alliance get() = Alliance.RED
+    /** Override to pick the default side before an init-loop selector changes it. */
+    protected open val initialAlliance: Alliance get() = Alliance.RED
+
+    /** Runtime alliance source of truth. Init-loop selectors update [robot]. */
+    val alliance: Alliance get() = if (::robot.isInitialized) robot.alliance else initialAlliance
 
     /** Hardware devices this op-mode expects before [configure] resolves them. */
     protected open val requiredDevices: List<Preflight.Requirement>
@@ -124,6 +127,8 @@ abstract class OpModeBase : LinearOpMode() {
             put("writeHardware max ms", p.maxWriteHardwareNanos / 1e6, decimals = 2)
             put("telemetry ms", p.telemetryNanos / 1e6, decimals = 2)
             put("telemetry max ms", p.maxTelemetryNanos / 1e6, decimals = 2)
+            put("record ms", p.recordNanos / 1e6, decimals = 2)
+            put("record max ms", p.maxRecordNanos / 1e6, decimals = 2)
             put("overhead ms", p.overheadNanos / 1e6, decimals = 2)
             put("overhead max ms", p.maxOverheadNanos / 1e6, decimals = 2)
         }
@@ -233,7 +238,7 @@ abstract class OpModeBase : LinearOpMode() {
     }
 
     final override fun runOpMode() {
-        robot = Robot(hardwareMap).also { it.alliance = alliance }
+        robot = Robot(hardwareMap).also { it.alliance = initialAlliance }
         driver = GamepadEx(gamepad1)
         operator = GamepadEx(gamepad2)
 

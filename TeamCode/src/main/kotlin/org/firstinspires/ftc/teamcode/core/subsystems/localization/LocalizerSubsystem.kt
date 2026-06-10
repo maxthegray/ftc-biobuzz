@@ -2,15 +2,13 @@ package org.firstinspires.ftc.teamcode.core.subsystems.localization
 
 import com.pedropathing.follower.Follower
 import com.pedropathing.geometry.Pose
-import com.pedropathing.math.MathFunctions
 import com.pedropathing.math.Vector
 import com.qualcomm.robotcore.hardware.HardwareMap
 import org.firstinspires.ftc.teamcode.core.runtime.PersistedPose
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.util.Clock
-import kotlin.math.abs
-import kotlin.math.cos
-import kotlin.math.sin
+import org.firstinspires.ftc.teamcode.core.util.composePose
+import org.firstinspires.ftc.teamcode.core.util.relativePose
 
 /**
  * Read-only façade over the [Follower]'s internal localizer.
@@ -82,35 +80,8 @@ class LocalizerSubsystem(
         if (age < 0 || age > maxAgeNanos) return false
         val historical = history.lookup(timestampNanos) ?: return false
         val current = follower.pose
-        val relative = historicalToCurrent(historical, current)
-        follower.setPose(compose(measured, relative))
+        val relative = relativePose(historical, current)
+        follower.setPose(composePose(measured, relative))
         return true
-    }
-
-    private fun historicalToCurrent(historical: Pose, current: Pose): Pose {
-        val dx = current.x - historical.x
-        val dy = current.y - historical.y
-        val cos = cos(historical.heading)
-        val sin = sin(historical.heading)
-        return Pose(
-            cos * dx + sin * dy,
-            -sin * dx + cos * dy,
-            shortestHeadingDelta(historical.heading, current.heading),
-        )
-    }
-
-    private fun compose(origin: Pose, delta: Pose): Pose {
-        val cos = cos(origin.heading)
-        val sin = sin(origin.heading)
-        return Pose(
-            origin.x + cos * delta.x - sin * delta.y,
-            origin.y + sin * delta.x + cos * delta.y,
-            MathFunctions.normalizeAngle(origin.heading + delta.heading),
-        )
-    }
-
-    private fun shortestHeadingDelta(from: Double, to: Double): Double {
-        val delta = MathFunctions.normalizeAngleSigned(to - from)
-        return if (abs(delta + Math.PI) < 1e-12) Math.PI else delta
     }
 }

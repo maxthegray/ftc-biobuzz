@@ -5,8 +5,7 @@ import com.pedropathing.localization.Localizer
 import com.pedropathing.math.MathFunctions
 import com.pedropathing.math.Vector
 import kotlin.math.hypot
-import kotlin.math.cos
-import kotlin.math.sin
+import org.firstinspires.ftc.teamcode.core.util.rotateTranslation
 
 private const val MM_PER_INCH = 25.4f
 
@@ -62,10 +61,7 @@ class SRSHubPinpointLocalizer(
     override fun setPose(setPose: Pose) {
         val dx = setPose.x - startPose.x
         val dy = setPose.y - startPose.y
-        val cos = cos(startPose.heading)
-        val sin = sin(startPose.heading)
-        val deviceX = cos * dx + sin * dy
-        val deviceY = -sin * dx + cos * dy
+        val (deviceX, deviceY) = rotateTranslation(dx, dy, -startPose.heading)
         val deviceHeading = MathFunctions.normalizeAngle(setPose.heading - startPose.heading)
         pinpoint.setPose(
             (deviceX * MM_PER_INCH).toFloat(),
@@ -110,11 +106,6 @@ class SRSHubPinpointLocalizer(
     }
 
     private fun rotateByStart(x: Double, y: Double): Pair<Double, Double> {
-        val cos = cos(startPose.heading)
-        val sin = sin(startPose.heading)
-        return Pair(
-            cos * x - sin * y,
-            sin * x + cos * y,
-        )
+        return rotateTranslation(x, y, startPose.heading)
     }
 }

@@ -10,8 +10,12 @@ class LoopProfileTest {
         val p = LoopProfile()
         p.periodicNanos = 5_000
         p.periodicNanos = 3_000
+        p.recordNanos = 7_000
+        p.recordNanos = 4_000
         assertEquals(3_000, p.periodicNanos)
         assertEquals(5_000, p.maxPeriodicNanos)
+        assertEquals(4_000, p.recordNanos)
+        assertEquals(7_000, p.maxRecordNanos)
     }
 
     @Test
@@ -34,8 +38,9 @@ class LoopProfileTest {
         p.controlNanos = 3_000
         p.schedulerNanos = 4_000
         p.writeHardwareNanos = 5_000
+        p.recordNanos = 1_000
         p.totalNanos = 20_000
-        assertEquals(5_000, p.overheadNanos)
+        assertEquals(4_000, p.overheadNanos)
     }
 
     @Test

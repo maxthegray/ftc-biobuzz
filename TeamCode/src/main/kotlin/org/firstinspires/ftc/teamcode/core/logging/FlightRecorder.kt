@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.core.logging
 
 import com.pedropathing.geometry.Pose
 import com.qualcomm.robotcore.util.RobotLog
+import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -44,6 +45,7 @@ class FlightRecorder private constructor(
     private val loopScheduler = writer.startEntry("loop/schedulerNanos", "int64")
     private val loopWrite = writer.startEntry("loop/writeHardwareNanos", "int64")
     private val loopTelemetry = writer.startEntry("loop/telemetryNanos", "int64")
+    private val loopRecord = writer.startEntry("loop/recordNanos", "int64")
     private val battery = writer.startEntry("battery", "double")
     private val runningCommands = writer.startEntry("commands/running", "string")
     private val events = writer.startEntry("events", "string")
@@ -86,6 +88,13 @@ class FlightRecorder private constructor(
                 writer.appendString(runningCommands, running, ts)
                 lastRunningCommands = running
             }
+        }
+    }
+
+    fun recordRecorderNanos(recordNanos: Long) {
+        if (!enabled) return
+        guard {
+            writer.appendInt64(loopRecord, recordNanos, timestampUs())
         }
     }
 
@@ -184,7 +193,7 @@ class FlightRecorder private constructor(
             val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
             val file = File(directory, "$opModeClassName-$stamp.wpilog")
             FlightRecorder(
-                WpiLogWriter(FileOutputStream(file), "ftc-starter"),
+                WpiLogWriter(BufferedOutputStream(FileOutputStream(file)), "ftc-starter"),
                 gamepad1,
                 gamepad2,
                 batteryVoltage,

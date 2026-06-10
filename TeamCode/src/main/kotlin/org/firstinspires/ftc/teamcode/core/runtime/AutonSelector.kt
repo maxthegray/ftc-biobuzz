@@ -8,9 +8,10 @@ import org.firstinspires.ftc.teamcode.core.util.TelemetryBag
 /**
  * Init-loop autonomous menu controlled by dpad.
  *
- * Up/down moves between fields; left/right changes the selected value. The
- * selected alliance is written to [robot] each update so path builders can use
- * the same source of truth during init.
+ * Up/down moves between fields; left/right changes the selected value. Press
+ * A to lock the choice before start. The selected alliance is written to
+ * [robot] each update so path builders and [OpModeBase.alliance] share one
+ * source of truth during init.
  */
 class AutonSelector(
     private val robot: Robot,
@@ -24,6 +25,13 @@ class AutonSelector(
     private var alliance = Alliance.RED
     private var routineIndex = 0
     private var delaySec = 0
+    private var lockedSelection: Selection? = null
+
+    private data class Selection(
+        val alliance: Alliance,
+        val routineIndex: Int,
+        val delaySec: Int,
+    )
 
     fun register(name: String, build: () -> PedroAutoRunner): AutonSelector {
         routines += Routine(name, build)
@@ -31,20 +39,29 @@ class AutonSelector(
     }
 
     fun update(driver: GamepadEx) {
-        if (driver.dpadUpPressed) field = Field.entries[(field.ordinal + Field.entries.size - 1) % Field.entries.size]
-        if (driver.dpadDownPressed) field = Field.entries[(field.ordinal + 1) % Field.entries.size]
-        if (driver.dpadLeftPressed) step(-1)
-        if (driver.dpadRightPressed) step(1)
+        if (lockedSelection == null) {
+            if (driver.dpadUpPressed) field = Field.entries[(field.ordinal + Field.entries.size - 1) % Field.entries.size]
+            if (driver.dpadDownPressed) field = Field.entries[(field.ordinal + 1) % Field.entries.size]
+            if (driver.dpadLeftPressed) step(-1)
+            if (driver.dpadRightPressed) step(1)
+            if (driver.aPressed) {
+                lockedSelection = Selection(alliance, routineIndex, delaySec)
+            }
+        }
 
-        robot.alliance = alliance
+        robot.alliance = selectedAlliance
         render()
     }
 
-    fun selectedRunner(): PedroAutoRunner? = routines.getOrNull(routineIndex)?.build?.invoke()
+    fun selectedRunner(): PedroAutoRunner? = routines.getOrNull(selection.routineIndex)?.build?.invoke()
 
-    val selectedAlliance: Alliance get() = alliance
-    val selectedRoutineName: String get() = routines.getOrNull(routineIndex)?.name ?: "-"
-    val startDelaySec: Int get() = delaySec
+    val isLocked: Boolean get() = lockedSelection != null
+    val selectedAlliance: Alliance get() = selection.alliance
+    val selectedRoutineName: String get() = routines.getOrNull(selection.routineIndex)?.name ?: "-"
+    val startDelaySec: Int get() = selection.delaySec
+
+    private val selection: Selection
+        get() = lockedSelection ?: Selection(alliance, routineIndex, delaySec)
 
     private fun step(delta: Int) {
         when (field) {
@@ -58,10 +75,11 @@ class AutonSelector(
 
     private fun render() {
         telemetryBag.section("Auton") {
+            put("status", if (isLocked) "LOCKED" else "EDIT")
             put("field", field.name)
-            put("alliance", alliance)
+            put("alliance", selectedAlliance)
             put("routine", selectedRoutineName)
-            put("delay s", delaySec)
+            put("delay s", startDelaySec)
         }
     }
 }
