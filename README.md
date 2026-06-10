@@ -36,13 +36,14 @@ TeamCode/src/main/
 │                                      # Physical constants + createFollower().
 └── kotlin/org/firstinspires/ftc/teamcode/
     ├── core/
+    │   ├── control/        # TrapezoidProfile, PIDF, ProfiledController
     │   ├── hardware/       # SRSHub wrapper + optional I2C bus thread
     │   ├── logging/        # WPILOG flight recorder + scheduler introspection
     │   ├── pathing/        # PathDSL, chaseTarget, PedroAutoRunner
     │   ├── runtime/        # Robot, OpModeBase, SubsystemBase, selector/config
-    │   ├── subsystems/
+    │   ├── subsystems/     # ProfiledMotorSubsystem (lift/arm base)
     │   │   ├── drive/      # MecanumDriveSubsystem, DriveConfig
-    │   │   └── localization/ # LocalizerSubsystem + PinpointDirect helper
+    │   │   └── localization/ # LocalizerSubsystem, LocalizerConfig, PinpointDirect
     │   └── util/           # Alliance, GamepadEx, TelemetryBag, triggers
     └── opmodes/            # Starter teleop examples
 ```

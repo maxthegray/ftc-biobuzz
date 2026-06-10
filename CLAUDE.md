@@ -96,12 +96,13 @@ Groups.race(a, b, c)
 Groups.deadline(deadlineCmd, a, b)
 ```
 
-Framework priority convention:
+Framework priority ladder (higher interrupts lower; gaps are for season levels):
 
 ```kotlin
-CommandPriorities.DEFAULT       // 0: subsystem default commands
-CommandPriorities.DRIVER_ACTION // 10: driver-triggered actions
-CommandPriorities.AUTON_ROUTINE // 10: autonomous routines
+CommandPriorities.DEFAULT         // 0:  subsystem default commands
+CommandPriorities.AUTON_ROUTINE   // 10: auton routines & teleop auto-assists
+CommandPriorities.DRIVER_ACTION   // 20: driver-triggered actions (beat assists)
+CommandPriorities.DRIVER_OVERRIDE // 30: panic / manual-override bindings
 ```
 
 ### Pedro Follower
@@ -171,10 +172,34 @@ Useful runtime hooks:
 
 ```kotlin
 localizer.restorePersistedPose()                 // auton → teleop pose handoff
-localizer.applyCorrection(measured, timestampNs) // latency-compensated vision seam
+                                                 // (survives RC process restart via
+                                                 //  /sdcard/FIRST/persisted-pose.txt)
+localizer.applyCorrection(measured, timestampNs) // latency-compensated vision seam;
+                                                 // returns CorrectionResult (APPLIED /
+                                                 // STALE / NO_HISTORY / REJECTED_JUMP),
+                                                 // gated + blended via LocalizerConfig
 val selector = AutonSelector(robot, telemetryBag)
 robot.recordEvent("marker")                      // also writes to WPILOG
+autoRoutine(drive, robot::recordEvent) { ... }   // optional event sink → labelled
+                                                 // per-step timeline in the WPILOG
 ```
+
+### Mechanism control toolkit (`core/control/`)
+
+```kotlin
+val gains = PIDFGains(kP = 0.1, kV = 0.02, kG = 0.08)   // mutable; Panels-tunable
+val constraints = ProfileConstraints(maxVelocity = 30.0, maxAcceleration = 60.0)
+val lift = robot.register(
+    ProfiledMotorSubsystem("Lift", "liftMotor", ProfiledController(constraints, gains),
+        ticksPerUnit = 83.7),
+)
+operator.button(GamepadEx.Button.Y).onTrue(lift.goToCommand(24.0, toleranceUnits = 0.5))
+lift.openLoop(0.3)   // bring-up only; setGoal()/goToCommand() for real control
+```
+
+`ProfiledMotorSubsystem` holds the last goal after a command ends (gravity
+hold) — no default command needed. The encoder is not reset on init by
+default so lift position survives the auton → teleop handoff.
 
 ### Panels telemetry
 
@@ -238,6 +263,19 @@ driver.trigger { driver.rightTrigger > 0.5 }.whileTrue(drive.slowMode())
    The init loop updates gamepad edges with trigger polling disabled, and
    `OpModeBase` locks bindings at start so per-loop binding creation throws.
 
+6. **Register the drive before the localizer.** `LocalizerSubsystem`
+   samples its pose history in `writeHardware()`, which must run right
+   after the drive's `writeHardware()` (where `Follower.update()` measures
+   the pose). Registering them the other way round re-introduces a
+   one-loop-period timestamp skew into every vision correction.
+
+7. **Teleop contains command faults; auton does not.** `TeleOpBase` sets
+   `Robot.containCommandFaults = true`: an exception from a command or
+   trigger binding clears the scheduler, calls each subsystem's
+   `onCommandFault()` (safe your actuators there — never throw), and the
+   loop keeps running with defaults resuming next tick. `periodic()`,
+   `writeHardware()`, and `onLoop()` always fail fast in both modes.
+
 ## Sloth hot reload + Panels: pin `@Configurable` classes
 
 Sloth only hot-reloads classes under `org.firstinspires.ftc.teamcode`,
@@ -278,6 +316,11 @@ persist into a pinned config object.
   `writeHardware` are for.
 
 ## When the user asks you to add a subsystem
+
+For a single profiled motor (lift, arm, turret), extend or instantiate
+`ProfiledMotorSubsystem` instead of hand-rolling the control loop — it
+already implements the lifecycle below plus profile + PIDF + hold-at-goal.
+For everything else:
 
 1. Extend `SubsystemBase(name = "…")`.
 2. Resolve hardware in `init(hardwareMap)` using `DeviceReaders.motor`
@@ -338,7 +381,15 @@ Because hot reload is live, `@Pinned` matters — see the **Sloth hot reload
 + Panels** section above.
 
 Logs live on the robot at `/sdcard/FIRST/logs`. Use `make pull-logs` and
-open `.wpilog` files in AdvantageScope.
+open `.wpilog` files in AdvantageScope, or `make analyze` for a quick
+post-match summary (loop percentiles, phase maxima, battery, follower
+error, events). `RUNBOOK.md` maps competition symptoms to log channels.
+
+Auton routines can run headless before touching the robot: see
+`core/sim/SimAutonRoutineTest` (test sources) — `SimHarness` + `SimFollower`
+execute full `PedroAutoRunner` routines against real path geometry in
+JUnit. Keep `wait()` steps out of simmed routines (Ivy's `waitMs` is
+wall-clock).
 
 ## Running the project
 
