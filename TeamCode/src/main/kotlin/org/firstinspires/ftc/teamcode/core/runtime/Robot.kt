@@ -79,9 +79,10 @@ class Robot(
      *  3. [input] — gamepad edge detection + trigger polling, so bindings
      *     (including sensor-backed triggers) react to *this* tick's data
      *  4. [control] — OpMode code reacts to fresh state and schedules commands
-     *  5. [Scheduler.execute] — commands tick, deciding motor/servo targets
-     *  6. [SubsystemBase.writeHardware] — flush those targets to hardware
-     *  7. [telemetry] — publish + (throttled) transmit, measured like any
+     *  5. Default commands — idle subsystem behavior is scheduled if free
+     *  6. [Scheduler.execute] — commands tick, deciding motor/servo targets
+     *  7. [SubsystemBase.writeHardware] — flush those targets to hardware
+     *  8. [telemetry] — publish + (throttled) transmit, measured like any
      *     other phase instead of hiding in loop overhead
      *
      * Note: because [telemetry] runs before this tick's total is computed,
@@ -109,6 +110,10 @@ class Robot(
         control()
         phaseStart = mark(phaseStart) { profile.controlNanos = it }
 
+        for (s in subsystems) {
+            val default = s.defaultCommand
+            if (default != null && !Scheduler.isScheduled(default)) Scheduler.schedule(default)
+        }
         Scheduler.execute()
         phaseStart = mark(phaseStart) { profile.schedulerNanos = it }
 

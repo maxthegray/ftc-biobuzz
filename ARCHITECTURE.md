@@ -12,14 +12,14 @@ A single op-mode tick always looks like this:
 ┌───────────────────────────────────────────────────────────────────┐
 │  OpModeBase.runOpMode() main loop                                 │
 │                                                                   │
-│   driver.update(), operator.update()       ← edge-detect gamepads │
-│                                                                   │
 │   Robot.loop():                                                   │
 │     1. BulkReadManager.clearCaches()       ← fresh Lynx data      │
 │     2. for s in subsystems: s.periodic()   ← reads + state        │
-│     3. onLoop() / control                  ← schedule + telemetry │
-│     4. Scheduler.execute()                 ← Ivy ticks commands   │
-│     5. for s in subsystems: s.writeHardware() ← motors, servos    │
+│     3. driver/operator update              ← edge-detect gamepads │
+│     4. onLoop() / control                  ← op-mode decisions    │
+│     5. default commands                    ← idle subsystem work  │
+│     6. Scheduler.execute()                 ← Ivy ticks commands   │
+│     7. for s in subsystems: s.writeHardware() ← motors, servos    │
 │                                                                   │
 │   telemetryBag.flush()                     ← DS + Panels in 1 go  │
 └───────────────────────────────────────────────────────────────────┘
@@ -37,10 +37,9 @@ The order matters:
    `periodic()` is for "update my internal state from the latest bulk read
    + localiser". Leave actuator decisions to commands.
 
-3. **`onLoop()` is the control phase.** It runs after fresh subsystem
-   reads and before the scheduler/write pass. Use it for gamepad handling,
-   command scheduling, target updates such as `drive.drive(...)`, and
-   telemetry buffering. Commands scheduled here tick in the same loop.
+3. **Input precedes control.** `GamepadEx` trigger bindings are sampled
+   after fresh subsystem reads, then `onLoop()` runs before the scheduler.
+   Commands scheduled here tick in the same loop.
    Do not write raw hardware from here; leave final actuator writes to
    subsystem `writeHardware()`.
 
@@ -49,6 +48,11 @@ The order matters:
    command per requirement, with priority / override / queue / cancel
    behaviour configurable per-command). This is how default-commands and
    driver-initiated actions coexist without stepping on each other.
+
+   Priority convention:
+   - Subsystem defaults: `0`
+   - Driver-triggered actions: `10`
+   - Autonomous routines: `10`
 
 5. **Subsystems write in `writeHardware()`.** By the time this runs, a
    command has decided what the subsystem should be doing this tick.

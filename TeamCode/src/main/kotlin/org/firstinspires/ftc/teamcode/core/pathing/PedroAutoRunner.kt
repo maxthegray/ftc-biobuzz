@@ -1,13 +1,15 @@
 package org.firstinspires.ftc.teamcode.core.pathing
 
 import com.pedropathing.ivy.Command
+import com.pedropathing.ivy.CommandBuilder
 import com.pedropathing.ivy.Scheduler
 import com.pedropathing.ivy.behaviors.EndCondition
 import com.pedropathing.ivy.commands.Commands
 import com.pedropathing.ivy.groups.Groups
-import com.pedropathing.paths.PathChain
 import com.pedropathing.geometry.Pose
+import com.pedropathing.paths.PathChain
 import java.util.function.BooleanSupplier
+import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
 
 /**
@@ -37,6 +39,7 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
     private val steps = mutableListOf<Command>()
     private var built: Command? = null
     private var scheduled = false
+    private var timeoutMs: Double? = null
 
     /** Append a Pedro path to follow. */
     fun follow(chain: PathChain): PedroAutoRunner =
@@ -129,6 +132,31 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
         return append(Groups.race(*sub.steps.toTypedArray()))
     }
 
+    /**
+     * Group sub-steps under a deadline. The first child is the deadline; when
+     * it completes, all remaining children are interrupted.
+     */
+    fun deadline(block: PedroAutoRunner.() -> Unit): PedroAutoRunner {
+        requireMutable()
+        val sub = PedroAutoRunner(drive).apply(block)
+        require(sub.steps.isNotEmpty()) { "deadline { } block is empty" }
+        requireNoSharedRequirements(sub.steps, "deadline")
+        val deadline = sub.steps.first()
+        val others = sub.steps.drop(1).toTypedArray()
+        return append(Groups.deadline(deadline, *others))
+    }
+
+    /** Race the entire built sequence against [ms] milliseconds. */
+    fun timeout(ms: Double): PedroAutoRunner {
+        requireMutable()
+        require(ms.isFinite() && ms >= 0.0) { "timeout must be finite and non-negative" }
+        timeoutMs = ms
+        return this
+    }
+
+    /** Race the entire built sequence against [ms] milliseconds. */
+    fun timeout(ms: Long): PedroAutoRunner = timeout(ms.toDouble())
+
     private fun append(step: Command): PedroAutoRunner {
         requireMutable()
         steps += step
@@ -154,8 +182,15 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
 
     private fun buildInternal(): Command {
         require(steps.isNotEmpty()) { "PedroAutoRunner has no steps" }
-        val arr: Array<Command> = steps.toTypedArray()
-        return Groups.sequential(*arr)
+        val sequence = Groups.sequential(*steps.toTypedArray())
+            .withAtLeastPriority(CommandPriorities.AUTON_ROUTINE)
+        val timeout = timeoutMs
+        return if (timeout == null) {
+            sequence
+        } else {
+            Groups.race(sequence, Commands.waitMs(timeout))
+                .withAtLeastPriority(CommandPriorities.AUTON_ROUTINE)
+        }
     }
 
     /** Build and lock the routine into one Ivy command. Further steps cannot be appended. */
@@ -203,3 +238,6 @@ inline fun autoRoutine(
     drive: MecanumDriveSubsystem,
     block: PedroAutoRunner.() -> Unit,
 ): PedroAutoRunner = PedroAutoRunner(drive).apply(block)
+
+private fun CommandBuilder.withAtLeastPriority(priority: Int): CommandBuilder =
+    setPriority(kotlin.math.max(priority(), priority))

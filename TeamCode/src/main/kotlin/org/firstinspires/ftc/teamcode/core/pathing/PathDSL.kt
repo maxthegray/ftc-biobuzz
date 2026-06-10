@@ -67,20 +67,6 @@ class PathDSL internal constructor(
     }
 
     /**
-     * Shorthand spline that infers a single control point halfway along
-     * the tangent from the last pose to [end]. Good-enough for gentle
-     * curves; reach for [splineTo] when you need to hit a specific shape.
-     */
-    fun splineTo(end: Pose): PathDSL {
-        val e = applyAlliance(end)
-        val control = Pose((last.x + e.x) / 2.0, (last.y + e.y) / 2.0, e.heading)
-        builder.addPath(BezierCurve(listOf(last, control, e)))
-        last = e
-        hasSegment = true
-        return this
-    }
-
-    /**
      * Append a Catmull-Rom curve that passes through [points]. [tension]
      * controls the tangent magnitude at each point; 0.5 is a balanced
      * default.

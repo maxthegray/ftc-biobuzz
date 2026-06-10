@@ -3,12 +3,14 @@ package org.firstinspires.ftc.teamcode.core.subsystems.drive
 import com.pedropathing.follower.Follower
 import com.pedropathing.geometry.Pose
 import com.pedropathing.ivy.Command
+import com.pedropathing.ivy.CommandBuilder
 import com.pedropathing.ivy.behaviors.EndCondition
 import com.pedropathing.ivy.pedro.PedroCommands
 import com.pedropathing.math.MathFunctions
 import com.pedropathing.math.Vector
 import com.pedropathing.paths.PathChain
 import com.qualcomm.robotcore.hardware.HardwareMap
+import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.PersistedPose
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import kotlin.math.abs
@@ -37,6 +39,13 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
 
     enum class Mode { IDLE, TELEOP, FOLLOWING, HOLDING }
 
+    data class TeleopInput(
+        val forward: Double,
+        val strafe: Double,
+        val turn: Double,
+        val precision: Boolean = false,
+    )
+
     var mode: Mode = Mode.IDLE
         private set
 
@@ -47,22 +56,37 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
         // Nothing to resolve here.
     }
 
-    /** Switch the follower into teleop drive mode. Call once at teleop start. */
-    fun enableTeleop(brakeMode: Boolean = DriveConfig.brakeOnTeleop) {
+    /** Switch the follower into teleop drive mode. Called by [teleopCommand]. */
+    internal fun enableTeleop(brakeMode: Boolean = DriveConfig.brakeOnTeleop) {
         follower.startTeleOpDrive(brakeMode)
         modeAfterFollow = Mode.IDLE
         mode = Mode.TELEOP
     }
 
     /**
-     * Primary teleop entry point. Applies DriveConfig scaling and the
-     * current field-centric setting, then hands off to the follower.
-     *
-     * Inputs are in the idiomatic FTC stick convention: forward is
-     * `-leftStickY`, strafe is `leftStickX`, turn is `rightStickX`, each
-     * in `[-1.0, 1.0]`.
+     * Default teleop command. It starts Pedro's teleop drive mode whenever the
+     * drive requirement becomes free, then applies [DriveConfig] scaling and
+     * field-centric selection every tick.
      */
-    fun drive(forward: Double, strafe: Double, turn: Double, precision: Boolean = false) {
+    fun teleopCommand(input: () -> TeleopInput): Command = Command.build()
+        .requiring(this)
+        .setPriority(CommandPriorities.DEFAULT)
+        .setStart { enableTeleop() }
+        .setExecute {
+            val i = input()
+            applyTeleopDrive(i.forward, i.strafe, i.turn, i.precision)
+        }
+        .setDone { false }
+
+    /**
+     * Imperative teleop helper retained for tests and bring-up. Prefer
+     * [teleopCommand] so Ivy can automatically resume teleop after actions.
+     */
+    internal fun drive(forward: Double, strafe: Double, turn: Double, precision: Boolean = false) {
+        applyTeleopDrive(forward, strafe, turn, precision)
+    }
+
+    private fun applyTeleopDrive(forward: Double, strafe: Double, turn: Double, precision: Boolean) {
         val scale = DriveConfig.safeTeleopPowerScale *
             (if (precision) DriveConfig.safePrecisionPowerScale else 1.0)
         val exp = DriveConfig.safeInputExponent
@@ -77,39 +101,44 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
         }
     }
 
-    /** Raw, unscaled drive command. Useful for PID tuning or fallback control. */
+    /**
+     * Raw, unscaled drive command for tuning and drivetrain bring-up only.
+     *
+     * Normal op-modes should use [teleopCommand], which applies driver-feel
+     * scaling and participates in Ivy's requirement arbitration.
+     */
     fun driveRaw(forward: Double, strafe: Double, turn: Double, robotCentric: Boolean) {
         follower.setTeleOpDrive(forward, strafe, turn, robotCentric)
     }
 
     /** Zero the teleop movement vectors — robot coasts/brakes per [DriveConfig.brakeOnTeleop]. */
-    fun zero() {
+    internal fun zero() {
         follower.setTeleOpDrive(0.0, 0.0, 0.0, true)
     }
 
     /** Start following a pre-built path chain. */
-    fun followPath(chain: PathChain, holdEnd: Boolean = true) {
+    internal fun followPath(chain: PathChain, holdEnd: Boolean = true) {
         follower.followPath(chain, holdEnd)
         modeAfterFollow = if (holdEnd) Mode.HOLDING else Mode.IDLE
         mode = Mode.FOLLOWING
     }
 
     /** Start following a path chain with a custom max-power cap. */
-    fun followPath(chain: PathChain, maxPower: Double, holdEnd: Boolean = true) {
+    internal fun followPath(chain: PathChain, maxPower: Double, holdEnd: Boolean = true) {
         follower.followPath(chain, maxPower, holdEnd)
         modeAfterFollow = if (holdEnd) Mode.HOLDING else Mode.IDLE
         mode = Mode.FOLLOWING
     }
 
     /** Cancel whatever path is running and drift to idle. */
-    fun breakPath() {
+    internal fun breakPath() {
         follower.breakFollowing()
         modeAfterFollow = Mode.IDLE
         mode = Mode.IDLE
     }
 
     /** Pin the follower to hold a field pose, typically called at the end of an auton leg. */
-    fun holdPose(pose: Pose) {
+    internal fun holdPose(pose: Pose) {
         follower.holdPoint(pose)
         modeAfterFollow = Mode.HOLDING
         mode = Mode.HOLDING
@@ -117,23 +146,31 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
 
     fun followCommand(chain: PathChain, holdEnd: Boolean = false): Command =
         trackDriveMode(
-            PedroCommands.follow(follower, chain, holdEnd),
+            PedroCommands.follow(follower, chain, holdEnd).asDriveAction(),
             running = Mode.FOLLOWING,
             finished = if (holdEnd) Mode.HOLDING else Mode.IDLE,
         )
 
     fun followCommand(chain: PathChain, maxPower: Double, holdEnd: Boolean = false): Command =
         trackDriveMode(
-            PedroCommands.follow(follower, chain, holdEnd, maxPower),
+            PedroCommands.follow(follower, chain, holdEnd, maxPower).asDriveAction(),
             running = Mode.FOLLOWING,
             finished = if (holdEnd) Mode.HOLDING else Mode.IDLE,
         )
 
     fun holdCommand(pose: Pose): Command =
-        trackDriveMode(PedroCommands.hold(follower, pose), running = Mode.HOLDING, finished = Mode.HOLDING)
+        trackDriveMode(
+            PedroCommands.hold(follower, pose).asDriveAction(),
+            running = Mode.HOLDING,
+            finished = Mode.HOLDING,
+        )
 
     fun turnToCommand(radians: Double): Command =
-        trackDriveMode(PedroCommands.turnTo(follower, radians), running = Mode.FOLLOWING, finished = Mode.IDLE)
+        trackDriveMode(
+            PedroCommands.turnTo(follower, radians).asDriveAction(),
+            running = Mode.FOLLOWING,
+            finished = Mode.IDLE,
+        )
 
     val pose: Pose get() = follower.pose
     val velocity: Vector get() = follower.velocity
@@ -179,9 +216,10 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
         mode = Mode.IDLE
     }
 
-    private fun trackDriveMode(command: Command, running: Mode, finished: Mode): Command =
+    internal fun trackDriveMode(command: Command, running: Mode, finished: Mode): Command =
         Command.build()
-            .requiring(this)
+            .requiring(*(setOf(this) + command.requirements()).toTypedArray())
+            .setPriority(command.priority())
             .setStart {
                 modeAfterFollow = finished
                 mode = running
@@ -195,6 +233,9 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
                 if (mode == Mode.IDLE) modeAfterFollow = Mode.IDLE
             }
 }
+
+private fun CommandBuilder.asDriveAction(): CommandBuilder =
+    setPriority(CommandPriorities.DRIVER_ACTION)
 
 /** Applies a signed power curve: preserves sign, scales magnitude by x^exponent. */
 private fun Double.curve(exponent: Double): Double = Math.copySign(Math.pow(Math.abs(this), exponent), this)

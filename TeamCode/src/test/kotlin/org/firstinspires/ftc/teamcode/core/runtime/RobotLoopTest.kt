@@ -125,4 +125,70 @@ class RobotLoopTest {
 
         assertEquals(listOf("persist"), persisted)
     }
+
+    @Test
+    fun defaultCommandRunsInsideSchedulerPhase() {
+        val requirement = robot.subsystems().first()
+        val default = CommandBuilder()
+            .requiring(requirement)
+            .setStart { events += "default-start" }
+            .setExecute { events += "default-execute" }
+            .setDone { false }
+        requirement.defaultCommand = default
+
+        robot.start()
+        robot.loop(control = { events += "control" })
+
+        assertEquals(
+            listOf("periodic", "control", "default-start", "default-execute", "write"),
+            events,
+        )
+    }
+
+    @Test
+    fun priorityActionInterruptsDefaultAndDefaultResumesWhenFree() {
+        val subsystem = robot.subsystems().first()
+        var defaultStarts = 0
+        val default = CommandBuilder()
+            .requiring(subsystem)
+            .setStart { defaultStarts++ }
+            .setDone { false }
+        subsystem.defaultCommand = default
+        val action = CommandBuilder()
+            .requiring(subsystem)
+            .setPriority(CommandPriorities.DRIVER_ACTION)
+            .setDone { true }
+
+        robot.start()
+        robot.loop()
+        Scheduler.schedule(action)
+        robot.loop()
+        robot.loop()
+
+        assertEquals(2, defaultStarts)
+    }
+
+    @Test
+    fun defaultResumesAfterPriorityActionIsCancelled() {
+        val subsystem = robot.subsystems().first()
+        var defaultStarts = 0
+        val default = CommandBuilder()
+            .requiring(subsystem)
+            .setStart { defaultStarts++ }
+            .setDone { false }
+        subsystem.defaultCommand = default
+        val action = CommandBuilder()
+            .requiring(subsystem)
+            .setPriority(CommandPriorities.DRIVER_ACTION)
+            .setDone { false }
+
+        robot.start()
+        robot.loop()
+        Scheduler.schedule(action)
+        robot.loop()
+        Scheduler.cancel(action)
+        robot.loop()
+
+        assertEquals(2, defaultStarts)
+    }
 }

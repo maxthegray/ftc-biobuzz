@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.core.runtime
 
+import com.pedropathing.ivy.Command
 import com.qualcomm.robotcore.hardware.HardwareMap
 
 /**
@@ -15,6 +16,13 @@ import com.qualcomm.robotcore.hardware.HardwareMap
  * resolve conflicts between commands that touch the same hardware.
  */
 abstract class SubsystemBase(val name: String) {
+
+    /**
+     * Command the robot should keep scheduled whenever this subsystem is free.
+     * Defaults use priority [CommandPriorities.DEFAULT]; explicit driver or
+     * auton actions should use priority 10 and require the same subsystem.
+     */
+    var defaultCommand: Command? = null
 
     /**
      * Called exactly once when the OpMode initialises. Resolve hardware,

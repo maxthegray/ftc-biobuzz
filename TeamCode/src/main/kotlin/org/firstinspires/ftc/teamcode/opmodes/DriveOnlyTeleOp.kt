@@ -1,11 +1,15 @@
 package org.firstinspires.ftc.teamcode.opmodes
 
+import com.pedropathing.ivy.commands.Commands
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
-import org.firstinspires.ftc.teamcode.pedroPathing.Constants
+import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
+import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem.TeleopInput
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerSubsystem
+import org.firstinspires.ftc.teamcode.core.util.GamepadEx.Button
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants
 
 /**
  * Minimal teleop that exercises the starter scaffolding end-to-end:
@@ -28,31 +32,32 @@ class DriveOnlyTeleOp : OpModeBase() {
         val follower = Constants.createFollower(hardwareMap)
         drive = robot.register(MecanumDriveSubsystem(follower))
         localizer = robot.register(LocalizerSubsystem(follower))
+        drive.defaultCommand = drive.teleopCommand {
+            TeleopInput(
+                forward = driver.leftStickY,
+                strafe = driver.leftStickX,
+                turn = driver.rightStickX,
+                precision = driver.rightTrigger > 0.1,
+            )
+        }
+        (driver.button(Button.START) and driver.button(Button.A))
+            .onTrue(
+                Commands.instant { localizer.setPose(drive.pose.withHeading(0.0)) }
+                    .setPriority(CommandPriorities.DRIVER_ACTION),
+            )
+        (driver.button(Button.BACK) and driver.button(Button.B))
+            .onTrue(
+                Commands.instant { DriveConfig.fieldCentric = !DriveConfig.fieldCentric }
+                    .setPriority(CommandPriorities.DRIVER_ACTION),
+            )
     }
 
     override fun onStart() {
-        drive.enableTeleop()
+        localizer.restorePersistedPose()
     }
 
     override fun onLoop() {
-        // Allow the driver to reset heading on the fly if odometry drifts.
-        if (driver.start && driver.aPressed) {
-            localizer.setPose(drive.pose.withHeading(0.0))
-        }
-
-        // Toggle field-centric vs robot-centric with back + B.
-        if (driver.back && driver.bPressed) {
-            DriveConfig.fieldCentric = !DriveConfig.fieldCentric
-        }
-
         val precision = driver.rightTrigger > 0.1
-        drive.drive(
-            forward = driver.leftStickY,
-            strafe = driver.leftStickX,
-            turn = driver.rightStickX,
-            precision = precision,
-        )
-
         telemetryBag.section("Drive") {
             put("pose", drive.pose)
             put("velocity", drive.velocity)
