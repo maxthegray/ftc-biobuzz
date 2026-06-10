@@ -10,14 +10,17 @@ import org.firstinspires.ftc.teamcode.core.util.GamepadEx
 import org.firstinspires.ftc.teamcode.core.util.TelemetryBag
 
 /**
- * Base for every op-mode in this codebase. A concrete op-mode fills in three
+ * Base for every op-mode in this codebase. A concrete op-mode fills in four
  * lifecycle hooks:
  *
- *  - [configure] — register subsystems on [robot] and wire default commands
- *  - [onStart]   — optional, runs the instant the start button is pressed
- *  - [onLoop]    — runs every tick after subsystem reads but before Ivy
- *                  commands and hardware writes. Use it for gamepad handling,
- *                  scheduling commands, and telemetry.
+ *  - [configure]   — register subsystems on [robot] and wire trigger bindings
+ *  - [onInitLoop]  — optional, runs repeatedly between init and start. Use it
+ *                    for auton/alliance selection, vision warm-up, and
+ *                    pre-start health display. Subsystem `periodic()` runs
+ *                    each init tick; commands and hardware writes do not.
+ *  - [onStart]     — optional, runs the instant the start button is pressed
+ *  - [onLoop]      — runs every tick after subsystem reads and input polling
+ *                    but before Ivy commands and hardware writes
  *
  * Telemetry is doubled up: the Driver Station's built-in [Telemetry] and
  * Panels's dashboard telemetry are both driven from the same [TelemetryBag]
@@ -49,6 +52,15 @@ abstract class OpModeBase : LinearOpMode() {
     /** Register subsystems on [robot] and set up default commands. */
     protected abstract fun configure()
 
+    /**
+     * Called repeatedly while the op-mode sits in init (after [configure] /
+     * [Robot.init], before start). Gamepad edges work ([driver] / [operator]
+     * are updated each init tick), trigger bindings do not fire, and nothing
+     * is written to hardware. Buffer telemetry via [telemetryBag]; it is
+     * flushed automatically.
+     */
+    protected open fun onInitLoop() {}
+
     /** Called once on the first tick after start. */
     protected open fun onStart() {}
 
@@ -67,6 +79,8 @@ abstract class OpModeBase : LinearOpMode() {
         if (!publishLoopTelemetry) return
         val p = robot.profile
         telemetryBag.section("Loop") {
+            // total/hz lag one tick: this runs inside the telemetry phase,
+            // before the current tick's total is computed.
             put("hz", robot.loopHz, decimals = 1)
             put("count", robot.loopCount)
             put("total ms", p.totalNanos / 1e6, decimals = 2)
@@ -75,15 +89,36 @@ abstract class OpModeBase : LinearOpMode() {
             put("clearCaches max ms", p.maxClearCachesNanos / 1e6, decimals = 2)
             put("periodic ms", p.periodicNanos / 1e6, decimals = 2)
             put("periodic max ms", p.maxPeriodicNanos / 1e6, decimals = 2)
+            put("input ms", p.inputNanos / 1e6, decimals = 2)
+            put("input max ms", p.maxInputNanos / 1e6, decimals = 2)
             put("control ms", p.controlNanos / 1e6, decimals = 2)
             put("control max ms", p.maxControlNanos / 1e6, decimals = 2)
             put("scheduler ms", p.schedulerNanos / 1e6, decimals = 2)
             put("scheduler max ms", p.maxSchedulerNanos / 1e6, decimals = 2)
             put("writeHardware ms", p.writeHardwareNanos / 1e6, decimals = 2)
             put("writeHardware max ms", p.maxWriteHardwareNanos / 1e6, decimals = 2)
+            put("telemetry ms", p.telemetryNanos / 1e6, decimals = 2)
+            put("telemetry max ms", p.maxTelemetryNanos / 1e6, decimals = 2)
             put("overhead ms", p.overheadNanos / 1e6, decimals = 2)
             put("overhead max ms", p.maxOverheadNanos / 1e6, decimals = 2)
         }
+    }
+
+    private var telemetryFailures = 0
+
+    /**
+     * Telemetry must never be able to stop the robot: a Panels websocket
+     * hiccup or a bad format string in a put gets logged and swallowed
+     * instead of killing the op-mode mid-match.
+     */
+    private fun safeFlush(): Boolean = try {
+        telemetryBag.flush()
+    } catch (t: Throwable) {
+        telemetryFailures++
+        if (telemetryFailures <= 5) {
+            RobotLog.ee(logTag, t, "Telemetry flush failed ($telemetryFailures)")
+        }
+        false
     }
 
     private fun reportLoopCrash(t: Throwable) {
@@ -112,6 +147,20 @@ abstract class OpModeBase : LinearOpMode() {
         try {
             configure()
             robot.init()
+
+            telemetry.addLine("Init complete — ${robot.subsystems().size} subsystems")
+            telemetry.update()
+
+            while (opModeInInit()) {
+                robot.initTick()
+                // Edges work for selectors; trigger bindings must not fire
+                // before start (Scheduler.schedule starts commands immediately).
+                driver.update(pollTriggers = false)
+                operator.update(pollTriggers = false)
+                onInitLoop()
+                safeFlush()
+                sleep(20)
+            }
         } catch (t: Throwable) {
             telemetry.addLine("INIT FAILED: ${t.javaClass.simpleName}: ${t.message}")
             telemetry.update()
@@ -119,24 +168,29 @@ abstract class OpModeBase : LinearOpMode() {
             throw t
         }
 
-        telemetry.addLine("Init complete — ${robot.subsystems().size} subsystems")
-        telemetry.update()
-
-        waitForStart()
         if (isStopRequested) {
             robot.stop()
             return
         }
 
+        driver.lockBindings()
+        operator.lockBindings()
+
         try {
             robot.start()
             onStart()
             while (opModeIsActive()) {
-                driver.update()
-                operator.update()
-                robot.loop { onLoop() }
-                publishLoopProfile()
-                if (telemetryBag.flush()) robot.profile.resetMaxima()
+                robot.loop(
+                    input = {
+                        driver.update()
+                        operator.update()
+                    },
+                    control = { onLoop() },
+                    telemetry = {
+                        publishLoopProfile()
+                        if (safeFlush()) robot.profile.resetMaxima()
+                    },
+                )
             }
         } catch (t: Throwable) {
             reportLoopCrash(t)

@@ -39,14 +39,35 @@ class GamepadEx(val raw: Gamepad) {
     private val buttonTriggers = HashMap<Button, Trigger>()
 
     /**
-     * Call once per loop before reading any `*Pressed` / `*Released` flags.
-     * Also samples every registered [Trigger], so trigger-bound commands are
-     * scheduled or cancelled here — before the command scheduler ticks.
+     * True once the op-mode has started. After this, creating triggers or
+     * adding bindings throws — bindings created per-tick from `onLoop()`
+     * accumulate forever and re-schedule commands unboundedly, so the
+     * framework forces them into `configure()`.
      */
-    fun update() {
+    var bindingsLocked: Boolean = false
+        private set
+
+    fun lockBindings() {
+        bindingsLocked = true
+    }
+
+    internal fun requireBindingsUnlocked() {
+        check(!bindingsLocked) {
+            "Gamepad triggers/bindings are locked once the op-mode starts — wire them in configure()."
+        }
+    }
+
+    /**
+     * Call once per loop before reading any `*Pressed` / `*Released` flags.
+     * Also samples every registered [Trigger] (unless [pollTriggers] is
+     * false — the init loop disables it so bindings can't start commands
+     * before the match), so trigger-bound commands are scheduled or
+     * cancelled here — before the command scheduler ticks.
+     */
+    fun update(pollTriggers: Boolean = true) {
         prev.copyFrom(curr)
         curr.read(raw)
-        for (t in triggers) t.poll()
+        if (pollTriggers) for (t in triggers) t.poll()
     }
 
     val leftStickX: Double get() = applyDeadband(raw.left_stick_x.toDouble(), leftStickDeadband)
@@ -90,9 +111,6 @@ class GamepadEx(val raw: Gamepad) {
     val xReleased: Boolean get() = !curr.x && prev.x
     val yReleased: Boolean get() = !curr.y && prev.y
 
-    /** Returns a [BooleanSupplier] that fires once on the leading edge of `a`. */
-    fun onAPressed(): BooleanSupplier = BooleanSupplier { aPressed }
-
     /**
      * A [Trigger] backed by [button]. Cached — repeated calls for the same
      * button return the same Trigger, so bindings accumulate on one instance.
@@ -105,8 +123,10 @@ class GamepadEx(val raw: Gamepad) {
      * past a threshold, a sensor reading, anything. Sampled once per loop in
      * [update]; each call returns a fresh Trigger.
      */
-    fun trigger(condition: BooleanSupplier): Trigger =
-        Trigger(this, condition).also { triggers += it }
+    fun trigger(condition: BooleanSupplier): Trigger {
+        requireBindingsUnlocked()
+        return Trigger(this, condition).also { triggers += it }
+    }
 
     private fun stateOf(button: Button): Boolean = when (button) {
         Button.A -> curr.a

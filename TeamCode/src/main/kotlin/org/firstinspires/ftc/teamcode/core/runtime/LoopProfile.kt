@@ -7,9 +7,9 @@ import kotlin.math.max
  * owned by [Robot] and overwritten in place every tick — no per-loop
  * allocation. Latest durations and rolling maxima are nanoseconds.
  *
- * The five phase fields sum to the time spent *inside* [Robot.loop]; the
- * remainder up to [totalNanos] is [overheadNanos] — gamepad polling and the
- * telemetry flush, which run in [OpModeBase] outside [Robot.loop].
+ * The seven phase fields sum to the time spent *inside* [Robot.loop]; the
+ * remainder up to [totalNanos] is [overheadNanos] — loop dispatch and
+ * whatever the FTC event loop steals between ticks.
  *
  * This exists to answer "which phase owns the loop time?" with data instead
  * of guesswork. Surface it via telemetry while diagnosing loop speed; ignore
@@ -37,7 +37,17 @@ class LoopProfile {
     var maxPeriodicNanos: Long = 0
         private set
 
-    /** The op-mode's `onLoop()` — gamepad handling, command scheduling, telemetry buffering. */
+    /** Gamepad edge detection + trigger polling (commands scheduled by bindings included). */
+    var inputNanos: Long = 0
+        internal set(value) {
+            field = value
+            maxInputNanos = max(maxInputNanos, value)
+        }
+
+    var maxInputNanos: Long = 0
+        private set
+
+    /** The op-mode's `onLoop()` — command scheduling, telemetry buffering. */
     var controlNanos: Long = 0
         internal set(value) {
             field = value
@@ -67,6 +77,16 @@ class LoopProfile {
     var maxWriteHardwareNanos: Long = 0
         private set
 
+    /** Telemetry publish + (throttled) transmit at the bottom of the tick. */
+    var telemetryNanos: Long = 0
+        internal set(value) {
+            field = value
+            maxTelemetryNanos = max(maxTelemetryNanos, value)
+        }
+
+    var maxTelemetryNanos: Long = 0
+        private set
+
     /** Full loop wall-clock, matching [Robot.lastLoopNanos]. */
     var totalNanos: Long = 0
         internal set(value) {
@@ -81,17 +101,20 @@ class LoopProfile {
     var maxOverheadNanos: Long = 0
         private set
 
-    /** Time outside [Robot.loop]: gamepad polling + telemetry flush in [OpModeBase]. */
+    /** Residue of [totalNanos] not covered by a named phase. */
     val overheadNanos: Long
-        get() = (totalNanos - clearCachesNanos - periodicNanos - controlNanos -
-            schedulerNanos - writeHardwareNanos).coerceAtLeast(0)
+        get() = (totalNanos - clearCachesNanos - periodicNanos - inputNanos -
+            controlNanos - schedulerNanos - writeHardwareNanos - telemetryNanos)
+            .coerceAtLeast(0)
 
     fun resetMaxima() {
         maxClearCachesNanos = 0
         maxPeriodicNanos = 0
+        maxInputNanos = 0
         maxControlNanos = 0
         maxSchedulerNanos = 0
         maxWriteHardwareNanos = 0
+        maxTelemetryNanos = 0
         maxTotalNanos = 0
         maxOverheadNanos = 0
     }

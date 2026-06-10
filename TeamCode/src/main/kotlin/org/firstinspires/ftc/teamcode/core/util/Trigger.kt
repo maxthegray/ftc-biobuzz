@@ -44,6 +44,7 @@ class Trigger internal constructor(
 
     /** Schedule [command] once on each rising edge (skipped if it is already scheduled). */
     fun onTrue(command: Command): Trigger {
+        host.requireBindingsUnlocked()
         bindings += { prev, curr ->
             if (!prev && curr && !Scheduler.isScheduled(command)) Scheduler.schedule(command)
         }
@@ -52,6 +53,7 @@ class Trigger internal constructor(
 
     /** Schedule [command] once on each falling edge (skipped if it is already scheduled). */
     fun onFalse(command: Command): Trigger {
+        host.requireBindingsUnlocked()
         bindings += { prev, curr ->
             if (prev && !curr && !Scheduler.isScheduled(command)) Scheduler.schedule(command)
         }
@@ -64,6 +66,7 @@ class Trigger internal constructor(
      * — Ivy's [Scheduler.cancel] is safe on an unscheduled command.
      */
     fun whileTrue(command: Command): Trigger {
+        host.requireBindingsUnlocked()
         bindings += { prev, curr ->
             if (!prev && curr) {
                 if (!Scheduler.isScheduled(command)) Scheduler.schedule(command)
@@ -79,6 +82,7 @@ class Trigger internal constructor(
      * cancel it if it is.
      */
     fun toggleOnTrue(command: Command): Trigger {
+        host.requireBindingsUnlocked()
         bindings += { prev, curr ->
             if (!prev && curr) {
                 if (Scheduler.isScheduled(command)) Scheduler.cancel(command)

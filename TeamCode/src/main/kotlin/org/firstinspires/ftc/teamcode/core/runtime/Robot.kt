@@ -76,14 +76,25 @@ class Robot(
      * Single main-loop tick. Order is fixed and tuned for correctness:
      *  1. Clear Lynx bulk caches so all reads this tick return fresh data
      *  2. [SubsystemBase.periodic] — pure reads, state updates
-     *  3. [control] — OpMode code reacts to fresh state and schedules commands
-     *  4. [Scheduler.execute] — commands tick, deciding motor/servo targets
-     *  5. [SubsystemBase.writeHardware] — flush those targets to hardware
+     *  3. [input] — gamepad edge detection + trigger polling, so bindings
+     *     (including sensor-backed triggers) react to *this* tick's data
+     *  4. [control] — OpMode code reacts to fresh state and schedules commands
+     *  5. [Scheduler.execute] — commands tick, deciding motor/servo targets
+     *  6. [SubsystemBase.writeHardware] — flush those targets to hardware
+     *  7. [telemetry] — publish + (throttled) transmit, measured like any
+     *     other phase instead of hiding in loop overhead
      *
-     * Returns the tick duration in nanoseconds so callers can surface it
-     * via telemetry.
+     * Note: because [telemetry] runs before this tick's total is computed,
+     * any loop-total it publishes is the *previous* tick's. Per-phase numbers
+     * are current.
+     *
+     * Returns the tick duration in nanoseconds.
      */
-    fun loop(control: () -> Unit = {}): Long {
+    fun loop(
+        input: () -> Unit = {},
+        control: () -> Unit = {},
+        telemetry: () -> Unit = {},
+    ): Long {
         var phaseStart = clock.nanos()
 
         bulkRead.clearCaches()
@@ -92,6 +103,9 @@ class Robot(
         for (s in subsystems) s.periodic()
         phaseStart = mark(phaseStart) { profile.periodicNanos = it }
 
+        input()
+        phaseStart = mark(phaseStart) { profile.inputNanos = it }
+
         control()
         phaseStart = mark(phaseStart) { profile.controlNanos = it }
 
@@ -99,14 +113,29 @@ class Robot(
         phaseStart = mark(phaseStart) { profile.schedulerNanos = it }
 
         for (s in subsystems) s.writeHardware()
+        phaseStart = mark(phaseStart) { profile.writeHardwareNanos = it }
+
+        telemetry()
         val now = clock.nanos()
-        profile.writeHardwareNanos = now - phaseStart
+        profile.telemetryNanos = now - phaseStart
 
         lastLoopNanos = now - lastTickEndNs
         profile.totalNanos = lastLoopNanos
         lastTickEndNs = now
         loopCount++
         return lastLoopNanos
+    }
+
+    /**
+     * One init-phase tick: fresh bulk read + subsystem reads, nothing else.
+     * No commands run and nothing is written to hardware — the robot must
+     * not move before start. Gamepad edge updates happen in [OpModeBase]'s
+     * init loop with trigger polling disabled, so bindings wired in
+     * `configure()` cannot start commands early.
+     */
+    fun initTick() {
+        bulkRead.clearCaches()
+        for (s in subsystems) s.periodic()
     }
 
     /** Record the duration of the just-finished phase and return the new phase start. */
