@@ -10,18 +10,14 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import kotlin.math.abs
 import org.firstinspires.ftc.teamcode.core.pathing.path
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
-import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
-import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
-import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem.TeleopInput
-import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerSubsystem
-import org.firstinspires.ftc.teamcode.core.util.GamepadEx.Button
-import org.firstinspires.ftc.teamcode.pedroPathing.Constants
 
 /**
  * Teleop for testing localization consistency over time.
  *
- * Behaves like [DriveOnlyTeleOp] during normal driving, with two extra buttons:
+ * Behaves like [DriveOnlyTeleOp] during normal driving (including the
+ * Back+Y heading reset and Back+B field-centric chords from [TeleOpBase]),
+ * with two extra buttons:
  *
  *  - **Triangle (Y)** — Pedro-follows to waypoint A (configurable in Panels).
  *    Press again, or move a stick, or press Cross to cancel mid-path.
@@ -35,7 +31,7 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants
  */
 @TeleOp(name = "Starter: Localization Test", group = "Starter")
 @Configurable
-class LocalizationTestTeleOp : OpModeBase() {
+class LocalizationTestTeleOp : TeleOpBase() {
 
     companion object {
         /** X coordinate of waypoint A (inches). Adjust for your field. */
@@ -52,34 +48,13 @@ class LocalizationTestTeleOp : OpModeBase() {
         @JvmField var stickInterruptThreshold: Double = 0.1
     }
 
-    private lateinit var drive: MecanumDriveSubsystem
-    private lateinit var localizer: LocalizerSubsystem
     private var activeFollow: Command? = null
     private var targetLabel: String = "-"
 
-    override fun configure() {
-        val follower = Constants.createFollower(hardwareMap)
-        drive = robot.register(MecanumDriveSubsystem(follower))
-        localizer = robot.register(LocalizerSubsystem(follower))
-        drive.defaultCommand = drive.teleopCommand {
-            TeleopInput(
-                forward = driver.leftStickY,
-                strafe = driver.leftStickX,
-                turn = driver.rightStickX,
-                precision = driver.rightTrigger > 0.1,
-            )
-        }
-        (driver.button(Button.START) and driver.button(Button.A))
-            .onTrue(
-                Commands.instant { localizer.setPose(drive.pose.withHeading(0.0)) }
-                    .setPriority(CommandPriorities.DRIVER_ACTION),
-            )
-        (driver.button(Button.BACK) and driver.button(Button.B))
-            .onTrue(
-                Commands.instant { DriveConfig.fieldCentric = !DriveConfig.fieldCentric }
-                    .setPriority(CommandPriorities.DRIVER_ACTION),
-            )
-        driver.button(Button.Y).onTrue(
+    override fun configureTeleop() {
+        // Y only when it isn't the Back+Y heading-reset chord; A only when
+        // it isn't the Driver Station's Start+A gamepad re-bind chord.
+        driver.trigger { driver.y && !driver.back }.onTrue(
             followTo(
                 label = { "(%.1f, %.1f)".format(waypointAX, waypointAY) },
                 target = { Pose(waypointAX, waypointAY, 0.0) },
@@ -100,10 +75,6 @@ class LocalizationTestTeleOp : OpModeBase() {
                 }
             }.setPriority(CommandPriorities.DRIVER_ACTION),
         )
-    }
-
-    override fun onStart() {
-        localizer.restorePersistedPose()
     }
 
     override fun onLoop() {
