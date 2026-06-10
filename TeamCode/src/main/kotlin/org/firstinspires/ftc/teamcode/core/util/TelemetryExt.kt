@@ -73,13 +73,16 @@ class TelemetryBag(
      * [transmitIntervalNs]; on throttled ticks it returns immediately, leaving
      * the accumulated state to be overwritten by the next [section] / [line]
      * calls and sent on the next real transmission.
+     *
+     * @return true when telemetry was actually transmitted.
      */
-    fun flush() {
+    fun flush(): Boolean {
         val now = System.nanoTime()
-        if (now - lastTransmitNs < transmitIntervalNs) return
+        if (now - lastTransmitNs < transmitIntervalNs) return false
         lastTransmitNs = now
 
         for ((name, data) in sections) {
+            if (data.entries.isEmpty()) continue
             dsTelemetry.addLine("== $name ==")
             panels.addLine("== $name ==")
             for ((k, v) in data.entries) {
@@ -98,6 +101,7 @@ class TelemetryBag(
         // Reuse the section/entry maps — clear contents, not the structure.
         for (data in sections.values) data.entries.clear()
         loose.clear()
+        return true
     }
 
     /** A section's reused entry map plus the reused [Section] wrapper over it. */
@@ -111,6 +115,7 @@ class TelemetryBag(
         fun put(key: String, value: Any?) {
             // Avoid swapping out a reusable double holder for a boxed Double.
             if (value is Double) {
+                // Resolves to put(String, Double, Int), not this overload.
                 put(key, value)
                 return
             }

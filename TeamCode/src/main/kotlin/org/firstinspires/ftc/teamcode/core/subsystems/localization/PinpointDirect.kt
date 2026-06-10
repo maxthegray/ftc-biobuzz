@@ -17,7 +17,7 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants
  * companion that you call by hand when you need to reset the IMU or read
  * raw device status for diagnostics.
  */
-object PinpointLocalizer {
+object PinpointDirect {
 
     /**
      * Looks up the raw Pinpoint driver using the same hardware name declared

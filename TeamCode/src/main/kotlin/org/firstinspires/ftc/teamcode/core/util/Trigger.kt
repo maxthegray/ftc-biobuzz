@@ -30,6 +30,10 @@ import java.util.function.BooleanSupplier
  * Edge semantics: the condition is sampled once per loop. A "rising edge" is a
  * loop where it read false last tick and true this tick; a "falling edge" is
  * the reverse.
+ *
+ * Composition caveat: compose triggers from the same [GamepadEx] host. A
+ * cross-gamepad composition is polled by the left-hand trigger's host, so the
+ * other gamepad may still be on its previous loop sample.
  */
 class Trigger internal constructor(
     private val host: GamepadEx,
@@ -84,10 +88,10 @@ class Trigger internal constructor(
         return this
     }
 
-    /** Active only while both this and [other] are active. */
+    /** Active only while both this and [other] are active. Prefer same-host composition. */
     infix fun and(other: Trigger): Trigger = host.trigger { read() && other.read() }
 
-    /** Active while either this or [other] is active. */
+    /** Active while either this or [other] is active. Prefer same-host composition. */
     infix fun or(other: Trigger): Trigger = host.trigger { read() || other.read() }
 
     /** Active exactly when this trigger is not. Also usable as `!trigger`. */

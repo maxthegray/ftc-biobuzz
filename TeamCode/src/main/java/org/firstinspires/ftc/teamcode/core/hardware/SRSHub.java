@@ -23,7 +23,7 @@ import java.util.BitSet;
 public class SRSHub extends I2cDeviceSynchDevice<I2cDeviceSynchSimple> {
     private static final int I2C_ADDRESS = 0x57;
 
-    private static final int DEVICE_ID = 0x61; // demo edit — safe to revert
+    private static final int DEVICE_ID = 0x61;
 
     private static final int DEVICE_MAJOR_VERSION = 1;
     private static final int DEVICE_MINOR_VERSION = 4;

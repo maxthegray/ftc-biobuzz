@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.core.runtime
 import com.bylazar.telemetry.JoinedTelemetry
 import com.bylazar.telemetry.PanelsTelemetry
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode
+import com.qualcomm.robotcore.util.RobotLog
 import org.firstinspires.ftc.robotcore.external.Telemetry
 import org.firstinspires.ftc.teamcode.core.util.Alliance
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx
@@ -40,6 +41,8 @@ abstract class OpModeBase : LinearOpMode() {
     lateinit var telemetryBag: TelemetryBag
         private set
 
+    private val logTag = "OpModeBase"
+
     /** Override to pick a side for auton; defaults to RED (fine for teleop). */
     open val alliance: Alliance get() = Alliance.RED
 
@@ -65,13 +68,32 @@ abstract class OpModeBase : LinearOpMode() {
         val p = robot.profile
         telemetryBag.section("Loop") {
             put("hz", robot.loopHz, decimals = 1)
+            put("count", robot.loopCount)
             put("total ms", p.totalNanos / 1e6, decimals = 2)
+            put("total max ms", p.maxTotalNanos / 1e6, decimals = 2)
             put("clearCaches ms", p.clearCachesNanos / 1e6, decimals = 2)
+            put("clearCaches max ms", p.maxClearCachesNanos / 1e6, decimals = 2)
             put("periodic ms", p.periodicNanos / 1e6, decimals = 2)
+            put("periodic max ms", p.maxPeriodicNanos / 1e6, decimals = 2)
             put("control ms", p.controlNanos / 1e6, decimals = 2)
+            put("control max ms", p.maxControlNanos / 1e6, decimals = 2)
             put("scheduler ms", p.schedulerNanos / 1e6, decimals = 2)
+            put("scheduler max ms", p.maxSchedulerNanos / 1e6, decimals = 2)
             put("writeHardware ms", p.writeHardwareNanos / 1e6, decimals = 2)
+            put("writeHardware max ms", p.maxWriteHardwareNanos / 1e6, decimals = 2)
             put("overhead ms", p.overheadNanos / 1e6, decimals = 2)
+            put("overhead max ms", p.maxOverheadNanos / 1e6, decimals = 2)
+        }
+    }
+
+    private fun reportLoopCrash(t: Throwable) {
+        try {
+            val message = "LOOP CRASHED: ${t.javaClass.simpleName}: ${t.message}"
+            telemetry.addLine(message)
+            telemetry.update()
+            RobotLog.ee(logTag, t, message)
+        } catch (_: Throwable) {
+            // Preserve the original loop exception even if diagnostics fail.
         }
     }
 
@@ -111,8 +133,11 @@ abstract class OpModeBase : LinearOpMode() {
                 operator.update()
                 robot.loop { onLoop() }
                 publishLoopProfile()
-                telemetryBag.flush()
+                if (telemetryBag.flush()) robot.profile.resetMaxima()
             }
+        } catch (t: Throwable) {
+            reportLoopCrash(t)
+            throw t
         } finally {
             robot.stop()
         }

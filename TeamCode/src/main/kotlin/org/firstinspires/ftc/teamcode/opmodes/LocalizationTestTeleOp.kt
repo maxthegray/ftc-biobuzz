@@ -8,7 +8,7 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants
 import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
-import org.firstinspires.ftc.teamcode.core.subsystems.localization.Localizer
+import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerSubsystem
 import org.firstinspires.ftc.teamcode.core.pathing.path
 
 /**
@@ -46,7 +46,7 @@ class LocalizationTestTeleOp : OpModeBase() {
     }
 
     private lateinit var drive: MecanumDriveSubsystem
-    private lateinit var localizer: Localizer
+    private lateinit var localizer: LocalizerSubsystem
 
     private enum class State { TELEOP, PATH_TO_WAYPOINT_A, PATH_TO_CENTER }
     private var state = State.TELEOP
@@ -54,7 +54,7 @@ class LocalizationTestTeleOp : OpModeBase() {
     override fun configure() {
         val follower = Constants.createFollower(hardwareMap)
         drive = robot.register(MecanumDriveSubsystem(follower))
-        localizer = robot.register(Localizer(follower))
+        localizer = robot.register(LocalizerSubsystem(follower))
     }
 
     override fun onStart() {
@@ -109,7 +109,7 @@ class LocalizationTestTeleOp : OpModeBase() {
     // -------------------------------------------------------------------------
 
     private fun goTo(target: Pose, newState: State) {
-        val chain = drive.path(startPose = drive.pose) {
+        val chain = drive.path(startPose = drive.pose, alliance = alliance) {
             lineTo(target)
             constantHeading(drive.pose.heading)
         }
@@ -145,10 +145,6 @@ class LocalizationTestTeleOp : OpModeBase() {
             put("pose", drive.pose)
             put("velocity", drive.velocity)
             put("mode", drive.mode.name)
-        }
-        telemetryBag.section("Robot") {
-            put("loopHz", robot.loopHz, decimals = 1)
-            put("loopCount", robot.loopCount)
         }
     }
 }

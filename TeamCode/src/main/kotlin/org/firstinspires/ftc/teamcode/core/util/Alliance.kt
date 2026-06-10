@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.core.util
 
 import com.pedropathing.geometry.Pose
+import org.firstinspires.ftc.teamcode.core.runtime.RobotConfig
 
 /**
  * Alliance / starting-side selection. Used by auton to mirror paths automatically
@@ -14,9 +15,9 @@ enum class Alliance {
 
     /**
      * Returns `pose` unchanged for RED; mirrors across the field for BLUE so a
-     * single set of path poses can run on either alliance. Pedro's default mirror
-     * axis is the standard FTC field (141.5" in Pedro coordinates).
+     * single set of path poses can run on either alliance. The mirror axis is
+     * the configured FTC field length in Pedro coordinates.
      */
     fun mirror(pose: Pose): Pose =
-        if (this == RED) pose else pose.mirror()
+        if (this == RED) pose else pose.mirror(RobotConfig.Field.LENGTH_INCHES)
 }

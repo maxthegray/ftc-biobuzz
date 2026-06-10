@@ -23,7 +23,7 @@ import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
  *
  * Pose writes via [setPose] are always taken in Pedro coordinates.
  */
-class Localizer(private val follower: Follower) : SubsystemBase("Localizer") {
+class LocalizerSubsystem(private val follower: Follower) : SubsystemBase("Localizer") {
 
     override fun init(hardwareMap: HardwareMap) {
         // Follower owns the Pinpoint / OTOS / odometry wheels; nothing to init here.

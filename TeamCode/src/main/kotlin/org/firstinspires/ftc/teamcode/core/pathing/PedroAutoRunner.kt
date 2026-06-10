@@ -1,8 +1,8 @@
 package org.firstinspires.ftc.teamcode.core.pathing
 
 import com.pedropathing.ivy.Command
-import com.pedropathing.ivy.CommandBuilder
 import com.pedropathing.ivy.Scheduler
+import com.pedropathing.ivy.behaviors.EndCondition
 import com.pedropathing.ivy.commands.Commands
 import com.pedropathing.ivy.groups.Groups
 import com.pedropathing.paths.PathChain
@@ -30,12 +30,13 @@ import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsyste
  * Under the hood every entry becomes an [com.pedropathing.ivy.Command] and
  * the whole sequence is wrapped in `Groups.sequential` so the Ivy scheduler
  * owns execution — which means interrupting an auton routine mid-path is
- * just `Scheduler.cancel(runner.command)`.
+ * just `runner.cancel()`.
  */
 class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
 
     private val steps = mutableListOf<Command>()
     private var built: Command? = null
+    private var scheduled = false
 
     /** Append a Pedro path to follow. */
     fun follow(chain: PathChain): PedroAutoRunner =
@@ -65,8 +66,20 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
     fun chase(
         target: () -> Pose?,
         done: (currentTarget: Pose?) -> Boolean = { false },
+        reissueEpsilonInches: Double = 0.5,
+        reissueHeadingEpsilonRadians: Double = Math.toRadians(5.0),
+        onEnd: (EndCondition) -> Unit = { drive.breakPath() },
     ): PedroAutoRunner =
-        append(chaseTarget(drive, target, done))
+        append(
+            chaseTarget(
+                drive,
+                target,
+                done,
+                reissueEpsilonInches,
+                reissueHeadingEpsilonRadians,
+                onEnd,
+            ),
+        )
 
     /** Inject an arbitrary one-shot action (e.g. "drop pre-load"). */
     fun run(action: Runnable): PedroAutoRunner =
@@ -99,6 +112,7 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
         requireMutable()
         val sub = PedroAutoRunner(drive).apply(block)
         require(sub.steps.isNotEmpty()) { "parallel { } block is empty" }
+        requireNoSharedRequirements(sub.steps, "parallel")
         return append(Groups.parallel(*sub.steps.toTypedArray()))
     }
 
@@ -111,6 +125,7 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
         requireMutable()
         val sub = PedroAutoRunner(drive).apply(block)
         require(sub.steps.isNotEmpty()) { "race { } block is empty" }
+        requireNoSharedRequirements(sub.steps, "race")
         return append(Groups.race(*sub.steps.toTypedArray()))
     }
 
@@ -122,7 +137,18 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
 
     private fun requireMutable() {
         check(built == null) {
-            "PedroAutoRunner command has already been built; add all steps before accessing command or scheduling."
+            "PedroAutoRunner command has already been built; add all steps before build() or scheduling."
+        }
+    }
+
+    private fun requireNoSharedRequirements(children: List<Command>, groupName: String) {
+        val seen = HashSet<Any>()
+        for (child in children) {
+            for (requirement in child.requirements()) {
+                require(seen.add(requirement)) {
+                    "$groupName children must not share a requirement (e.g. two drive commands in one group)"
+                }
+            }
         }
     }
 
@@ -132,26 +158,27 @@ class PedroAutoRunner(private val drive: MecanumDriveSubsystem) {
         return Groups.sequential(*arr)
     }
 
-    /** The fully-built auton command. Rebuilt lazily on first access. */
-    val command: Command
-        get() {
-            var b = built
-            if (b == null) {
-                b = buildInternal()
-                built = b
-            }
-            return b
+    /** Build and lock the routine into one Ivy command. Further steps cannot be appended. */
+    fun build(): Command {
+        var b = built
+        if (b == null) {
+            b = buildInternal()
+            built = b
         }
+        return b
+    }
 
     /** Schedule the routine on Ivy's global scheduler. */
     fun schedule(): PedroAutoRunner {
-        Scheduler.schedule(command)
+        if (scheduled) return this
+        Scheduler.schedule(build())
+        scheduled = true
         return this
     }
 
     /** True once the routine has either completed or been cancelled. */
     val isDone: Boolean
-        get() = built != null && !Scheduler.isScheduled(command)
+        get() = scheduled && built?.let { !Scheduler.isScheduled(it) } == true
 
     /** Cancel the routine mid-flight. Safe to call even if nothing is scheduled. */
     fun cancel() {

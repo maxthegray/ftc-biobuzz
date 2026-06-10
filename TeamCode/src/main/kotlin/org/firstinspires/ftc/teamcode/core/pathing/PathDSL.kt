@@ -4,6 +4,7 @@ import com.pedropathing.follower.Follower
 import com.pedropathing.geometry.BezierCurve
 import com.pedropathing.geometry.BezierLine
 import com.pedropathing.geometry.Pose
+import com.pedropathing.math.MathFunctions
 import com.pedropathing.paths.PathBuilder
 import com.pedropathing.paths.PathChain
 import org.firstinspires.ftc.teamcode.core.util.Alliance
@@ -26,7 +27,7 @@ import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsyste
  * Example:
  *
  * ```kotlin
- * val toScore = drive.path(Pose(9.0, 60.0, 0.0)) {
+ * val toScore = drive.path(Pose(9.0, 60.0, 0.0), alliance = Alliance.RED) {
  *     lineTo(Pose(30.0, 60.0))
  *     splineTo(Pose(48.0, 40.0, Math.toRadians(-45.0)))
  *     constantHeading(Math.toRadians(-45.0))
@@ -41,12 +42,14 @@ class PathDSL internal constructor(
 ) {
     private val builder: PathBuilder = follower.pathBuilder()
     private var last: Pose = applyAlliance(startPose)
+    private var hasSegment = false
 
     /** Append a straight line from the last pose to [target]. */
     fun lineTo(target: Pose): PathDSL {
         val end = applyAlliance(target)
         builder.addPath(BezierLine(last, end))
         last = end
+        hasSegment = true
         return this
     }
 
@@ -59,6 +62,7 @@ class PathDSL internal constructor(
         val e = applyAlliance(end)
         builder.addPath(BezierCurve(listOf(last, c, e)))
         last = e
+        hasSegment = true
         return this
     }
 
@@ -72,6 +76,7 @@ class PathDSL internal constructor(
         val control = Pose((last.x + e.x) / 2.0, (last.y + e.y) / 2.0, e.heading)
         builder.addPath(BezierCurve(listOf(last, control, e)))
         last = e
+        hasSegment = true
         return this
     }
 
@@ -81,47 +86,68 @@ class PathDSL internal constructor(
      * default.
      */
     fun curveThrough(tension: Double, vararg points: Pose): PathDSL {
+        require(points.isNotEmpty()) { "curveThrough requires at least one point" }
         val mirrored = Array(points.size) { applyAlliance(points[it]) }
-        builder.curveThrough(tension, *mirrored)
+        if (hasSegment) {
+            builder.curveThrough(tension, *mirrored)
+        } else {
+            val prevPoint = last.minus(mirrored[0].minus(last))
+            builder.curveThrough(prevPoint, last, tension, *mirrored)
+        }
         last = mirrored.last()
+        hasSegment = true
         return this
     }
 
     /**
      * Set linear heading interpolation on the most recent segment. Robot
      * will rotate smoothly from [startHeading] to [endHeading] along that
-     * segment's parametric [0, 1]. Both headings are already in alliance
-     * coordinates — they are not mirrored.
+     * segment's parametric [0, 1]. Headings are written in RED coordinates;
+     * BLUE paths mirror them using Pedro's heading convention.
      */
     fun linearHeading(startHeading: Double, endHeading: Double): PathDSL {
-        val sh = if (alliance == Alliance.BLUE) Math.PI - startHeading else startHeading
-        val eh = if (alliance == Alliance.BLUE) Math.PI - endHeading else endHeading
+        requireSegment("linearHeading")
+        val sh = applyAllianceHeading(startHeading)
+        val eh = applyAllianceHeading(endHeading)
         builder.setLinearHeadingInterpolation(sh, eh)
         return this
     }
 
     /** Lock heading to a constant value across the most recent segment. */
     fun constantHeading(heading: Double): PathDSL {
-        val h = if (alliance == Alliance.BLUE) Math.PI - heading else heading
+        requireSegment("constantHeading")
+        val h = applyAllianceHeading(heading)
         builder.setConstantHeadingInterpolation(h)
         return this
     }
 
     /** Follow the path's tangent for heading (robot nose follows the curve). */
     fun tangentHeading(): PathDSL {
+        requireSegment("tangentHeading")
         builder.setTangentHeadingInterpolation()
         return this
     }
 
     /** Reverse-drive the most recent segment (motors run backward along it). */
     fun reversed(): PathDSL {
+        requireSegment("reversed")
         builder.setReversed()
         return this
     }
 
-    fun build(): PathChain = builder.build()
+    fun build(): PathChain {
+        requireSegment("build")
+        return builder.build()
+    }
 
     private fun applyAlliance(pose: Pose): Pose = alliance.mirror(pose)
+
+    private fun applyAllianceHeading(heading: Double): Double =
+        if (alliance == Alliance.BLUE) MathFunctions.normalizeAngle(Math.PI - heading) else heading
+
+    private fun requireSegment(operation: String) {
+        require(hasSegment) { "$operation requires at least one path segment" }
+    }
 }
 
 /**
@@ -131,7 +157,7 @@ class PathDSL internal constructor(
  */
 fun MecanumDriveSubsystem.path(
     startPose: Pose,
-    alliance: Alliance = Alliance.RED,
+    alliance: Alliance,
     block: PathDSL.() -> Unit,
 ): PathChain {
     val dsl = PathDSL(follower, alliance, startPose)

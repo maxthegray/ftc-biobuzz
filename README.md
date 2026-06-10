@@ -22,7 +22,6 @@ Built on:
 2. Make sure the Control Hub's active Configuration has these hardware names:
    - Motors: `frontLeftMotor`, `frontRightMotor`, `backLeftMotor`, `backRightMotor`
    - Pinpoint I²C: `sensor_otos` (historical name — kept from prior OTOS config)
-   - Webcam (optional): `Webcam 1`
 3. Build & push to the Robot Controller. Select the op-mode
    **Starter: Drive Only** to sanity-check the drivetrain and telemetry.
 4. Open the Panels dashboard at `http://192.168.43.1:8001` while the robot
@@ -35,16 +34,16 @@ TeamCode/src/main/
 ├── java/org/firstinspires/ftc/teamcode/pedroPathing/
 │   └── Constants.java                 # Pedro's required config path.
 │                                      # Physical constants + createFollower().
-└── kotlin/org/firstinspires/ftc/teamcode/general/
-    ├── core/           # Robot, OpModeBase, SubsystemBase, Alliance, GamepadEx
-    ├── hardware/       # BulkReadManager, I2CBusThread, DeviceReaders
-    ├── localization/   # Localizer façade, PinpointLocalizer helper, AprilTagCorrector
-    ├── drive/          # MecanumDriveSubsystem, DriveConfig
-    ├── pathing/        # PathDSL (Kotlin DSL over PathBuilder), PedroAutoRunner
-    ├── vision/         # VisionSubsystem, AprilTagPipeline
-    ├── telemetry/      # TelemetryBag (DS + Panels in one call)
-    ├── config/         # RobotConfig (hardware name constants)
-    └── examples/       # DriveOnlyTeleOp — minimal end-to-end example
+└── kotlin/org/firstinspires/ftc/teamcode/
+    ├── core/
+    │   ├── hardware/       # SRSHub wrapper + optional I2C bus thread
+    │   ├── pathing/        # PathDSL, chaseTarget, PedroAutoRunner
+    │   ├── runtime/        # Robot, OpModeBase, SubsystemBase, RobotConfig
+    │   ├── subsystems/
+    │   │   ├── drive/      # MecanumDriveSubsystem, DriveConfig
+    │   │   └── localization/ # LocalizerSubsystem + PinpointDirect helper
+    │   └── util/           # Alliance, GamepadEx, TelemetryBag, triggers
+    └── opmodes/            # Starter teleop examples
 ```
 
 ## Writing a new op-mode
@@ -84,7 +83,7 @@ gamepad edge detection, joined Driver Station + Panels telemetry flushing.
 The `path { }` DSL sits over Pedro's `PathBuilder`:
 
 ```kotlin
-val toScore = drive.path(Pose(9.0, 60.0, 0.0)) {
+val toScore = drive.path(Pose(9.0, 60.0, 0.0), alliance = Alliance.RED) {
     lineTo(Pose(30.0, 60.0))
     splineTo(Pose(48.0, 40.0, Math.toRadians(-45.0)))
     constantHeading(Math.toRadians(-45.0))
@@ -96,11 +95,11 @@ And a full auton routine via `PedroAutoRunner` / the `autoRoutine { }` DSL:
 ```kotlin
 val runner = autoRoutine(drive) {
     follow(toScore)
-    run { intake.score() }
+    run { /* call a season-specific subsystem */ }
     wait(300)
     parallel {
         follow(toStack)
-        run { intake.extend() }
+        run { /* call a season-specific subsystem */ }
     }
     holdPose(Pose(36.0, 36.0, 0.0))
 }
@@ -115,9 +114,9 @@ if (runner.isDone) requestOpModeStop()
 | I want to change…                               | Edit this                                                   |
 |-------------------------------------------------|-------------------------------------------------------------|
 | Motor physics (mass, zero-power accel, etc.)    | `pedroPathing/Constants.java`                               |
-| Motor / sensor hardware names                   | `pedroPathing/Constants.java` + `general/config/RobotConfig.kt` |
-| Teleop feel (scaling, precision, field-centric) | `general/drive/DriveConfig.kt`                              |
-| AprilTag correction tolerances                  | `general/localization/AprilTagCorrector.kt` or op-mode      |
+| Motor / sensor hardware names                   | `core/runtime/RobotConfig.kt`                               |
+| Teleop feel (scaling, precision, field-centric) | `core/subsystems/drive/DriveConfig.kt`                      |
+| Field length for alliance mirroring             | `core/runtime/RobotConfig.kt`                               |
 | Path constraints (max velocity, etc.)           | `pedroPathing/Constants.pathConstraints`                    |
 
 ## Further reading

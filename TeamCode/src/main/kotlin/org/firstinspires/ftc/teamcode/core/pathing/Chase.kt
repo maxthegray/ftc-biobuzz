@@ -2,7 +2,11 @@ package org.firstinspires.ftc.teamcode.core.pathing
 
 import com.pedropathing.geometry.Pose
 import com.pedropathing.ivy.Command
+import com.pedropathing.ivy.behaviors.EndCondition
+import com.pedropathing.math.MathFunctions
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
+import kotlin.math.abs
+import kotlin.math.hypot
 
 /**
  * Dynamic-target chaser built on top of Pedro's `holdPoint`.
@@ -32,21 +36,65 @@ import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsyste
  *               capture checks like `{ t -> t != null && drive.atPose(t) }`.
  *               Default: never ends — compose with `race { ... }` or a
  *               timeout if you want bounded chasing.
+ * @param reissueEpsilonInches Minimum setpoint move before `holdPoint` is
+ *               re-issued. Re-issuing resets the hold controller and allocates,
+ *               so small jitter below this threshold is ignored.
+ * @param reissueHeadingEpsilonRadians Minimum heading change before `holdPoint`
+ *               is re-issued, using shortest-angle wraparound.
+ * @param onEnd Called whenever the command ends. The default breaks Pedro's
+ *               hold mode so a timeout does not leave the robot chasing a stale
+ *               setpoint.
  */
 fun chaseTarget(
     drive: MecanumDriveSubsystem,
     target: () -> Pose?,
     done: (currentTarget: Pose?) -> Boolean = { false },
+    reissueEpsilonInches: Double = 0.5,
+    reissueHeadingEpsilonRadians: Double = Math.toRadians(5.0),
+    onEnd: (EndCondition) -> Unit = { drive.breakPath() },
 ): Command {
-    var lastTarget: Pose? = null
+    require(reissueEpsilonInches.isFinite() && reissueEpsilonInches >= 0.0) {
+        "reissueEpsilonInches must be finite and non-negative"
+    }
+    require(reissueHeadingEpsilonRadians.isFinite() && reissueHeadingEpsilonRadians >= 0.0) {
+        "reissueHeadingEpsilonRadians must be finite and non-negative"
+    }
+
+    // Two distinct pieces of state: `seenTarget` is null until a real target
+    // is observed (that's what `done` is contracted to receive), while
+    // `holdSetpoint` is the pose we actually hold — seeded to the start pose so
+    // the robot pins in place instead of drifting before the first fix.
+    var seenTarget: Pose? = null
+    var holdSetpoint: Pose? = null
+    var issued: Pose? = null
 
     return Command.build()
         .requiring(drive)
-        .setStart { lastTarget = null }
-        .setExecute {
-            val t = target()
-            if (t != null) lastTarget = t
-            lastTarget?.let { drive.holdPose(it) }
+        .setStart {
+            seenTarget = null
+            holdSetpoint = drive.pose
+            issued = null
         }
-        .setDone { done(lastTarget) }
+        .setExecute {
+            target()?.let {
+                seenTarget = it
+                holdSetpoint = it
+            }
+            val setpoint = holdSetpoint ?: return@setExecute
+            // Only re-issue holdPoint when the setpoint actually moved: each call
+            // breaks following, allocates a fresh BezierPoint + Path, and resets
+            // the hold controller, so spamming it every tick is wasteful.
+            val prev = issued
+            val positionMoved = prev == null ||
+                hypot(setpoint.x - prev.x, setpoint.y - prev.y) >= reissueEpsilonInches
+            val headingMoved = prev == null ||
+                abs(MathFunctions.getSmallestAngleDifference(setpoint.heading, prev.heading)) >=
+                    reissueHeadingEpsilonRadians
+            if (positionMoved || headingMoved) {
+                drive.holdPose(setpoint)
+                issued = setpoint
+            }
+        }
+        .setDone { done(seenTarget) }
+        .setEnd(onEnd)
 }

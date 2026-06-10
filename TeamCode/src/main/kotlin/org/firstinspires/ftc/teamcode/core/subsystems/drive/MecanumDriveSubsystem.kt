@@ -5,10 +5,12 @@ import com.pedropathing.geometry.Pose
 import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.behaviors.EndCondition
 import com.pedropathing.ivy.pedro.PedroCommands
+import com.pedropathing.math.MathFunctions
 import com.pedropathing.math.Vector
 import com.pedropathing.paths.PathChain
 import com.qualcomm.robotcore.hardware.HardwareMap
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
+import kotlin.math.abs
 
 /**
  * The one subsystem that owns the mecanum drivetrain. It is a thin façade
@@ -60,9 +62,11 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
      * in `[-1.0, 1.0]`.
      */
     fun drive(forward: Double, strafe: Double, turn: Double, precision: Boolean = false) {
-        val scale = DriveConfig.teleopPowerScale * (if (precision) DriveConfig.precisionPowerScale else 1.0)
-        val exp = DriveConfig.inputExponent
+        val scale = DriveConfig.safeTeleopPowerScale *
+            (if (precision) DriveConfig.safePrecisionPowerScale else 1.0)
+        val exp = DriveConfig.safeInputExponent
         val fwd = forward.curve(exp) * scale
+        // FTC sticks use +x right/CW turn; Pedro uses +lateral left/CCW-positive heading.
         val strafeScaled = -strafe.curve(exp) * scale
         val turnScaled = -turn.curve(exp) * scale
         if (DriveConfig.fieldCentric) {
@@ -138,16 +142,16 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
 
     /** True if the robot is actually moving faster than [DriveConfig.stoppedVelocityThreshold]. */
     val isMoving: Boolean
-        get() = follower.velocity.magnitude >= DriveConfig.stoppedVelocityThreshold
+        get() = follower.velocity.magnitude >= DriveConfig.safeStoppedVelocityThreshold
 
     /** Checks whether the robot is within the configured hold tolerance of a target pose. */
-    fun atPose(target: Pose): Boolean =
-        follower.atPose(
-            target,
-            DriveConfig.holdToleranceInches,
-            DriveConfig.holdToleranceInches,
-            DriveConfig.holdToleranceRadians,
-        )
+    fun atPose(target: Pose): Boolean {
+        val current = pose
+        return abs(target.x - current.x) < DriveConfig.safeHoldToleranceInches &&
+            abs(target.y - current.y) < DriveConfig.safeHoldToleranceInches &&
+            MathFunctions.getSmallestAngleDifference(target.heading, current.heading) <
+                DriveConfig.safeHoldToleranceRadians
+    }
 
     override fun periodic() {
         if (mode == Mode.FOLLOWING && !follower.isBusy) mode = modeAfterFollow

@@ -35,17 +35,12 @@ object DeviceReaders {
         lookup(hardwareMap, name, Servo::class.java)
 
     fun <T : HardwareDevice> maybe(hardwareMap: HardwareMap, name: String, type: Class<T>): T? =
-        try { hardwareMap.get(type, name) } catch (_: Throwable) { null }
+        hardwareMap.tryGet(type, name)
 
     private fun <T : HardwareDevice> lookup(hardwareMap: HardwareMap, name: String, type: Class<T>): T =
-        try {
-            hardwareMap.get(type, name)
-        } catch (t: Throwable) {
-            throw HardwareConfigError(
-                "Missing ${type.simpleName} named \"$name\" in active configuration.",
-                t,
-            )
-        }
+        hardwareMap.tryGet(type, name) ?: throw HardwareConfigError(
+            "Missing ${type.simpleName} named \"$name\" in active configuration.",
+        )
 }
 
 class HardwareConfigError(message: String, cause: Throwable? = null) : RuntimeException(message, cause)

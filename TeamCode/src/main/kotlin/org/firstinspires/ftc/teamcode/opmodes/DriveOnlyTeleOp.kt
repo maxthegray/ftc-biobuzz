@@ -5,7 +5,7 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants
 import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
-import org.firstinspires.ftc.teamcode.core.subsystems.localization.Localizer
+import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerSubsystem
 
 /**
  * Minimal teleop that exercises the starter scaffolding end-to-end:
@@ -22,12 +22,12 @@ import org.firstinspires.ftc.teamcode.core.subsystems.localization.Localizer
 class DriveOnlyTeleOp : OpModeBase() {
 
     private lateinit var drive: MecanumDriveSubsystem
-    private lateinit var localizer: Localizer
+    private lateinit var localizer: LocalizerSubsystem
 
     override fun configure() {
         val follower = Constants.createFollower(hardwareMap)
         drive = robot.register(MecanumDriveSubsystem(follower))
-        localizer = robot.register(Localizer(follower))
+        localizer = robot.register(LocalizerSubsystem(follower))
     }
 
     override fun onStart() {
@@ -61,20 +61,5 @@ class DriveOnlyTeleOp : OpModeBase() {
             put("inputExponent", DriveConfig.inputExponent)
             put("precision", precision)
         }
-        val p = robot.profile
-        telemetryBag.section("Loop (ms)") {
-            put("total", p.totalNanos / 1e6, decimals = 2)
-            put("clearCaches", p.clearCachesNanos / 1e6, decimals = 2)
-            put("periodic", p.periodicNanos / 1e6, decimals = 2)
-            put("control", p.controlNanos / 1e6, decimals = 2)
-            put("scheduler", p.schedulerNanos / 1e6, decimals = 2)
-            put("writeHardware", p.writeHardwareNanos / 1e6, decimals = 2)
-            put("overhead", p.overheadNanos / 1e6, decimals = 2)
-        }
-        telemetryBag.section("Robot") {
-            put("loopHz", robot.loopHz, decimals = 1)
-            put("loopCount", robot.loopCount)
-        }
     }
 }
-

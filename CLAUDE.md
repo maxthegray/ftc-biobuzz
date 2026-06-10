@@ -102,7 +102,7 @@ Groups.deadline(deadlineCmd, a, b)
 follower.update()                        // MUST run every tick (in writeHardware)
 follower.pose                            // Pose getter
 follower.velocity                        // Pose getter
-follower.setPose(p)                      // hard snap — useful for AprilTag correction
+follower.setPose(p)                      // hard snap — useful for field-pose correction
 follower.setStartingPose(p)              // treats p as the origin; prior movement shifts
 follower.startTeleopDrive(brakeMode)     // switch to manual driving mode
 follower.setTeleOpDrive(fwd, strafe, turn, isRobotCentric)
@@ -243,7 +243,7 @@ persist into a pinned config object.
 
 ## When the user asks you to add a path or auton routine
 
-Prefer the `PathDSL` / `PedroAutoRunner` DSLs in `general/pathing/`. They
+Prefer the `PathDSL` / `PedroAutoRunner` DSLs in `core/pathing/`. They
 already handle the Pedro API correctly and add alliance mirroring and
 parallel/race groups on top. Don't drop back to raw `PathBuilder` unless
 you have a reason.

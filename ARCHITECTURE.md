@@ -17,10 +17,10 @@ A single op-mode tick always looks like this:
 │   Robot.loop():                                                   │
 │     1. BulkReadManager.clearCaches()       ← fresh Lynx data      │
 │     2. for s in subsystems: s.periodic()   ← reads + state        │
-│     3. Scheduler.execute()                 ← Ivy ticks commands   │
-│     4. for s in subsystems: s.writeHardware() ← motors, servos    │
+│     3. onLoop() / control                  ← schedule + telemetry │
+│     4. Scheduler.execute()                 ← Ivy ticks commands   │
+│     5. for s in subsystems: s.writeHardware() ← motors, servos    │
 │                                                                   │
-│   onLoop()                                 ← gamepad-driven work  │
 │   telemetryBag.flush()                     ← DS + Panels in 1 go  │
 └───────────────────────────────────────────────────────────────────┘
 ```
@@ -37,21 +37,23 @@ The order matters:
    `periodic()` is for "update my internal state from the latest bulk read
    + localiser". Leave actuator decisions to commands.
 
-3. **Commands run via the Ivy scheduler.** Commands that need hardware
+3. **`onLoop()` is the control phase.** It runs after fresh subsystem
+   reads and before the scheduler/write pass. Use it for gamepad handling,
+   command scheduling, target updates such as `drive.drive(...)`, and
+   telemetry buffering. Commands scheduled here tick in the same loop.
+   Do not write raw hardware from here; leave final actuator writes to
+   subsystem `writeHardware()`.
+
+4. **Commands run via the Ivy scheduler.** Commands that need hardware
    declare `requiring(subsystem)`. The scheduler resolves conflicts (one
    command per requirement, with priority / override / queue / cancel
    behaviour configurable per-command). This is how default-commands and
    driver-initiated actions coexist without stepping on each other.
 
-4. **Subsystems write in `writeHardware()`.** By the time this runs, a
+5. **Subsystems write in `writeHardware()`.** By the time this runs, a
    command has decided what the subsystem should be doing this tick.
    `MecanumDriveSubsystem.writeHardware()` calls `Follower.update()`,
    which is where Pedro actually computes and writes motor powers.
-
-5. **`onLoop()` runs after everything.** Use it for gamepad handling that
-   can't be expressed as a default command, and for telemetry gathering.
-   Do not command motors from here unless you are absolutely sure no
-   command is contending for them.
 
 ## Threading model
 
@@ -88,24 +90,19 @@ The trade-off is that we can't easily swap out Pedro for another follower
 without rewriting this subsystem. That's acceptable — Pedro is specifically
 why this starter exists.
 
-## Localisation fusion
+## Localisation Hooks
 
 The Follower owns the primary localiser (Pinpoint), so wheel-odometry
-drift accumulates at a few percent per path. For routines where that
-matters — late-auton, long paths — we layer AprilTag correction on top:
+drift accumulates over long paths. The starter exposes two hooks:
 
-1. `VisionSubsystem` runs the FTC `VisionPortal` + `AprilTagProcessor`.
-2. On every tag frame, `AprilTagPipeline.detectionToFieldPose` projects
-   the detection through the camera's known mount offset into a field
-   pose.
-3. That field pose feeds `AprilTagCorrector.submit`, which gates it on
-   range and frame-over-frame stability before committing via
-   `Localizer.setPose`.
+1. `LocalizerSubsystem` is a small subsystem facade over the Follower pose and
+   velocity.
+2. `PinpointDirect` reaches down to the raw Pinpoint driver for
+   init-time IMU recalibration and status reads.
 
-Everything is a hard snap — no Kalman filter. Jitter rejection comes from
-requiring two successive agreeing detections of the same tag ID before
-committing. If you want something smoother, swap `AprilTagCorrector` for
-an implementation that blends instead of snaps.
+Vision-based correction is intentionally not included in this template. If
+a season fork needs camera correction or sensor fusion, add that subsystem
+in the fork and feed accepted field-pose corrections through `LocalizerSubsystem`.
 
 ## Telemetry: two audiences, one call
 
@@ -142,8 +139,9 @@ here — it's just present so you can pull it in when you start tuning live.
   season.
 - Pedro path files. Teams usually keep these in a `paths/` subfolder with
   one Kotlin file per routine. Create it when you have a real auton.
-- A Kalman filter for pose fusion. Intentionally left as a hook point —
-  the current AprilTag corrector is deliberately simple.
+- Vision pipelines, camera correction, and pose-fusion filters. The starter
+  exposes localisation hooks, but the concrete vision stack belongs in a
+  season fork.
 - Auto-generated Panels controls. Panels supports `@Configurable` fields;
   wire them up on the specific subsystems you want to tune, don't
   pre-annotate placeholders.
