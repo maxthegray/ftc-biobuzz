@@ -35,11 +35,20 @@ class MecanumDriveSubsystemTest {
     }
 }
 
-internal fun fakeFollower(): Follower = Follower(
-    FollowerConstants(),
-    FakeLocalizer(),
-    FakeDrivetrain(),
-)
+internal fun fakeFollower(): Follower = FakeFollower()
+
+private class FakeFollower : Follower(FollowerConstants(), FakeLocalizer(), FakeDrivetrain()) {
+    private var poseState = Pose()
+    private val velocityState = Vector()
+
+    override fun setPose(pose: Pose) {
+        poseState = pose
+    }
+
+    override fun getPose(): Pose = poseState
+
+    override fun getVelocity(): Vector = velocityState
+}
 
 private class FakeLocalizer : Localizer {
     private var pose = Pose()
