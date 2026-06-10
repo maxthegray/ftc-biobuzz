@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode.core.pathing
 
-import com.pedropathing.follower.Follower
 import com.pedropathing.geometry.BezierCurve
 import com.pedropathing.geometry.BezierLine
 import com.pedropathing.geometry.Pose
@@ -36,11 +35,11 @@ import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsyste
  * ```
  */
 class PathDSL internal constructor(
-    private val follower: Follower,
+    pathBuilderFactory: () -> PathBuilder,
     private val alliance: Alliance,
     startPose: Pose,
 ) {
-    private val builder: PathBuilder = follower.pathBuilder()
+    private val builder: PathBuilder = pathBuilderFactory()
     private var last: Pose = applyAlliance(startPose)
     private var hasSegment = false
 
@@ -146,7 +145,7 @@ fun MecanumDriveSubsystem.path(
     alliance: Alliance,
     block: PathDSL.() -> Unit,
 ): PathChain {
-    val dsl = PathDSL(follower, alliance, startPose)
+    val dsl = PathDSL(follower::pathBuilder, alliance, startPose)
     dsl.block()
     return dsl.build()
 }

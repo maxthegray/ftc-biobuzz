@@ -111,6 +111,14 @@ class GamepadEx(val raw: Gamepad) {
     val xReleased: Boolean get() = !curr.x && prev.x
     val yReleased: Boolean get() = !curr.y && prev.y
 
+    fun rumble(ms: Int) {
+        raw.rumble(ms)
+    }
+
+    fun rumbleBlips(count: Int) {
+        raw.rumbleBlips(count)
+    }
+
     /**
      * A [Trigger] backed by [button]. Cached — repeated calls for the same
      * button return the same Trigger, so bindings accumulate on one instance.

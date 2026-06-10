@@ -12,6 +12,7 @@ import org.firstinspires.ftc.robotcore.external.Telemetry
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.PinpointDirect
 import org.firstinspires.ftc.teamcode.core.util.Alliance
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx
+import org.firstinspires.ftc.teamcode.core.util.MatchTimer
 import org.firstinspires.ftc.teamcode.core.util.TelemetryBag
 
 /**
@@ -87,12 +88,17 @@ abstract class OpModeBase : LinearOpMode() {
     /** Set false for op-modes that want to own all health telemetry themselves. */
     protected open val publishHealthTelemetry: Boolean get() = true
 
+    /** Rumble both gamepads once when the match reaches endgame. */
+    protected open val endgameRumble: Boolean get() = true
+
     private var voltageSensor: VoltageSensor? = null
     private var cachedVoltage = Double.NaN
     private var voltageReadHealthTick = Long.MIN_VALUE
     private var healthTick = 0L
     private val logDir = File("/sdcard/FIRST/logs")
     private val lastCrashFile = File(logDir, "lastcrash.txt")
+    protected val matchTimer = MatchTimer()
+    private var endgameRumbled = false
 
     private fun publishLoopProfile() {
         if (!publishLoopTelemetry) return
@@ -217,6 +223,15 @@ abstract class OpModeBase : LinearOpMode() {
         }
     }
 
+    private fun updateEndgameRumble() {
+        if (!endgameRumble || endgameRumbled) return
+        if (matchTimer.inEndgame()) {
+            driver.rumbleBlips(3)
+            operator.rumbleBlips(3)
+            endgameRumbled = true
+        }
+    }
+
     final override fun runOpMode() {
         robot = Robot(hardwareMap).also { it.alliance = alliance }
         driver = GamepadEx(gamepad1)
@@ -273,6 +288,8 @@ abstract class OpModeBase : LinearOpMode() {
 
         try {
             robot.start()
+            matchTimer.start()
+            endgameRumbled = false
             robot.recordEvent("start")
             onStart()
             while (opModeIsActive()) {
@@ -281,7 +298,10 @@ abstract class OpModeBase : LinearOpMode() {
                         driver.update()
                         operator.update()
                     },
-                    control = { onLoop() },
+                    control = {
+                        onLoop()
+                        updateEndgameRumble()
+                    },
                     telemetry = {
                         publishLoopProfile()
                         publishHealth(includeInitOnly = false)
