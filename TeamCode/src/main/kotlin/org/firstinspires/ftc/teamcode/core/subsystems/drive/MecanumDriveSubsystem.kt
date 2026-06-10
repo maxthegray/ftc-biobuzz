@@ -158,9 +158,23 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
             finished = if (holdEnd) Mode.HOLDING else Mode.IDLE,
         )
 
+    /**
+     * Command that holds [pose] — position *and* heading. Deliberately not
+     * built on Ivy's `PedroCommands.hold`, which freezes the heading the
+     * robot happened to have when the command started and ignores
+     * `pose.heading`; this uses [Follower.holdPoint] directly so both
+     * [holdPose] and this command agree. Done once the follower is within
+     * its configured path constraints, matching Ivy's semantics.
+     */
     fun holdCommand(pose: Pose): Command =
         trackDriveMode(
-            PedroCommands.hold(follower, pose).asDriveAction(),
+            Command.build()
+                .setStart { follower.holdPoint(pose) }
+                .setDone {
+                    follower.translationalError.magnitude < follower.constraints.translationalConstraint &&
+                        abs(follower.headingError) < follower.constraints.headingConstraint
+                }
+                .asDriveAction(),
             running = Mode.HOLDING,
             finished = Mode.HOLDING,
         )
@@ -229,8 +243,16 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
             .setDone(command::done)
             .setEnd { endCondition ->
                 command.end(endCondition)
-                mode = if (endCondition == EndCondition.INTERRUPTED) Mode.IDLE else finished
-                if (mode == Mode.IDLE) modeAfterFollow = Mode.IDLE
+                if (endCondition == EndCondition.INTERRUPTED) {
+                    // Ivy's pedro commands have no end handler, so an
+                    // interrupted follow would otherwise keep driving the
+                    // path — update() runs unconditionally in writeHardware.
+                    follower.breakFollowing()
+                    mode = Mode.IDLE
+                    modeAfterFollow = Mode.IDLE
+                } else {
+                    mode = finished
+                }
             }
 }
 

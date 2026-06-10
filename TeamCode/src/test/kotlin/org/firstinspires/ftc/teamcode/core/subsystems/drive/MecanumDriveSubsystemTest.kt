@@ -6,6 +6,7 @@ import com.pedropathing.follower.FollowerConstants
 import com.pedropathing.geometry.Pose
 import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.CommandBuilder
+import com.pedropathing.ivy.behaviors.EndCondition
 import com.pedropathing.localization.Localizer
 import com.pedropathing.math.Vector
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
@@ -33,13 +34,71 @@ class MecanumDriveSubsystemTest {
         assertTrue(command.requirements().contains(extra))
         assertEquals(CommandPriorities.DRIVER_ACTION, command.priority())
     }
+
+    @Test
+    fun interruptedTrackedCommandBreaksFollowingAndIdles() {
+        val follower = fakeFollower()
+        val drive = MecanumDriveSubsystem(follower)
+        val command = drive.trackDriveMode(
+            CommandBuilder().setDone { false },
+            running = MecanumDriveSubsystem.Mode.FOLLOWING,
+            finished = MecanumDriveSubsystem.Mode.HOLDING,
+        )
+
+        command.start()
+        assertEquals(MecanumDriveSubsystem.Mode.FOLLOWING, drive.mode)
+        val callsBeforeEnd = follower.breakFollowingCalls
+
+        command.end(EndCondition.INTERRUPTED)
+        assertEquals(callsBeforeEnd + 1, follower.breakFollowingCalls)
+        assertEquals(MecanumDriveSubsystem.Mode.IDLE, drive.mode)
+    }
+
+    @Test
+    fun naturallyEndedTrackedCommandKeepsFinishedMode() {
+        val follower = fakeFollower()
+        val drive = MecanumDriveSubsystem(follower)
+        val command = drive.trackDriveMode(
+            CommandBuilder().setDone { true },
+            running = MecanumDriveSubsystem.Mode.FOLLOWING,
+            finished = MecanumDriveSubsystem.Mode.HOLDING,
+        )
+
+        command.start()
+        val callsBeforeEnd = follower.breakFollowingCalls
+        command.end(EndCondition.NATURALLY)
+
+        assertEquals(callsBeforeEnd, follower.breakFollowingCalls)
+        assertEquals(MecanumDriveSubsystem.Mode.HOLDING, drive.mode)
+    }
+
+    @Test
+    fun holdCommandHoldsTheRequestedPoseIncludingHeading() {
+        val follower = fakeFollower()
+        val drive = MecanumDriveSubsystem(follower)
+        val target = Pose(10.0, 20.0, 1.5)
+
+        drive.holdCommand(target).start()
+
+        val held = follower.heldPose
+        assertTrue(held != null)
+        assertEquals(target.x, held!!.x, 1e-9)
+        assertEquals(target.y, held.y, 1e-9)
+        assertEquals(target.heading, held.heading, 1e-9)
+        assertEquals(MecanumDriveSubsystem.Mode.HOLDING, drive.mode)
+    }
 }
 
-internal fun fakeFollower(): Follower = FakeFollower()
+internal fun fakeFollower(): FakeFollower = FakeFollower()
 
-private class FakeFollower : Follower(FollowerConstants(), FakeLocalizer(), FakeDrivetrain()) {
+internal class FakeFollower : Follower(FollowerConstants(), FakeLocalizer(), FakeDrivetrain()) {
     private var poseState = Pose()
     private val velocityState = Vector()
+
+    var breakFollowingCalls = 0
+        private set
+    var heldPose: Pose? = null
+        private set
 
     override fun setPose(pose: Pose) {
         poseState = pose
@@ -48,6 +107,14 @@ private class FakeFollower : Follower(FollowerConstants(), FakeLocalizer(), Fake
     override fun getPose(): Pose = poseState
 
     override fun getVelocity(): Vector = velocityState
+
+    override fun breakFollowing() {
+        breakFollowingCalls++
+    }
+
+    override fun holdPoint(pose: Pose) {
+        heldPose = pose
+    }
 }
 
 private class FakeLocalizer : Localizer {
