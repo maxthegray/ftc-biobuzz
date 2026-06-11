@@ -297,8 +297,16 @@ validates routine *logic*, not Pedro's control quality — tune on carpet.
 `Sloth` (via the Sinister runtime) is a zero-config hot-reload library
 from the Dairy Foundation. Pulling in `dev.frozenmilk.sinister:Sloth` is
 enough: Sinister scans the APK at boot and wires up anything annotated
-or registered for hot-reloading. We don't use it for any explicit feature
-here — it's just present so you can pull it in when you start tuning live.
+or registered for hot-reloading.
+
+Hot reloads re-run static initialisers, which used to wipe Panels-tuned
+values unless the config class was `@Pinned` (at the cost of its code no
+longer hot-reloading). `ConfigStore` removes that trade-off: tuned values
+are persisted to `/sdcard/FIRST/config/tuning.properties` and reloaded at
+every op-mode init, so they survive reloads, full installs, and power
+cycles while config code stays hot-reloadable. `PersistedPose` remains
+`@Pinned` because it carries live state between op-modes in the same
+process — that is what pinning is actually for.
 
 ## Error philosophy: fail fast, except the teleop command layer
 

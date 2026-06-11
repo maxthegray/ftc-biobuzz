@@ -76,9 +76,9 @@ dependencies {
     implementation 'com.bylazar:fullpanels:1.0.12'
 
     // Sloth hot reload (pulls Sinister 2.2.0 transitively).
-    // @Configurable classes whose live-tuned values must survive a reload
-    // need @dev.frozenmilk.sinister.loading.Pinned, or Sloth's class re-init
-    // wipes Panels' edits — see CLAUDE.md. DriveConfig is pinned for this.
+    // Live-tuned config values survive reloads via ConfigStore (persisted to
+    // disk, reloaded at op-mode init) — see CLAUDE.md. Only classes carrying
+    // live in-process state (PersistedPose) still need @Pinned.
     implementation 'dev.frozenmilk.sinister:Sloth:0.2.4'
 
     // JVM unit tests (run on the host via :TeamCode:testDebugUnitTest).

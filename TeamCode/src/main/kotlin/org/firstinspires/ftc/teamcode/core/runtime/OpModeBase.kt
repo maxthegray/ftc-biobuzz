@@ -11,6 +11,8 @@ import java.io.StringWriter
 import java.util.Locale
 import org.firstinspires.ftc.robotcore.external.Telemetry
 import org.firstinspires.ftc.teamcode.core.logging.FieldView
+import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
+import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerConfig
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.PinpointDirect
 import org.firstinspires.ftc.teamcode.core.util.Alliance
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx
@@ -109,6 +111,7 @@ abstract class OpModeBase : LinearOpMode() {
     private var voltageSensor: VoltageSensor? = null
     private var cachedVoltage = Double.NaN
     private var lastVoltageReadNs = Long.MIN_VALUE
+    private var lastConfigPersistNs = Long.MIN_VALUE
     private val fieldView = FieldView()
     private var fieldViewDrive: DriveTelemetrySource? = null
     private val logDir = File("/sdcard/FIRST/logs")
@@ -300,6 +303,11 @@ abstract class OpModeBase : LinearOpMode() {
         driver = GamepadEx(gamepad1, robot.scheduler)
         operator = GamepadEx(gamepad2, robot.scheduler)
 
+        // Restore live-tuned values before configure() reads any of them.
+        ConfigStore.register("drive", DriveConfig)
+        ConfigStore.register("localizer", LocalizerConfig)
+        ConfigStore.loadFromDisk()
+
         val panels = PanelsTelemetry.telemetry
         joinedTelemetry = JoinedTelemetry(telemetry, panels.wrapper)
         // The bag fans out to DS + Panels itself — handing it joinedTelemetry
@@ -317,6 +325,9 @@ abstract class OpModeBase : LinearOpMode() {
         try {
             Preflight.check(hardwareMap, requiredDevices)
             configure()
+            // Second (idempotent) load: configure() may have registered
+            // season config objects; restore their tuned values too.
+            ConfigStore.loadFromDisk()
             robot.init()
             voltageSensor = firstVoltageSensor()
             fieldViewDrive =
@@ -375,6 +386,7 @@ abstract class OpModeBase : LinearOpMode() {
                         publishHealth(includeInitOnly = false)
                         if (publishFieldView) fieldView.draw(fieldViewDrive)
                         if (safeFlush()) robot.profile.resetMaxima()
+                        persistConfigThrottled()
                     },
                 )
             }
@@ -383,11 +395,36 @@ abstract class OpModeBase : LinearOpMode() {
             throw t
         } finally {
             robot.stop()
+            // Catch any tuning edits made in the final second of the match.
+            try {
+                ConfigStore.persistIfDirty()
+            } catch (_: Throwable) {
+                // Persistence must never mask the real stop path.
+            }
+        }
+    }
+
+    /**
+     * Persist Panels-tuned config values at most once per second. Runs in
+     * the telemetry phase so disk writes are profiled like everything else;
+     * a clean snapshot costs a handful of reflective reads.
+     */
+    private fun persistConfigThrottled() {
+        val now = System.nanoTime()
+        if (lastConfigPersistNs != Long.MIN_VALUE && now - lastConfigPersistNs < CONFIG_PERSIST_INTERVAL_NS) {
+            return
+        }
+        lastConfigPersistNs = now
+        try {
+            ConfigStore.persistIfDirty()
+        } catch (t: Throwable) {
+            RobotLog.ee(logTag, t, "Config persist failed")
         }
     }
 
     private companion object {
         /** Resting voltage below which the init screen warns to swap the battery. */
         const val LOW_BATTERY_WARN_VOLTS = 12.0
+        const val CONFIG_PERSIST_INTERVAL_NS = 1_000_000_000L
     }
 }

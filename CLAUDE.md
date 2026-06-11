@@ -331,25 +331,33 @@ driver.trigger { driver.rightTrigger > 0.5 }.whileTrue(drive.slowMode())
    loop keeps running with defaults resuming next tick. `periodic()`,
    `writeHardware()`, and `onLoop()` always fail fast in both modes.
 
-## Sloth hot reload + Panels: pin `@Configurable` classes
+## Config persistence (ConfigStore) + Sloth hot reload + Panels
 
-Sloth only hot-reloads classes under `org.firstinspires.ftc.teamcode`,
-and each reload re-runs their static initialisers. Panels live-tuning
-writes into `@Configurable` statics — so a reload silently resets every
-tuned value back to its compiled-in default.
+Panels live-tuning writes into `@Configurable` statics, which die with the
+process (and Sloth hot reloads re-run static initialisers). The framework
+answer is **`ConfigStore`** (`core/runtime/`): registered config objects
+are persisted to `/sdcard/FIRST/config/tuning.properties` (~1 Hz when
+dirty, atomically) and reloaded into the statics at every op-mode init.
+Tuned values therefore survive power cycles, full installs, *and* hot
+reloads — and config objects no longer need `@Pinned`, so their code
+hot-reloads normally.
 
-The fix: annotate any `@Configurable` class whose tuned values must
-survive a reload with `@dev.frozenmilk.sinister.loading.Pinned`. A pinned
-class is loaded exactly once into Sloth's root classloader and never
-re-initialised. `DriveConfig` is already pinned for this reason.
+`OpModeBase` registers `DriveConfig` and `LocalizerConfig` itself. Season
+forks register their own objects in `configure()`:
 
-Trade-off: edits to a pinned class's *code* are not hot-reloaded — you
-need a full install for them to take effect. That's fine for config
-objects (they change rarely), and it's why `@Configurable` *op-modes*
-(the Pedro `Tuning` op-mode, `LocalizationTestTeleOp`) are deliberately
-left unpinned — you want their logic hot-reloadable. Their tunables just
-don't persist across a reload of that op-mode; move anything that must
-persist into a pinned config object.
+```kotlin
+ConfigStore.register("lift", LiftConfig)
+```
+
+Only public `@JvmField` mutable primitive/String fields are persisted,
+keyed `<section>.<field>`. Delete the file to fall back to compiled
+defaults. Tunables on `@Configurable` *op-modes* (the Pedro `Tuning`
+op-mode, `LocalizationTestTeleOp`) are deliberately not persisted — move
+anything that must persist into a registered config object.
+
+The only `@Pinned` class left is `PersistedPose` (it carries live state
+across op-modes in the same process, which is exactly what pinning is
+for). Don't pin config objects.
 
 ## Things Claude gets wrong often
 
@@ -425,7 +433,7 @@ of two ways:
 - **Full install** — Android Studio's normal Run / install (`installDebug`).
   A full APK build + install. Use this for the first deploy of a session,
   and after changing anything Sloth can't hot-reload: `@Pinned` classes
-  (`DriveConfig`), non-teamcode code, dependencies, or the manifest.
+  (`PersistedPose`), non-teamcode code, dependencies, or the manifest.
 - **Hot reload** — `./gradlew deploySloth` (or a Gradle run configuration
   in Android Studio pointed at it). Pushes only teamcode, ~1s. Use this for
   ordinary iteration on subsystems, op-modes, and command logic.
@@ -435,8 +443,8 @@ The Load plugin (`dev.frozenmilk.sinister.sloth.load`, applied in
 `installRelease`, so a normal Android Studio install always clears any
 staged hot-reload jar first — the two paths don't fight each other.
 
-Because hot reload is live, `@Pinned` matters — see the **Sloth hot reload
-+ Panels** section above.
+Because hot reload is live, `@Pinned` and ConfigStore matter — see the
+**Config persistence** section above.
 
 Logs live on the robot at `/sdcard/FIRST/logs`. Use `make pull-logs` and
 open `.wpilog` files in AdvantageScope, or `make analyze` for a quick

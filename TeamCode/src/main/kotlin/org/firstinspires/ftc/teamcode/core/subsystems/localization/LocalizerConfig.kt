@@ -1,19 +1,16 @@
 package org.firstinspires.ftc.teamcode.core.subsystems.localization
 
 import com.bylazar.configurables.annotations.Configurable
-import dev.frozenmilk.sinister.loading.Pinned
 
 /**
  * Runtime tuning knobs for external pose corrections (vision, wall snaps)
  * applied through [LocalizerSubsystem.applyCorrection].
  *
- * [Pinned] for the same reason as
- * [org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig]: Panels
- * live-tunes these statics, and an unpinned class would reset them to the
- * compiled defaults on every Sloth hot reload. Trade-off: edits to *this
- * file* need a full install.
+ * Panels live-tunes these statics; tuned values are persisted by
+ * [org.firstinspires.ftc.teamcode.core.runtime.ConfigStore] and restored at
+ * every op-mode init, so they survive power cycles and Sloth hot reloads
+ * without `@Pinned`.
  */
-@Pinned
 @Configurable
 object LocalizerConfig {
 
