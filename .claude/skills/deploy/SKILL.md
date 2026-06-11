@@ -9,9 +9,11 @@ Pick the right deploy path and run it. The two paths must not be confused:
 
 - **Full install** — `./gradlew :TeamCode:installDebug`. Full APK build +
   install. Required after changing anything Sloth can't hot-reload: a
-  `@Pinned` class (`DriveConfig`), any dependency/gradle change, the manifest,
-  resources, or any source outside the `org.firstinspires.ftc.teamcode`
-  package. Also the right call for the first deploy of a session.
+  `@Pinned` class (`PersistedPose`; config objects are no longer pinned —
+  ConfigStore persists their values), any dependency/gradle change, the
+  manifest, resources, or any source outside the
+  `org.firstinspires.ftc.teamcode` package. Also the right call for the
+  first deploy of a session.
 - **Hot reload** — `./gradlew deploySloth`. Pushes only teamcode classes,
   ~1s. For ordinary iteration on subsystems, op-modes, and command logic.
 
