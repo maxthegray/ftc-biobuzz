@@ -1,9 +1,10 @@
 package org.firstinspires.ftc.teamcode.core.runtime
 
-import com.pedropathing.ivy.Scheduler
 import com.qualcomm.hardware.lynx.LynxModule
 import com.qualcomm.robotcore.hardware.HardwareMap
 import com.qualcomm.robotcore.util.RobotLog
+import org.firstinspires.ftc.teamcode.core.command.Command
+import org.firstinspires.ftc.teamcode.core.command.Scheduler
 import org.firstinspires.ftc.teamcode.core.logging.FlightRecorder
 import org.firstinspires.ftc.teamcode.core.util.Alliance
 import org.firstinspires.ftc.teamcode.core.util.Clock
@@ -17,7 +18,7 @@ import org.firstinspires.ftc.teamcode.core.util.GamepadEx
  *  - Own the list of [SubsystemBase]s
  *  - Put every [LynxModule] into MANUAL bulk read mode and clear the cache
  *    exactly once per main-loop tick
- *  - Drive Ivy's [Scheduler] each tick
+ *  - Own and tick the command [Scheduler]
  *  - Provide a consistent lifecycle: init → start → loop (read/periodic/tick/write) → stop
  *
  * [OpModeBase] handles the actual OpMode plumbing; you rarely construct
@@ -25,21 +26,30 @@ import org.firstinspires.ftc.teamcode.core.util.GamepadEx
  */
 class Robot(
     val hardwareMap: HardwareMap,
-    private val clock: Clock = Clock.SYSTEM,
+    val clock: Clock = Clock.SYSTEM,
 ) {
 
     private val subsystems = mutableListOf<SubsystemBase>()
     val bulkRead = BulkReadManager(hardwareMap)
 
+    /**
+     * This robot's command scheduler. Instance-scoped: nothing leaks between
+     * op-modes or tests. Faults are routed to [handleCommandFault] per the
+     * [containCommandFaults] policy.
+     */
+    val scheduler = Scheduler()
+
     var alliance: Alliance = Alliance.RED
 
     /**
-     * When true, an exception thrown from the command layer (trigger polling,
-     * default scheduling, `Scheduler.execute`) is *contained* instead of
-     * killing the op-mode: the scheduler is cleared, every subsystem gets
-     * [SubsystemBase.onCommandFault] to safe its actuators, and the loop
-     * keeps running — default commands (including teleop drive) resume on
-     * the next tick.
+     * When true, an exception thrown from the command layer is *contained*
+     * instead of killing the op-mode — and containment is **surgical**: only
+     * the faulting command is ended (with `FAULTED`, its end handler runs,
+     * its requirements are released), only the subsystems *that command
+     * required* get [SubsystemBase.onCommandFault] to safe their actuators,
+     * and every other running command keeps going. Default commands for the
+     * freed subsystems resume on the next tick. A fault in trigger-polling
+     * code that isn't tied to a command is logged and skipped for the tick.
      *
      * Off by default. Teleop op-modes turn it on (a dead robot for the rest
      * of a match is strictly worse than one mechanism going limp); auton
@@ -48,6 +58,10 @@ class Robot(
      * `onLoop()` always fail fast — they have no clean recovery story.
      */
     var containCommandFaults: Boolean = false
+
+    init {
+        scheduler.faultHandler = ::handleCommandFault
+    }
 
     /** Number of contained command faults this op-mode. Surfaced in health telemetry. */
     var commandFaultCount: Int = 0
@@ -105,7 +119,13 @@ class Robot(
         operator: () -> GamepadEx?,
         batteryVoltage: () -> Double?,
     ) {
-        flightRecorder = FlightRecorder.open(opModeClassName, driver, operator, batteryVoltage)
+        flightRecorder = FlightRecorder.open(
+            opModeClassName,
+            driver,
+            operator,
+            batteryVoltage,
+            runningCommandNames = { scheduler.runningCommandNames() },
+        )
     }
 
     fun recordEvent(message: String) {
@@ -132,7 +152,6 @@ class Robot(
     fun init() {
         initialized = true
         bulkRead.init()
-        Scheduler.reset()
         for (s in subsystems) s.init(hardwareMap)
     }
 
@@ -187,17 +206,17 @@ class Robot(
         commandPhase {
             for (s in subsystems) {
                 val default = s.defaultCommand
-                if (default != null && !Scheduler.isScheduled(default)) {
-                    Scheduler.schedule(default)
+                if (default != null && !scheduler.isScheduled(default)) {
+                    scheduler.schedule(default)
                     // Event only the first resume (and the first after a fault):
                     // logging every post-action resume floods the recent-events
                     // ring that crash reports rely on.
-                    if (Scheduler.isScheduled(default) && defaultEventSent.add(s)) {
+                    if (scheduler.isScheduled(default) && defaultEventSent.add(s)) {
                         recordEvent("schedule default ${s.name}: $default")
                     }
                 }
             }
-            Scheduler.execute()
+            scheduler.execute()
         }
         phaseStart = mark(phaseStart) { profile.schedulerNanos = it }
 
@@ -258,7 +277,13 @@ class Robot(
         return now
     }
 
-    /** Run a command-layer phase, containing faults if [containCommandFaults] is on. */
+    /**
+     * Run a command-layer phase, containing non-command faults (e.g. a trigger
+     * *condition* lambda throwing during polling) when [containCommandFaults]
+     * is on. Faults from a command's own lifecycle never reach here — the
+     * scheduler isolates those per command and routes them to
+     * [handleCommandFault] directly.
+     */
     private inline fun commandPhase(block: () -> Unit) {
         if (!containCommandFaults) {
             block()
@@ -267,34 +292,45 @@ class Robot(
         try {
             block()
         } catch (t: Throwable) {
-            handleCommandFault(t)
+            recordContainedFault(t, "Command-layer fault contained")
         }
     }
 
-    private fun handleCommandFault(t: Throwable) {
+    /**
+     * [Scheduler.faultHandler]: the scheduler has already ended the faulting
+     * command (FAULTED, end handler run, requirements released). Policy here:
+     * fail fast unless [containCommandFaults] — then count it, log it, and
+     * safe only the subsystems the faulted command required. Everything else
+     * keeps running; freed defaults resume next tick.
+     */
+    private fun handleCommandFault(command: Command, t: Throwable) {
+        if (!containCommandFaults) throw t
+        recordContainedFault(t, "Command fault contained: $command")
+        for (s in subsystems) {
+            if (command.requirements().contains(s)) {
+                try { s.onCommandFault() } catch (_: Throwable) { /* best-effort */ }
+            }
+        }
+    }
+
+    private fun recordContainedFault(t: Throwable, context: String) {
         commandFaultCount++
         lastCommandFault = t
         try {
-            RobotLog.ee("Robot", t, "Command fault contained (#$commandFaultCount)")
+            RobotLog.ee("Robot", t, "$context (#$commandFaultCount)")
         } catch (_: Throwable) {
             // Host-side tests stub Android logging.
         }
         recordEvent("COMMAND FAULT: ${t.javaClass.simpleName}: ${t.message}")
         // Re-arm the default-resume events so the post-fault recovery shows in the log.
         defaultEventSent.clear()
-        // Scheduler.reset() skips end handlers, so subsystems must safe their
-        // own actuators below. Default commands reschedule on the next tick.
-        Scheduler.reset()
-        for (s in subsystems) {
-            try { s.onCommandFault() } catch (_: Throwable) { /* best-effort */ }
-        }
     }
 
     /**
-     * Shutdown everything. Ivy's `Scheduler.reset()` clears command state without
-     * calling command end handlers, so critical hardware cleanup belongs in each
-     * subsystem's [SubsystemBase.stop]. Exceptions are swallowed so all subsystems
-     * get a chance to clean up.
+     * Shutdown everything. The scheduler interrupts every running command
+     * (end handlers run, best-effort), then each subsystem's
+     * [SubsystemBase.stop] does hardware-level cleanup. Exceptions are
+     * swallowed so all subsystems get a chance to clean up.
      */
     fun stop() {
         recordEvent("stop")
@@ -303,7 +339,7 @@ class Robot(
                 try { s.persistState() } catch (_: Throwable) { /* best-effort */ }
             }
         }
-        Scheduler.reset()
+        scheduler.reset()
         for (s in subsystems) {
             try { s.stop() } catch (_: Throwable) { /* best-effort */ }
         }

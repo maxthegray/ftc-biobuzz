@@ -18,13 +18,12 @@ Stack (exact versions; these are load-bearing):
 | Kotlin Android plugin | `org.jetbrains.kotlin:kotlin-gradle-plugin` | 2.0.21  |
 | Pedro Pathing core    | `com.pedropathing:core`                   | 2.1.1   |
 | Pedro Pathing FTC     | `com.pedropathing:ftc`                    | 2.1.1   |
-| Pedro Ivy             | `com.pedropathing:ivy`                    | 1.0.0   |
 | Pedro Telemetry       | `com.pedropathing:telemetry`              | 1.0.0   |
 | Bylazar fullpanels    | `com.bylazar:fullpanels`                  | 1.0.12  |
 | Sloth (Sinister)      | `dev.frozenmilk.sinister:Sloth`           | 0.2.4   |
 
 Maven repositories (also load-bearing):
-- `mavenCentral()` — Pedro + Ivy
+- `mavenCentral()` — Pedro
 - `google()` — AndroidX + AGP
 - `https://mymaven.bylazar.com/releases` — fullpanels
 - `https://repo.dairy.foundation/releases` — Sloth + transitively Sinister
@@ -50,21 +49,31 @@ today.
 
 ## Critical API cheatsheet
 
-These are the Ivy / Pedro calls used throughout the codebase. They are
-stable as of the versions above and wrong in at least one piece of
+These are the framework / Pedro calls used throughout the codebase. They
+are stable as of the versions above and wrong in at least one piece of
 publicly-searchable documentation.
 
-### Ivy command scheduler
+### Command scheduler (`core/command/` — ours, not a library)
+
+The scheduler is **instance-scoped and owned by `Robot`** — there is no
+global scheduler. Access it as `robot.scheduler` (op-modes) or take it as a
+constructor parameter (framework components).
 
 ```kotlin
-// Ticking the scheduler (called once per loop from Robot.loop()):
-Scheduler.execute()      // NOT Scheduler.run() — that name does not exist
-Scheduler.reset()        // clear all running / queued / suspended commands
-Scheduler.schedule(cmd)  // schedule a command
-Scheduler.cancel(cmd)    // cancel a command in any state
-Scheduler.isScheduled(cmd)
-Scheduler.isRunning(cmd)
+robot.scheduler.execute()        // one tick; Robot.loop() already calls this
+robot.scheduler.reset()          // interrupt everything (end handlers RUN)
+robot.scheduler.schedule(cmd)    // returns false if blocked or start faulted
+robot.scheduler.cancel(cmd)      // end handler runs with INTERRUPTED
+robot.scheduler.isScheduled(cmd)
+robot.scheduler.runningCommandNames()  // native introspection, no reflection
 ```
+
+Semantics: a command is blocked only by a *strictly higher*-priority holder
+of one of its requirements; equal priority preempts. End handlers always run
+(natural end, cancel, reset, preemption, fault). A lifecycle exception ends
+only the faulting command (`EndCondition.FAULTED`) and is routed to
+`Robot.containCommandFaults` policy — teleop contains it surgically, auton
+rethrows.
 
 ### Building a command
 
@@ -73,18 +82,21 @@ Command.build()
     .setStart { ... }            // called once when scheduled
     .setExecute { ... }          // called every tick while running
     .setDone { returnBoolean }   // called every tick; true → end
-    .setEnd { endCondition -> ... }
-    .requiring(driveSubsystem)   // Object... varargs
+    .setEnd { endCondition -> ... }  // ALWAYS runs (NATURALLY/INTERRUPTED/FAULTED)
+    .requiring(driveSubsystem)   // vararg requirements
     .setPriority(10)             // higher priority interrupts lower
+    .setName("score preload")    // shows up in flight-log commands/running
 ```
 
 Or use the helpers:
 
 ```kotlin
-Commands.instant { action() }          // runs once and completes
-Commands.waitMs(500.0)                 // takes Double, NOT Long
+Commands.instant { action() }            // runs once and completes
+Commands.waitMs(500.0)                   // Double and Long overloads exist
+Commands.waitMs(500.0, robot.clock)      // inject the clock → simulable waits
 Commands.waitUntil { condition }
 Commands.infinite { action() }
+Commands.defer(drive) { buildCommand() } // construct at schedule time
 ```
 
 And composition via `Groups`:
@@ -180,7 +192,7 @@ localizer.applyCorrection(measured, timestampNs) // latency-compensated vision s
                                                  // gated + blended via LocalizerConfig
 val selector = AutonSelector(robot, telemetryBag)
 robot.recordEvent("marker")                      // also writes to WPILOG
-autoRoutine(drive, robot::recordEvent) { ... }   // optional event sink → labelled
+autoRoutine(robot, drive, robot::recordEvent) { ... }  // optional event sink → labelled
                                                  // per-step timeline in the WPILOG
 ```
 
@@ -214,9 +226,9 @@ JoinedTelemetry(telemetry, tm.wrapper)         // wrap both DS + Panels as one T
 
 ### Gamepad triggers
 
-`GamepadEx` binds buttons (and any boolean condition) to Ivy commands.
-Wire bindings once in `configure()` — don't poll `*Pressed` flags in
-`onLoop()` and call `Scheduler.schedule` by hand.
+`GamepadEx` binds buttons (and any boolean condition) to commands on the
+robot's scheduler. Wire bindings once in `configure()` — don't poll
+`*Pressed` flags in `onLoop()` and call `robot.scheduler.schedule` by hand.
 
 ```kotlin
 driver.button(GamepadEx.Button.A).onTrue(intake.grab())
@@ -246,9 +258,9 @@ driver.trigger { driver.rightTrigger > 0.5 }.whileTrue(drive.slowMode())
 
 2. **`periodic()` reads. Commands write. `writeHardware()` flushes.**
    A subsystem's `periodic` must not set motor power — if you feel the
-   urge, write a command instead. The whole point of Ivy's requirements
-   system is to prevent two chunks of code from commanding the same
-   hardware simultaneously.
+   urge, write a command instead. The whole point of the scheduler's
+   requirements system is to prevent two chunks of code from commanding
+   the same hardware simultaneously.
 
 3. **Don't call `Follower.update()` from anywhere other than
    `MecanumDriveSubsystem.writeHardware()`.** Calling it twice per tick
@@ -298,11 +310,12 @@ persist into a pinned config object.
 
 ## Things Claude gets wrong often
 
-- **Ivy tick method name.** It is `Scheduler.execute()`, never
-  `Scheduler.run()`. If you see `.run()` in a message about this codebase,
-  correct it.
-- **`Commands.waitMs` parameter type.** It is `double`, not `long`. In
-  Kotlin we provide both overloads — keep both.
+- **The scheduler is not global.** It lives on `Robot`
+  (`robot.scheduler`); there is no static `Scheduler` and no Ivy dependency
+  anymore. The tick method is `execute()`, never `run()`.
+- **`Commands.waitMs` overloads.** Double and Long overloads both exist —
+  keep both. Pass `robot.clock` as the second argument anywhere a routine
+  might run in the sim (PedroAutoRunner's `wait()` already does).
 - **Pedro maven repository.** Pedro is on **Maven Central**, not
   `maven.pedropathing.com`. That domain returns a 302 to a 404 and
   breaks the build. Do not "fix" `build.dependencies.gradle` to use it.
@@ -388,8 +401,8 @@ error, events). `RUNBOOK.md` maps competition symptoms to log channels.
 Auton routines can run headless before touching the robot: see
 `core/sim/SimAutonRoutineTest` (test sources) — `SimHarness` + `SimFollower`
 execute full `PedroAutoRunner` routines against real path geometry in
-JUnit. Keep `wait()` steps out of simmed routines (Ivy's `waitMs` is
-wall-clock).
+JUnit — including `wait()` steps and `timeout()`s, which run on the
+harness's virtual clock.
 
 ## Running the project
 

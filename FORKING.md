@@ -4,7 +4,7 @@ Keep this starter season-agnostic. A season fork adds game-specific subsystems, 
 
 ## Where Season Code Goes
 
-- Subsystems: extend `SubsystemBase`, resolve hardware in `init`, read in `periodic`, command outputs from Ivy commands, and write final actuator state in `writeHardware`.
+- Subsystems: extend `SubsystemBase`, resolve hardware in `init`, read in `periodic`, command outputs from scheduler commands, and write final actuator state in `writeHardware`.
 - Teleop: copy `DriveOnlyTeleOp` or `LocalizationTestTeleOp`, register season subsystems in `configure`, and bind controls once with `GamepadEx` triggers.
 - Autonomous: build paths with `PathDSL` and compose routines with `PedroAutoRunner`. Use priority `10` for autonomous actions and driver-triggered actions; defaults stay priority `0`.
 - Vision: add camera pipelines in the season fork and feed accepted field-pose measurements through `LocalizerSubsystem.applyCorrection`.

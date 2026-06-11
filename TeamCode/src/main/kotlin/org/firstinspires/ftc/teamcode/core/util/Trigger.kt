@@ -1,12 +1,11 @@
 package org.firstinspires.ftc.teamcode.core.util
 
-import com.pedropathing.ivy.Command
-import com.pedropathing.ivy.Scheduler
 import java.util.function.BooleanSupplier
+import org.firstinspires.ftc.teamcode.core.command.Command
 
 /**
  * A boolean condition — a gamepad button, an analog trigger past a threshold,
- * a sensor state — bound to Ivy [Command]s.
+ * a sensor state — bound to [Command]s on the host gamepad's scheduler.
  *
  * Triggers replace the imperative `if (driver.aPressed) Scheduler.schedule(cmd)`
  * pattern with declarative bindings wired once at configure-time:
@@ -46,7 +45,7 @@ class Trigger internal constructor(
     fun onTrue(command: Command): Trigger {
         host.requireBindingsUnlocked()
         bindings += { prev, curr ->
-            if (!prev && curr && !Scheduler.isScheduled(command)) Scheduler.schedule(command)
+            if (!prev && curr) host.scheduler.schedule(command)
         }
         return this
     }
@@ -55,7 +54,7 @@ class Trigger internal constructor(
     fun onFalse(command: Command): Trigger {
         host.requireBindingsUnlocked()
         bindings += { prev, curr ->
-            if (prev && !curr && !Scheduler.isScheduled(command)) Scheduler.schedule(command)
+            if (prev && !curr) host.scheduler.schedule(command)
         }
         return this
     }
@@ -63,15 +62,15 @@ class Trigger internal constructor(
     /**
      * Schedule [command] on the rising edge and cancel it on the falling edge.
      * If the command ends on its own first, the falling-edge cancel is a no-op
-     * — Ivy's [Scheduler.cancel] is safe on an unscheduled command.
+     * — the scheduler's cancel is safe on an unscheduled command.
      */
     fun whileTrue(command: Command): Trigger {
         host.requireBindingsUnlocked()
         bindings += { prev, curr ->
             if (!prev && curr) {
-                if (!Scheduler.isScheduled(command)) Scheduler.schedule(command)
+                host.scheduler.schedule(command)
             } else if (prev && !curr) {
-                Scheduler.cancel(command)
+                host.scheduler.cancel(command)
             }
         }
         return this
@@ -85,8 +84,8 @@ class Trigger internal constructor(
         host.requireBindingsUnlocked()
         bindings += { prev, curr ->
             if (!prev && curr) {
-                if (Scheduler.isScheduled(command)) Scheduler.cancel(command)
-                else Scheduler.schedule(command)
+                if (host.scheduler.isScheduled(command)) host.scheduler.cancel(command)
+                else host.scheduler.schedule(command)
             }
         }
         return this

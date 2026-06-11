@@ -1,15 +1,18 @@
 package org.firstinspires.ftc.teamcode.core.subsystems.drive
 
 import com.pedropathing.follower.Follower
+import com.pedropathing.geometry.BezierPoint
 import com.pedropathing.geometry.Pose
-import com.pedropathing.ivy.Command
-import com.pedropathing.ivy.CommandBuilder
-import com.pedropathing.ivy.behaviors.EndCondition
-import com.pedropathing.ivy.pedro.PedroCommands
 import com.pedropathing.math.MathFunctions
 import com.pedropathing.math.Vector
+import com.pedropathing.paths.HeadingInterpolator
+import com.pedropathing.paths.Path
 import com.pedropathing.paths.PathChain
 import com.qualcomm.robotcore.hardware.HardwareMap
+import java.util.Locale
+import org.firstinspires.ftc.teamcode.core.command.Command
+import org.firstinspires.ftc.teamcode.core.command.CommandBuilder
+import org.firstinspires.ftc.teamcode.core.command.EndCondition
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.PersistedPose
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
@@ -31,7 +34,7 @@ import kotlin.math.abs
  *  - Honour [DriveConfig] for teleop scaling, precision mode, and field-
  *    centric selection without a sea of duplicated code in op-modes.
  *
- * Every commanding method is safe to call from inside an Ivy command.
+ * Every commanding method is safe to call from inside a command.
  * Conflicting callers should declare `requiring(driveSubsystem)` on their
  * command so the scheduler arbitrates.
  */
@@ -69,6 +72,7 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
      * field-centric selection every tick.
      */
     fun teleopCommand(input: () -> TeleopInput): Command = Command.build()
+        .setName("teleop drive")
         .requiring(this)
         .setPriority(CommandPriorities.DEFAULT)
         .setStart { enableTeleop() }
@@ -137,30 +141,28 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
     }
 
     fun followCommand(chain: PathChain, holdEnd: Boolean = false): Command =
-        trackDriveMode(
-            PedroCommands.follow(follower, chain, holdEnd).asDriveAction(),
+        driveAction(
+            name = "follow",
             running = Mode.FOLLOWING,
             finished = if (holdEnd) Mode.HOLDING else Mode.IDLE,
-        )
+        ) { follower.followPath(chain, holdEnd) }
 
     fun followCommand(chain: PathChain, maxPower: Double, holdEnd: Boolean = false): Command =
-        trackDriveMode(
-            PedroCommands.follow(follower, chain, holdEnd, maxPower).asDriveAction(),
+        driveAction(
+            name = "follow (maxPower=$maxPower)",
             running = Mode.FOLLOWING,
             finished = if (holdEnd) Mode.HOLDING else Mode.IDLE,
-        )
+        ) { follower.followPath(chain, maxPower, holdEnd) }
 
     /**
-     * Command that holds [pose] — position *and* heading. Deliberately not
-     * built on Ivy's `PedroCommands.hold`, which freezes the heading the
-     * robot happened to have when the command started and ignores
-     * `pose.heading`; this uses [Follower.holdPoint] directly so both
-     * [holdPose] and this command agree. Done once the follower is within
-     * its configured path constraints, matching Ivy's semantics.
+     * Command that holds [pose] — position *and* heading — via
+     * [Follower.holdPoint], so both [holdPose] and this command agree. Done
+     * once the follower is within its configured path constraints.
      */
     fun holdCommand(pose: Pose): Command =
         trackDriveMode(
             Command.build()
+                .setName("hold (%.1f, %.1f)".format(Locale.US, pose.x, pose.y))
                 .setStart { follower.holdPoint(pose) }
                 .setDone {
                     follower.translationalError.magnitude < follower.constraints.translationalConstraint &&
@@ -171,12 +173,55 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
             finished = Mode.HOLDING,
         )
 
+    /**
+     * Turn in place to an absolute heading. Implemented the way Ivy's
+     * `PedroCommands.turnTo` was: follow a zero-length path pinned at the
+     * current pose with constant-heading interpolation at the target, done
+     * when the follower stops being busy.
+     */
     fun turnToCommand(radians: Double): Command =
-        trackDriveMode(
-            PedroCommands.turnTo(follower, radians).asDriveAction(),
+        driveAction(
+            name = "turnTo %.0f°".format(Locale.US, Math.toDegrees(radians)),
             running = Mode.FOLLOWING,
             finished = Mode.IDLE,
-        )
+        ) {
+            val path = Path(BezierPoint(follower.pose))
+            path.setHeadingInterpolation(HeadingInterpolator.constant(radians))
+            path.setConstraints(follower.pathConstraints)
+            follower.followPath(path)
+        }
+
+    /**
+     * A drive-claiming command at [CommandPriorities.DRIVER_ACTION]: [start]
+     * kicks the follower into a motion, done when the follower goes idle.
+     * Interruption (or a fault) breaks the follow so the unconditional
+     * `Follower.update()` in [writeHardware] doesn't keep driving the
+     * abandoned motion.
+     */
+    private fun driveAction(
+        name: String,
+        running: Mode,
+        finished: Mode,
+        start: () -> Unit,
+    ): Command = Command.build()
+        .setName(name)
+        .requiring(this)
+        .setPriority(CommandPriorities.DRIVER_ACTION)
+        .setStart {
+            modeAfterFollow = finished
+            mode = running
+            start()
+        }
+        .setDone { !follower.isBusy }
+        .setEnd { endCondition ->
+            if (endCondition == EndCondition.NATURALLY) {
+                mode = finished
+            } else {
+                follower.breakFollowing()
+                mode = Mode.IDLE
+                modeAfterFollow = Mode.IDLE
+            }
+        }
 
     val pose: Pose get() = follower.pose
     val velocity: Vector get() = follower.velocity
@@ -226,8 +271,15 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
         mode = Mode.IDLE
     }
 
+    /**
+     * Wrap an arbitrary drive-touching [command] with this subsystem's
+     * requirement and [Mode] bookkeeping. Use it when season code builds its
+     * own follower motion; the framework's own commands are built on
+     * [driveAction] directly.
+     */
     internal fun trackDriveMode(command: Command, running: Mode, finished: Mode): Command =
         Command.build()
+            .setName(command.toString())
             .requiring(*(setOf(this) + command.requirements()).toTypedArray())
             .setPriority(command.priority())
             .setStart {
@@ -239,15 +291,15 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
             .setDone(command::done)
             .setEnd { endCondition ->
                 command.end(endCondition)
-                if (endCondition == EndCondition.INTERRUPTED) {
-                    // Ivy's pedro commands have no end handler, so an
-                    // interrupted follow would otherwise keep driving the
-                    // path — update() runs unconditionally in writeHardware.
+                if (endCondition == EndCondition.NATURALLY) {
+                    mode = finished
+                } else {
+                    // The wrapped command may not break the follow itself —
+                    // and update() runs unconditionally in writeHardware, so
+                    // an abandoned motion would keep driving.
                     follower.breakFollowing()
                     mode = Mode.IDLE
                     modeAfterFollow = Mode.IDLE
-                } else {
-                    mode = finished
                 }
             }
 }

@@ -1,9 +1,9 @@
 package org.firstinspires.ftc.teamcode.core.pathing
 
 import com.pedropathing.geometry.Pose
-import com.pedropathing.ivy.Command
-import com.pedropathing.ivy.behaviors.EndCondition
 import com.pedropathing.math.MathFunctions
+import org.firstinspires.ftc.teamcode.core.command.Command
+import org.firstinspires.ftc.teamcode.core.command.EndCondition
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
 import kotlin.math.abs
 import kotlin.math.hypot
@@ -69,6 +69,7 @@ fun chaseTarget(
     var issued: Pose? = null
 
     return Command.build()
+        .setName("chase")
         .requiring(drive)
         .setStart {
             seenTarget = null

@@ -1,25 +1,31 @@
 package org.firstinspires.ftc.teamcode.core.pathing
 
-import com.pedropathing.ivy.Command
-import com.pedropathing.ivy.CommandBuilder
+import com.qualcomm.robotcore.hardware.HardwareMap
+import org.firstinspires.ftc.teamcode.core.command.Command
+import org.firstinspires.ftc.teamcode.core.command.CommandBuilder
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
+import org.firstinspires.ftc.teamcode.core.runtime.Robot
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.fakeFollower
+import org.firstinspires.ftc.teamcode.core.util.FakeClock
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.fail
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PedroAutoRunnerTest {
 
-    private val drive = MecanumDriveSubsystem(fakeFollower())
+    private val clock = FakeClock()
+    private val robot = Robot(HardwareMap(null, null), clock)
+    private val drive = robot.register(MecanumDriveSubsystem(fakeFollower()))
 
     @Test
     fun deadlineCombinesChildRequirementsAndUsesAutonPriority() {
         val firstReq = Any()
         val secondReq = Any()
 
-        val command = PedroAutoRunner(drive)
+        val command = PedroAutoRunner(robot, drive)
             .deadline {
                 then(commandWithRequirement(firstReq))
                 then(commandWithRequirement(secondReq))
@@ -35,7 +41,7 @@ class PedroAutoRunnerTest {
     fun timeoutWrapsWholeRoutineWithoutDroppingRequirements() {
         val requirement = Any()
 
-        val command = PedroAutoRunner(drive)
+        val command = PedroAutoRunner(robot, drive)
             .then(commandWithRequirement(requirement))
             .timeout(100.0)
             .build()
@@ -49,7 +55,7 @@ class PedroAutoRunnerTest {
         val requirement = Any()
 
         try {
-            PedroAutoRunner(drive).parallel {
+            PedroAutoRunner(robot, drive).parallel {
                 then(commandWithRequirement(requirement))
                 then(commandWithRequirement(requirement))
             }
@@ -57,6 +63,42 @@ class PedroAutoRunnerTest {
         } catch (_: IllegalArgumentException) {
             // expected
         }
+    }
+
+    @Test
+    fun timeoutCancelsTheRoutineInVirtualTime() {
+        val runner = PedroAutoRunner(robot, drive)
+            .then(commandWithRequirement(Any())) // never finishes on its own
+            .timeout(100.0)
+
+        runner.schedule()
+        assertFalse(runner.isDone)
+
+        clock.advanceMs(50.0)
+        robot.scheduler.execute()
+        assertFalse(runner.isDone)
+
+        clock.advanceMs(60.0)
+        robot.scheduler.execute()
+        assertTrue(runner.isDone)
+    }
+
+    @Test
+    fun waitStepsRunOnTheRobotClock() {
+        var ran = false
+        val runner = PedroAutoRunner(robot, drive)
+            .wait(200)
+            .run { ran = true }
+
+        runner.schedule()
+        repeat(3) { robot.scheduler.execute() }
+        assertFalse(ran)
+
+        clock.advanceMs(250.0)
+        // wait completes, then run's instant start fires on the next tick.
+        robot.scheduler.execute()
+        robot.scheduler.execute()
+        assertTrue(ran)
     }
 
     private fun commandWithRequirement(requirement: Any): Command =

@@ -2,12 +2,10 @@ package org.firstinspires.ftc.teamcode.opmodes
 
 import com.bylazar.configurables.annotations.Configurable
 import com.pedropathing.geometry.Pose
-import com.pedropathing.ivy.Command
-import com.pedropathing.ivy.Scheduler
-import com.pedropathing.ivy.behaviors.EndCondition
-import com.pedropathing.ivy.commands.Commands
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import kotlin.math.abs
+import org.firstinspires.ftc.teamcode.core.command.Command
+import org.firstinspires.ftc.teamcode.core.command.Commands
 import org.firstinspires.ftc.teamcode.core.pathing.path
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
@@ -69,17 +67,17 @@ class LocalizationTestTeleOp : TeleOpBase() {
         driver.trigger { stickMoved() }.whileTrue(
             Commands.infinite {
                 activeFollow?.let {
-                    Scheduler.cancel(it)
+                    robot.scheduler.cancel(it)
                     activeFollow = null
                     targetLabel = "-"
                 }
-            }.setPriority(CommandPriorities.DRIVER_ACTION),
+            }.setName("stick interrupt").setPriority(CommandPriorities.DRIVER_ACTION),
         )
     }
 
     override fun onLoop() {
         activeFollow?.let {
-            if (!Scheduler.isScheduled(it)) {
+            if (!robot.scheduler.isScheduled(it)) {
                 activeFollow = null
                 targetLabel = "-"
             }
@@ -91,33 +89,26 @@ class LocalizationTestTeleOp : TeleOpBase() {
     // Helpers
     // -------------------------------------------------------------------------
 
+    /**
+     * The path can only be built once the command actually runs (it starts at
+     * the *current* pose), so this defers construction to schedule time. The
+     * deferred follow handles its own interruption (breaks the follow);
+     * [onLoop] clears the label once the command leaves the scheduler.
+     */
     private fun followTo(label: () -> String, target: () -> Pose): Command {
-        var child: Command? = null
         lateinit var outer: Command
-        outer = Command.build()
-            .requiring(drive)
+        outer = Commands.defer(drive) {
+            val start = drive.pose
+            val chain = drive.path(startPose = start, alliance = alliance) {
+                lineTo(target())
+                constantHeading(start.heading)
+            }
+            activeFollow = outer
+            targetLabel = label()
+            drive.followCommand(chain, holdEnd = false)
+        }
+            .setName("followTo")
             .setPriority(CommandPriorities.DRIVER_ACTION)
-            .setStart {
-                val start = drive.pose
-                val chain = drive.path(startPose = start, alliance = alliance) {
-                    lineTo(target())
-                    constantHeading(start.heading)
-                }
-                child = drive.followCommand(chain, holdEnd = false)
-                activeFollow = outer
-                targetLabel = label()
-                child?.start()
-            }
-            .setExecute { child?.execute() }
-            .setDone { child?.done() ?: true }
-            .setEnd { endCondition ->
-                child?.end(endCondition)
-                if (activeFollow === outer) {
-                    activeFollow = null
-                    targetLabel = "-"
-                }
-                if (endCondition == EndCondition.INTERRUPTED) drive.breakPath()
-            }
         return outer
     }
 

@@ -1,7 +1,7 @@
 package org.firstinspires.ftc.teamcode.opmodes
 
 import com.pedropathing.follower.Follower
-import com.pedropathing.ivy.commands.Commands
+import org.firstinspires.ftc.teamcode.core.command.Commands
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
@@ -65,11 +65,13 @@ abstract class TeleOpBase : OpModeBase() {
         (driver.button(Button.BACK) and driver.button(Button.Y))
             .onTrue(
                 Commands.instant { localizer.setPose(drive.pose.withHeading(0.0)) }
+                    .setName("reset heading")
                     .setPriority(CommandPriorities.DRIVER_ACTION),
             )
         (driver.button(Button.BACK) and driver.button(Button.B))
             .onTrue(
                 Commands.instant { DriveConfig.fieldCentric = !DriveConfig.fieldCentric }
+                    .setName("toggle field-centric")
                     .setPriority(CommandPriorities.DRIVER_ACTION),
             )
         configureTeleop()

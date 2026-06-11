@@ -1,9 +1,8 @@
 package org.firstinspires.ftc.teamcode.core.util
 
-import com.pedropathing.ivy.CommandBuilder
-import com.pedropathing.ivy.Scheduler
 import com.qualcomm.robotcore.hardware.Gamepad
-import org.junit.After
+import org.firstinspires.ftc.teamcode.core.command.CommandBuilder
+import org.firstinspires.ftc.teamcode.core.command.Scheduler
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -11,17 +10,13 @@ import org.junit.Test
 
 class GamepadLockTest {
 
+    private lateinit var scheduler: Scheduler
     private lateinit var host: GamepadEx
 
     @Before
     fun setUp() {
-        Scheduler.reset()
-        host = GamepadEx(Gamepad())
-    }
-
-    @After
-    fun tearDown() {
-        Scheduler.reset()
+        scheduler = Scheduler()
+        host = GamepadEx(Gamepad(), scheduler)
     }
 
     @Test(expected = IllegalStateException::class)
@@ -60,7 +55,7 @@ class GamepadLockTest {
 
         condition = true
         host.update()
-        assertTrue(Scheduler.isScheduled(cmd))
+        assertTrue(scheduler.isScheduled(cmd))
     }
 
     @Test
@@ -71,7 +66,7 @@ class GamepadLockTest {
 
         condition = true
         host.update(pollTriggers = false)
-        assertFalse(Scheduler.isScheduled(cmd))
+        assertFalse(scheduler.isScheduled(cmd))
 
         // Edge detection on raw buttons still works in init mode.
         host.raw.a = true

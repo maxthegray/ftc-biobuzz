@@ -24,7 +24,7 @@ class FlightRecorder private constructor(
     private val gamepad1: () -> GamepadEx?,
     private val gamepad2: () -> GamepadEx?,
     private val batteryVoltage: () -> Double?,
-    private val introspection: SchedulerIntrospection = SchedulerIntrospection.DEFAULT,
+    private val runningCommandNames: () -> List<String>,
 ) : AutoCloseable {
     private val startNs = System.nanoTime()
     private var enabled = true
@@ -120,7 +120,7 @@ class FlightRecorder private constructor(
                 writer.appendDouble(battery, it, ts)
             }
 
-            val running = introspection.runningCommandNames().joinToString("\n")
+            val running = runningCommandNames().joinToString("\n")
             if (running != lastRunningCommands) {
                 writer.appendString(runningCommands, running, ts)
                 lastRunningCommands = running
@@ -227,6 +227,7 @@ class FlightRecorder private constructor(
             gamepad1: () -> GamepadEx?,
             gamepad2: () -> GamepadEx?,
             batteryVoltage: () -> Double?,
+            runningCommandNames: () -> List<String>,
             directory: File = File("/sdcard/FIRST/logs"),
         ): FlightRecorder? = try {
             directory.mkdirs()
@@ -238,6 +239,7 @@ class FlightRecorder private constructor(
                 gamepad1,
                 gamepad2,
                 batteryVoltage,
+                runningCommandNames,
             ).also { it.event("init $opModeClassName") }
         } catch (t: Throwable) {
             try {

@@ -8,12 +8,11 @@ import org.firstinspires.ftc.teamcode.core.util.FakeClock
 
 /**
  * Virtual-time harness that runs the real framework stack — [Robot]'s
- * phased loop, the Ivy scheduler, [MecanumDriveSubsystem],
+ * phased loop, its command scheduler, [MecanumDriveSubsystem],
  * [LocalizerSubsystem] — against a [SimFollower], so entire auton routines
- * execute headless in a JUnit test in milliseconds.
- *
- * The caller owns `Scheduler.reset()` in test setup/teardown, exactly like
- * the other framework tests.
+ * execute headless in a JUnit test in milliseconds. The scheduler is
+ * instance-scoped to [robot], and waits built through the auto runner read
+ * the harness [clock] — routines simulate *including* their `wait()` steps.
  */
 class SimHarness(tickMs: Double = 20.0) {
     val clock = FakeClock(start = 0L)

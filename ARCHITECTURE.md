@@ -18,7 +18,7 @@ A single op-mode tick always looks like this:
 │     3. driver/operator update              ← edge-detect gamepads │
 │     4. onLoop() / control                  ← op-mode decisions    │
 │     5. default commands                    ← idle subsystem work  │
-│     6. Scheduler.execute()                 ← Ivy ticks commands   │
+│     6. scheduler.execute()                 ← commands tick        │
 │     7. for s in subsystems: s.writeHardware() ← motors, servos    │
 │     8. telemetry + flight recorder         ← DS, Panels, WPILOG   │
 │                                                                   │
@@ -43,7 +43,8 @@ The order matters:
    Do not write raw hardware from here; leave final actuator writes to
    subsystem `writeHardware()`.
 
-4. **Commands run via the Ivy scheduler.** Commands that need hardware
+4. **Commands run via the robot's scheduler** (`core/command/`, owned by
+   `Robot` — instance-scoped, no global state). Commands that need hardware
    declare `requiring(subsystem)`. The scheduler resolves conflicts (one
    command per requirement, with priority / override / queue / cancel
    behaviour configurable per-command). This is how default-commands and
@@ -67,6 +68,23 @@ polled until start and bindings are locked once the op-mode starts.
 Before `configure()`, `OpModeBase` runs `Preflight.check()` against the
 op-mode's `requiredDevices`, so missing drive motors or the `pinpoint`
 device fail before Pedro tries to construct a follower.
+
+## The command scheduler is ours
+
+`core/command/` is a from-scratch scheduler that replaced the Pedro Ivy
+dependency. Why: Ivy's scheduler was a JVM-global static (leaked state
+across op-modes, hot reloads, and tests), `Scheduler.reset()` skipped end
+handlers (forcing whole-robot fault recovery), its Pedro commands had no
+end handlers (an interrupted follow kept driving), its `waitMs` was
+wall-clock only (poisoning the headless sim), and introspection required
+reflection on private fields. The replacement is instance-scoped on
+`Robot`, always runs end handlers, isolates faults per command, takes an
+injectable `Clock` for waits, and exposes `runningCommandNames()` natively.
+
+Scheduling semantics are kept deliberately Ivy-compatible so the
+`CommandPriorities` ladder behaves identically: blocked only by a
+*strictly higher*-priority requirement holder; equal priority preempts.
+`SchedulerTest` is the conformance suite — change semantics there first.
 
 ## Threading model
 
@@ -101,7 +119,7 @@ following state machine. The subsystem exists to:
 2. Translate "driver feel" knobs from `DriveConfig` into `setTeleOpDrive`
    arguments.
 3. Give commands a single Object to declare as a requirement so conflicts
-   are caught by Ivy's scheduler instead of as crossed motor commands.
+   are caught by the scheduler instead of as crossed motor commands.
 
 The trade-off is that we can't easily swap out Pedro for another follower
 without rewriting this subsystem. That's acceptable — Pedro is specifically
@@ -210,15 +228,15 @@ these channels.
 ## Headless simulation
 
 `core/sim/` (test sources) runs entire auton routines in JUnit:
-`SimFollower` honours the exact `Follower` surface that Ivy's Pedro
-commands and this framework call, but replaces Pedro's control law with
-kinematic motion — real `PathDSL` geometry and alliance mirroring, real Ivy
-scheduling, real subsystem lifecycle, virtual time via `Clock`.
+`SimFollower` honours the exact `Follower` surface the framework's drive
+commands call, but replaces Pedro's control law with kinematic motion —
+real `PathDSL` geometry and alliance mirroring, real command scheduling,
+real subsystem lifecycle, virtual time via `Clock`.
 `SimHarness` wires it to a real `Robot`; `SimAutonRoutineTest` shows the
 pattern, including the RED/BLUE mirror-symmetry test and the
-auton→teleop pose-handoff test. Limitations: it validates routine *logic*,
-not Pedro's control quality, and Ivy's `Commands.waitMs` runs on the wall
-clock — keep `wait()` steps out of simulated routines.
+auton→teleop pose-handoff test. Waits and timeouts run on the harness's
+virtual clock, so simmed routines are the *real* routines. Limitation: it
+validates routine *logic*, not Pedro's control quality — tune on carpet.
 
 ## Hot reload, Sinister, and Sloth
 
@@ -244,17 +262,21 @@ known-flaky, handle it explicitly at the read site (stale-data flag,
 last-good-value, telemetry warning) rather than via a blanket rescue.
 
 **The one scoped exception is the teleop command layer.** With
-`Robot.containCommandFaults` on (which `TeleOpBase` enables), an exception
-thrown from trigger polling, default scheduling, or `Scheduler.execute()`
-is contained: the scheduler is cleared, every subsystem gets
-`onCommandFault()` to safe its actuators (the drive breaks any follow and
-zeros; a profiled mechanism freezes in place instead of dropping), and the
-loop keeps running — default commands, including teleop drive, resume on
-the next tick. The fault count and last exception surface in Health
-telemetry and the flight log. Rationale: season mechanism commands are the
-code most likely to throw under competition pressure, and a robot that
-loses one mechanism is strictly better than a dead one. Auton keeps full
-fail-fast — there, driving on after a fault *is* the dangerous outcome.
+`Robot.containCommandFaults` on (which `TeleOpBase` enables), a lifecycle
+exception from a command is contained **surgically by the scheduler**: only
+the faulting command is ended (`EndCondition.FAULTED`, its end handler runs
+best-effort, its requirements are released), only the subsystems that
+command *required* get `onCommandFault()` as a safety net (the drive breaks
+any follow and zeros; a profiled mechanism freezes in place instead of
+dropping), and every other running command keeps going. Default commands
+for the freed subsystems — including teleop drive — resume on the next
+tick. A fault in trigger-*condition* code that isn't tied to a command is
+logged and the rest of that input phase is skipped for the tick. The fault
+count and last exception surface in Health telemetry and the flight log.
+Rationale: season mechanism commands are the code most likely to throw
+under competition pressure, and a robot that loses one mechanism is
+strictly better than a dead one. Auton keeps full fail-fast — there,
+driving on after a fault *is* the dangerous outcome.
 
 Three narrow, intentional exceptions remain as before: subsystem `stop()`
 is best-effort (exceptions swallowed so every subsystem gets its

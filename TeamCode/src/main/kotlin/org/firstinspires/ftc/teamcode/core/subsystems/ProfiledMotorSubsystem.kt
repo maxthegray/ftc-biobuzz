@@ -1,11 +1,11 @@
 package org.firstinspires.ftc.teamcode.core.subsystems
 
-import com.pedropathing.ivy.Command
 import com.qualcomm.robotcore.hardware.DcMotor
 import com.qualcomm.robotcore.hardware.DcMotorEx
 import com.qualcomm.robotcore.hardware.DcMotorSimple
 import com.qualcomm.robotcore.hardware.HardwareMap
 import java.util.Locale
+import org.firstinspires.ftc.teamcode.core.command.Command
 import org.firstinspires.ftc.teamcode.core.control.ProfiledController
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.DeviceReaders
@@ -162,6 +162,7 @@ open class ProfiledMotorSubsystem(
         toleranceUnits: Double,
         priority: Int = CommandPriorities.DRIVER_ACTION,
     ): Command = Command.build()
+        .setName("%s→%.1f".format(Locale.US, name, targetUnits))
         .requiring(this)
         .setPriority(priority)
         .setStart { setGoal(targetUnits) }

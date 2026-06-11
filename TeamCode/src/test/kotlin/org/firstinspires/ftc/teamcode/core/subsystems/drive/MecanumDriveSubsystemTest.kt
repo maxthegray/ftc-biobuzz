@@ -4,11 +4,10 @@ import com.pedropathing.drivetrain.Drivetrain
 import com.pedropathing.follower.Follower
 import com.pedropathing.follower.FollowerConstants
 import com.pedropathing.geometry.Pose
-import com.pedropathing.ivy.Command
-import com.pedropathing.ivy.CommandBuilder
-import com.pedropathing.ivy.behaviors.EndCondition
 import com.pedropathing.localization.Localizer
 import com.pedropathing.math.Vector
+import org.firstinspires.ftc.teamcode.core.command.CommandBuilder
+import org.firstinspires.ftc.teamcode.core.command.EndCondition
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

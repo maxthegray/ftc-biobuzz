@@ -1,25 +1,23 @@
 package org.firstinspires.ftc.teamcode.core.pathing
 
-import com.pedropathing.ivy.Command
-import com.pedropathing.ivy.CommandBuilder
-import com.pedropathing.ivy.Scheduler
-import com.pedropathing.ivy.behaviors.EndCondition
-import com.pedropathing.ivy.commands.Commands
-import com.pedropathing.ivy.groups.Groups
 import com.pedropathing.geometry.Pose
 import com.pedropathing.paths.PathChain
-import java.util.function.BooleanSupplier
+import org.firstinspires.ftc.teamcode.core.command.Command
+import org.firstinspires.ftc.teamcode.core.command.CommandBuilder
+import org.firstinspires.ftc.teamcode.core.command.Commands
+import org.firstinspires.ftc.teamcode.core.command.EndCondition
+import org.firstinspires.ftc.teamcode.core.command.Groups
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
+import org.firstinspires.ftc.teamcode.core.runtime.Robot
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
 
 /**
- * Builder + runner for an autonomous routine expressed as an Ivy command
- * sequence.
+ * Builder + runner for an autonomous routine expressed as a command sequence.
  *
  * Usage from an auton op-mode:
  *
  * ```kotlin
- * val runner = PedroAutoRunner(drive)
+ * val runner = PedroAutoRunner(robot, drive)
  *     .follow(preloadPath)
  *     .run { intake.score() }
  *     .wait(400)
@@ -29,16 +27,20 @@ import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsyste
  * override fun onLoop() { if (runner.isDone) requestOpModeStop() }
  * ```
  *
- * Under the hood every entry becomes an [com.pedropathing.ivy.Command] and
- * the whole sequence is wrapped in `Groups.sequential` so the Ivy scheduler
- * owns execution — which means interrupting an auton routine mid-path is
- * just `runner.cancel()`.
+ * Under the hood every entry becomes a [Command] and the whole sequence is
+ * wrapped in `Groups.sequential`, scheduled on the robot's scheduler — which
+ * means interrupting an auton routine mid-path is just `runner.cancel()`.
+ *
+ * Waits and [timeout]s run on the robot's [org.firstinspires.ftc.teamcode.core.util.Clock],
+ * so routines — including their waits — execute under virtual time in the
+ * headless sim.
  *
  * Pass an [onEvent] sink (typically `robot::recordEvent`) and the runner
  * emits a labelled event as each step starts — every flight log then carries
  * a navigable timeline of the routine.
  */
 class PedroAutoRunner(
+    private val robot: Robot,
     private val drive: MecanumDriveSubsystem,
     private val onEvent: ((String) -> Unit)? = null,
 ) {
@@ -96,11 +98,11 @@ class PedroAutoRunner(
 
     /** Inject an arbitrary one-shot action (e.g. "drop pre-load"). */
     fun run(action: Runnable): PedroAutoRunner =
-        append("run", Commands.instant(action))
+        append("run", Commands.instant { action.run() })
 
-    /** Wait [ms] milliseconds. */
+    /** Wait [ms] milliseconds (on the robot's clock — simulable). */
     fun wait(ms: Double): PedroAutoRunner =
-        append("wait ${ms.toLong()} ms", Commands.waitMs(ms))
+        append("wait ${ms.toLong()} ms", Commands.waitMs(ms, robot.clock))
 
     /** Wait [ms] milliseconds (long overload, converted). */
     fun wait(ms: Long): PedroAutoRunner = wait(ms.toDouble())
@@ -109,10 +111,10 @@ class PedroAutoRunner(
      * Wait until [condition] returns true. Has no timeout of its own — compose
      * it inside a [race] block if the routine needs to give up after a while.
      */
-    fun waitUntil(condition: BooleanSupplier): PedroAutoRunner =
+    fun waitUntil(condition: () -> Boolean): PedroAutoRunner =
         append("waitUntil", Commands.waitUntil(condition))
 
-    /** Inline an existing Ivy command (raw escape hatch). */
+    /** Inline an existing command (raw escape hatch). */
     fun then(command: Command): PedroAutoRunner =
         append("command", command)
 
@@ -123,7 +125,7 @@ class PedroAutoRunner(
      */
     fun parallel(block: PedroAutoRunner.() -> Unit): PedroAutoRunner {
         requireMutable()
-        val sub = PedroAutoRunner(drive).apply(block)
+        val sub = PedroAutoRunner(robot, drive).apply(block)
         require(sub.steps.isNotEmpty()) { "parallel { } block is empty" }
         requireNoSharedRequirements(sub.commands(), "parallel")
         return append(sub.groupLabel("parallel"), Groups.parallel(*sub.commands().toTypedArray()))
@@ -136,7 +138,7 @@ class PedroAutoRunner(
      */
     fun race(block: PedroAutoRunner.() -> Unit): PedroAutoRunner {
         requireMutable()
-        val sub = PedroAutoRunner(drive).apply(block)
+        val sub = PedroAutoRunner(robot, drive).apply(block)
         require(sub.steps.isNotEmpty()) { "race { } block is empty" }
         requireNoSharedRequirements(sub.commands(), "race")
         return append(sub.groupLabel("race"), Groups.race(*sub.commands().toTypedArray()))
@@ -148,7 +150,7 @@ class PedroAutoRunner(
      */
     fun deadline(block: PedroAutoRunner.() -> Unit): PedroAutoRunner {
         requireMutable()
-        val sub = PedroAutoRunner(drive).apply(block)
+        val sub = PedroAutoRunner(robot, drive).apply(block)
         require(sub.steps.isNotEmpty()) { "deadline { } block is empty" }
         requireNoSharedRequirements(sub.commands(), "deadline")
         val deadline = sub.commands().first()
@@ -156,7 +158,7 @@ class PedroAutoRunner(
         return append(sub.groupLabel("deadline"), Groups.deadline(deadline, *others))
     }
 
-    /** Race the entire built sequence against [ms] milliseconds. */
+    /** Race the entire built sequence against [ms] milliseconds (robot clock). */
     fun timeout(ms: Double): PedroAutoRunner {
         requireMutable()
         require(ms.isFinite() && ms >= 0.0) { "timeout must be finite and non-negative" }
@@ -164,7 +166,7 @@ class PedroAutoRunner(
         return this
     }
 
-    /** Race the entire built sequence against [ms] milliseconds. */
+    /** Race the entire built sequence against [ms] milliseconds (robot clock). */
     fun timeout(ms: Long): PedroAutoRunner = timeout(ms.toDouble())
 
     private fun append(label: String, step: Command): PedroAutoRunner {
@@ -211,17 +213,19 @@ class PedroAutoRunner(
             }
         }
         val sequence = Groups.sequential(*sequenced.toTypedArray())
+            .setName("auto routine")
             .withAtLeastPriority(CommandPriorities.AUTON_ROUTINE)
         val timeout = timeoutMs
         return if (timeout == null) {
             sequence
         } else {
-            Groups.race(sequence, Commands.waitMs(timeout))
+            Groups.race(sequence, Commands.waitMs(timeout, robot.clock))
+                .setName("auto routine (timeout ${timeout.toLong()} ms)")
                 .withAtLeastPriority(CommandPriorities.AUTON_ROUTINE)
         }
     }
 
-    /** Build and lock the routine into one Ivy command. Further steps cannot be appended. */
+    /** Build and lock the routine into one command. Further steps cannot be appended. */
     fun build(): Command {
         var b = built
         if (b == null) {
@@ -231,21 +235,21 @@ class PedroAutoRunner(
         return b
     }
 
-    /** Schedule the routine on Ivy's global scheduler. */
+    /** Schedule the routine on the robot's scheduler. */
     fun schedule(): PedroAutoRunner {
         if (scheduled) return this
-        Scheduler.schedule(build())
+        robot.scheduler.schedule(build())
         scheduled = true
         return this
     }
 
     /** True once the routine has either completed or been cancelled. */
     val isDone: Boolean
-        get() = scheduled && built?.let { !Scheduler.isScheduled(it) } == true
+        get() = scheduled && built?.let { !robot.scheduler.isScheduled(it) } == true
 
     /** Cancel the routine mid-flight. Safe to call even if nothing is scheduled. */
     fun cancel() {
-        built?.let { Scheduler.cancel(it) }
+        built?.let { robot.scheduler.cancel(it) }
     }
 }
 
@@ -254,7 +258,7 @@ class PedroAutoRunner(
  * trailing DSL block:
  *
  * ```kotlin
- * val runner = autoRoutine(drive, robot::recordEvent) {
+ * val runner = autoRoutine(robot, drive, robot::recordEvent) {
  *     follow(toPreload)
  *     run { intake.score() }
  *     wait(300)
@@ -266,10 +270,11 @@ class PedroAutoRunner(
  * the flight log; omit it for silent sequencing.
  */
 inline fun autoRoutine(
+    robot: Robot,
     drive: MecanumDriveSubsystem,
     noinline onEvent: ((String) -> Unit)? = null,
     block: PedroAutoRunner.() -> Unit,
-): PedroAutoRunner = PedroAutoRunner(drive, onEvent).apply(block)
+): PedroAutoRunner = PedroAutoRunner(robot, drive, onEvent).apply(block)
 
 private fun CommandBuilder.withAtLeastPriority(priority: Int): CommandBuilder =
     setPriority(kotlin.math.max(priority(), priority))

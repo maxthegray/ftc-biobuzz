@@ -1,34 +1,29 @@
 package org.firstinspires.ftc.teamcode.core.util
 
-import com.pedropathing.ivy.Command
-import com.pedropathing.ivy.CommandBuilder
-import com.pedropathing.ivy.Scheduler
 import com.qualcomm.robotcore.hardware.Gamepad
-import org.junit.After
+import org.firstinspires.ftc.teamcode.core.command.Command
+import org.firstinspires.ftc.teamcode.core.command.CommandBuilder
+import org.firstinspires.ftc.teamcode.core.command.Scheduler
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
 /**
- * Trigger edge semantics against the real Ivy scheduler. The scheduler is a
- * global static, so it is reset around every test.
+ * Trigger edge semantics against a real scheduler instance — fresh per test,
+ * nothing global to reset.
  */
 class TriggerTest {
 
+    private lateinit var scheduler: Scheduler
     private lateinit var host: GamepadEx
     private var condition = false
 
     @Before
     fun setUp() {
-        Scheduler.reset()
-        host = GamepadEx(Gamepad())
+        scheduler = Scheduler()
+        host = GamepadEx(Gamepad(), scheduler)
         condition = false
-    }
-
-    @After
-    fun tearDown() {
-        Scheduler.reset()
     }
 
     /** A command that runs until cancelled, so scheduled-ness is observable. */
@@ -44,20 +39,20 @@ class TriggerTest {
         host.trigger { condition }.onTrue(cmd)
 
         poll()
-        assertFalse(Scheduler.isScheduled(cmd))
+        assertFalse(scheduler.isScheduled(cmd))
 
         condition = true
         poll()
-        assertTrue(Scheduler.isScheduled(cmd))
+        assertTrue(scheduler.isScheduled(cmd))
 
         // Held true: no re-schedule attempt needed; stays scheduled.
         poll()
-        assertTrue(Scheduler.isScheduled(cmd))
+        assertTrue(scheduler.isScheduled(cmd))
 
         // Falling edge does nothing for onTrue.
         condition = false
         poll()
-        assertTrue(Scheduler.isScheduled(cmd))
+        assertTrue(scheduler.isScheduled(cmd))
     }
 
     @Test
@@ -67,11 +62,11 @@ class TriggerTest {
 
         condition = true
         poll()
-        assertFalse(Scheduler.isScheduled(cmd))
+        assertFalse(scheduler.isScheduled(cmd))
 
         condition = false
         poll()
-        assertTrue(Scheduler.isScheduled(cmd))
+        assertTrue(scheduler.isScheduled(cmd))
     }
 
     @Test
@@ -81,11 +76,11 @@ class TriggerTest {
 
         condition = true
         poll()
-        assertTrue(Scheduler.isScheduled(cmd))
+        assertTrue(scheduler.isScheduled(cmd))
 
         condition = false
         poll()
-        assertFalse(Scheduler.isScheduled(cmd))
+        assertFalse(scheduler.isScheduled(cmd))
     }
 
     @Test
@@ -96,16 +91,16 @@ class TriggerTest {
 
         condition = true
         poll()
-        assertTrue(Scheduler.isScheduled(cmd))
+        assertTrue(scheduler.isScheduled(cmd))
 
         done = true
-        Scheduler.execute()
-        assertFalse(Scheduler.isScheduled(cmd))
+        scheduler.execute()
+        assertFalse(scheduler.isScheduled(cmd))
 
         // Falling-edge cancel of an already-finished command must be a no-op.
         condition = false
         poll()
-        assertFalse(Scheduler.isScheduled(cmd))
+        assertFalse(scheduler.isScheduled(cmd))
     }
 
     @Test
@@ -115,13 +110,13 @@ class TriggerTest {
 
         condition = true
         poll()
-        assertTrue(Scheduler.isScheduled(cmd))
+        assertTrue(scheduler.isScheduled(cmd))
 
         condition = false
         poll()
         condition = true
         poll()
-        assertFalse(Scheduler.isScheduled(cmd))
+        assertFalse(scheduler.isScheduled(cmd))
     }
 
     @Test
@@ -132,11 +127,11 @@ class TriggerTest {
 
         condition = true
         poll()
-        assertFalse(Scheduler.isScheduled(cmd))
+        assertFalse(scheduler.isScheduled(cmd))
 
         other = true
         poll()
-        assertTrue(Scheduler.isScheduled(cmd))
+        assertTrue(scheduler.isScheduled(cmd))
     }
 
     @Test
@@ -146,7 +141,7 @@ class TriggerTest {
 
         // condition false -> inverted trigger true -> rising edge on first poll.
         poll()
-        assertTrue(Scheduler.isScheduled(cmd))
+        assertTrue(scheduler.isScheduled(cmd))
     }
 
     @Test
@@ -155,6 +150,6 @@ class TriggerTest {
         condition = true
         host.trigger { condition }.onTrue(cmd)
         poll()
-        assertTrue(Scheduler.isScheduled(cmd))
+        assertTrue(scheduler.isScheduled(cmd))
     }
 }

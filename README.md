@@ -9,7 +9,6 @@ Built on:
 |--------------------|----------------------------------------------|---------|
 | Robot controller   | `FtcRobotController` (FTC SDK)               | 11.1.0  |
 | Path following     | [Pedro Pathing](https://pedropathing.com/)   | 2.1.1   |
-| Command framework  | Pedro **Ivy**                                | 1.0.0   |
 | Telemetry adapter  | Pedro Telemetry                              | 1.0.0   |
 | Dashboard / tuning | [FTControl Panels](https://panels.bylazar.com/) (`fullpanels`) | 1.0.12  |
 | Hot reload         | [Sloth](https://docs.dairy.foundation/sloth/) (Dairy Foundation / Sinister) | 0.2.4 |
@@ -73,7 +72,7 @@ class MatchTeleop : TeleOpBase() {
 Autons extend `OpModeBase` directly — copy `ExampleAuto` as the skeleton
 (alliance/routine/delay selection on dpad in init, paths mirrored from RED
 coordinates, sequencing via `autoRoutine`). `OpModeBase` handles the rest:
-Lynx bulk-read mode, Ivy scheduler ticking, gamepad edge detection, joined
+Lynx bulk-read mode, command scheduler ticking, gamepad edge detection, joined
 Driver Station + Panels telemetry flushing.
 
 ## Writing a path

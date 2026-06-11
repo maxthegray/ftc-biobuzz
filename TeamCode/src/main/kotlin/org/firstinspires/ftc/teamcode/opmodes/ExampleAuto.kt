@@ -60,7 +60,7 @@ class ExampleAuto : OpModeBase() {
             lineTo(startRed)
             linearHeading(Math.toRadians(90.0), 0.0)
         }
-        return autoRoutine(drive, robot::recordEvent) {
+        return autoRoutine(robot, drive, robot::recordEvent) {
             if (selector.startDelaySec > 0) wait(selector.startDelaySec * 1000L)
             follow(outPath)
             holdPose(alliance.mirror(outRed))              // settle on the target pose

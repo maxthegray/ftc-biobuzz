@@ -4,20 +4,22 @@ import com.qualcomm.robotcore.hardware.Gamepad
 import java.util.function.BooleanSupplier
 import kotlin.math.abs
 import kotlin.math.withSign
+import org.firstinspires.ftc.teamcode.core.command.Scheduler
 
 /**
- * Thin wrapper around [Gamepad] that adds edge detection and deadbanded axes.
- * Built for one-line use in op-modes:
+ * Thin wrapper around [Gamepad] that adds edge detection, deadbanded axes,
+ * and [Trigger] bindings scheduled on [scheduler] (the owning robot's
+ * command scheduler). Built for one-line use in op-modes:
  *
  * ```kotlin
- * val driver = GamepadEx(gamepad1)
+ * val driver = GamepadEx(gamepad1, robot.scheduler)
  * // inside loop:
  * driver.update()
  * if (driver.aPressed) intake.togglePressed()
  * drive.arcade(driver.leftStickY, driver.leftStickX, driver.rightStickX)
  * ```
  */
-class GamepadEx(val raw: Gamepad) {
+class GamepadEx(val raw: Gamepad, internal val scheduler: Scheduler) {
 
     var leftStickDeadband: Double = 0.05
     var rightStickDeadband: Double = 0.05

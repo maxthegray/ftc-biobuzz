@@ -1,7 +1,7 @@
 package org.firstinspires.ftc.teamcode.core.runtime
 
-import com.pedropathing.ivy.Command
 import com.qualcomm.robotcore.hardware.HardwareMap
+import org.firstinspires.ftc.teamcode.core.command.Command
 
 /**
  * Base class every subsystem extends.
@@ -11,7 +11,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap
  * OpMode calls [periodic] on every subsystem once per tick, after the Lynx
  * bulk read but before the command scheduler tick.
  *
- * Subsystems double as Ivy "requirements" — pass `this` to
+ * Subsystems double as command "requirements" — pass `this` to
  * `CommandBuilder.requiring(...)` and the scheduler will automatically
  * resolve conflicts between commands that touch the same hardware.
  */
@@ -68,10 +68,12 @@ abstract class SubsystemBase(val name: String) {
     open fun health(): String? = null
 
     /**
-     * Called after [Robot] contains a command fault (teleop only): the
-     * scheduler has just been cleared *without* running command end handlers,
-     * so put actuators in a safe state here — break a path follow, hold a
-     * lift in place. Default commands resume on the next tick. Never throw.
+     * Called after [Robot] contains a fault from a command that *required
+     * this subsystem* (teleop only). The faulting command has already been
+     * ended (its end handler ran, best-effort) — this is the safety net for
+     * when that end handler is itself the buggy code: put actuators in a
+     * safe state here — break a path follow, hold a lift in place. The
+     * subsystem's default command resumes on the next tick. Never throw.
      */
     open fun onCommandFault() {}
 

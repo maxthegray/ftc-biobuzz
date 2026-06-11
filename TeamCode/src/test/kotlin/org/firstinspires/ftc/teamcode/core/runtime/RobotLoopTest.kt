@@ -1,10 +1,8 @@
 package org.firstinspires.ftc.teamcode.core.runtime
 
-import com.pedropathing.ivy.CommandBuilder
-import com.pedropathing.ivy.Scheduler
 import com.qualcomm.robotcore.hardware.HardwareMap
+import org.firstinspires.ftc.teamcode.core.command.CommandBuilder
 import org.firstinspires.ftc.teamcode.core.util.FakeClock
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -28,14 +26,8 @@ class RobotLoopTest {
 
     @Before
     fun setUp() {
-        Scheduler.reset()
         robot = Robot(HardwareMap(null, null), clock)
         robot.register(RecordingSubsystem(events))
-    }
-
-    @After
-    fun tearDown() {
-        Scheduler.reset()
     }
 
     @Test
@@ -51,7 +43,7 @@ class RobotLoopTest {
             input = { events += "input" },
             control = {
                 events += "control"
-                Scheduler.schedule(cmd)
+                robot.scheduler.schedule(cmd)
             },
             telemetry = { events += "telemetry" },
         )
@@ -81,10 +73,21 @@ class RobotLoopTest {
     @Test
     fun stopResetsSchedulerAndStopsSubsystems() {
         val endless = CommandBuilder().setDone { false }
-        Scheduler.schedule(endless)
+        robot.scheduler.schedule(endless)
         robot.stop()
         assertEquals(listOf("stop"), events)
-        assertTrue(!Scheduler.isScheduled(endless))
+        assertTrue(!robot.scheduler.isScheduled(endless))
+    }
+
+    @Test
+    fun stopRunsEndHandlersOfRunningCommands() {
+        var ended: org.firstinspires.ftc.teamcode.core.command.EndCondition? = null
+        val endless = CommandBuilder()
+            .setDone { false }
+            .setEnd { ended = it }
+        robot.scheduler.schedule(endless)
+        robot.stop()
+        assertEquals(org.firstinspires.ftc.teamcode.core.command.EndCondition.INTERRUPTED, ended)
     }
 
     @Test
@@ -162,7 +165,7 @@ class RobotLoopTest {
 
         robot.start()
         robot.loop()
-        Scheduler.schedule(action)
+        robot.scheduler.schedule(action)
         robot.loop()
         robot.loop()
 
@@ -177,7 +180,7 @@ class RobotLoopTest {
 
         robot.start()
         try {
-            robot.loop(control = { Scheduler.schedule(bad) })
+            robot.loop(control = { robot.scheduler.schedule(bad) })
             org.junit.Assert.fail("expected the command fault to propagate")
         } catch (e: IllegalStateException) {
             assertEquals("boom", e.message)
@@ -186,30 +189,74 @@ class RobotLoopTest {
     }
 
     @Test
-    fun containedCommandFaultSafesSubsystemsAndKeepsLooping() {
+    fun containedCommandFaultIsSurgical() {
+        robot.containCommandFaults = true
+        val faultedSubsystem = robot.subsystems().first()
+        // A healthy command on an unrelated requirement must survive the fault.
+        val survivorExecutes = mutableListOf<Long>()
+        val survivor = CommandBuilder()
+            .requiring(Any())
+            .setExecute { survivorExecutes += robot.loopCount }
+            .setDone { false }
+        val bad = CommandBuilder()
+            .requiring(faultedSubsystem)
+            .setExecute { error("boom") }
+            .setDone { false }
+
+        robot.start()
+        robot.loop(control = {
+            robot.scheduler.schedule(survivor)
+            robot.scheduler.schedule(bad)
+        })
+
+        assertEquals(1, robot.commandFaultCount)
+        assertEquals("boom", robot.lastCommandFault?.message)
+        assertTrue(!robot.scheduler.isScheduled(bad))
+        // The survivor is still running; the faulted command's subsystem got
+        // its onCommandFault hook; the loop completed its write phase.
+        assertTrue(robot.scheduler.isScheduled(survivor))
+        assertEquals(listOf("periodic", "fault", "write"), events)
+
+        // Default commands resume on the next tick.
+        var defaultStarted = false
+        faultedSubsystem.defaultCommand = CommandBuilder()
+            .requiring(faultedSubsystem)
+            .setStart { defaultStarted = true }
+            .setDone { false }
+        robot.loop()
+        assertTrue(defaultStarted)
+        assertTrue(robot.scheduler.isScheduled(survivor))
+    }
+
+    @Test
+    fun containedFaultWithoutRequirementsTouchesNoSubsystems() {
         robot.containCommandFaults = true
         val bad = CommandBuilder()
             .setExecute { error("boom") }
             .setDone { false }
 
         robot.start()
-        robot.loop(control = { Scheduler.schedule(bad) })
+        robot.loop(control = { robot.scheduler.schedule(bad) })
 
         assertEquals(1, robot.commandFaultCount)
-        assertEquals("boom", robot.lastCommandFault?.message)
-        assertTrue(!Scheduler.isScheduled(bad))
-        // The fault hook ran, and the loop still completed its write phase.
-        assertEquals(listOf("periodic", "fault", "write"), events)
+        // No requirements -> no onCommandFault calls.
+        assertEquals(listOf("periodic", "write"), events)
+    }
 
-        // Default commands resume on the next tick.
-        val subsystem = robot.subsystems().first()
-        var defaultStarted = false
-        subsystem.defaultCommand = CommandBuilder()
-            .requiring(subsystem)
-            .setStart { defaultStarted = true }
+    @Test
+    fun faultedCommandEndHandlerRunsBeforeContainment() {
+        robot.containCommandFaults = true
+        var ended: org.firstinspires.ftc.teamcode.core.command.EndCondition? = null
+        val bad = CommandBuilder()
+            .setExecute { error("boom") }
+            .setEnd { ended = it }
             .setDone { false }
-        robot.loop()
-        assertTrue(defaultStarted)
+
+        robot.start()
+        robot.loop(control = { robot.scheduler.schedule(bad) })
+
+        assertEquals(org.firstinspires.ftc.teamcode.core.command.EndCondition.FAULTED, ended)
+        assertEquals(1, robot.commandFaultCount)
     }
 
     @Test
@@ -219,8 +266,9 @@ class RobotLoopTest {
         robot.start()
         robot.loop(input = { error("binding blew up") })
 
+        // Not tied to a command: counted and logged, no subsystem safing.
         assertEquals(1, robot.commandFaultCount)
-        assertEquals(listOf("periodic", "fault", "write"), events)
+        assertEquals(listOf("periodic", "write"), events)
     }
 
     @Test
@@ -239,11 +287,31 @@ class RobotLoopTest {
 
         robot.start()
         robot.loop()
-        Scheduler.schedule(action)
+        robot.scheduler.schedule(action)
         robot.loop()
-        Scheduler.cancel(action)
+        robot.scheduler.cancel(action)
         robot.loop()
 
         assertEquals(2, defaultStarts)
+    }
+
+    @Test
+    fun registerAfterContractIsEnforced() {
+        class First : SubsystemBase("first")
+        class Second : SubsystemBase("second") {
+            override val registerAfter: Class<out SubsystemBase> get() = First::class.java
+        }
+
+        val fresh = Robot(HardwareMap(null, null), clock)
+        try {
+            fresh.register(Second())
+            org.junit.Assert.fail("expected registration-order check to throw")
+        } catch (_: IllegalStateException) {
+            // expected
+        }
+
+        fresh.register(First())
+        fresh.register(Second())
+        assertEquals(2, fresh.subsystems().size)
     }
 }

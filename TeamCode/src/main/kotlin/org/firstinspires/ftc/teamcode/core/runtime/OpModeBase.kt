@@ -11,7 +11,6 @@ import java.io.StringWriter
 import java.util.Locale
 import org.firstinspires.ftc.robotcore.external.Telemetry
 import org.firstinspires.ftc.teamcode.core.logging.FieldView
-import org.firstinspires.ftc.teamcode.core.logging.SchedulerIntrospection
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.PinpointDirect
 import org.firstinspires.ftc.teamcode.core.util.Alliance
@@ -175,7 +174,7 @@ abstract class OpModeBase : LinearOpMode() {
             // "What was happening" beats "where it died": capture scheduler
             // state and the recent event timeline before anything shuts down.
             val running = try {
-                SchedulerIntrospection.DEFAULT.runningCommandNames()
+                robot.scheduler.runningCommandNames()
             } catch (_: Throwable) {
                 emptyList()
             }
@@ -299,8 +298,8 @@ abstract class OpModeBase : LinearOpMode() {
             it.alliance = initialAlliance
             it.containCommandFaults = containCommandFaults
         }
-        driver = GamepadEx(gamepad1)
-        operator = GamepadEx(gamepad2)
+        driver = GamepadEx(gamepad1, robot.scheduler)
+        operator = GamepadEx(gamepad2, robot.scheduler)
 
         val panels = PanelsTelemetry.telemetry
         joinedTelemetry = JoinedTelemetry(telemetry, panels.wrapper)

@@ -24,7 +24,7 @@ class AutonSelectorTest {
     private val clock = FakeClock()
     private val robot = Robot(HardwareMap(null, null), clock)
     private val raw = Gamepad()
-    private val driver = GamepadEx(raw)
+    private val driver = GamepadEx(raw, robot.scheduler)
     private val selector = AutonSelector(
         robot,
         TelemetryBag(listOf(FakeSink()), transmitIntervalMs = 0.0, clock = clock),

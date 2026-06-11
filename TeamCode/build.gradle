@@ -66,10 +66,10 @@ dependencies {
     // Kotlin
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
 
-    // Pedro Pathing 2.1.1 + Ivy 1.0.0 command framework + telemetry adapter
+    // Pedro Pathing 2.1.1 + telemetry adapter. The command scheduler is our
+    // own (core/command) — the Ivy dependency was replaced by it.
     implementation 'com.pedropathing:core:2.1.1'
     implementation 'com.pedropathing:ftc:2.1.1'
-    implementation 'com.pedropathing:ivy:1.0.0'
     implementation 'com.pedropathing:telemetry:1.0.0'
 
     // FTControl Panels (dashboard + live tuning + telemetry)
