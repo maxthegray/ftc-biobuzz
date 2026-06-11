@@ -1,8 +1,8 @@
 package org.firstinspires.ftc.teamcode.core.subsystems.localization
 
-import com.pedropathing.geometry.Pose
-import com.pedropathing.math.MathFunctions
-import org.firstinspires.ftc.teamcode.core.util.shortestHeadingDelta
+import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
+import org.firstinspires.ftc.teamcode.core.geometry.normalizeAngle
+import org.firstinspires.ftc.teamcode.core.geometry.shortestAngleDelta
 
 /**
  * Fixed-capacity pose ring buffer with no per-tick allocation.
@@ -24,16 +24,16 @@ class PoseHistory(private val capacity: Int = 512) {
     private var next = 0
     private var size = 0
 
-    fun add(timestampNanos: Long, pose: Pose) {
+    fun add(timestampNanos: Long, pose: Pose2d) {
         times[next] = timestampNanos
         xs[next] = pose.x
         ys[next] = pose.y
-        headings[next] = MathFunctions.normalizeAngle(pose.heading)
+        headings[next] = normalizeAngle(pose.heading)
         next = (next + 1) % capacity
         if (size < capacity) size++
     }
 
-    fun lookup(timestampNanos: Long): Pose? {
+    fun lookup(timestampNanos: Long): Pose2d? {
         if (size == 0) return null
         val oldest = physicalIndex(0)
         val newest = physicalIndex(size - 1)
@@ -50,11 +50,11 @@ class PoseHistory(private val capacity: Int = 512) {
             if (tb == ta) return poseAt(b)
 
             val u = (timestampNanos - ta).toDouble() / (tb - ta).toDouble()
-            val headingDelta = shortestHeadingDelta(headings[a], headings[b])
-            return Pose(
+            val headingDelta = shortestAngleDelta(headings[a], headings[b])
+            return Pose2d(
                 xs[a] + (xs[b] - xs[a]) * u,
                 ys[a] + (ys[b] - ys[a]) * u,
-                MathFunctions.normalizeAngle(headings[a] + headingDelta * u),
+                normalizeAngle(headings[a] + headingDelta * u),
             )
         }
         return null
@@ -63,5 +63,5 @@ class PoseHistory(private val capacity: Int = 512) {
     private fun physicalIndex(logicalIndex: Int): Int =
         (next - size + logicalIndex + capacity) % capacity
 
-    private fun poseAt(index: Int): Pose = Pose(xs[index], ys[index], headings[index])
+    private fun poseAt(index: Int): Pose2d = Pose2d(xs[index], ys[index], headings[index])
 }

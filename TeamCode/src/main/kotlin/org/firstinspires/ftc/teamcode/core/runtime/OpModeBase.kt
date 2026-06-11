@@ -11,7 +11,6 @@ import java.io.StringWriter
 import java.util.Locale
 import org.firstinspires.ftc.robotcore.external.Telemetry
 import org.firstinspires.ftc.teamcode.core.logging.FieldView
-import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.PinpointDirect
 import org.firstinspires.ftc.teamcode.core.util.Alliance
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx
@@ -111,7 +110,7 @@ abstract class OpModeBase : LinearOpMode() {
     private var cachedVoltage = Double.NaN
     private var lastVoltageReadNs = Long.MIN_VALUE
     private val fieldView = FieldView()
-    private var fieldViewDrive: MecanumDriveSubsystem? = null
+    private var fieldViewDrive: DriveTelemetrySource? = null
     private val logDir = File("/sdcard/FIRST/logs")
     private val lastCrashFile = File(logDir, "lastcrash.txt")
     protected val matchTimer = MatchTimer()
@@ -321,7 +320,7 @@ abstract class OpModeBase : LinearOpMode() {
             robot.init()
             voltageSensor = firstVoltageSensor()
             fieldViewDrive =
-                robot.subsystems().firstOrNull { it is MecanumDriveSubsystem } as? MecanumDriveSubsystem
+                robot.subsystems().firstOrNull { it is DriveTelemetrySource } as? DriveTelemetrySource
 
             telemetry.addLine("Init complete — ${robot.subsystems().size} subsystems")
             telemetry.update()

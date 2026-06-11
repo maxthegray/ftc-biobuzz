@@ -1,11 +1,11 @@
 package org.firstinspires.ftc.teamcode.opmodes
 
 import com.bylazar.configurables.annotations.Configurable
-import com.pedropathing.geometry.Pose
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import kotlin.math.abs
 import org.firstinspires.ftc.teamcode.core.command.Command
 import org.firstinspires.ftc.teamcode.core.command.Commands
+import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import org.firstinspires.ftc.teamcode.core.pathing.path
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
@@ -55,13 +55,13 @@ class LocalizationTestTeleOp : TeleOpBase() {
         driver.trigger { driver.y && !driver.back }.onTrue(
             followTo(
                 label = { "(%.1f, %.1f)".format(waypointAX, waypointAY) },
-                target = { Pose(waypointAX, waypointAY, 0.0) },
+                target = { Pose2d(waypointAX, waypointAY, 0.0) },
             ),
         )
         driver.trigger { driver.a && !driver.start }.onTrue(
             followTo(
                 label = { "(%.1f, %.1f)".format(fieldCenterX, fieldCenterY) },
-                target = { Pose(fieldCenterX, fieldCenterY, 0.0) },
+                target = { Pose2d(fieldCenterX, fieldCenterY, 0.0) },
             ),
         )
         driver.trigger { stickMoved() }.whileTrue(
@@ -95,7 +95,7 @@ class LocalizationTestTeleOp : TeleOpBase() {
      * deferred follow handles its own interruption (breaks the follow);
      * [onLoop] clears the label once the command leaves the scheduler.
      */
-    private fun followTo(label: () -> String, target: () -> Pose): Command {
+    private fun followTo(label: () -> String, target: () -> Pose2d): Command {
         lateinit var outer: Command
         outer = Commands.defer(drive) {
             val start = drive.pose

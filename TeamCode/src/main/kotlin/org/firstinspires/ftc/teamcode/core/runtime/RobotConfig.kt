@@ -36,6 +36,6 @@ object RobotConfig {
          * rotation. Check the game manual's field drawings when the game
          * launches; getting this wrong silently breaks every BLUE auton path.
          */
-        val SYMMETRY = org.firstinspires.ftc.teamcode.core.util.FieldSymmetry.MIRROR
+        val SYMMETRY = org.firstinspires.ftc.teamcode.core.geometry.FieldSymmetry.MIRROR
     }
 }

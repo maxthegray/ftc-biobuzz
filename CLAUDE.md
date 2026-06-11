@@ -117,7 +117,30 @@ CommandPriorities.DRIVER_ACTION   // 20: driver-triggered actions (beat assists)
 CommandPriorities.DRIVER_OVERRIDE // 30: panic / manual-override bindings
 ```
 
-### Pedro Follower
+### Geometry (`core/geometry/` — ours)
+
+Framework code speaks `Pose2d` / `Vector2d` (inches, radians, CCW-positive,
+Pedro field frame). Pedro's `Pose` appears **only** in the adapter layer:
+`core/pathing/PedroConversions.kt` (`toPedro()` / `toCore()`), `PathDSL`,
+`MecanumDriveSubsystem` internals, the Pedro `Localizer` implementations,
+and the vendored `pedroPathing/` files. Don't import
+`com.pedropathing.geometry` anywhere else.
+
+```kotlin
+Pose2d(x, y, heading)                  // data class; .withHeading, .lerp, .distanceTo
+pose.relativeTo(origin)                // this pose in origin's frame
+origin.transformBy(delta)              // inverse of relativeTo
+pose.mirror(symmetry, fieldLength)     // RED→BLUE; symmetry from RobotConfig.Field
+normalizeAngle(rad)                    // [0, 2π)
+shortestAngleDelta(from, to)           // (-π, π], half-turn resolves to +π
+```
+
+### Pedro Follower (adapter-layer use only)
+
+The follower is `internal` to `MecanumDriveSubsystem` — op-modes use the
+subsystem's `pose` / `velocity` / commands, the localizer's
+`applyCorrection`, and `DriveTelemetrySource` for logging. Inside the
+adapter layer:
 
 ```kotlin
 follower.update()                        // MUST run every tick (in writeHardware)
@@ -319,9 +342,11 @@ persist into a pinned config object.
 - **Pedro maven repository.** Pedro is on **Maven Central**, not
   `maven.pedropathing.com`. That domain returns a 302 to a 404 and
   breaks the build. Do not "fix" `build.dependencies.gradle` to use it.
-- **Pose coordinates for mirrored paths.** Pedro's `Pose.mirror()` takes
-  an optional field length that defaults to **141.5 inches**, not 144.
-  Don't change that unless the user explicitly asks.
+- **Pose coordinates for mirrored paths.** Mirroring runs through
+  `Alliance.mirror` / `Pose2d.mirror` with the field length from
+  `RobotConfig.Field.LENGTH_INCHES` (**141.5 inches**, not 144) and the
+  season's `FieldSymmetry` (MIRROR vs ROTATE — check the game manual).
+  Don't change either unless the user explicitly asks.
 - **Kotlin property access on Java getters.** `follower.pose` works
   (maps to `getPose()`) but `follower.startingPose = p` does **not** (no
   `getStartingPose()` exists). Use `follower.setStartingPose(p)`.

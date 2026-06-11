@@ -106,6 +106,25 @@ main loop. For those we spin up a dedicated bus thread via `I2CBusThread`:
 We do **not** touch motors or servos from bus threads. Those live on the
 main thread only.
 
+## The geometry seam
+
+Framework code speaks `core/geometry` types — `Pose2d`, `Vector2d`, the
+angle utilities — not Pedro's. Pedro geometry appears only in the adapter
+layer: `core/pathing/PedroConversions.kt` (the conversion site), `PathDSL`
+(builds Pedro paths from `Pose2d` waypoints), `MecanumDriveSubsystem`
+(whose `follower` is `internal`), the Pedro `Localizer` implementations,
+and the vendored `pedroPathing/` files. Observability code (`FieldView`,
+`FlightRecorder`) consumes the `PoseProvider` / `DriveTelemetrySource`
+interfaces instead of the drive class.
+
+Why: Pedro 1.x→2.x was a breaking rewrite, and this template is forked for
+years. With the seam, a Pedro version bump (or a follower swap) churns a
+handful of adapter files instead of every file that mentions a pose. It is
+also what makes a framework-owned pose estimator and replay tooling
+possible — they need geometry that isn't welded to the path follower.
+`Pose2dTest` includes a parity test pinning `Pose2d.mirror` to Pedro's
+`Pose.mirror` semantics.
+
 ## Why the Pedro Follower *is* the drivetrain
 
 `MecanumDriveSubsystem` does not own motors or compute powers. Pedro's

@@ -1,9 +1,10 @@
 package org.firstinspires.ftc.teamcode.core.util
 
 import com.bylazar.telemetry.TelemetryManager
-import com.pedropathing.geometry.Pose
 import java.util.Locale
 import org.firstinspires.ftc.robotcore.external.Telemetry
+import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
+import org.firstinspires.ftc.teamcode.core.geometry.Vector2d
 
 /**
  * Owns the per-tick telemetry buffer. One [TelemetryBag] is shared between
@@ -172,12 +173,13 @@ class TelemetryBag internal constructor(
         internal fun formatValue(value: Any?): String = when (value) {
             null -> "null"
             is FormattedDouble -> "%.${value.decimals}f".format(Locale.US, value.value)
-            is Pose -> "(%.2f, %.2f, %.1f°)".format(
+            is Pose2d -> "(%.2f, %.2f, %.1f°)".format(
                 Locale.US,
                 value.x,
                 value.y,
                 Math.toDegrees(value.heading),
             )
+            is Vector2d -> "(%.2f, %.2f)".format(Locale.US, value.x, value.y)
             is Double -> "%.3f".format(Locale.US, value)
             is Float -> "%.3f".format(Locale.US, value)
             else -> value.toString()

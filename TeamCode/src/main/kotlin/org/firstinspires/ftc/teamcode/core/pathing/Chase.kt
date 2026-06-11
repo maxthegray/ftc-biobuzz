@@ -1,9 +1,9 @@
 package org.firstinspires.ftc.teamcode.core.pathing
 
-import com.pedropathing.geometry.Pose
-import com.pedropathing.math.MathFunctions
 import org.firstinspires.ftc.teamcode.core.command.Command
 import org.firstinspires.ftc.teamcode.core.command.EndCondition
+import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
+import org.firstinspires.ftc.teamcode.core.geometry.shortestAngleDelta
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
 import kotlin.math.abs
 import kotlin.math.hypot
@@ -47,8 +47,8 @@ import kotlin.math.hypot
  */
 fun chaseTarget(
     drive: MecanumDriveSubsystem,
-    target: () -> Pose?,
-    done: (currentTarget: Pose?) -> Boolean = { false },
+    target: () -> Pose2d?,
+    done: (currentTarget: Pose2d?) -> Boolean = { false },
     reissueEpsilonInches: Double = 0.5,
     reissueHeadingEpsilonRadians: Double = Math.toRadians(5.0),
     onEnd: (EndCondition) -> Unit = { drive.breakPath() },
@@ -64,9 +64,9 @@ fun chaseTarget(
     // is observed (that's what `done` is contracted to receive), while
     // `holdSetpoint` is the pose we actually hold — seeded to the start pose so
     // the robot pins in place instead of drifting before the first fix.
-    var seenTarget: Pose? = null
-    var holdSetpoint: Pose? = null
-    var issued: Pose? = null
+    var seenTarget: Pose2d? = null
+    var holdSetpoint: Pose2d? = null
+    var issued: Pose2d? = null
 
     return Command.build()
         .setName("chase")
@@ -89,7 +89,7 @@ fun chaseTarget(
             val positionMoved = prev == null ||
                 hypot(setpoint.x - prev.x, setpoint.y - prev.y) >= reissueEpsilonInches
             val headingMoved = prev == null ||
-                abs(MathFunctions.getSmallestAngleDifference(setpoint.heading, prev.heading)) >=
+                abs(shortestAngleDelta(prev.heading, setpoint.heading)) >=
                     reissueHeadingEpsilonRadians
             if (positionMoved || headingMoved) {
                 drive.holdPose(setpoint)

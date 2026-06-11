@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.core.runtime
 
-import com.pedropathing.geometry.Pose
+import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import java.io.File
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -31,7 +31,7 @@ class PersistedPoseTest {
 
     @Test
     fun recordSurvivesAProcessRestart() {
-        PersistedPose.record(Pose(12.5, -3.25, 1.5))
+        PersistedPose.record(Pose2d(12.5, -3.25, 1.5))
         PersistedPose.forgetInMemoryForTest()
         assertFalse(PersistedPose.valid)
 
@@ -45,8 +45,8 @@ class PersistedPoseTest {
     }
 
     @Test
-    fun restoreDoesNotClobberALivePose() {
-        PersistedPose.record(Pose(1.0, 2.0, 3.0))
+    fun restoreDoesNotClobberALivePose2d() {
+        PersistedPose.record(Pose2d(1.0, 2.0, 3.0))
         tempFile.writeText("pose-v1 9.0 9.0 9.0 1")
 
         PersistedPose.restoreFromDiskIfNeeded()
@@ -56,7 +56,7 @@ class PersistedPoseTest {
 
     @Test
     fun clearRemovesTheDiskCopy() {
-        PersistedPose.record(Pose(1.0, 2.0, 3.0))
+        PersistedPose.record(Pose2d(1.0, 2.0, 3.0))
         assertTrue(tempFile.exists())
 
         PersistedPose.clear()

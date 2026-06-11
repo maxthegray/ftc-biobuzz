@@ -1,7 +1,7 @@
 package org.firstinspires.ftc.teamcode.opmodes
 
-import com.pedropathing.geometry.Pose
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous
+import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import org.firstinspires.ftc.teamcode.core.pathing.PedroAutoRunner
 import org.firstinspires.ftc.teamcode.core.pathing.autoRoutine
 import org.firstinspires.ftc.teamcode.core.pathing.path
@@ -32,8 +32,8 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants
 class ExampleAuto : OpModeBase() {
 
     // RED-coordinate poses. BLUE gets these mirrored automatically.
-    private val startRed = Pose(8.0, 56.0, 0.0)
-    private val outRed = Pose(32.0, 56.0, 0.0)
+    private val startRed = Pose2d(8.0, 56.0, 0.0)
+    private val outRed = Pose2d(32.0, 56.0, 0.0)
 
     private lateinit var drive: MecanumDriveSubsystem
     private lateinit var localizer: LocalizerSubsystem

@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode.core.logging
 
-import com.pedropathing.geometry.Pose
 import com.qualcomm.robotcore.util.RobotLog
 import java.io.BufferedOutputStream
 import java.io.File
@@ -9,8 +8,8 @@ import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import org.firstinspires.ftc.teamcode.core.runtime.DriveTelemetrySource
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
-import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx
 
 /**
@@ -33,7 +32,7 @@ class FlightRecorder private constructor(
 
     // Resolved once and reused: record() runs every tick, so no per-tick
     // subsystem filtering or array allocation.
-    private var driveSubsystem: MecanumDriveSubsystem? = null
+    private var driveSource: DriveTelemetrySource? = null
     private var driveResolved = false
     private val poseValues = DoubleArray(3)
     private val velocityValues = DoubleArray(3)
@@ -68,13 +67,13 @@ class FlightRecorder private constructor(
             if (!driveResolved) {
                 driveResolved = true
                 for (subsystem in robot.subsystems()) {
-                    if (subsystem is MecanumDriveSubsystem) {
-                        driveSubsystem = subsystem
+                    if (subsystem is DriveTelemetrySource) {
+                        driveSource = subsystem
                         break
                     }
                 }
             }
-            val drive = driveSubsystem
+            val drive = driveSource
             if (drive != null) {
                 val p = drive.pose
                 poseValues[0] = p.x
@@ -82,25 +81,23 @@ class FlightRecorder private constructor(
                 poseValues[2] = p.heading
                 writer.appendDoubleArray(pose, poseValues, ts)
                 val v = drive.velocity
-                velocityValues[0] = v.xComponent
-                velocityValues[1] = v.yComponent
-                velocityValues[2] = try { drive.follower.angularVelocity } catch (_: Throwable) { 0.0 }
+                velocityValues[0] = v.x
+                velocityValues[1] = v.y
+                val angular = drive.angularVelocityRadPerSec
+                velocityValues[2] = if (angular.isFinite()) angular else 0.0
                 writer.appendDoubleArray(velocity, velocityValues, ts)
-                writer.appendString(driveMode, drive.mode.name, ts)
-                if (drive.mode == MecanumDriveSubsystem.Mode.FOLLOWING ||
-                    drive.mode == MecanumDriveSubsystem.Mode.HOLDING
-                ) {
+                writer.appendString(driveMode, drive.driveModeName, ts)
+                if (drive.isPathing) {
                     // The follower's error terms answer "was the path bad or
-                    // did the PID oscillate?" — Pedro API access is guarded
-                    // so a library change degrades to missing channels.
-                    try {
-                        writer.appendDouble(
-                            followTranslationalError,
-                            drive.follower.translationalError.magnitude,
-                            ts,
-                        )
-                        writer.appendDouble(followHeadingError, drive.follower.headingError, ts)
-                    } catch (_: RuntimeException) {
+                    // did the PID oscillate?" — NaN means the source couldn't
+                    // read them; the channel just goes quiet.
+                    val translational = drive.followTranslationalErrorInches
+                    if (translational.isFinite()) {
+                        writer.appendDouble(followTranslationalError, translational, ts)
+                    }
+                    val headingErr = drive.followHeadingErrorRad
+                    if (headingErr.isFinite()) {
+                        writer.appendDouble(followHeadingError, headingErr, ts)
                     }
                 }
             }

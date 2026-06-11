@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.core.subsystems.localization
 
-import com.pedropathing.geometry.Pose
+import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -11,8 +11,8 @@ class PoseHistoryTest {
     @Test
     fun lookupInterpolatesBetweenSamples() {
         val history = PoseHistory(capacity = 4)
-        history.add(0L, Pose(0.0, 0.0, 0.0))
-        history.add(100L, Pose(10.0, 20.0, PI))
+        history.add(0L, Pose2d(0.0, 0.0, 0.0))
+        history.add(100L, Pose2d(10.0, 20.0, PI))
 
         val pose = history.lookup(50L)!!
 
@@ -24,8 +24,8 @@ class PoseHistoryTest {
     @Test
     fun lookupInterpolatesHeadingAcrossWrapByShortestAngle() {
         val history = PoseHistory(capacity = 4)
-        history.add(0L, Pose(0.0, 0.0, Math.toRadians(350.0)))
-        history.add(100L, Pose(0.0, 0.0, Math.toRadians(10.0)))
+        history.add(0L, Pose2d(0.0, 0.0, Math.toRadians(350.0)))
+        history.add(100L, Pose2d(0.0, 0.0, Math.toRadians(10.0)))
 
         val pose = history.lookup(50L)!!
 
@@ -35,9 +35,9 @@ class PoseHistoryTest {
     @Test
     fun lookupReturnsNullOutsideBufferedWindow() {
         val history = PoseHistory(capacity = 2)
-        history.add(0L, Pose(0.0, 0.0, 0.0))
-        history.add(10L, Pose(1.0, 0.0, 0.0))
-        history.add(20L, Pose(2.0, 0.0, 0.0))
+        history.add(0L, Pose2d(0.0, 0.0, 0.0))
+        history.add(10L, Pose2d(1.0, 0.0, 0.0))
+        history.add(20L, Pose2d(2.0, 0.0, 0.0))
 
         assertNull(history.lookup(0L))
         assertNull(history.lookup(30L))

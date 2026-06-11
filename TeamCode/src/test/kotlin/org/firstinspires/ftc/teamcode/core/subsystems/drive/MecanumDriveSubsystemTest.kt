@@ -7,6 +7,7 @@ import com.pedropathing.geometry.Pose
 import com.pedropathing.localization.Localizer
 import com.pedropathing.math.Vector
 import org.firstinspires.ftc.teamcode.core.command.CommandBuilder
+import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import org.firstinspires.ftc.teamcode.core.command.EndCondition
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.junit.Assert.assertEquals
@@ -75,7 +76,7 @@ class MecanumDriveSubsystemTest {
     fun holdCommandHoldsTheRequestedPoseIncludingHeading() {
         val follower = fakeFollower()
         val drive = MecanumDriveSubsystem(follower)
-        val target = Pose(10.0, 20.0, 1.5)
+        val target = Pose2d(10.0, 20.0, 1.5)
 
         drive.holdCommand(target).start()
 

@@ -1,22 +1,9 @@
 package org.firstinspires.ftc.teamcode.core.util
 
-import com.pedropathing.geometry.Pose
-import com.pedropathing.math.MathFunctions
+import org.firstinspires.ftc.teamcode.core.geometry.FieldSymmetry
+import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
+import org.firstinspires.ftc.teamcode.core.geometry.normalizeAngle
 import org.firstinspires.ftc.teamcode.core.runtime.RobotConfig
-
-/**
- * How the season's field maps RED coordinates onto BLUE. FTC alternates
- * between the two from game to game, so this is per-season configuration
- * ([RobotConfig.Field.SYMMETRY]) — using MIRROR in a rotationally symmetric
- * season silently produces wrong BLUE paths.
- */
-enum class FieldSymmetry {
-    /** Reflection across the field's vertical centerline: (L−x, y, π−h). */
-    MIRROR,
-
-    /** 180° rotation about the field center: (L−x, L−y, h+π). Assumes a square field. */
-    ROTATE,
-}
 
 /**
  * Alliance / starting-side selection. Used by auton to transform RED-coordinate
@@ -30,23 +17,13 @@ enum class Alliance {
 
     /**
      * Returns `pose` unchanged for RED; maps it onto the BLUE side per the
-     * season's field symmetry. MIRROR matches Pedro's `Pose.mirror(length)`.
+     * season's field symmetry.
      */
     fun mirror(
-        pose: Pose,
+        pose: Pose2d,
         symmetry: FieldSymmetry = RobotConfig.Field.SYMMETRY,
         fieldLength: Double = RobotConfig.Field.LENGTH_INCHES,
-    ): Pose {
-        if (this == RED) return pose
-        return when (symmetry) {
-            FieldSymmetry.MIRROR -> pose.mirror(fieldLength)
-            FieldSymmetry.ROTATE -> Pose(
-                fieldLength - pose.x,
-                fieldLength - pose.y,
-                MathFunctions.normalizeAngle(pose.heading + Math.PI),
-            )
-        }
-    }
+    ): Pose2d = if (this == RED) pose else pose.mirror(symmetry, fieldLength)
 
     /**
      * Transforms a bare heading the same way [mirror] does for a pose's
@@ -62,7 +39,7 @@ enum class Alliance {
         if (this == RED) return headingRadians
         return when (symmetry) {
             FieldSymmetry.MIRROR -> Math.PI - headingRadians
-            FieldSymmetry.ROTATE -> headingRadians + Math.PI
+            FieldSymmetry.ROTATE -> normalizeAngle(headingRadians + Math.PI)
         }
     }
 }

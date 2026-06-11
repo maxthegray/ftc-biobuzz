@@ -1,19 +1,19 @@
 package org.firstinspires.ftc.teamcode.core.subsystems.localization
 
 import com.pedropathing.follower.Follower
-import com.pedropathing.geometry.Pose
-import com.pedropathing.math.MathFunctions
-import com.pedropathing.math.Vector
 import com.qualcomm.robotcore.hardware.HardwareMap
 import java.util.Locale
 import kotlin.math.abs
-import kotlin.math.hypot
+import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
+import org.firstinspires.ftc.teamcode.core.geometry.Vector2d
+import org.firstinspires.ftc.teamcode.core.geometry.normalizeAngle
+import org.firstinspires.ftc.teamcode.core.geometry.shortestAngleDelta
+import org.firstinspires.ftc.teamcode.core.pathing.toCore
+import org.firstinspires.ftc.teamcode.core.pathing.toPedro
 import org.firstinspires.ftc.teamcode.core.runtime.PersistedPose
+import org.firstinspires.ftc.teamcode.core.runtime.PoseProvider
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.util.Clock
-import org.firstinspires.ftc.teamcode.core.util.composePose
-import org.firstinspires.ftc.teamcode.core.util.relativePose
-import org.firstinspires.ftc.teamcode.core.util.shortestHeadingDelta
 
 /**
  * Read-only façade over the [Follower]'s internal localizer, plus the
@@ -23,22 +23,21 @@ import org.firstinspires.ftc.teamcode.core.util.shortestHeadingDelta
  * wheels — configured in [org.firstinspires.ftc.teamcode.pedroPathing.Constants]).
  * This subsystem exists so higher-level code can query pose/velocity and
  * inject corrections without reaching into follower internals — and so that
- * `Ivy`-scheduled commands can declare a localisation requirement.
+ * scheduler commands can declare a localisation requirement.
  *
- * **Registration order matters:** register this *after* the drive subsystem.
- * The pose history is sampled in [writeHardware], immediately after
- * `MecanumDriveSubsystem.writeHardware()` runs `Follower.update()` — so each
- * sample carries the timestamp the pose was actually measured. Sampling in
- * `periodic()` would timestamp the *previous* tick's pose with this tick's
- * clock, skewing every latency-compensated correction by one loop period.
- *
- * Pose writes via [setPose] are always taken in Pedro coordinates.
+ * **Registration order matters:** register this *after* the drive subsystem
+ * (enforced by [registerAfter]). The pose history is sampled in
+ * [writeHardware], immediately after `MecanumDriveSubsystem.writeHardware()`
+ * runs `Follower.update()` — so each sample carries the timestamp the pose
+ * was actually measured. Sampling in `periodic()` would timestamp the
+ * *previous* tick's pose with this tick's clock, skewing every
+ * latency-compensated correction by one loop period.
  */
 class LocalizerSubsystem(
     private val follower: Follower,
     private val clock: Clock = Clock.SYSTEM,
     private val onEvent: (String) -> Unit = {},
-) : SubsystemBase("Localizer") {
+) : SubsystemBase("Localizer"), PoseProvider {
 
     /** Outcome of an [applyCorrection] attempt. Rejections are logged via the event sink. */
     enum class CorrectionResult {
@@ -70,18 +69,18 @@ class LocalizerSubsystem(
         // Not a hardware write — this runs here (after the drive subsystem's
         // Follower.update()) so the sample timestamp matches when the pose
         // was measured. See the class doc.
-        history.add(clock.nanos(), follower.pose)
+        history.add(clock.nanos(), follower.pose.toCore())
     }
 
-    val pose: Pose get() = follower.pose
-    val velocity: Vector get() = follower.velocity
+    override val pose: Pose2d get() = follower.pose.toCore()
+    override val velocity: Vector2d get() = follower.velocity.toCore()
 
-    fun setPose(p: Pose) {
-        follower.pose = p
+    fun setPose(p: Pose2d) {
+        follower.pose = p.toPedro()
     }
 
-    fun setStartingPose(p: Pose) {
-        follower.setStartingPose(p)
+    fun setStartingPose(p: Pose2d) {
+        follower.setStartingPose(p.toPedro())
     }
 
     /**
@@ -96,7 +95,7 @@ class LocalizerSubsystem(
         if (!PersistedPose.valid) return false
         val ageMs = System.currentTimeMillis() - PersistedPose.wallTimeMs
         if (ageMs < 0 || ageMs > maxAgeMs) return false
-        follower.setPose(Pose(PersistedPose.x, PersistedPose.y, PersistedPose.headingRad))
+        setPose(Pose2d(PersistedPose.x, PersistedPose.y, PersistedPose.headingRad))
         return true
     }
 
@@ -109,7 +108,7 @@ class LocalizerSubsystem(
      * the flight log shows why a correction didn't take.
      */
     fun applyCorrection(
-        measured: Pose,
+        measured: Pose2d,
         timestampNanos: Long,
         maxAgeNanos: Long = 500_000_000,
         blend: Double = LocalizerConfig.safeCorrectionBlend,
@@ -126,12 +125,12 @@ class LocalizerSubsystem(
             onEvent("pose correction rejected: timestamp outside pose history")
             return CorrectionResult.NO_HISTORY
         }
-        val current = follower.pose
-        val relative = relativePose(historical, current)
-        val corrected = composePose(measured, relative)
+        val current = pose
+        val motionSinceMeasurement = current.relativeTo(historical)
+        val corrected = measured.transformBy(motionSinceMeasurement)
 
-        val jumpInches = hypot(corrected.x - current.x, corrected.y - current.y)
-        val headingDelta = shortestHeadingDelta(current.heading, corrected.heading)
+        val jumpInches = corrected.distanceTo(current)
+        val headingDelta = shortestAngleDelta(current.heading, corrected.heading)
         if (jumpInches > maxJumpInches || abs(headingDelta) > maxJumpRadians) {
             onEvent(
                 "pose correction rejected: jump %.1f in / %.1f deg exceeds gate".format(
@@ -142,11 +141,11 @@ class LocalizerSubsystem(
         }
 
         val b = blend.coerceIn(0.0, 1.0)
-        follower.setPose(
-            Pose(
+        setPose(
+            Pose2d(
                 current.x + (corrected.x - current.x) * b,
                 current.y + (corrected.y - current.y) * b,
-                MathFunctions.normalizeAngle(current.heading + headingDelta * b),
+                normalizeAngle(current.heading + headingDelta * b),
             ),
         )
         onEvent(

@@ -3,18 +3,20 @@ package org.firstinspires.ftc.teamcode.core.logging
 import com.bylazar.field.FieldManager
 import com.bylazar.field.PanelsField
 import com.bylazar.field.Style
-import com.pedropathing.geometry.Pose
-import com.pedropathing.paths.Path
 import com.qualcomm.robotcore.util.RobotLog
-import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
+import kotlin.math.cos
+import kotlin.math.sin
+import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
+import org.firstinspires.ftc.teamcode.core.runtime.DriveTelemetrySource
 import org.firstinspires.ftc.teamcode.core.util.Clock
 
 /**
  * Live field view on the Panels dashboard for *real* op-modes (the upstream
  * Pedro `Tuning` op-mode draws its own): robot pose + heading every redraw,
- * plus the active path while the drive is FOLLOWING. This is the primary
+ * plus the active path while the drive is following. This is the primary
  * "where does the robot think it is" debugging surface during auton
- * development and matches.
+ * development and matches. Consumes [DriveTelemetrySource], so it never
+ * touches Pedro types directly.
  *
  * Redraws are throttled to [redrawIntervalMs] — pushing the field websocket
  * at loop rate is pure overhead. Drawing must never stop the robot: any
@@ -35,7 +37,7 @@ class FieldView(
     private val robotStyle = Style("", "#3F51B5", 0.75)
     private val pathStyle = Style("", "#4CAF50", 0.75)
 
-    fun draw(drive: MecanumDriveSubsystem?) {
+    fun draw(drive: DriveTelemetrySource?) {
         if (drive == null || failures >= MAX_FAILURES) return
         val now = clock.nanos()
         if (lastDrawNs != Long.MIN_VALUE && now - lastDrawNs < intervalNs) return
@@ -46,8 +48,8 @@ class FieldView(
                 it.setOffsets(PanelsField.presets.PEDRO_PATHING)
                 field = it
             }
-            if (drive.mode == MecanumDriveSubsystem.Mode.FOLLOWING) {
-                drawActivePath(manager, drive)
+            for (path in drive.currentPathPoses(PATH_SAMPLES)) {
+                drawPath(manager, path)
             }
             drawRobot(manager, drive.pose)
             manager.update()
@@ -62,49 +64,33 @@ class FieldView(
         }
     }
 
-    private fun drawActivePath(manager: FieldManager, drive: MecanumDriveSubsystem) {
-        val chain = drive.follower.currentPathChain
-        if (chain != null) {
-            for (i in 0 until chain.size()) drawPath(manager, chain.getPath(i))
-        } else {
-            drive.follower.currentPath?.let { drawPath(manager, it) }
-        }
-    }
-
-    private fun drawPath(manager: FieldManager, path: Path) {
-        // Sample the real curve instead of panelsDrawingPoints: that array is
-        // only a two-point approximation, which renders curves as chords.
+    private fun drawPath(manager: FieldManager, poses: List<Pose2d>) {
         // FieldManager.line() draws from the cursor but does not advance it,
         // so each segment re-anchors the cursor at the previous sample.
         manager.setStyle(pathStyle)
-        var prevX = Double.NaN
-        var prevY = Double.NaN
-        for (i in 0..PATH_SAMPLES) {
-            val pose = path.getPose(i.toDouble() / PATH_SAMPLES)
+        var prev: Pose2d? = null
+        for (pose in poses) {
             if (pose.x.isNaN() || pose.y.isNaN()) continue
-            if (!prevX.isNaN()) {
-                manager.moveCursor(prevX, prevY)
+            prev?.let {
+                manager.moveCursor(it.x, it.y)
                 manager.line(pose.x, pose.y)
             }
-            prevX = pose.x
-            prevY = pose.y
+            prev = pose
         }
     }
 
-    private fun drawRobot(manager: FieldManager, pose: Pose) {
+    private fun drawRobot(manager: FieldManager, pose: Pose2d) {
         if (pose.x.isNaN() || pose.y.isNaN() || pose.heading.isNaN()) return
 
         manager.setStyle(robotStyle)
         manager.moveCursor(pose.x, pose.y)
         manager.circle(ROBOT_RADIUS)
 
-        val heading = pose.headingAsUnitVector
-        heading.magnitude = heading.magnitude * ROBOT_RADIUS
-        val x1 = pose.x + heading.xComponent / 2.0
-        val y1 = pose.y + heading.yComponent / 2.0
+        val hx = cos(pose.heading) * ROBOT_RADIUS
+        val hy = sin(pose.heading) * ROBOT_RADIUS
         manager.setStyle(robotStyle)
-        manager.moveCursor(x1, y1)
-        manager.line(pose.x + heading.xComponent, pose.y + heading.yComponent)
+        manager.moveCursor(pose.x + hx / 2.0, pose.y + hy / 2.0)
+        manager.line(pose.x + hx, pose.y + hy)
     }
 
     private companion object {

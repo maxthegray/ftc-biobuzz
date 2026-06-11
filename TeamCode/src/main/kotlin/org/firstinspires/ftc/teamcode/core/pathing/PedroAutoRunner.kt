@@ -1,12 +1,12 @@
 package org.firstinspires.ftc.teamcode.core.pathing
 
-import com.pedropathing.geometry.Pose
 import com.pedropathing.paths.PathChain
 import org.firstinspires.ftc.teamcode.core.command.Command
 import org.firstinspires.ftc.teamcode.core.command.CommandBuilder
 import org.firstinspires.ftc.teamcode.core.command.Commands
 import org.firstinspires.ftc.teamcode.core.command.EndCondition
 import org.firstinspires.ftc.teamcode.core.command.Groups
+import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
@@ -65,7 +65,7 @@ class PedroAutoRunner(
         append("followAndHold", drive.followCommand(chain, holdEnd = true))
 
     /** Hold a fixed field pose (e.g. brake in place while mechanisms run). */
-    fun holdPose(pose: Pose): PedroAutoRunner =
+    fun holdPose(pose: Pose2d): PedroAutoRunner =
         append("holdPose", drive.holdCommand(pose))
 
     /** Turn in place to an absolute heading in radians. */
@@ -78,8 +78,8 @@ class PedroAutoRunner(
      * See [chaseTarget] for details.
      */
     fun chase(
-        target: () -> Pose?,
-        done: (currentTarget: Pose?) -> Boolean = { false },
+        target: () -> Pose2d?,
+        done: (currentTarget: Pose2d?) -> Boolean = { false },
         reissueEpsilonInches: Double = 0.5,
         reissueHeadingEpsilonRadians: Double = Math.toRadians(5.0),
         onEnd: (EndCondition) -> Unit = { drive.breakPath() },

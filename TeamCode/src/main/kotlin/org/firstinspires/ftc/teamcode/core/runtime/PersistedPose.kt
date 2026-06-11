@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode.core.runtime
 
-import com.pedropathing.geometry.Pose
 import dev.frozenmilk.sinister.loading.Pinned
 import java.io.File
 
@@ -8,7 +7,7 @@ import java.io.File
  * Small pinned pose handoff between op-modes.
  *
  * Only primitives live here so Sloth can keep this object resident across
- * hot reloads without retaining a stale Pedro class instance.
+ * hot reloads without retaining a stale geometry class instance.
  *
  * Every [record] is also mirrored to disk (best-effort), and
  * [restoreFromDiskIfNeeded] reads it back when the in-memory copy is empty —
@@ -35,7 +34,7 @@ object PersistedPose {
         private set
 
     /** Record the latest field pose for a later op-mode to restore. */
-    fun record(pose: Pose) {
+    fun record(pose: org.firstinspires.ftc.teamcode.core.geometry.Pose2d) {
         valid = true
         x = pose.x
         y = pose.y

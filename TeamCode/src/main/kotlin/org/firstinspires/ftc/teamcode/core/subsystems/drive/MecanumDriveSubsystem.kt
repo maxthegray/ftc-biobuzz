@@ -2,9 +2,6 @@ package org.firstinspires.ftc.teamcode.core.subsystems.drive
 
 import com.pedropathing.follower.Follower
 import com.pedropathing.geometry.BezierPoint
-import com.pedropathing.geometry.Pose
-import com.pedropathing.math.MathFunctions
-import com.pedropathing.math.Vector
 import com.pedropathing.paths.HeadingInterpolator
 import com.pedropathing.paths.Path
 import com.pedropathing.paths.PathChain
@@ -13,7 +10,13 @@ import java.util.Locale
 import org.firstinspires.ftc.teamcode.core.command.Command
 import org.firstinspires.ftc.teamcode.core.command.CommandBuilder
 import org.firstinspires.ftc.teamcode.core.command.EndCondition
+import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
+import org.firstinspires.ftc.teamcode.core.geometry.Vector2d
+import org.firstinspires.ftc.teamcode.core.geometry.shortestAngleDelta
+import org.firstinspires.ftc.teamcode.core.pathing.toCore
+import org.firstinspires.ftc.teamcode.core.pathing.toPedro
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
+import org.firstinspires.ftc.teamcode.core.runtime.DriveTelemetrySource
 import org.firstinspires.ftc.teamcode.core.runtime.PersistedPose
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import kotlin.math.abs
@@ -38,7 +41,8 @@ import kotlin.math.abs
  * Conflicting callers should declare `requiring(driveSubsystem)` on their
  * command so the scheduler arbitrates.
  */
-class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
+class MecanumDriveSubsystem(internal val follower: Follower) :
+    SubsystemBase("Drive"), DriveTelemetrySource {
 
     enum class Mode { IDLE, TELEOP, FOLLOWING, HOLDING }
 
@@ -101,7 +105,7 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
      * Raw, unscaled drive command for tuning and drivetrain bring-up only.
      *
      * Normal op-modes should use [teleopCommand], which applies driver-feel
-     * scaling and participates in Ivy's requirement arbitration.
+     * scaling and participates in the scheduler's requirement arbitration.
      */
     fun driveRaw(forward: Double, strafe: Double, turn: Double, robotCentric: Boolean) {
         follower.setTeleOpDrive(forward, strafe, turn, robotCentric)
@@ -134,8 +138,8 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
     }
 
     /** Pin the follower to hold a field pose, typically called at the end of an auton leg. */
-    internal fun holdPose(pose: Pose) {
-        follower.holdPoint(pose)
+    internal fun holdPose(pose: Pose2d) {
+        follower.holdPoint(pose.toPedro())
         modeAfterFollow = Mode.HOLDING
         mode = Mode.HOLDING
     }
@@ -159,11 +163,11 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
      * [Follower.holdPoint], so both [holdPose] and this command agree. Done
      * once the follower is within its configured path constraints.
      */
-    fun holdCommand(pose: Pose): Command =
+    fun holdCommand(pose: Pose2d): Command =
         trackDriveMode(
             Command.build()
                 .setName("hold (%.1f, %.1f)".format(Locale.US, pose.x, pose.y))
-                .setStart { follower.holdPoint(pose) }
+                .setStart { follower.holdPoint(pose.toPedro()) }
                 .setDone {
                     follower.translationalError.magnitude < follower.constraints.translationalConstraint &&
                         abs(follower.headingError) < follower.constraints.headingConstraint
@@ -223,23 +227,70 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
             }
         }
 
-    val pose: Pose get() = follower.pose
-    val velocity: Vector get() = follower.velocity
+    override val pose: Pose2d get() = follower.pose.toCore()
+    override val velocity: Vector2d get() = follower.velocity.toCore()
 
     /** True while Pedro is actively following a path. */
     val isFollowing: Boolean get() = follower.isBusy
 
     /** True if the robot is actually moving faster than [DriveConfig.stoppedVelocityThreshold]. */
     val isMoving: Boolean
-        get() = follower.velocity.magnitude >= DriveConfig.safeStoppedVelocityThreshold
+        get() = velocity.magnitude >= DriveConfig.safeStoppedVelocityThreshold
 
     /** Checks whether the robot is within the configured hold tolerance of a target pose. */
-    fun atPose(target: Pose): Boolean {
+    fun atPose(target: Pose2d): Boolean {
         val current = pose
         return abs(target.x - current.x) < DriveConfig.safeHoldToleranceInches &&
             abs(target.y - current.y) < DriveConfig.safeHoldToleranceInches &&
-            MathFunctions.getSmallestAngleDifference(target.heading, current.heading) <
+            abs(shortestAngleDelta(current.heading, target.heading)) <
                 DriveConfig.safeHoldToleranceRadians
+    }
+
+    // ------------------------------------------------- DriveTelemetrySource
+
+    override val driveModeName: String get() = mode.name
+
+    override val isPathing: Boolean
+        get() = mode == Mode.FOLLOWING || mode == Mode.HOLDING
+
+    override val angularVelocityRadPerSec: Double
+        get() = try {
+            follower.angularVelocity
+        } catch (_: Throwable) {
+            Double.NaN
+        }
+
+    override val followTranslationalErrorInches: Double
+        get() = if (!isPathing) Double.NaN else try {
+            follower.translationalError.magnitude
+        } catch (_: Throwable) {
+            Double.NaN
+        }
+
+    override val followHeadingErrorRad: Double
+        get() = if (!isPathing) Double.NaN else try {
+            follower.headingError
+        } catch (_: Throwable) {
+            Double.NaN
+        }
+
+    override fun currentPathPoses(samplesPerPath: Int): List<List<Pose2d>> {
+        if (mode != Mode.FOLLOWING) return emptyList()
+        return try {
+            val chain = follower.currentPathChain
+            val paths: List<Path> = if (chain != null) {
+                (0 until chain.size()).map { chain.getPath(it) }
+            } else {
+                listOfNotNull(follower.currentPath)
+            }
+            paths.map { path ->
+                (0..samplesPerPath).map { i ->
+                    path.getPose(i.toDouble() / samplesPerPath).toCore()
+                }
+            }
+        } catch (_: Throwable) {
+            emptyList()
+        }
     }
 
     override fun periodic() {
@@ -255,7 +306,7 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
     }
 
     override fun persistState() {
-        PersistedPose.record(follower.pose)
+        PersistedPose.record(pose)
     }
 
     override fun health(): String = "mode=$mode"

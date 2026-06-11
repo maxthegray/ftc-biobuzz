@@ -1,7 +1,9 @@
 package org.firstinspires.ftc.teamcode.core.sim
 
-import com.pedropathing.geometry.Pose
+import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
+import org.firstinspires.ftc.teamcode.core.geometry.normalizeAngleSigned
 import org.firstinspires.ftc.teamcode.core.pathing.PedroAutoRunner
+import org.firstinspires.ftc.teamcode.core.pathing.toPedro
 import org.firstinspires.ftc.teamcode.core.pathing.autoRoutine
 import org.firstinspires.ftc.teamcode.core.pathing.path
 import org.firstinspires.ftc.teamcode.core.runtime.PersistedPose
@@ -23,8 +25,8 @@ import org.junit.Test
  */
 class SimAutonRoutineTest {
 
-    private val startRed = Pose(8.0, 56.0, 0.0)
-    private val outRed = Pose(32.0, 56.0, 0.0)
+    private val startRed = Pose2d(8.0, 56.0, 0.0)
+    private val outRed = Pose2d(32.0, 56.0, 0.0)
 
     @Before
     fun setUp() {
@@ -51,7 +53,7 @@ class SimAutonRoutineTest {
             lineTo(startRed)
             linearHeading(Math.toRadians(90.0), 0.0)
         }
-        sim.follower.setStartingPose(alliance.mirror(startRed))
+        sim.follower.setStartingPose(alliance.mirror(startRed).toPedro())
         return autoRoutine(sim.robot, sim.drive, onEvent) {
             follow(outPath)
             holdPose(alliance.mirror(outRed))
@@ -143,13 +145,13 @@ class SimAutonRoutineTest {
         assertPose(startRed, teleop.drive.pose)
     }
 
-    private fun assertPose(expected: Pose, actual: Pose, tolerance: Double = 1e-3) {
+    private fun assertPose(expected: Pose2d, actual: Pose2d, tolerance: Double = 1e-3) {
         assertEquals("x", expected.x, actual.x, tolerance)
         assertEquals("y", expected.y, actual.y, tolerance)
         assertEquals(
             "heading",
             0.0,
-            com.pedropathing.math.MathFunctions.normalizeAngleSigned(expected.heading - actual.heading),
+            normalizeAngleSigned(expected.heading - actual.heading),
             tolerance,
         )
     }
