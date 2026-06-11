@@ -145,6 +145,69 @@ class SimAutonRoutineTest {
         assertPose(startRed, teleop.drive.pose)
     }
 
+    @Test
+    fun progressMarkersFireMidPath() {
+        val sim = SimHarness()
+        sim.start()
+        val outPath = sim.drive.path(startPose = startRed, alliance = Alliance.RED) {
+            lineTo(outRed)
+            constantHeading(0.0)
+        }
+        sim.follower.setStartingPose(startRed.toPedro())
+        var fires = 0
+        var markerPose: Pose2d? = null
+        val events = mutableListOf<String>()
+        val runner = autoRoutine(sim.robot, sim.drive, { events += it }) {
+            follow(outPath) {
+                at(0.5, "halfway") {
+                    fires++
+                    markerPose = sim.drive.pose
+                }
+            }
+        }
+        runner.schedule()
+
+        assertTrue(sim.runUntil(10.0) { runner.isDone })
+
+        assertEquals(1, fires)
+        val x = markerPose!!.x
+        assertTrue(
+            "marker should fire mid-path, fired at x=$x",
+            x > startRed.x + 6.0 && x < outRed.x - 4.0,
+        )
+        assertTrue(events.any { it.startsWith("halfway @ 50%") })
+        assertTrue(events.any { "follow+markers(1)" in it })
+        // The drive still finishes the path normally.
+        assertPose(outRed, sim.drive.pose, tolerance = 1.0)
+    }
+
+    @Test
+    fun unreachedMarkersAreDroppedWhenTheRoutineIsCancelled() {
+        val sim = SimHarness()
+        sim.start()
+        val outPath = sim.drive.path(startPose = startRed, alliance = Alliance.RED) {
+            lineTo(outRed)
+            constantHeading(0.0)
+        }
+        sim.follower.setStartingPose(startRed.toPedro())
+        var fired = false
+        val runner = autoRoutine(sim.robot, sim.drive) {
+            follow(outPath) {
+                at(0.95, "late") { fired = true }
+            }
+        }
+        runner.schedule()
+
+        assertTrue(sim.runUntil(5.0) { sim.drive.mode == MecanumDriveSubsystem.Mode.FOLLOWING })
+        repeat(3) { sim.tick() }
+        runner.cancel()
+        sim.tick()
+
+        assertTrue(runner.isDone)
+        assertFalse("a marker the path never reached must not fire", fired)
+        assertEquals(MecanumDriveSubsystem.Mode.IDLE, sim.drive.mode)
+    }
+
     private fun assertPose(expected: Pose2d, actual: Pose2d, tolerance: Double = 1e-3) {
         assertEquals("x", expected.x, actual.x, tolerance)
         assertEquals("y", expected.y, actual.y, tolerance)

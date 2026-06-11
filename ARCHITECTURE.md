@@ -279,6 +279,16 @@ follower error stats, contained faults, pose-correction accept/reject
 counts, and the event timeline. `RUNBOOK.md` maps match-day symptoms to
 these channels.
 
+## Auton step markers
+
+`PedroAutoRunner.follow(chain) { at(t) { … } }` attaches progress markers
+to a follow: each fires once when `MecanumDriveSubsystem.pathProgress()`
+(0..1 across the whole chain, from Pedro's path number + t-value) crosses
+its threshold, emits a labelled flight-log event, and unfired markers are
+interrupted when the follow ends — the group is a `deadline` with the
+follow as the deadline child. `SimFollower` emulates the progress surface,
+so marker timing is testable headless.
+
 ## Headless simulation
 
 `core/sim/` (test sources) runs entire auton routines in JUnit:

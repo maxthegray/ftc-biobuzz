@@ -408,9 +408,26 @@ for the heading-interpolation arguments; pose mirroring alone doesn't
 cover them.
 
 `ExampleAuto` is the copyable skeleton: `AutonSelector` on dpad in the
-init loop (A to lock), RED-coordinate poses mirrored by the DSL, routine
-built at start from the locked alliance, sequenced with `autoRoutine`,
-final pose persisted automatically for teleop to restore.
+init loop (A to lock; the last locked selection persists to disk and
+restores as the unlocked default after a re-init), RED-coordinate poses
+mirrored by the DSL, routine built at start from the locked alliance,
+sequenced with `autoRoutine`, final pose persisted automatically for
+teleop to restore.
+
+Mid-path actions use progress markers instead of parallel/waitUntil
+contortions:
+
+```kotlin
+follow(toScore) {
+    at(0.3) { lift.setGoal(HIGH) }          // fires once at 30% of the chain
+    at(0.85, "deploy") { intake.deploy() }  // label shows in the flight log
+}
+```
+
+Markers ride `drive.pathProgress()` (0..1 across the whole chain), fire
+through completion, and are dropped if the path never reaches them
+(deadline semantics). They work in the sim — `SimFollower` emulates
+progress.
 
 ## Things not to do unless explicitly asked
 

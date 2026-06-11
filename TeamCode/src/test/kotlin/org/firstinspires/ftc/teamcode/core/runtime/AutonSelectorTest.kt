@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.core.runtime
 
 import com.qualcomm.robotcore.hardware.Gamepad
 import com.qualcomm.robotcore.hardware.HardwareMap
+import java.io.File
 import org.firstinspires.ftc.teamcode.core.util.Alliance
 import org.firstinspires.ftc.teamcode.core.util.FakeClock
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx
@@ -25,10 +26,24 @@ class AutonSelectorTest {
     private val robot = Robot(HardwareMap(null, null), clock)
     private val raw = Gamepad()
     private val driver = GamepadEx(raw, robot.scheduler)
-    private val selector = AutonSelector(
-        robot,
-        TelemetryBag(listOf(FakeSink()), transmitIntervalMs = 0.0, clock = clock),
-    )
+    private val bag = TelemetryBag(listOf(FakeSink()), transmitIntervalMs = 0.0, clock = clock)
+    private val selector by lazy { AutonSelector(robot, bag) }
+
+    private lateinit var tempFile: File
+    private var originalFile: File? = null
+
+    @org.junit.Before
+    fun setUp() {
+        tempFile = File.createTempFile("auton-selection", ".txt").also { it.delete() }
+        originalFile = AutonSelector.storageFile
+        AutonSelector.storageFile = tempFile
+    }
+
+    @org.junit.After
+    fun tearDown() {
+        AutonSelector.storageFile = originalFile
+        tempFile.delete()
+    }
 
     @Test
     fun allianceWritesThroughToRobotBeforeLock() {
@@ -90,5 +105,47 @@ class AutonSelectorTest {
     private fun tick() {
         driver.update(pollTriggers = false)
         selector.update(driver)
+    }
+
+    @Test
+    fun lockedSelectionPersistsAndRestoresAsUnlockedDefault() {
+        selector
+            .register("one") { throw SelectedRoutine("one") }
+            .register("two") { throw SelectedRoutine("two") }
+
+        pressRight() // BLUE
+        pressDown()
+        pressRight() // routine "two"
+        pressDown()
+        pressRight() // delay 1
+        pressA()
+        assertTrue(tempFile.exists())
+
+        // "Re-init": fresh selector restores the locked choices as defaults…
+        val restored = AutonSelector(robot, bag)
+            .register("one") { throw SelectedRoutine("one") }
+            .register("two") { throw SelectedRoutine("two") }
+        assertEquals(Alliance.BLUE, restored.selectedAlliance)
+        assertEquals("two", restored.selectedRoutineName)
+        assertEquals(1, restored.startDelaySec)
+        // …but unlocked: A still has to confirm.
+        assertTrue(!restored.isLocked)
+    }
+
+    @Test
+    fun restoredRoutineIndexClampsToRegisteredRoutines() {
+        tempFile.writeText("auton-v1 RED 5 0")
+        val restored = AutonSelector(robot, bag)
+            .register("only") { throw SelectedRoutine("only") }
+        assertEquals("only", restored.selectedRoutineName)
+    }
+
+    @Test
+    fun corruptSelectionFileIsIgnored() {
+        tempFile.writeText("garbage")
+        val restored = AutonSelector(robot, bag)
+            .register("only") { throw SelectedRoutine("only") }
+        assertEquals(Alliance.RED, restored.selectedAlliance)
+        assertEquals(0, restored.startDelaySec)
     }
 }

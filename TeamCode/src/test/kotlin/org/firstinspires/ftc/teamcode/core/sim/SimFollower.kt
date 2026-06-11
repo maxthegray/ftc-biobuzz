@@ -51,6 +51,10 @@ class SimFollower(
     private var holdEndAfterLegs = false
     private var holding: Pose? = null
     private var busyState = false
+    private var activeChain: PathChain? = null
+    private var totalLegs = 0
+    private var completedLegs = 0
+    private var currentLegStartDistance = -1.0
     private var teleop = false
     private var teleopForward = 0.0
     private var teleopStrafe = 0.0
@@ -84,6 +88,8 @@ class SimFollower(
         }
         holdEndAfterLegs = holdEnd
         busyState = legs.isNotEmpty()
+        activeChain = pathChain
+        totalLegs = legs.size
     }
 
     override fun followPath(pathChain: PathChain, holdEnd: Boolean) =
@@ -96,6 +102,7 @@ class SimFollower(
         legs += targetOf(path)
         holdEndAfterLegs = holdEnd
         busyState = true
+        totalLegs = 1
     }
 
     override fun followPath(path: Path) = followPath(path, false)
@@ -121,6 +128,27 @@ class SimFollower(
     }
 
     override fun isBusy(): Boolean = busyState
+
+    // ------------------------------------------------------------- progress
+    // The exact base-Follower surface MecanumDriveSubsystem.pathProgress()
+    // reads, emulated so progress markers are sim-testable. The per-leg
+    // parameter approximates Pedro's t-value with travelled-distance
+    // fraction — fine for marker logic, not for control.
+
+    override fun getCurrentPathChain(): PathChain? = activeChain
+
+    override fun getCurrentPathNumber(): Double =
+        completedLegs.coerceAtMost((totalLegs - 1).coerceAtLeast(0)).toDouble()
+
+    override fun getCurrentTValue(): Double {
+        if (totalLegs == 0) return 0.0
+        if (legs.isEmpty()) return 1.0
+        val start = currentLegStartDistance
+        if (start <= 1e-9) return 0.0
+        val target = legs.first()
+        val remaining = hypot(target.x - poseState.x, target.y - poseState.y)
+        return (1.0 - remaining / start).coerceIn(0.0, 1.0)
+    }
 
     // ----------------------------------------------------------------- teleop
 
@@ -167,9 +195,15 @@ class SimFollower(
         val before = poseState
         when {
             busyState && legs.isNotEmpty() -> {
+                if (currentLegStartDistance < 0.0) {
+                    val target = legs.first()
+                    currentLegStartDistance = hypot(target.x - poseState.x, target.y - poseState.y)
+                }
                 moveToward(legs.first(), dtSeconds)
                 if (arrived(legs.first())) {
                     val finished = legs.removeFirst()
+                    completedLegs++
+                    currentLegStartDistance = -1.0
                     if (legs.isEmpty()) {
                         busyState = false
                         if (holdEndAfterLegs) holding = finished
@@ -257,6 +291,10 @@ class SimFollower(
         teleopForward = 0.0
         teleopStrafe = 0.0
         teleopTurn = 0.0
+        activeChain = null
+        totalLegs = 0
+        completedLegs = 0
+        currentLegStartDistance = -1.0
     }
 }
 

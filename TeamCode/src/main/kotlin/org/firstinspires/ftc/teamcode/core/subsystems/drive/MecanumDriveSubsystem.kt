@@ -274,6 +274,27 @@ class MecanumDriveSubsystem(internal val follower: Follower) :
             Double.NaN
         }
 
+    /**
+     * Progress through the path chain currently being followed, 0..1 across
+     * the whole chain (a 3-path chain at the middle of path 2 reads ~0.5).
+     * Reads 1.0 once the follow has completed (or while HOLDING), 0.0 when
+     * idle or in teleop. Drives the auto runner's `at(progress)` markers.
+     */
+    fun pathProgress(): Double {
+        when (mode) {
+            Mode.FOLLOWING -> {}
+            Mode.HOLDING -> return 1.0
+            else -> return 0.0
+        }
+        if (!follower.isBusy) return 1.0
+        return try {
+            val size = follower.currentPathChain?.size() ?: 1
+            ((follower.currentPathNumber + follower.currentTValue) / size).coerceIn(0.0, 1.0)
+        } catch (_: Throwable) {
+            0.0
+        }
+    }
+
     override fun currentPathPoses(samplesPerPath: Int): List<List<Pose2d>> {
         if (mode != Mode.FOLLOWING) return emptyList()
         return try {

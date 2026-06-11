@@ -64,6 +64,62 @@ class PedroAutoRunner(
     fun followAndHold(chain: PathChain): PedroAutoRunner =
         append("followAndHold", drive.followCommand(chain, holdEnd = true))
 
+    /**
+     * Follow [chain] with progress markers: each `at(t) { … }` action fires
+     * once when [MecanumDriveSubsystem.pathProgress] crosses `t` (0..1 over
+     * the whole chain). The step completes when the follow does; markers the
+     * path never reached are dropped (e.g. when the routine is cancelled
+     * mid-path).
+     *
+     * ```kotlin
+     * follow(toScore) {
+     *     at(0.3) { lift.setGoal(HIGH) }
+     *     at(0.85, "deploy") { intake.deploy() }
+     * }
+     * ```
+     */
+    fun follow(chain: PathChain, markers: MarkerScope.() -> Unit): PedroAutoRunner =
+        followWithMarkers(drive.followCommand(chain, holdEnd = false), "follow", markers)
+
+    /** [follow]-with-markers, holding the end pose once the path completes. */
+    fun followAndHold(chain: PathChain, markers: MarkerScope.() -> Unit): PedroAutoRunner =
+        followWithMarkers(drive.followCommand(chain, holdEnd = true), "followAndHold", markers)
+
+    /** Receiver for the marker blocks of [follow] / [followAndHold]. */
+    inner class MarkerScope internal constructor() {
+        internal val markers = mutableListOf<Command>()
+
+        /** Run [action] once, when chain progress first reaches [progress]. */
+        fun at(progress: Double, label: String = "marker", action: () -> Unit) {
+            require(progress in 0.0..1.0) { "marker progress must be in 0..1, got $progress" }
+            val fire = {
+                onEvent?.invoke("$label @ %.0f%%".format(java.util.Locale.US, progress * 100))
+                action()
+            }
+            markers += Groups.sequential(
+                Commands.waitUntil { drive.pathProgress() >= progress }
+                    .setName("until $progress"),
+                Commands.instant(fire).setName(label),
+            ).setName("$label@$progress")
+        }
+    }
+
+    private fun followWithMarkers(
+        followCommand: Command,
+        label: String,
+        block: MarkerScope.() -> Unit,
+    ): PedroAutoRunner {
+        requireMutable()
+        val scope = MarkerScope().apply(block)
+        if (scope.markers.isEmpty()) return append(label, followCommand)
+        // Deadline semantics: the follow is the deadline; unfired markers are
+        // interrupted the moment it completes (or the routine is cancelled).
+        return append(
+            "$label+markers(${scope.markers.size})",
+            Groups.deadline(followCommand, *scope.markers.toTypedArray()),
+        )
+    }
+
     /** Hold a fixed field pose (e.g. brake in place while mechanisms run). */
     fun holdPose(pose: Pose2d): PedroAutoRunner =
         append("holdPose", drive.holdCommand(pose))
