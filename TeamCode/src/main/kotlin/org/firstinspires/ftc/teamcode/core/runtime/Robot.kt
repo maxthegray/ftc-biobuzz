@@ -194,16 +194,16 @@ class Robot(
         var phaseStart = clock.nanos()
 
         bulkRead.clearCaches()
-        phaseStart = mark(phaseStart) { profile.clearCachesNanos = it }
+        phaseStart = mark(phaseStart) { profile[LoopPhase.CLEAR_CACHES] = it }
 
         for (s in subsystems) s.periodic()
-        phaseStart = mark(phaseStart) { profile.periodicNanos = it }
+        phaseStart = mark(phaseStart) { profile[LoopPhase.PERIODIC] = it }
 
         commandPhase { input() }
-        phaseStart = mark(phaseStart) { profile.inputNanos = it }
+        phaseStart = mark(phaseStart) { profile[LoopPhase.INPUT] = it }
 
         control()
-        phaseStart = mark(phaseStart) { profile.controlNanos = it }
+        phaseStart = mark(phaseStart) { profile[LoopPhase.CONTROL] = it }
 
         commandPhase {
             for (s in subsystems) {
@@ -220,18 +220,18 @@ class Robot(
             }
             scheduler.execute()
         }
-        phaseStart = mark(phaseStart) { profile.schedulerNanos = it }
+        phaseStart = mark(phaseStart) { profile[LoopPhase.SCHEDULER] = it }
 
         for (s in subsystems) s.writeHardware()
-        phaseStart = mark(phaseStart) { profile.writeHardwareNanos = it }
+        phaseStart = mark(phaseStart) { profile[LoopPhase.WRITE_HARDWARE] = it }
 
         telemetry()
         val afterTelemetry = clock.nanos()
-        profile.telemetryNanos = afterTelemetry - phaseStart
+        profile[LoopPhase.TELEMETRY] = afterTelemetry - phaseStart
 
         val recorder = flightRecorder
         if (recorder == null) {
-            profile.recordNanos = 0
+            profile[LoopPhase.RECORD] = 0
         } else {
             // Measure twice on purpose: the first reading is what gets logged
             // (the recorder can't time its own final write), the second adds
@@ -239,7 +239,7 @@ class Robot(
             val recordStart = clock.nanos()
             recorder.record(this)
             recorder.recordRecorderNanos(clock.nanos() - recordStart)
-            profile.recordNanos = clock.nanos() - recordStart
+            profile[LoopPhase.RECORD] = clock.nanos() - recordStart
         }
         val now = clock.nanos()
 

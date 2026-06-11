@@ -132,6 +132,8 @@ Every op-mode writes a WPILOG flight-recorder file under
 ## Further reading
 
 - Architecture decisions and lifecycle timing: [ARCHITECTURE.md](ARCHITECTURE.md)
+- Writing season code on the framework: [SEASON-GUIDE.md](SEASON-GUIDE.md)
+- Competition symptom → log channel triage: [RUNBOOK.md](RUNBOOK.md)
 - Robot bring-up checklist: [BRINGUP.md](BRINGUP.md)
 - Season fork guide: [FORKING.md](FORKING.md)
 - Guidance for AI-assisted edits: [CLAUDE.md](CLAUDE.md)

@@ -383,6 +383,8 @@ for). Don't pin config objects.
 
 ## When the user asks you to add a subsystem
 
+(SEASON-GUIDE.md has the full worked example with the same contract.)
+
 For a single profiled motor (lift, arm, turret), extend or instantiate
 `ProfiledMotorSubsystem` instead of hand-rolling the control loop — it
 already implements the lifecycle below plus profile + PIDF + hold-at-goal.

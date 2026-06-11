@@ -9,6 +9,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import org.firstinspires.ftc.teamcode.core.runtime.DriveTelemetrySource
+import org.firstinspires.ftc.teamcode.core.runtime.LoopPhase
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx
 
@@ -46,14 +47,9 @@ class FlightRecorder private constructor(
     private val gamepad2Axes = writer.startEntry("gamepad2/axes", "double[]")
     private val gamepad2Buttons = writer.startEntry("gamepad2/buttons", "int64")
     private val loopTotal = writer.startEntry("loop/totalNanos", "int64")
-    private val loopClear = writer.startEntry("loop/clearCachesNanos", "int64")
-    private val loopPeriodic = writer.startEntry("loop/periodicNanos", "int64")
-    private val loopInput = writer.startEntry("loop/inputNanos", "int64")
-    private val loopControl = writer.startEntry("loop/controlNanos", "int64")
-    private val loopScheduler = writer.startEntry("loop/schedulerNanos", "int64")
-    private val loopWrite = writer.startEntry("loop/writeHardwareNanos", "int64")
-    private val loopTelemetry = writer.startEntry("loop/telemetryNanos", "int64")
-    private val loopRecord = writer.startEntry("loop/recordNanos", "int64")
+    private val loopPhaseEntries = IntArray(LoopPhase.entries.size) { i ->
+        writer.startEntry("loop/${'$'}{LoopPhase.entries[i].label}Nanos", "int64")
+    }
     private val battery = writer.startEntry("battery", "double")
     private val runningCommands = writer.startEntry("commands/running", "string")
     private val events = writer.startEntry("events", "string")
@@ -142,13 +138,12 @@ class FlightRecorder private constructor(
             writeGamepad(gamepad2(), gamepad2Axes, gamepad2Buttons, ts)
             val p = robot.profile
             writer.appendInt64(loopTotal, p.totalNanos, ts)
-            writer.appendInt64(loopClear, p.clearCachesNanos, ts)
-            writer.appendInt64(loopPeriodic, p.periodicNanos, ts)
-            writer.appendInt64(loopInput, p.inputNanos, ts)
-            writer.appendInt64(loopControl, p.controlNanos, ts)
-            writer.appendInt64(loopScheduler, p.schedulerNanos, ts)
-            writer.appendInt64(loopWrite, p.writeHardwareNanos, ts)
-            writer.appendInt64(loopTelemetry, p.telemetryNanos, ts)
+            for (phase in LoopPhase.entries) {
+                // RECORD is written by recordRecorderNanos after this call —
+                // the recorder can't time its own final write.
+                if (phase == LoopPhase.RECORD) continue
+                writer.appendInt64(loopPhaseEntries[phase.ordinal], p[phase], ts)
+            }
             batteryVoltage()?.takeIf { it.isFinite() }?.let {
                 writer.appendDouble(battery, it, ts)
             }
@@ -178,7 +173,7 @@ class FlightRecorder private constructor(
     fun recordRecorderNanos(recordNanos: Long) {
         if (!enabled) return
         guard {
-            writer.appendInt64(loopRecord, recordNanos, timestampUs())
+            writer.appendInt64(loopPhaseEntries[LoopPhase.RECORD.ordinal], recordNanos, timestampUs())
         }
     }
 

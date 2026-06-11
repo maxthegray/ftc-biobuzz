@@ -3,99 +3,50 @@ package org.firstinspires.ftc.teamcode.core.runtime
 import kotlin.math.max
 
 /**
+ * The named phases of [Robot.loop], in execution order. [label] is the
+ * telemetry/WPILOG name stem (`loop/<label>Nanos`, `<label> ms`).
+ */
+enum class LoopPhase(val label: String) {
+    CLEAR_CACHES("clearCaches"),
+    PERIODIC("periodic"),
+    INPUT("input"),
+    CONTROL("control"),
+    SCHEDULER("scheduler"),
+    WRITE_HARDWARE("writeHardware"),
+    TELEMETRY("telemetry"),
+    RECORD("record"),
+}
+
+/**
  * Per-tick breakdown of where [Robot.loop] spends its time. One instance is
  * owned by [Robot] and overwritten in place every tick — no per-loop
- * allocation. Latest durations and rolling maxima are nanoseconds.
+ * allocation. Latest durations and rolling maxima are nanoseconds, indexed
+ * by [LoopPhase].
  *
- * The named phase fields sum to the time spent *inside* [Robot.loop]; the
+ * The phase durations sum to the time spent *inside* [Robot.loop]; the
  * remainder up to [totalNanos] is [overheadNanos] — loop dispatch and
  * whatever the FTC event loop steals between ticks.
  *
  * This exists to answer "which phase owns the loop time?" with data instead
  * of guesswork. Surface it via telemetry while diagnosing loop speed; ignore
- * it once the loop is healthy. The latest fields show the most recent tick;
- * max fields retain spikes until telemetry publishes them.
+ * it once the loop is healthy. Latest values show the most recent tick;
+ * maxima retain spikes until telemetry publishes them ([resetMaxima]).
  */
 class LoopProfile {
-    /** Lynx bulk-cache clear at the top of the tick. */
-    var clearCachesNanos: Long = 0
-        internal set(value) {
-            field = value
-            maxClearCachesNanos = max(maxClearCachesNanos, value)
-        }
 
-    var maxClearCachesNanos: Long = 0
-        private set
+    private val latest = LongArray(LoopPhase.entries.size)
+    private val maxima = LongArray(LoopPhase.entries.size)
 
-    /** All subsystems' `periodic()` — pure reads / state updates. */
-    var periodicNanos: Long = 0
-        internal set(value) {
-            field = value
-            maxPeriodicNanos = max(maxPeriodicNanos, value)
-        }
+    /** The most recent tick's duration for [phase]. */
+    operator fun get(phase: LoopPhase): Long = latest[phase.ordinal]
 
-    var maxPeriodicNanos: Long = 0
-        private set
+    /** The peak duration for [phase] since the last [resetMaxima]. */
+    fun max(phase: LoopPhase): Long = maxima[phase.ordinal]
 
-    /** Gamepad edge detection + trigger polling (commands scheduled by bindings included). */
-    var inputNanos: Long = 0
-        internal set(value) {
-            field = value
-            maxInputNanos = max(maxInputNanos, value)
-        }
-
-    var maxInputNanos: Long = 0
-        private set
-
-    /** The op-mode's `onLoop()` — command scheduling, telemetry buffering. */
-    var controlNanos: Long = 0
-        internal set(value) {
-            field = value
-            maxControlNanos = max(maxControlNanos, value)
-        }
-
-    var maxControlNanos: Long = 0
-        private set
-
-    /** Ivy `Scheduler.execute()` — one tick of every running command. */
-    var schedulerNanos: Long = 0
-        internal set(value) {
-            field = value
-            maxSchedulerNanos = max(maxSchedulerNanos, value)
-        }
-
-    var maxSchedulerNanos: Long = 0
-        private set
-
-    /** All subsystems' `writeHardware()` — includes Pedro's `Follower.update()`. */
-    var writeHardwareNanos: Long = 0
-        internal set(value) {
-            field = value
-            maxWriteHardwareNanos = max(maxWriteHardwareNanos, value)
-        }
-
-    var maxWriteHardwareNanos: Long = 0
-        private set
-
-    /** Telemetry publish + (throttled) transmit at the bottom of the tick. */
-    var telemetryNanos: Long = 0
-        internal set(value) {
-            field = value
-            maxTelemetryNanos = max(maxTelemetryNanos, value)
-        }
-
-    var maxTelemetryNanos: Long = 0
-        private set
-
-    /** Flight-recorder writes. Zero when recording is disabled. */
-    var recordNanos: Long = 0
-        internal set(value) {
-            field = value
-            maxRecordNanos = max(maxRecordNanos, value)
-        }
-
-    var maxRecordNanos: Long = 0
-        private set
+    internal operator fun set(phase: LoopPhase, nanos: Long) {
+        latest[phase.ordinal] = nanos
+        maxima[phase.ordinal] = max(maxima[phase.ordinal], nanos)
+    }
 
     /** Full loop wall-clock, matching [Robot.lastLoopNanos]. */
     var totalNanos: Long = 0
@@ -113,20 +64,10 @@ class LoopProfile {
 
     /** Residue of [totalNanos] not covered by a named phase. */
     val overheadNanos: Long
-        get() = (totalNanos - clearCachesNanos - periodicNanos - inputNanos -
-            controlNanos - schedulerNanos - writeHardwareNanos - telemetryNanos -
-            recordNanos)
-            .coerceAtLeast(0)
+        get() = (totalNanos - latest.sum()).coerceAtLeast(0)
 
     fun resetMaxima() {
-        maxClearCachesNanos = 0
-        maxPeriodicNanos = 0
-        maxInputNanos = 0
-        maxControlNanos = 0
-        maxSchedulerNanos = 0
-        maxWriteHardwareNanos = 0
-        maxTelemetryNanos = 0
-        maxRecordNanos = 0
+        maxima.fill(0)
         maxTotalNanos = 0
         maxOverheadNanos = 0
     }

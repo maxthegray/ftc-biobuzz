@@ -84,6 +84,13 @@ class PoseEstimator(
         translationWeight: Double = 1.0,
         headingWeight: Double = 1.0,
     ): CorrectionResult {
+        // Guard before the jump gate: NaN compares false against any limit,
+        // so a non-finite measurement would otherwise sail through the gate
+        // and poison the pose.
+        if (!measured.x.isFinite() || !measured.y.isFinite() || !measured.heading.isFinite()) {
+            onEvent("pose correction rejected: non-finite measurement $measured")
+            return CorrectionResult.REJECTED_JUMP
+        }
         val age = clock.nanos() - timestampNanos
         if (age < 0 || age > maxAgeNanos) {
             onEvent("pose correction rejected: stale (age ${age / 1_000_000} ms)")

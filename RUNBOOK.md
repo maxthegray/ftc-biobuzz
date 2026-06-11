@@ -45,6 +45,24 @@ first). If it happens after auton→teleop: check `restorePersistedPose`
 returned true — the event timeline and `Health` section show it; a Robot
 Controller restart older than 2 min ages the persisted pose out.
 
+## Mechanism slammed into its hard stop / soft limit confusion
+
+`ProfiledMotorSubsystem` clamps goals into `softMinUnits..softMaxUnits` and
+gates open-loop power past a violated limit — if a mechanism still hit the
+stop, either the limits are wrong (check `<Mech>/goalUnits` vs
+`<Mech>/positionUnits` in the log) or the zero drifted (encoder skipped or
+the mechanism was moved while disabled). Re-home (`homeCommand`) and check
+`<Mech>/mode` shows HOMING → CLOSED_LOOP in the log.
+
+## Tuned values reverted
+
+They shouldn't: ConfigStore persists Panels edits to
+`/sdcard/FIRST/config/tuning.properties` within ~1 s and restores at every
+init. If values still reverted: was the config object registered
+(`ConfigStore.register(...)` in `configure()`)? Is the field a public
+`@JvmField` primitive? Deleting the file is the intended way back to
+compiled defaults.
+
 ## Loop rate dropped
 
 `make analyze` phase maxima: `writeHardware` spikes = Pedro/Pinpoint I²C
@@ -59,6 +77,13 @@ recently added code).
 Init Health shows `Pinpoint status` every init tick. Anything but READY:
 power-cycle the hub, check the I²C cable, re-run `PinpointDirect.recalibrate`
 with the robot still. FAULT_* statuses are pod/IMU hardware faults.
+
+## `LOOP OVERRUN` events in the timeline
+
+The watchdog stamps an event whenever a tick exceeds 100 ms (throttled to
+1/s). One overrun next to an `init`/`stop` event is the runtime warming up
+— ignore. Repeated overruns mid-match: same triage as "loop rate dropped",
+but the event gives you the exact match-time to line channels up against.
 
 ## Battery discipline
 
