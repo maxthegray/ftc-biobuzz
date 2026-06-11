@@ -30,5 +30,12 @@ object RobotConfig {
     object Field {
         /** Distance from one end of the field to the other along the x-axis, in inches. */
         const val LENGTH_INCHES = 141.5
+
+        /**
+         * How RED coordinates map onto BLUE this season — reflection or 180°
+         * rotation. Check the game manual's field drawings when the game
+         * launches; getting this wrong silently breaks every BLUE auton path.
+         */
+        val SYMMETRY = org.firstinspires.ftc.teamcode.core.util.FieldSymmetry.MIRROR
     }
 }

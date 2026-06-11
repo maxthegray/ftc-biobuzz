@@ -73,6 +73,10 @@ class Robot(
 
     private var initialized = false
 
+    /** Subsystems whose default command has already been evented this op-mode. */
+    private val defaultEventSent = HashSet<SubsystemBase>()
+    private var lastOverrunEventNs = Long.MIN_VALUE
+
     /**
      * Register a subsystem. Must happen before [init] (i.e. in the op-mode's
      * `configure()`) — a subsystem registered later would silently never get
@@ -82,6 +86,12 @@ class Robot(
     fun <T : SubsystemBase> register(subsystem: T): T {
         check(!initialized) {
             "Cannot register ${subsystem.name} after Robot.init() — register subsystems in configure()."
+        }
+        subsystem.registerAfter?.let { required ->
+            check(subsystems.any { required.isInstance(it) }) {
+                "${subsystem.name} must be registered after a ${required.simpleName} — " +
+                    "its writeHardware() depends on the ${required.simpleName} having run first this tick."
+            }
         }
         subsystems += subsystem
         return subsystem
@@ -179,7 +189,10 @@ class Robot(
                 val default = s.defaultCommand
                 if (default != null && !Scheduler.isScheduled(default)) {
                     Scheduler.schedule(default)
-                    if (Scheduler.isScheduled(default)) {
+                    // Event only the first resume (and the first after a fault):
+                    // logging every post-action resume floods the recent-events
+                    // ring that crash reports rely on.
+                    if (Scheduler.isScheduled(default) && defaultEventSent.add(s)) {
                         recordEvent("schedule default ${s.name}: $default")
                     }
                 }
@@ -213,6 +226,16 @@ class Robot(
         profile.totalNanos = lastLoopNanos
         lastTickEndNs = now
         loopCount++
+
+        // Watchdog: a grossly slow tick is a competition symptom worth a log
+        // event even if nobody is watching the loop telemetry. Throttled so a
+        // sustained stall doesn't flood the recent-events ring.
+        if (lastLoopNanos > LOOP_OVERRUN_NANOS &&
+            (lastOverrunEventNs == Long.MIN_VALUE || now - lastOverrunEventNs > OVERRUN_EVENT_THROTTLE_NANOS)
+        ) {
+            lastOverrunEventNs = now
+            recordEvent("LOOP OVERRUN: ${lastLoopNanos / 1_000_000} ms")
+        }
         return lastLoopNanos
     }
 
@@ -257,6 +280,8 @@ class Robot(
             // Host-side tests stub Android logging.
         }
         recordEvent("COMMAND FAULT: ${t.javaClass.simpleName}: ${t.message}")
+        // Re-arm the default-resume events so the post-fault recovery shows in the log.
+        defaultEventSent.clear()
         // Scheduler.reset() skips end handlers, so subsystems must safe their
         // own actuators below. Default commands reschedule on the next tick.
         Scheduler.reset()
@@ -291,5 +316,7 @@ class Robot(
 
     private companion object {
         const val RECENT_EVENT_LIMIT = 20
+        const val LOOP_OVERRUN_NANOS = 100_000_000L
+        const val OVERRUN_EVENT_THROTTLE_NANOS = 1_000_000_000L
     }
 }

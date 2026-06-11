@@ -29,6 +29,7 @@ class FlightRecorder private constructor(
     private val startNs = System.nanoTime()
     private var enabled = true
     private var lastRunningCommands = ""
+    private var lastFlushNs = startNs
 
     // Resolved once and reused: record() runs every tick, so no per-tick
     // subsystem filtering or array allocation.
@@ -124,6 +125,14 @@ class FlightRecorder private constructor(
                 writer.appendString(runningCommands, running, ts)
                 lastRunningCommands = running
             }
+
+            // Periodic flush so a brownout or battery pull — exactly the runs
+            // worth diagnosing — doesn't lose the buffered tail of the log.
+            val now = System.nanoTime()
+            if (now - lastFlushNs >= FLUSH_INTERVAL_NS) {
+                writer.flush()
+                lastFlushNs = now
+            }
         }
     }
 
@@ -211,6 +220,7 @@ class FlightRecorder private constructor(
 
     companion object {
         private const val MAX_LOG_FILES = 30
+        private const val FLUSH_INTERVAL_NS = 1_000_000_000L
 
         fun open(
             opModeClassName: String,

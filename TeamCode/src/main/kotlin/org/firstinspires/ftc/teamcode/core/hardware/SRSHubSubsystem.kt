@@ -121,7 +121,12 @@ class SRSHubSubsystem(name: String = "srsHub") : SubsystemBase(name) {
     override fun health(): String = when {
         !::hub.isInitialized -> "not initialized"
         hub.disconnected() -> "disconnected"
-        hub.ready() -> "ready"
+        // CRC mismatches leave disconnected() false while every cached value
+        // silently goes stale — surface the count so a flaky wire shows up.
+        hub.ready() -> {
+            val crc = hub.crcMismatchCount()
+            if (crc > 0) "ready (crc mismatches: $crc)" else "ready"
+        }
         else -> "not ready"
     }
 

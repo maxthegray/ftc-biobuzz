@@ -74,8 +74,12 @@ One main thread (the FTC `LinearOpMode.runOpMode()` thread) owns every
 piece of hardware except I²C-bound sensors that are unhappy blocking the
 main loop. For those we spin up a dedicated bus thread via `I2CBusThread`:
 
-- The thread polls exactly one device at a fixed rate (e.g. Pinpoint at
-  200 Hz).
+- The thread polls exactly one device at a fixed rate. **Not the
+  Pinpoint** — backgrounding the Pinpoint read was tried and reverted
+  because it shares the Control Hub's Lynx serial link with the drive
+  motor writes and just starves on link contention (see the postmortem in
+  `pedroPathing/Constants.java`). `I2CBusThread` is for devices on their
+  own I²C path, e.g. sensors hanging off an SRSHub.
 - Published values go through a single volatile slot (`I2CBusThread.Ref`)
   — writer is the bus thread, readers are the main loop. No locks.
 - Transient I²C errors are swallowed: the thread skips publishing that

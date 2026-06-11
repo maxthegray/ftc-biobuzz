@@ -2,6 +2,21 @@
  * Top-level build file for ftc-starter.
  */
 
+// Fail fast with a clear message instead of an inscrutable AGP/Kotlin error
+// when Gradle runs on the wrong JDK. This build needs JDK 17 (see README /
+// CLAUDE.md); newer JDKs (e.g. 21+) are untested against Gradle 8.x + AGP here.
+def javaMajor = JavaVersion.current().majorVersion.toInteger()
+if (javaMajor < 17) {
+    throw new GradleException(
+        "This build requires JDK 17 (found Java ${JavaVersion.current()}). " +
+        "Set JAVA_HOME to a JDK 17 install, e.g. " +
+        "JAVA_HOME=\"\$HOME/Library/Java/JavaVirtualMachines/corretto-17.0.13/Contents/Home\"")
+}
+if (javaMajor > 21) {
+    logger.warn("WARNING: building with Java ${JavaVersion.current()} — this project is validated on JDK 17; " +
+        "if the build fails, switch JAVA_HOME to a JDK 17 install.")
+}
+
 buildscript {
     ext.kotlin_version = '2.0.21'
 

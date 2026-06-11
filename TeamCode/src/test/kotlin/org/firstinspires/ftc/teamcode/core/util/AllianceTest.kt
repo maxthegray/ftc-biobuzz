@@ -46,4 +46,47 @@ class AllianceTest {
         // Heading comes back normalized into [0, 2pi).
         assertEquals(p.heading, twice.heading, eps)
     }
+
+    @Test
+    fun rotationalSymmetryRotatesAboutFieldCenter() {
+        val l = RobotConfig.Field.LENGTH_INCHES
+        val p = Pose(10.0, 30.0, 0.0)
+        val rotated = Alliance.BLUE.mirror(p, FieldSymmetry.ROTATE)
+        assertPose(Pose(l - 10.0, l - 30.0, Math.PI), rotated)
+    }
+
+    @Test
+    fun rotationalSymmetryIsAnInvolution() {
+        val p = Pose(48.0, 96.0, 2.0)
+        val twice = Alliance.BLUE.mirror(Alliance.BLUE.mirror(p, FieldSymmetry.ROTATE), FieldSymmetry.ROTATE)
+        assertEquals(p.x, twice.x, eps)
+        assertEquals(p.y, twice.y, eps)
+        assertEquals(p.heading, twice.heading, eps)
+    }
+
+    @Test
+    fun rotationalHeadingMirrorAddsHalfTurn() {
+        assertEquals(
+            Math.PI,
+            Alliance.BLUE.mirror(0.0, FieldSymmetry.ROTATE),
+            eps,
+        )
+        // RED is always identity regardless of symmetry.
+        assertEquals(1.25, Alliance.RED.mirror(1.25, FieldSymmetry.ROTATE), eps)
+    }
+
+    @Test
+    fun headingMirrorMatchesPoseMirrorHeadingForBothSymmetries() {
+        val p = Pose(20.0, 40.0, 0.7)
+        for (symmetry in FieldSymmetry.entries) {
+            val poseHeading = Alliance.BLUE.mirror(p, symmetry).heading
+            val bareHeading = Alliance.BLUE.mirror(p.heading, symmetry)
+            assertEquals(
+                "symmetry $symmetry",
+                0.0,
+                com.pedropathing.math.MathFunctions.normalizeAngleSigned(poseHeading - bareHeading),
+                eps,
+            )
+        }
+    }
 }

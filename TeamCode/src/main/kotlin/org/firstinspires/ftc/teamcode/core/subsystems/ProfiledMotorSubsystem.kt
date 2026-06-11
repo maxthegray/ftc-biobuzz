@@ -32,6 +32,11 @@ import org.firstinspires.ftc.teamcode.core.util.Clock
  *
  * The encoder is *not* reset on init by default ([zeroEncoderOnInit]), so a
  * lift's position survives the auton→teleop op-mode handoff.
+ *
+ * Soft limits ([softMinUnits] / [softMaxUnits]) are enforced in both modes:
+ * closed-loop goals are clamped into range, and open-loop power that pushes
+ * past a violated limit is zeroed (power away from the limit still works, so
+ * a mechanism can always be driven back in bounds).
  */
 open class ProfiledMotorSubsystem(
     name: String,
@@ -41,12 +46,19 @@ open class ProfiledMotorSubsystem(
     private val direction: DcMotorSimple.Direction = DcMotorSimple.Direction.FORWARD,
     private val zeroEncoderOnInit: Boolean = false,
     private val maxOutput: Double = 1.0,
+    private val softMinUnits: Double? = null,
+    private val softMaxUnits: Double? = null,
     private val clock: Clock = Clock.SYSTEM,
 ) : SubsystemBase(name) {
 
     init {
         require(ticksPerUnit != 0.0) { "ticksPerUnit must be non-zero" }
         require(maxOutput > 0.0) { "maxOutput must be positive" }
+        if (softMinUnits != null && softMaxUnits != null) {
+            require(softMinUnits < softMaxUnits) {
+                "softMinUnits ($softMinUnits) must be below softMaxUnits ($softMaxUnits)"
+            }
+        }
     }
 
     protected enum class OutputMode { DISABLED, OPEN_LOOP, CLOSED_LOOP }
@@ -95,19 +107,35 @@ open class ProfiledMotorSubsystem(
 
         val power = when (outputMode) {
             OutputMode.DISABLED -> 0.0
-            OutputMode.OPEN_LOOP -> openLoopPower
+            OutputMode.OPEN_LOOP -> limitOpenLoopPower(openLoopPower)
             OutputMode.CLOSED_LOOP -> controller.update(dtSeconds, positionUnits)
         }
         motor.power = power.coerceIn(-maxOutput, maxOutput)
     }
 
-    /** Start (or re-target) closed-loop motion toward [targetUnits]. */
+    /** Start (or re-target) closed-loop motion toward [targetUnits], clamped to the soft limits. */
     fun setGoal(targetUnits: Double) {
         if (outputMode != OutputMode.CLOSED_LOOP) {
             controller.reset(positionUnits, velocityUnitsPerSec)
             outputMode = OutputMode.CLOSED_LOOP
         }
-        controller.setGoal(targetUnits)
+        controller.setGoal(clampToSoftLimits(targetUnits))
+    }
+
+    private fun clampToSoftLimits(targetUnits: Double): Double {
+        var clamped = targetUnits
+        softMinUnits?.let { clamped = clamped.coerceAtLeast(it) }
+        softMaxUnits?.let { clamped = clamped.coerceAtMost(it) }
+        return clamped
+    }
+
+    /** Zero power that pushes further past a violated soft limit; power back in bounds passes. */
+    private fun limitOpenLoopPower(power: Double): Double {
+        val min = softMinUnits
+        val max = softMaxUnits
+        if (min != null && positionUnits <= min && power < 0.0) return 0.0
+        if (max != null && positionUnits >= max && power > 0.0) return 0.0
+        return power
     }
 
     /** Raw power for bring-up / manual override. Sticks until [setGoal] or [disable]. */

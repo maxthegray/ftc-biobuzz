@@ -58,6 +58,10 @@ class LocalizerSubsystem(
 
     private val history = PoseHistory()
 
+    /** Enforced by Robot.register — see the class doc's registration-order contract. */
+    override val registerAfter: Class<out SubsystemBase>
+        get() = org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem::class.java
+
     override fun init(hardwareMap: HardwareMap) {
         // Follower owns the Pinpoint / OTOS / odometry wheels; nothing to init here.
     }

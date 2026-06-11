@@ -78,14 +78,6 @@ class MecanumDriveSubsystem(val follower: Follower) : SubsystemBase("Drive") {
         }
         .setDone { false }
 
-    /**
-     * Imperative teleop helper retained for tests and bring-up. Prefer
-     * [teleopCommand] so Ivy can automatically resume teleop after actions.
-     */
-    internal fun drive(forward: Double, strafe: Double, turn: Double, precision: Boolean = false) {
-        applyTeleopDrive(forward, strafe, turn, precision)
-    }
-
     private fun applyTeleopDrive(forward: Double, strafe: Double, turn: Double, precision: Boolean) {
         val scale = DriveConfig.safeTeleopPowerScale *
             (if (precision) DriveConfig.safePrecisionPowerScale else 1.0)

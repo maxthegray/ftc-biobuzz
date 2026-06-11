@@ -72,15 +72,23 @@ class FieldView(
     }
 
     private fun drawPath(manager: FieldManager, path: Path) {
-        val points = path.panelsDrawingPoints
-        for (i in points.indices) {
-            for (j in points[i].indices) {
-                if (points[i][j].isNaN()) points[i][j] = 0.0
-            }
-        }
+        // Sample the real curve instead of panelsDrawingPoints: that array is
+        // only a two-point approximation, which renders curves as chords.
+        // FieldManager.line() draws from the cursor but does not advance it,
+        // so each segment re-anchors the cursor at the previous sample.
         manager.setStyle(pathStyle)
-        manager.moveCursor(points[0][0], points[0][1])
-        manager.line(points[1][0], points[1][1])
+        var prevX = Double.NaN
+        var prevY = Double.NaN
+        for (i in 0..PATH_SAMPLES) {
+            val pose = path.getPose(i.toDouble() / PATH_SAMPLES)
+            if (pose.x.isNaN() || pose.y.isNaN()) continue
+            if (!prevX.isNaN()) {
+                manager.moveCursor(prevX, prevY)
+                manager.line(pose.x, pose.y)
+            }
+            prevX = pose.x
+            prevY = pose.y
+        }
     }
 
     private fun drawRobot(manager: FieldManager, pose: Pose) {
@@ -102,5 +110,6 @@ class FieldView(
     private companion object {
         const val ROBOT_RADIUS = 9.0
         const val MAX_FAILURES = 5
+        const val PATH_SAMPLES = 16
     }
 }
