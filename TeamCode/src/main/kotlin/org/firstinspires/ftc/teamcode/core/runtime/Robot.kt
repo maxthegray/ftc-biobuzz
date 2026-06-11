@@ -118,6 +118,7 @@ class Robot(
         driver: () -> GamepadEx?,
         operator: () -> GamepadEx?,
         batteryVoltage: () -> Double?,
+        directory: java.io.File = java.io.File("/sdcard/FIRST/logs"),
     ) {
         flightRecorder = FlightRecorder.open(
             opModeClassName,
@@ -125,6 +126,7 @@ class Robot(
             operator,
             batteryVoltage,
             runningCommandNames = { scheduler.runningCommandNames() },
+            directory = directory,
         )
     }
 

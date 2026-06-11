@@ -226,15 +226,30 @@ val gains = PIDFGains(kP = 0.1, kV = 0.02, kG = 0.08)   // mutable; Panels-tunab
 val constraints = ProfileConstraints(maxVelocity = 30.0, maxAcceleration = 60.0)
 val lift = robot.register(
     ProfiledMotorSubsystem("Lift", "liftMotor", ProfiledController(constraints, gains),
-        ticksPerUnit = 83.7),
+        ticksPerUnit = 83.7,
+        softMinUnits = 0.0, softMaxUnits = 26.0),   // clamp goals, gate open-loop
 )
 operator.button(GamepadEx.Button.Y).onTrue(lift.goToCommand(24.0, toleranceUnits = 0.5))
+operator.button(GamepadEx.Button.BACK).onTrue(
+    lift.homeCommand(power = -0.3, stallVelocityUnitsPerSec = 1.0))  // re-zero on hard stop
 lift.openLoop(0.3)   // bring-up only; setGoal()/goToCommand() for real control
 ```
 
 `ProfiledMotorSubsystem` holds the last goal after a command ends (gravity
 hold) — no default command needed. The encoder is not reset on init by
-default so lift position survives the auton → teleop handoff.
+default so lift position survives the auton → teleop handoff; `homeCommand`
+re-establishes a true zero (velocity-stall detection, software offset).
+
+Hardware goes through the `MotorIO` seam (`core/hw/`): real op-modes
+resolve a `RealMotorIO` automatically; host tests inject
+`SimMotorIO(clock, …)` via the `io` constructor parameter and the whole
+mechanism — profile, PIDF, soft limits, homing — runs headless
+(`ProfiledMotorSubsystemTest`, `MechanismReplayTest`).
+
+Subsystems log tuning channels by overriding
+`logState(log: StateLog)` — the flight recorder prefixes them with
+`<subsystem name>/` (e.g. `Lift/goalUnits`, `Lift/setpointUnits`,
+`Lift/outputPower`) for AdvantageScope.
 
 ### Panels telemetry
 

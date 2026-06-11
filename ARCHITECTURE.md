@@ -238,6 +238,19 @@ last ~20 recorded events, loop count, and match time, so the file answers
 "what was happening", not just "where it died". The next init displays the
 first line and deletes the file.
 
+Subsystems add their own channels by overriding
+`SubsystemBase.logState(log)` — names are prefixed `<subsystem>/` and the
+WPILOG entries are created lazily on first put. `ProfiledMotorSubsystem`
+logs goal/setpoint/measured/output, which is exactly the AdvantageScope
+view PIDF tuning needs. Because mechanisms read hardware through the
+`MotorIO` seam, a recorded run can be **replayed**: `WpiLogReader` (test
+sources) parses the log and `MechanismReplayTest` re-runs the same
+subsystem code against the recorded inputs, asserting bit-identical
+outputs — the regression harness for "did this refactor change control
+behavior?". `SimAutonLogTest` pins the log *content* for a full sim auton
+(pose, modes, step events, command names), so observability regressions
+fail in CI instead of at a competition.
+
 `make analyze` (`tools/analyze_wpilog.py`) prints a post-match one-pager
 from the newest log: loop-rate percentiles, per-phase maxima, battery sag,
 follower error stats, contained faults, pose-correction accept/reject
@@ -313,8 +326,13 @@ setpoint every tick, so goal changes mid-motion just work), a
 `ProfiledController` combining the two — all pure logic, all host-tested.
 `ProfiledMotorSubsystem` wraps that around a single motor with the standard
 lifecycle (encoder read in `periodic()`, power write in `writeHardware()`),
-a `goToCommand(target, tolerance)` factory, an open-loop bring-up mode, and
+a `goToCommand(target, tolerance)` factory, an open-loop bring-up mode,
+soft limits (goals clamp, open-loop power past a violated limit is gated),
+a velocity-stall `homeCommand` that re-zeroes against the hard stop, and
 hold-at-goal behavior after a command ends (no default command needed).
+Hardware access goes through the `MotorIO` seam (`core/hw/`): real op-modes
+resolve a `RealMotorIO` from the hardware map, host tests inject a
+`SimMotorIO`, and replay feeds recorded inputs back through the same code.
 Gains and constraints are plain mutable holders — put them in a season
 `@Configurable` object and they are live-tunable from Panels.
 

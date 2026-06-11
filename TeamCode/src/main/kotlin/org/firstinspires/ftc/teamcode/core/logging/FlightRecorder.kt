@@ -60,6 +60,42 @@ class FlightRecorder private constructor(
     private val followTranslationalError = writer.startEntry("follow/translationalErrorIn", "double")
     private val followHeadingError = writer.startEntry("follow/headingErrorRad", "double")
 
+    // Subsystem channels (SubsystemBase.logState) are created lazily on first
+    // put and cached by full name. One reusable sink instance — no per-tick
+    // allocation beyond a first-time channel registration.
+    private val channelIds = HashMap<String, Int>()
+    private val lastStrings = HashMap<String, String>()
+    private val subsystemSink = SubsystemSink()
+
+    private inner class SubsystemSink : StateLog {
+        var prefix: String = ""
+        var timestampUs: Long = 0L
+
+        override fun put(channel: String, value: Double) {
+            writer.appendDouble(entry(channel, "double"), value, timestampUs)
+        }
+
+        override fun put(channel: String, value: Long) {
+            writer.appendInt64(entry(channel, "int64"), value, timestampUs)
+        }
+
+        override fun put(channel: String, value: Boolean) {
+            writer.appendBoolean(entry(channel, "boolean"), value, timestampUs)
+        }
+
+        override fun put(channel: String, value: String) {
+            val name = prefix + channel
+            if (lastStrings[name] == value) return
+            lastStrings[name] = value
+            writer.appendString(entry(channel, "string"), value, timestampUs)
+        }
+
+        private fun entry(channel: String, type: String): Int {
+            val name = prefix + channel
+            return channelIds.getOrPut(name) { writer.startEntry(name, type) }
+        }
+    }
+
     fun record(robot: Robot) {
         if (!enabled) return
         guard {
@@ -121,6 +157,12 @@ class FlightRecorder private constructor(
             if (running != lastRunningCommands) {
                 writer.appendString(runningCommands, running, ts)
                 lastRunningCommands = running
+            }
+
+            subsystemSink.timestampUs = ts
+            for (subsystem in robot.subsystems()) {
+                subsystemSink.prefix = subsystem.name + "/"
+                subsystem.logState(subsystemSink)
             }
 
             // Periodic flush so a brownout or battery pull — exactly the runs

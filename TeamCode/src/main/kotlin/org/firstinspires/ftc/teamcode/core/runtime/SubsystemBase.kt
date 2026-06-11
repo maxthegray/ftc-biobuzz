@@ -68,6 +68,14 @@ abstract class SubsystemBase(val name: String) {
     open fun health(): String? = null
 
     /**
+     * Write this subsystem's state channels into the flight log. Called once
+     * per tick by the flight recorder (when one is running); channel names
+     * are automatically prefixed with `<name>/`. Log what tuning and
+     * post-match triage need — goals, setpoints, measurements, outputs.
+     */
+    open fun logState(log: org.firstinspires.ftc.teamcode.core.logging.StateLog) {}
+
+    /**
      * Called after [Robot] contains a fault from a command that *required
      * this subsystem* (teleop only). The faulting command has already been
      * ended (its end handler ran, best-effort) — this is the safety net for
