@@ -20,6 +20,7 @@ object LocalizerConfig {
     private const val DEFAULT_CORRECTION_BLEND = 0.5
     private const val DEFAULT_MAX_CORRECTION_INCHES = 12.0
     private val DEFAULT_MAX_CORRECTION_RADIANS = Math.toRadians(30.0)
+    private const val DEFAULT_FOLLOWING_BLEND_SCALE = 0.25
 
     /**
      * Fraction of each accepted correction applied to the pose (0..1).
@@ -37,6 +38,15 @@ object LocalizerConfig {
     /** Corrections that would rotate the pose more than this (radians) are rejected. */
     @JvmField var maxCorrectionRadians: Double = DEFAULT_MAX_CORRECTION_RADIANS
 
+    /**
+     * Extra blend multiplier applied while the drive is actively following a
+     * path (0..1). A hard pose snap mid-follow steps Pedro's tracking error
+     * and jerks the drive; scaling corrections down keeps streaming vision
+     * gentle during paths and lets convergence finish after the path ends.
+     * 1.0 disables the policy.
+     */
+    @JvmField var followingBlendScale: Double = DEFAULT_FOLLOWING_BLEND_SCALE
+
     internal val safeCorrectionBlend: Double
         get() = if (correctionBlend.isFinite()) {
             correctionBlend.coerceIn(0.0, 1.0)
@@ -49,6 +59,13 @@ object LocalizerConfig {
 
     internal val safeMaxCorrectionRadians: Double
         get() = finiteAtLeast(maxCorrectionRadians, DEFAULT_MAX_CORRECTION_RADIANS)
+
+    internal val safeFollowingBlendScale: Double
+        get() = if (followingBlendScale.isFinite()) {
+            followingBlendScale.coerceIn(0.0, 1.0)
+        } else {
+            DEFAULT_FOLLOWING_BLEND_SCALE
+        }
 
     private fun finiteAtLeast(value: Double, fallback: Double): Double =
         if (value.isFinite() && value >= 0.0) value else fallback

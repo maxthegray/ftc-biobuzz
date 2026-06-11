@@ -3,7 +3,7 @@ package org.firstinspires.ftc.teamcode.core.subsystems.localization
 import com.pedropathing.geometry.Pose
 import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.fakeFollower
-import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerSubsystem.CorrectionResult
+import org.firstinspires.ftc.teamcode.core.estimation.CorrectionResult
 import org.firstinspires.ftc.teamcode.core.util.FakeClock
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

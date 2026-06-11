@@ -212,7 +212,12 @@ localizer.restorePersistedPose()                 // auton → teleop pose handof
 localizer.applyCorrection(measured, timestampNs) // latency-compensated vision seam;
                                                  // returns CorrectionResult (APPLIED /
                                                  // STALE / NO_HISTORY / REJECTED_JUMP),
-                                                 // gated + blended via LocalizerConfig
+                                                 // gated + blended via LocalizerConfig;
+                                                 // translationWeight/headingWeight for
+                                                 // partial corrections; auto-scaled by
+                                                 // followingBlendScale while pathing
+WallSnap.pose(wall, contactOffsetIn, current)    // wall-contact relocalization pose;
+                                                 // apply with blend = 1.0
 val selector = AutonSelector(robot, telemetryBag)
 robot.recordEvent("marker")                      // also writes to WPILOG
 autoRoutine(robot, drive, robot::recordEvent) { ... }  // optional event sink → labelled

@@ -164,15 +164,28 @@ removes the only place that staleness was quantitatively wrong.
 The Follower owns the primary localiser (Pinpoint), so wheel-odometry
 drift accumulates over long paths. The starter exposes three hooks:
 
-1. `LocalizerSubsystem` is a small subsystem facade over the Follower pose and
-   velocity. It records a fixed-size pose history and exposes
-   `applyCorrection(measured, timestampNanos)` for latency-compensated
-   AprilTag or vision measurements. Corrections are **gated** (rejected as
-   outliers past `LocalizerConfig.maxCorrection*`) and **blended**
-   (`LocalizerConfig.correctionBlend` fraction applied per call — 1.0 snaps,
-   0.5 behaves like a complementary filter for streaming sources). Every
-   accept/reject is recorded as a flight-log event so logs show *why* a
-   correction didn't take.
+1. `LocalizerSubsystem` is a small subsystem facade over the Follower pose
+   and velocity; the correction math lives in
+   `core/estimation/PoseEstimator`. It records a fixed-size pose history
+   and exposes `applyCorrection(measured, timestampNanos)` for
+   latency-compensated AprilTag or vision measurements. Corrections are
+   **gated** (rejected as outliers past `LocalizerConfig.maxCorrection*`),
+   **blended** (`LocalizerConfig.correctionBlend` fraction applied per call
+   — 1.0 snaps, 0.5 behaves like a complementary filter for streaming
+   sources), and **axis-weighted** (`translationWeight` / `headingWeight`,
+   so a long-range tag can correct heading only, and a zero-weight axis is
+   neither applied nor gated). While the drive is actively following a path
+   (`isFollowing`, wired from the drive subsystem), accepted corrections
+   are additionally scaled by `LocalizerConfig.followingBlendScale`
+   (default 0.25) — a hard pose snap mid-follow steps Pedro's tracking
+   error and jerks the drive, so streaming corrections feed in gently and
+   convergence finishes after the path. Every accept/reject is recorded as
+   a flight-log event so logs show *why* a correction didn't take.
+
+   `core/estimation/WallSnap` builds the measured pose for wall-contact
+   relocalization: the axis perpendicular to the wall and the (cardinal)
+   heading are known exactly, the parallel axis is copied from the current
+   pose so its correction is zero. Apply with `blend = 1.0`.
 
    **Timing contract:** the history is sampled in the localizer's
    `writeHardware()`, immediately after the drive subsystem's
@@ -190,9 +203,18 @@ drift accumulates over long paths. The starter exposes three hooks:
    `localizer.restorePersistedPose()`, which falls back to the disk copy and
    still age-gates whatever it finds.
 
-Vision pipelines are intentionally not included in this template. If a
-season fork needs cameras, add that subsystem in the fork and feed accepted
-field-pose corrections through `LocalizerSubsystem.applyCorrection`.
+Vision pipelines are intentionally not included in this template (yet).
+When an AprilTag localizer gets built — here or in a season fork — this is
+its spec: a `core` subsystem owning a `VisionPortal` + `AprilTagProcessor`,
+camera mounting extrinsics declared in `RobotConfig` (the SDK's
+`setCameraPose` does the camera→robot transform), timestamps taken from
+`AprilTagDetection.frameAcquisitionNanoTime` (the *frame* time, not the
+processing-done time — that difference is exactly what the pose history
+compensates), SDK field coordinates (center-origin) converted to Pedro
+corner-origin coordinates in one tested function, and each detection fed
+through `LocalizerSubsystem.applyCorrection` with weights chosen from tag
+range (far tags: heading-weighted). Everything downstream — gating,
+blending, the during-follow policy, event logging — already exists.
 
 ## Telemetry: two audiences, one call
 

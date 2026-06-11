@@ -19,7 +19,9 @@ class SimHarness(tickMs: Double = 20.0) {
     val follower = SimFollower(clock)
     val robot = Robot(HardwareMap(null, null), clock)
     val drive: MecanumDriveSubsystem = robot.register(MecanumDriveSubsystem(follower))
-    val localizer: LocalizerSubsystem = robot.register(LocalizerSubsystem(follower, clock))
+    val localizer: LocalizerSubsystem = robot.register(
+        LocalizerSubsystem(follower, clock, isFollowing = drive::isFollowing),
+    )
 
     private val tickMs = tickMs
 

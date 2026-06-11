@@ -45,7 +45,9 @@ class ExampleAuto : OpModeBase() {
         // Drive first, localizer second — pose history is sampled after
         // Follower.update() in the drive's writeHardware.
         drive = robot.register(MecanumDriveSubsystem(follower))
-        localizer = robot.register(LocalizerSubsystem(follower, onEvent = robot::recordEvent))
+        localizer = robot.register(
+            LocalizerSubsystem(follower, onEvent = robot::recordEvent, isFollowing = drive::isFollowing),
+        )
         selector = AutonSelector(robot, telemetryBag)
             .register("Out and back") { outAndBack() }
     }
