@@ -19,7 +19,7 @@ import kotlin.math.hypot
  * "target has been lost for too long").
  *
  * The command requires [drive] like any other drive-claiming command, so the
- * Ivy scheduler will arbitrate against teleop / path-following / hold-pose
+ * scheduler will arbitrate against teleop / path-following / hold-pose
  * commands.
  *
  * Caveat: `holdPoint` was designed for stationary setpoints; if the target

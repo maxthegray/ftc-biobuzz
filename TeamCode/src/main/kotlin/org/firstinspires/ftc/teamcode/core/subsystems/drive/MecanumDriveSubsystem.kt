@@ -187,8 +187,7 @@ class MecanumDriveSubsystem(
         )
 
     /**
-     * Turn in place to an absolute heading. Implemented the way Ivy's
-     * `PedroCommands.turnTo` was: follow a zero-length path pinned at the
+     * Turn in place to an absolute heading: follow a zero-length path pinned at the
      * current pose with constant-heading interpolation at the target, done
      * when the follower stops being busy.
      */

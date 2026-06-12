@@ -20,9 +20,9 @@ import org.firstinspires.ftc.teamcode.core.util.FakeClock
 /**
  * Headless, kinematic "perfect follower" for JVM tests.
  *
- * It honours the same public surface the framework and Ivy's Pedro commands
- * actually call — `followPath(chain/path, …)` + `isBusy()` (used by
- * `PedroCommands.follow` / `turnTo`), `holdPoint(...)` +
+ * It honours the same public surface the framework actually calls —
+ * `followPath(chain/path, …)` + `isBusy()` (used by the drive subsystem's
+ * follow / turnTo commands), `holdPoint(...)` +
  * `getTranslationalError()` / `getHeadingError()` (used by
  * `MecanumDriveSubsystem.holdCommand`), teleop drive vectors, and the pose
  * accessors — but replaces Pedro's control law with straight-line motion at
@@ -33,9 +33,6 @@ import org.firstinspires.ftc.teamcode.core.util.FakeClock
  *
  * This validates routine logic (sequencing, mirroring, mode transitions,
  * pose handoff), not Pedro's control quality — tune that on carpet.
- *
- * Caveat: Ivy's `Commands.waitMs` runs on the wall clock, not this sim
- * clock — keep `wait()` steps out of simulated routines (or keep them tiny).
  */
 class SimFollower(
     private val clock: FakeClock,

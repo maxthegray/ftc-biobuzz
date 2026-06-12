@@ -1,7 +1,7 @@
 package org.firstinspires.ftc.teamcode.core.runtime
 
 /**
- * Shared Ivy priority ladder. Higher interrupts lower; gaps left so a season
+ * Shared command priority ladder. Higher interrupts lower; gaps left so a season
  * fork can slot levels in between without renumbering.
  *
  *  - [DEFAULT] — subsystem default commands; quietly lose to explicit work.
