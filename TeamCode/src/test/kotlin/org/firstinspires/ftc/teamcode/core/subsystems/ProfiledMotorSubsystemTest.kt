@@ -207,6 +207,75 @@ class ProfiledMotorSubsystemTest {
     }
 
     @Test
+    fun goToCommandTimeoutEndsAStalledMoveAndKeepsHolding() {
+        // Hard stop at 10 ticks; the goal is unreachable, so the move stalls.
+        val io = simIo(maxTicks = 10.0)
+        val robot = Robot(HardwareMap(null, null), clock)
+        val lift = ProfiledMotorSubsystem(
+            name = "Lift",
+            motorName = "unused-in-sim",
+            controller = controller(),
+            ticksPerUnit = 1.0,
+            io = io,
+            clock = clock,
+        )
+        robot.register(lift)
+        robot.init()
+        robot.start()
+
+        val blocked = lift.goToCommand(20.0, toleranceUnits = 0.5, timeoutMs = 500.0)
+        robot.scheduler.schedule(blocked)
+
+        repeat(20) { // 400 ms — still inside the timeout
+            clock.advanceMs(20.0)
+            robot.loop()
+        }
+        assertTrue(robot.scheduler.isScheduled(blocked))
+
+        repeat(10) { // past 500 ms — the timeout releases the step
+            clock.advanceMs(20.0)
+            robot.loop()
+        }
+        assertFalse(robot.scheduler.isScheduled(blocked))
+
+        // The subsystem keeps holding the (unreached) goal closed-loop:
+        // pinned against the stop, not dropping.
+        repeat(50) {
+            clock.advanceMs(20.0)
+            robot.loop()
+        }
+        assertTrue(
+            "expected to stay pressed near the stop, got ${lift.positionUnits}",
+            lift.positionUnits > 8.0,
+        )
+    }
+
+    @Test
+    fun goToCommandWithoutTimeoutStaysScheduledWhileStalled() {
+        val io = simIo(maxTicks = 10.0)
+        val robot = Robot(HardwareMap(null, null), clock)
+        val lift = ProfiledMotorSubsystem(
+            name = "Lift",
+            motorName = "unused-in-sim",
+            controller = controller(),
+            ticksPerUnit = 1.0,
+            io = io,
+            clock = clock,
+        )
+        robot.register(lift)
+        robot.init()
+        robot.start()
+
+        val blocked = lift.goToCommand(20.0, toleranceUnits = 0.5)
+        robot.scheduler.schedule(blocked)
+        repeat(100) { // 2 simulated seconds
+            clock.advanceMs(20.0)
+            robot.loop()
+        }
+        assertTrue(robot.scheduler.isScheduled(blocked))
+    }
+
+    @Test
     fun setCurrentPositionAppliesASoftwareOffset() {
         val io = simIo(startTicks = 100.0)
         val lift = lift(io)

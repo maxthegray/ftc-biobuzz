@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.core.pathing
 import com.qualcomm.robotcore.hardware.HardwareMap
 import org.firstinspires.ftc.teamcode.core.command.Command
 import org.firstinspires.ftc.teamcode.core.command.CommandBuilder
+import org.firstinspires.ftc.teamcode.core.command.EndCondition
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
@@ -95,10 +96,33 @@ class PedroAutoRunnerTest {
         assertFalse(ran)
 
         clock.advanceMs(250.0)
-        // wait completes, then run's instant start fires on the next tick.
-        robot.scheduler.execute()
+        // The wait completes and the following instant drains in the same tick.
         robot.scheduler.execute()
         assertTrue(ran)
+    }
+
+    @Test
+    fun stepTimeoutInterruptsTheStepAndTheRoutineContinues() {
+        val ends = mutableListOf<EndCondition>()
+        val stuck = CommandBuilder()
+            .requiring(Any())
+            .setDone { false } // never finishes on its own
+            .setEnd { ends += it }
+        var afterRan = false
+        val runner = PedroAutoRunner(robot, drive)
+            .timeout(100) { then(stuck) }
+            .run { afterRan = true }
+
+        runner.schedule()
+        robot.scheduler.execute()
+        assertFalse(afterRan)
+        assertTrue(ends.isEmpty())
+
+        clock.advanceMs(150.0)
+        robot.scheduler.execute()
+        assertEquals(listOf(EndCondition.INTERRUPTED), ends)
+        assertTrue(afterRan)
+        assertTrue(runner.isDone)
     }
 
     private fun commandWithRequirement(requirement: Any): Command =

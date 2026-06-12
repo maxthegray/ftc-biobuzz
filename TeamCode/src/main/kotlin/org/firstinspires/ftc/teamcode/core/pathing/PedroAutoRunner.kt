@@ -225,6 +225,37 @@ class PedroAutoRunner(
     /** Race the entire built sequence against [ms] milliseconds (robot clock). */
     fun timeout(ms: Long): PedroAutoRunner = timeout(ms.toDouble())
 
+    /**
+     * Race the sub-steps in [block] against [ms] milliseconds (robot clock):
+     * if they don't finish in time they are interrupted (a follow breaks its
+     * path) and the routine moves on. This is the per-step guard against a
+     * stalled mechanism or unreachable pose eating the rest of auton —
+     * the no-block [timeout] overload still bounds the whole routine.
+     *
+     * ```kotlin
+     * timeout(2000.0) { follow(toScore) }
+     * ```
+     */
+    fun timeout(ms: Double, block: PedroAutoRunner.() -> Unit): PedroAutoRunner {
+        requireMutable()
+        require(ms.isFinite() && ms >= 0.0) { "timeout must be finite and non-negative" }
+        val sub = PedroAutoRunner(robot, drive).apply(block)
+        require(sub.steps.isNotEmpty()) { "timeout { } block is empty" }
+        val sequence: Command = if (sub.steps.size == 1) {
+            sub.commands().first()
+        } else {
+            Groups.sequential(*sub.commands().toTypedArray())
+        }
+        return append(
+            sub.groupLabel("timeout ${ms.toLong()} ms"),
+            Groups.race(sequence, Commands.waitMs(ms, robot.clock)),
+        )
+    }
+
+    /** [timeout]-with-steps, long overload for literal milliseconds. */
+    fun timeout(ms: Long, block: PedroAutoRunner.() -> Unit): PedroAutoRunner =
+        timeout(ms.toDouble(), block)
+
     private fun append(label: String, step: Command): PedroAutoRunner {
         requireMutable()
         steps += Step(label, step)

@@ -166,17 +166,37 @@ open class ProfiledMotorSubsystem(
      * Command that profiles to [targetUnits] and finishes within
      * [toleranceUnits]. The subsystem keeps holding the goal after the
      * command ends.
+     *
+     * [timeoutMs] bounds the wait: a mechanism that stalls short of the goal
+     * (jammed, blocked, mistuned) otherwise hangs an auton step forever. On
+     * timeout the command completes normally and the subsystem keeps holding
+     * the unreached goal — the safe default for a lift under gravity.
      */
     fun goToCommand(
         targetUnits: Double,
         toleranceUnits: Double,
         priority: Int = CommandPriorities.DRIVER_ACTION,
-    ): Command = Command.build()
-        .setName("%s→%.1f".format(Locale.US, name, targetUnits))
-        .requiring(this)
-        .setPriority(priority)
-        .setStart { setGoal(targetUnits) }
-        .setDone { atGoal(toleranceUnits) }
+        timeoutMs: Double? = null,
+    ): Command {
+        if (timeoutMs != null) {
+            require(timeoutMs.isFinite() && timeoutMs >= 0.0) {
+                "timeoutMs must be finite and non-negative"
+            }
+        }
+        var startNs = 0L
+        return Command.build()
+            .setName("%s→%.1f".format(Locale.US, name, targetUnits))
+            .requiring(this)
+            .setPriority(priority)
+            .setStart {
+                startNs = clock.nanos()
+                setGoal(targetUnits)
+            }
+            .setDone {
+                atGoal(toleranceUnits) ||
+                    (timeoutMs != null && (clock.nanos() - startNs) / 1e6 >= timeoutMs)
+            }
+    }
 
     /**
      * Homing routine: drive open-loop at [power] into the hard stop, detect
