@@ -173,6 +173,44 @@ class RobotLoopTest {
     }
 
     @Test
+    fun defaultDoesNotPreemptEqualPriorityExplicitCommand() {
+        val subsystem = robot.subsystems().first()
+        var defaultStarts = 0
+        subsystem.defaultCommand = CommandBuilder()
+            .requiring(subsystem)
+            .setStart { defaultStarts++ }
+            .setDone { false }
+        var actionDone = false
+        val actionEnds = mutableListOf<org.firstinspires.ftc.teamcode.core.command.EndCondition>()
+        // Priority 0 — same as the default. Explicit scheduling still preempts
+        // the default, but the default must not steal the subsystem back.
+        val action = CommandBuilder()
+            .requiring(subsystem)
+            .setDone { actionDone }
+            .setEnd { actionEnds += it }
+
+        robot.start()
+        robot.loop()
+        assertEquals(1, defaultStarts)
+        robot.scheduler.schedule(action)
+        robot.loop()
+        robot.loop()
+        assertTrue(robot.scheduler.isScheduled(action))
+        assertTrue(actionEnds.isEmpty())
+        assertEquals(1, defaultStarts)
+
+        // Default resumes once the action completes on its own.
+        actionDone = true
+        robot.loop()
+        assertEquals(
+            listOf(org.firstinspires.ftc.teamcode.core.command.EndCondition.NATURALLY),
+            actionEnds,
+        )
+        robot.loop()
+        assertEquals(2, defaultStarts)
+    }
+
+    @Test
     fun uncontainedCommandFaultPropagates() {
         val bad = CommandBuilder()
             .setExecute { error("boom") }

@@ -208,7 +208,12 @@ class Robot(
         commandPhase {
             for (s in subsystems) {
                 val default = s.defaultCommand
-                if (default != null && !scheduler.isScheduled(default)) {
+                // Passive scheduling: only claim a free subsystem. schedule()
+                // preempts equal-priority holders, so without this guard a
+                // default would kill any priority-0 explicit command next tick.
+                if (default != null && !scheduler.isScheduled(default) &&
+                    default.requirements().none { scheduler.isRequirementHeld(it) }
+                ) {
                     scheduler.schedule(default)
                     // Event only the first resume (and the first after a fault):
                     // logging every post-action resume floods the recent-events

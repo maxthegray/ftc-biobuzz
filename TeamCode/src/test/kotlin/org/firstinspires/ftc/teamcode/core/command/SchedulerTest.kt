@@ -241,6 +241,28 @@ class SchedulerTest {
         assertFalse(scheduler.isScheduled(bad))
     }
 
+    @Test
+    fun commandPreemptedDuringItsOwnExecuteEndsExactlyOnce() {
+        val req = Any()
+        val replacement = Probe(req)
+        var ends = mutableListOf<EndCondition>()
+        // done() reads true, but execute() hands the requirement to an
+        // equal-priority sibling first — the scheduler must not also run the
+        // NATURALLY end path after the preemption already ended the command.
+        val selfPreempting = Command.build()
+            .requiring(req)
+            .setExecute { scheduler.schedule(replacement) }
+            .setDone { true }
+            .setEnd { ends += it }
+        scheduler.schedule(selfPreempting)
+
+        scheduler.execute()
+
+        assertEquals(listOf(EndCondition.INTERRUPTED), ends)
+        assertFalse(scheduler.isScheduled(selfPreempting))
+        assertTrue(scheduler.isScheduled(replacement))
+    }
+
     // ------------------------------------------------------------------ reuse
 
     @Test

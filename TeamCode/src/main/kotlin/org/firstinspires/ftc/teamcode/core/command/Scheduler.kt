@@ -77,6 +77,14 @@ class Scheduler {
     fun isRunning(command: Command): Boolean = command in running
 
     /**
+     * True if a running command currently holds [requirement].
+     * [org.firstinspires.ftc.teamcode.core.runtime.Robot] uses this to
+     * schedule default commands passively — only when the subsystem is free —
+     * so a default never preempts an equal-priority explicit command.
+     */
+    fun isRequirementHeld(requirement: Any): Boolean = requirement in activeRequirements
+
+    /**
      * One scheduler tick: every running command executes, then its done
      * condition is checked. Call exactly once per main-loop tick.
      */
@@ -85,6 +93,10 @@ class Scheduler {
             if (command !in running) continue // ended by a sibling this tick
             try {
                 command.execute()
+                // execute() may have ended this command (e.g. it scheduled a
+                // sibling that preempted it) — its end handler already ran,
+                // so skip the done path to keep "end exactly once per run".
+                if (command !in running) continue
                 if (command.done()) {
                     remove(command)
                     endReported(command, EndCondition.NATURALLY)

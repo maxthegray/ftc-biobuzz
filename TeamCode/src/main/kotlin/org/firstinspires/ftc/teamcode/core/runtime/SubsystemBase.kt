@@ -19,8 +19,9 @@ abstract class SubsystemBase(val name: String) {
 
     /**
      * Command the robot should keep scheduled whenever this subsystem is free.
-     * Defaults use priority [CommandPriorities.DEFAULT]; explicit driver or
-     * auton actions should use priority 10 and require the same subsystem.
+     * Scheduled passively: [Robot] only schedules it when no running command
+     * holds this subsystem, so a default never preempts explicit work — even
+     * explicit commands at the same [CommandPriorities.DEFAULT] priority.
      */
     var defaultCommand: Command? = null
 
