@@ -51,6 +51,10 @@ class GamepadEx(val raw: Gamepad, internal val scheduler: Scheduler) {
 
     fun lockBindings() {
         bindingsLocked = true
+        // Triggers are not polled during init, so lastState is stale false.
+        // Prime from the current condition so a button held across start
+        // doesn't fire its binding as a phantom rising edge on the first poll.
+        for (t in triggers) t.prime()
     }
 
     internal fun requireBindingsUnlocked() {

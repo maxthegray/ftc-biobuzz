@@ -102,6 +102,15 @@ class Trigger internal constructor(
 
     internal fun read(): Boolean = condition.asBoolean
 
+    /**
+     * Sample the condition without firing bindings. [GamepadEx.lockBindings]
+     * primes every trigger at start so a button held through init doesn't
+     * read as a rising edge on the first real poll.
+     */
+    internal fun prime() {
+        lastState = condition.asBoolean
+    }
+
     /** Sample the condition and fire any binding whose edge matched. Called once per loop by [host]. */
     internal fun poll() {
         val curr = condition.asBoolean

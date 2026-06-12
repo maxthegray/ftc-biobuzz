@@ -59,6 +59,41 @@ class GamepadLockTest {
     }
 
     @Test
+    fun buttonHeldThroughInitDoesNotFireAtStart() {
+        val cmd = CommandBuilder().setDone { false }.requiring(Any())
+        host.button(GamepadEx.Button.A).onTrue(cmd)
+
+        // Init loop: button pressed and held, triggers not polled.
+        host.raw.a = true
+        host.update(pollTriggers = false)
+
+        // Start: lockBindings primes edge state; still held -> no rising edge.
+        host.lockBindings()
+        host.update()
+        assertFalse(scheduler.isScheduled(cmd))
+
+        // Release and re-press: a real rising edge fires normally.
+        host.raw.a = false
+        host.update()
+        host.raw.a = true
+        host.update()
+        assertTrue(scheduler.isScheduled(cmd))
+    }
+
+    @Test
+    fun buttonNotHeldAtStartStillFiresOnFirstPress() {
+        val cmd = CommandBuilder().setDone { false }.requiring(Any())
+        host.button(GamepadEx.Button.A).onTrue(cmd)
+
+        host.update(pollTriggers = false)
+        host.lockBindings()
+
+        host.raw.a = true
+        host.update()
+        assertTrue(scheduler.isScheduled(cmd))
+    }
+
+    @Test
     fun updateWithoutTriggerPollingSkipsBindings() {
         var condition = false
         val cmd = CommandBuilder().setDone { false }.requiring(Any())
