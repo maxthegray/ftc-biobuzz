@@ -1,24 +1,29 @@
 package org.firstinspires.ftc.teamcode.core.subsystems.drive
 
 import com.pedropathing.follower.Follower
+import com.pedropathing.ftc.drivetrains.Mecanum
 import com.pedropathing.geometry.BezierPoint
 import com.pedropathing.paths.HeadingInterpolator
 import com.pedropathing.paths.Path
 import com.pedropathing.paths.PathChain
+import com.qualcomm.robotcore.hardware.DcMotorEx
 import com.qualcomm.robotcore.hardware.HardwareMap
 import java.util.Locale
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit
 import org.firstinspires.ftc.teamcode.core.command.Command
 import org.firstinspires.ftc.teamcode.core.command.CommandBuilder
 import org.firstinspires.ftc.teamcode.core.command.EndCondition
 import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import org.firstinspires.ftc.teamcode.core.geometry.Vector2d
 import org.firstinspires.ftc.teamcode.core.geometry.shortestAngleDelta
+import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.pathing.toCore
 import org.firstinspires.ftc.teamcode.core.pathing.toPedro
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.DriveTelemetrySource
 import org.firstinspires.ftc.teamcode.core.runtime.PersistedPose
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
+import org.firstinspires.ftc.teamcode.core.util.Clock
 import kotlin.math.abs
 
 /**
@@ -41,8 +46,10 @@ import kotlin.math.abs
  * Conflicting callers should declare `requiring(driveSubsystem)` on their
  * command so the scheduler arbitrates.
  */
-class MecanumDriveSubsystem(internal val follower: Follower) :
-    SubsystemBase("Drive"), DriveTelemetrySource {
+class MecanumDriveSubsystem(
+    internal val follower: Follower,
+    private val clock: Clock = Clock.SYSTEM,
+) : SubsystemBase("Drive"), DriveTelemetrySource {
 
     enum class Mode { IDLE, TELEOP, FOLLOWING, HOLDING }
 
@@ -59,8 +66,10 @@ class MecanumDriveSubsystem(internal val follower: Follower) :
     private var modeAfterFollow: Mode = Mode.IDLE
 
     override fun init(hardwareMap: HardwareMap) {
-        // Follower is constructed in configure() from pedroPathing/Constants.
-        // Nothing to resolve here.
+        // Follower is constructed in configure() from pedroPathing/Constants;
+        // reuse the motors Pedro already resolved for the log channels. A
+        // non-Mecanum drivetrain (the sim) just logs nothing.
+        loggedMotors = (follower.drivetrain as? Mecanum)?.motors ?: emptyList()
     }
 
     /** Switch the follower into teleop drive mode. Called by [teleopCommand]. */
@@ -316,6 +325,50 @@ class MecanumDriveSubsystem(internal val follower: Follower) :
 
     override fun periodic() {
         if (mode == Mode.FOLLOWING && !follower.isBusy) mode = modeAfterFollow
+        sampleNextMotor()
+    }
+
+    // ------------------------------------------------------- motor channels
+
+    private var loggedMotors: List<DcMotorEx> = emptyList()
+    private var motorSampleIndex = 0
+    private var lastMotorSampleNs = Long.MIN_VALUE
+    private var sampledMotorIndex = -1
+    private var sampledPower = 0.0
+    private var sampledCurrentAmps = 0.0
+
+    /**
+     * getPower()/getCurrent() are real Lynx transactions — not bulk-cache
+     * backed — so reading all four motors every tick would cost milliseconds.
+     * Instead one motor is sampled per [MOTOR_SAMPLE_INTERVAL_NS] round-robin
+     * (each motor refreshes every ~200 ms), spreading the cost evenly.
+     */
+    private fun sampleNextMotor() {
+        sampledMotorIndex = -1
+        if (loggedMotors.isEmpty()) return
+        val now = clock.nanos()
+        if (lastMotorSampleNs != Long.MIN_VALUE && now - lastMotorSampleNs < MOTOR_SAMPLE_INTERVAL_NS) {
+            return
+        }
+        lastMotorSampleNs = now
+        val index = motorSampleIndex
+        motorSampleIndex = (motorSampleIndex + 1) % loggedMotors.size
+        try {
+            val motor = loggedMotors[index]
+            sampledPower = motor.power
+            sampledCurrentAmps = motor.getCurrent(CurrentUnit.AMPS)
+            sampledMotorIndex = index
+        } catch (_: Throwable) {
+            // Logging must never stop the drive; the channel just goes quiet.
+        }
+    }
+
+    override fun logState(log: StateLog) {
+        val index = sampledMotorIndex
+        if (index < 0) return
+        val label = MOTOR_LABELS.getOrElse(index) { "motor$index" }
+        log.put("motors/$label/power", sampledPower)
+        log.put("motors/$label/currentAmps", sampledCurrentAmps)
     }
 
     override fun writeHardware() {
@@ -374,6 +427,12 @@ class MecanumDriveSubsystem(internal val follower: Follower) :
                     modeAfterFollow = Mode.IDLE
                 }
             }
+
+    private companion object {
+        /** Pedro's Mecanum.getMotors() order. */
+        val MOTOR_LABELS = listOf("leftFront", "leftRear", "rightFront", "rightRear")
+        const val MOTOR_SAMPLE_INTERVAL_NS = 50_000_000L
+    }
 }
 
 private fun CommandBuilder.asDriveAction(): CommandBuilder =

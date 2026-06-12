@@ -87,6 +87,28 @@ class MecanumDriveSubsystemTest {
         assertEquals(target.heading, held.heading, 1e-9)
         assertEquals(MecanumDriveSubsystem.Mode.HOLDING, drive.mode)
     }
+
+    @Test
+    fun logStateWithoutRealMotorsWritesNothing() {
+        // The fake follower's drivetrain is not Pedro's Mecanum, so init
+        // resolves no motors — logging must degrade to a silent no-op.
+        val drive = MecanumDriveSubsystem(fakeFollower())
+        drive.init(com.qualcomm.robotcore.hardware.HardwareMap(null, null))
+        val log = RecordingStateLog()
+
+        drive.periodic()
+        drive.logState(log)
+
+        assertTrue(log.channels.isEmpty())
+    }
+
+    private class RecordingStateLog : org.firstinspires.ftc.teamcode.core.logging.StateLog {
+        val channels = mutableMapOf<String, Any>()
+        override fun put(channel: String, value: Double) { channels[channel] = value }
+        override fun put(channel: String, value: Long) { channels[channel] = value }
+        override fun put(channel: String, value: Boolean) { channels[channel] = value }
+        override fun put(channel: String, value: String) { channels[channel] = value }
+    }
 }
 
 internal fun fakeFollower(): FakeFollower = FakeFollower()
