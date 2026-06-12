@@ -261,17 +261,36 @@ abstract class OpModeBase : LinearOpMode() {
                 if (health != null) put(subsystem.name, health)
             }
             if (includeInitOnly) {
-                val status = try {
-                    PinpointDirect.status(hardwareMap).toString()
-                } catch (t: Throwable) {
-                    "${t.javaClass.simpleName}: ${t.message}"
-                }
-                put("Pinpoint status", status)
+                put("Pinpoint status", pinpointStatusThrottled())
                 if (!cachedVoltage.isNaN() && cachedVoltage < LOW_BATTERY_WARN_VOLTS) {
                     put("battery WARNING", "LOW — swap before the match")
                 }
             }
         }
+    }
+
+    private var cachedPinpointStatus = ""
+    private var lastPinpointStatusNs = Long.MIN_VALUE
+
+    /**
+     * Pinpoint device status for the init Health section, throttled to one
+     * read per second — each read is a real I2C transaction and the init
+     * loop ticks every ~20 ms.
+     */
+    private fun pinpointStatusThrottled(): String {
+        val now = System.nanoTime()
+        if (lastPinpointStatusNs != Long.MIN_VALUE &&
+            now - lastPinpointStatusNs < PINPOINT_STATUS_INTERVAL_NS
+        ) {
+            return cachedPinpointStatus
+        }
+        lastPinpointStatusNs = now
+        cachedPinpointStatus = try {
+            PinpointDirect.status(hardwareMap).toString()
+        } catch (t: Throwable) {
+            "${t.javaClass.simpleName}: ${t.message}"
+        }
+        return cachedPinpointStatus
     }
 
     private fun updateEndgameRumble() {
@@ -414,5 +433,6 @@ abstract class OpModeBase : LinearOpMode() {
         /** Resting voltage below which the init screen warns to swap the battery. */
         const val LOW_BATTERY_WARN_VOLTS = 12.0
         const val CONFIG_PERSIST_INTERVAL_NS = 1_000_000_000L
+        const val PINPOINT_STATUS_INTERVAL_NS = 1_000_000_000L
     }
 }
