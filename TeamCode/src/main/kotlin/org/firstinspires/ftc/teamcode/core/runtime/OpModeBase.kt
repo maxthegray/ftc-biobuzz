@@ -130,8 +130,8 @@ abstract class OpModeBase : LinearOpMode() {
             put("total ms", p.totalNanos / 1e6, decimals = 2)
             put("total max ms", p.maxTotalNanos / 1e6, decimals = 2)
             for (phase in LoopPhase.entries) {
-                put("${'$'}{phase.label} ms", p[phase] / 1e6, decimals = 2)
-                put("${'$'}{phase.label} max ms", p.max(phase) / 1e6, decimals = 2)
+                put("${phase.label} ms", p[phase] / 1e6, decimals = 2)
+                put("${phase.label} max ms", p.max(phase) / 1e6, decimals = 2)
             }
             put("overhead ms", p.overheadNanos / 1e6, decimals = 2)
             put("overhead max ms", p.maxOverheadNanos / 1e6, decimals = 2)

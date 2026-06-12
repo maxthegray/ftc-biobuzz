@@ -48,7 +48,7 @@ class FlightRecorder private constructor(
     private val gamepad2Buttons = writer.startEntry("gamepad2/buttons", "int64")
     private val loopTotal = writer.startEntry("loop/totalNanos", "int64")
     private val loopPhaseEntries = IntArray(LoopPhase.entries.size) { i ->
-        writer.startEntry("loop/${'$'}{LoopPhase.entries[i].label}Nanos", "int64")
+        writer.startEntry("loop/${LoopPhase.entries[i].label}Nanos", "int64")
     }
     private val battery = writer.startEntry("battery", "double")
     private val runningCommands = writer.startEntry("commands/running", "string")
