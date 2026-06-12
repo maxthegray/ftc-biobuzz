@@ -48,10 +48,13 @@ private class SequentialGroup(private val children: List<Command>) : CommandBuil
             children[0].start()
         }
         setExecute {
-            if (index >= children.size) return@setExecute
-            val child = children[index]
-            child.execute()
-            if (child.done()) {
+            // Drain every child that finishes this tick (each still executes
+            // at most once per tick): a zero-duration child — an instant, an
+            // already-true waitUntil — must not cost the routine a dead tick.
+            while (index < children.size) {
+                val child = children[index]
+                child.execute()
+                if (!child.done()) break
                 child.end(EndCondition.NATURALLY)
                 index++
                 if (index < children.size) children[index].start()

@@ -282,6 +282,57 @@ class SchedulerTest {
         assertTrue(scheduler.isScheduled(cmd))
     }
 
+    // ---------------------------------------------------------------- blocked
+
+    @Test
+    fun blockedHandlerReceivesCommandAndBlockingHolders() {
+        val req = Any()
+        val holder = Probe(req, priority = 20)
+        val intruder = Probe(req, priority = 10)
+        var blockedCommand: Command? = null
+        var blockedBy: List<Command>? = null
+        scheduler.blockedHandler = { command, holders ->
+            blockedCommand = command
+            blockedBy = holders
+        }
+        scheduler.schedule(holder)
+
+        assertFalse(scheduler.schedule(intruder))
+        assertEquals(intruder, blockedCommand)
+        assertEquals(listOf<Command>(holder), blockedBy)
+    }
+
+    @Test
+    fun blockedHandlerNotInvokedOnSuccessNoOpOrPreemption() {
+        val req = Any()
+        var invocations = 0
+        scheduler.blockedHandler = { _, _ -> invocations++ }
+
+        val holder = Probe(req, priority = 10)
+        assertTrue(scheduler.schedule(holder)) // plain success
+        assertTrue(scheduler.schedule(holder)) // already-scheduled no-op
+        assertTrue(scheduler.schedule(Probe(req, priority = 10))) // equal-priority preemption
+        assertEquals(0, invocations)
+    }
+
+    @Test
+    fun blockedHandlerNotInvokedOnStartFault() {
+        var invocations = 0
+        scheduler.blockedHandler = { _, _ -> invocations++ }
+        scheduler.faultHandler = { _, _ -> }
+        val bad = object : Command {
+            override fun requirements(): Set<Any> = emptySet()
+            override fun priority(): Int = 0
+            override fun start() = error("boom")
+            override fun execute() {}
+            override fun done(): Boolean = false
+            override fun end(endCondition: EndCondition) {}
+        }
+
+        assertFalse(scheduler.schedule(bad))
+        assertEquals(0, invocations)
+    }
+
     // ----------------------------------------------------------------- groups
 
     @Test
@@ -396,6 +447,50 @@ class SchedulerTest {
         deadlineDone = true
         scheduler.execute()
         assertEquals(1, worker.ends.size)
+    }
+
+    @Test
+    fun sequentialDrainsZeroDurationChildrenInOneTick() {
+        val order = mutableListOf<String>()
+        val group = Groups.sequential(
+            Commands.instant { order += "a" },
+            Commands.instant { order += "b" },
+            Commands.instant { order += "c" },
+        )
+        scheduler.schedule(group)
+        assertEquals(listOf("a"), order) // first child starts at schedule time
+
+        scheduler.execute()
+        assertEquals(listOf("a", "b", "c"), order)
+        assertFalse(scheduler.isScheduled(group))
+    }
+
+    @Test
+    fun sequentialStopsDrainingAtTheFirstUnfinishedChild() {
+        val order = mutableListOf<String>()
+        var blockerDone = false
+        val blocker = Probe(done = { blockerDone })
+        val group = Groups.sequential(
+            Commands.instant { order += "a" },
+            blocker,
+            Commands.instant { order += "b" },
+        )
+        scheduler.schedule(group)
+
+        scheduler.execute()
+        assertEquals(listOf("a"), order)
+        assertEquals(1, blocker.starts)
+        // The blocker started mid-drain and still executed this tick.
+        assertEquals(1, blocker.executes)
+
+        scheduler.execute()
+        assertEquals(2, blocker.executes)
+        assertEquals(listOf("a"), order)
+
+        blockerDone = true
+        scheduler.execute()
+        assertEquals(listOf("a", "b"), order)
+        assertFalse(scheduler.isScheduled(group))
     }
 
     // --------------------------------------------------------------- commands
