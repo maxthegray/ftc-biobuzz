@@ -2,6 +2,10 @@
 
 Keep this starter season-agnostic. A season fork adds game-specific subsystems, op-modes, and paths under `TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode`.
 
+If you are evaluating the repo for the first time, start with
+[ADOPTING.md](ADOPTING.md). This file is about keeping a fork healthy after
+you have decided to use the starter.
+
 ## Where Season Code Goes
 
 - Subsystems: extend `SubsystemBase`, resolve hardware in `init`, read in `periodic`, command outputs from scheduler commands, and write final actuator state in `writeHardware`.

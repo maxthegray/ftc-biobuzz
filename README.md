@@ -1,7 +1,7 @@
 # ftc-starter
 
 Season-agnostic starter for FIRST Tech Challenge. Fork this at the start of
-every season, rename the OpModes, and focus on the game — not the plumbing.
+every season, rename the OpModes, and focus on the game, not the plumbing.
 
 Built on:
 
@@ -17,14 +17,29 @@ Built on:
 
 ## Quick start
 
-1. Open the project in Android Studio Giraffe+ / Hedgehog+.
-2. Make sure the Control Hub's active Configuration has these hardware names:
+### Without a robot
+
+1. Install Android Studio and a JDK 17 distribution.
+2. Open this project in Android Studio, or verify it from a terminal:
+
+   ```
+   make test
+   make build
+   ```
+
+3. Read [ADOPTING.md](ADOPTING.md) before changing framework code. It lists
+   the assumptions this starter makes and the files a new team usually edits.
+
+### On a robot
+
+1. Make sure the Control Hub's active Configuration has these hardware names:
    - Motors: `frontLeftMotor`, `frontRightMotor`, `backLeftMotor`, `backRightMotor`
    - Pinpoint I²C: `pinpoint`
-3. Build & push to the Robot Controller. Select the op-mode
+2. Build and push to the Robot Controller. Select the op-mode
    **Starter: Drive Only** to sanity-check the drivetrain and telemetry.
-4. Open the Panels dashboard at `http://192.168.43.1:8001` while the robot
+3. Open the Panels dashboard at `http://192.168.43.1:8001` while the robot
    is running to see live pose and tuning knobs.
+4. Work through [BRINGUP.md](BRINGUP.md) before trusting autonomous.
 
 ## Repo layout
 
@@ -111,8 +126,8 @@ if (runner.isDone) requestOpModeStop()
 Run the host tests and Android debug assemble with JDK 17:
 
 ```
-JAVA_HOME="/Users/maximilianreich/Library/Java/JavaVirtualMachines/corretto-17.0.13/Contents/Home" \
-  ./gradlew :TeamCode:testDebugUnitTest :TeamCode:assembleDebug
+make test
+make build
 ```
 
 Every op-mode writes a WPILOG flight-recorder file under
@@ -132,6 +147,7 @@ Every op-mode writes a WPILOG flight-recorder file under
 ## Further reading
 
 - Architecture decisions and lifecycle timing: [ARCHITECTURE.md](ARCHITECTURE.md)
+- Adoption assumptions and first edits: [ADOPTING.md](ADOPTING.md)
 - Writing season code on the framework: [SEASON-GUIDE.md](SEASON-GUIDE.md)
 - Competition symptom → log channel triage: [RUNBOOK.md](RUNBOOK.md)
 - Robot bring-up checklist: [BRINGUP.md](BRINGUP.md)

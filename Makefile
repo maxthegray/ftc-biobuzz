@@ -15,6 +15,9 @@ help: ## Show this help
 build: ## Compile + type-check, no install
 	$(GRADLE) :TeamCode:assembleDebug
 
+test: ## Run TeamCode host unit tests
+	$(GRADLE) :TeamCode:testDebugUnitTest
+
 clean: ## gradle clean
 	$(GRADLE) clean
 
@@ -56,4 +59,4 @@ analyze: pull-logs ## Pull logs and print a one-page summary of the newest match
 analyze-last: ## Summarize the newest already-pulled log (no adb needed)
 	python3 tools/analyze_wpilog.py
 
-.PHONY: help build clean install hot connect disconnect devices reset-adb logs logs-all pull-logs analyze analyze-last
+.PHONY: help build test clean install hot connect disconnect devices reset-adb logs logs-all pull-logs analyze analyze-last
