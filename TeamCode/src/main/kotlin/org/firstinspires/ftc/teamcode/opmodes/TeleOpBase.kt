@@ -54,7 +54,15 @@ abstract class TeleOpBase : OpModeBase() {
         // right after the drive's writeHardware() runs Follower.update().
         drive = robot.register(MecanumDriveSubsystem(follower))
         localizer = robot.register(
-            LocalizerSubsystem(follower, onEvent = robot::recordEvent, isFollowing = drive::isFollowing),
+            LocalizerSubsystem(
+                follower,
+                onEvent = robot::recordEvent,
+                isFollowing = drive::isFollowing,
+                // Watchdog policy: a dead localizer makes any active path
+                // dangerous; break it and let the driver keep stick control
+                // (the teleop default command resumes next tick).
+                onFault = { drive.breakPath() },
+            ),
         )
         drive.defaultCommand = drive.teleopCommand {
             TeleopInput(

@@ -46,7 +46,17 @@ class ExampleAuto : OpModeBase() {
         // Follower.update() in the drive's writeHardware.
         drive = robot.register(MecanumDriveSubsystem(follower))
         localizer = robot.register(
-            LocalizerSubsystem(follower, onEvent = robot::recordEvent, isFollowing = drive::isFollowing),
+            LocalizerSubsystem(
+                follower,
+                onEvent = robot::recordEvent,
+                isFollowing = drive::isFollowing,
+                // Watchdog policy for auton: driving blind is worse than
+                // parking — cancel the routine and stop where we are.
+                onFault = {
+                    runner?.cancel()
+                    drive.breakPath()
+                },
+            ),
         )
         selector = AutonSelector(robot, telemetryBag)
             .register("Out and back") { outAndBack() }

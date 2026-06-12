@@ -18,6 +18,7 @@ object LocalizerConfig {
     private const val DEFAULT_MAX_CORRECTION_INCHES = 12.0
     private val DEFAULT_MAX_CORRECTION_RADIANS = Math.toRadians(30.0)
     private const val DEFAULT_FOLLOWING_BLEND_SCALE = 0.25
+    private const val DEFAULT_FROZEN_POSE_TICKS = 25
 
     /**
      * Fraction of each accepted correction applied to the pose (0..1).
@@ -43,6 +44,24 @@ object LocalizerConfig {
      * 1.0 disables the policy.
      */
     @JvmField var followingBlendScale: Double = DEFAULT_FOLLOWING_BLEND_SCALE
+
+    /**
+     * Master switch for [LocalizerSubsystem]'s runtime fault watchdog
+     * (non-finite pose, frozen pose while following, device status).
+     */
+    @JvmField var watchdogEnabled: Boolean = true
+
+    /**
+     * Consecutive ticks of a bit-identical pose, while a path is being
+     * followed, before the watchdog declares the localizer dead. A live
+     * Pinpoint jitters at the float level every read; an exactly-frozen pose
+     * under commanded motion means the sensor stopped talking. 25 ticks ≈
+     * 0.5 s at 50 Hz.
+     */
+    @JvmField var frozenPoseTicks: Int = DEFAULT_FROZEN_POSE_TICKS
+
+    internal val safeFrozenPoseTicks: Int
+        get() = if (frozenPoseTicks >= 2) frozenPoseTicks else DEFAULT_FROZEN_POSE_TICKS
 
     internal val safeCorrectionBlend: Double
         get() = if (correctionBlend.isFinite()) {

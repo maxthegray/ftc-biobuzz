@@ -5,7 +5,9 @@ import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.fakeFollower
 import org.firstinspires.ftc.teamcode.core.estimation.CorrectionResult
 import org.firstinspires.ftc.teamcode.core.util.FakeClock
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.PI
@@ -16,6 +18,12 @@ class LocalizerSubsystemTest {
     private val follower = fakeFollower()
     private val events = mutableListOf<String>()
     private val localizer = LocalizerSubsystem(follower, clock, onEvent = events::add)
+
+    @After
+    fun restoreConfig() {
+        LocalizerConfig.watchdogEnabled = true
+        LocalizerConfig.frozenPoseTicks = 25
+    }
 
     @Test
     fun correctionPreservesStraightLineMotionSinceMeasurement() {
@@ -154,6 +162,112 @@ class LocalizerSubsystemTest {
             )
         }
         assertTrue("expected convergence, got ${follower.pose.x}", follower.pose.x > 9.5)
+    }
+
+    // ---------------------------------------------------------------- watchdog
+
+    private class WatchdogHarness(
+        following: Boolean = true,
+    ) {
+        val follower = fakeFollower()
+        var faults = 0
+        val events = mutableListOf<String>()
+        val localizer = LocalizerSubsystem(
+            follower,
+            onEvent = events::add,
+            isFollowing = { following },
+            onFault = { faults++ },
+        )
+
+        fun setPose(x: Double, y: Double, heading: Double) {
+            follower.setPose(Pose(x, y, heading))
+        }
+    }
+
+    @Test
+    fun watchdogTripsOnNonFinitePose() {
+        val h = WatchdogHarness()
+        h.setPose(Double.NaN, 0.0, 0.0)
+
+        h.localizer.periodic()
+
+        assertEquals(1, h.faults)
+        assertTrue(h.localizer.fault!!.contains("non-finite"))
+        assertTrue(h.localizer.health().startsWith("FAULT"))
+        assertTrue(h.events.any { "LOCALIZER FAULT" in it })
+
+        // Latched: further ticks don't refire the policy callback.
+        h.localizer.periodic()
+        assertEquals(1, h.faults)
+    }
+
+    @Test
+    fun watchdogTripsOnPoseFrozenWhileFollowing() {
+        LocalizerConfig.frozenPoseTicks = 5
+        val h = WatchdogHarness(following = true)
+        h.setPose(10.0, 20.0, 1.0)
+
+        h.localizer.periodic() // primes the last-pose comparison
+        repeat(4) { h.localizer.periodic() }
+        assertNull(h.localizer.fault)
+
+        h.localizer.periodic()
+        assertEquals(1, h.faults)
+        assertTrue(h.localizer.fault!!.contains("frozen"))
+    }
+
+    @Test
+    fun watchdogIgnoresFrozenPoseWhenNotFollowing() {
+        LocalizerConfig.frozenPoseTicks = 5
+        val h = WatchdogHarness(following = false)
+        h.setPose(10.0, 20.0, 1.0)
+
+        repeat(50) { h.localizer.periodic() }
+
+        assertNull(h.localizer.fault)
+        assertEquals(0, h.faults)
+    }
+
+    @Test
+    fun watchdogDoesNotTripWhilePoseIsMoving() {
+        LocalizerConfig.frozenPoseTicks = 5
+        val h = WatchdogHarness(following = true)
+
+        repeat(50) { i ->
+            h.setPose(i * 0.01, 20.0, 1.0)
+            h.localizer.periodic()
+        }
+
+        assertNull(h.localizer.fault)
+        assertEquals("ok", h.localizer.health())
+    }
+
+    @Test
+    fun watchdogCanBeDisabled() {
+        LocalizerConfig.watchdogEnabled = false
+        val h = WatchdogHarness()
+        h.setPose(Double.NaN, 0.0, 0.0)
+
+        h.localizer.periodic()
+
+        assertNull(h.localizer.fault)
+        assertEquals(0, h.faults)
+    }
+
+    @Test
+    fun watchdogSurvivesThrowingFaultPolicy() {
+        val h = WatchdogHarness()
+        val localizer = LocalizerSubsystem(
+            h.follower,
+            onEvent = h.events::add,
+            isFollowing = { true },
+            onFault = { error("policy blew up") },
+        )
+        h.setPose(Double.NaN, 0.0, 0.0)
+
+        localizer.periodic() // must not throw
+
+        assertTrue(localizer.fault!!.contains("non-finite"))
     }
 
     private fun applyUngated(measured: Pose2d, timestampNanos: Long): CorrectionResult =
