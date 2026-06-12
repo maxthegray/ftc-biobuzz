@@ -40,6 +40,16 @@ class Scheduler {
     var faultHandler: ((Command, Throwable) -> Unit)? = null
 
     /**
+     * Receives (command, blocking holders) whenever [schedule] drops a command
+     * because a strictly higher-priority command holds one of its requirements.
+     * Without this, a blocked schedule is invisible — the driver pressed the
+     * button and nothing happened, with no forensics.
+     * [org.firstinspires.ftc.teamcode.core.runtime.Robot] installs an
+     * event-recording handler here.
+     */
+    var blockedHandler: ((command: Command, holders: List<Command>) -> Unit)? = null
+
+    /**
      * Schedule [command]. Returns true if it is running afterwards (including
      * the already-scheduled no-op case); false if it was blocked by a
      * higher-priority holder or its [Command.start] faulted.
@@ -47,7 +57,11 @@ class Scheduler {
     fun schedule(command: Command): Boolean {
         if (command in running) return true
         val holders = command.requirements().mapNotNullTo(HashSet()) { activeRequirements[it] }
-        if (holders.any { it.priority() > command.priority() }) return false
+        val blockers = holders.filter { it.priority() > command.priority() }
+        if (blockers.isNotEmpty()) {
+            blockedHandler?.invoke(command, blockers)
+            return false
+        }
         for (holder in holders) {
             remove(holder)
             endReported(holder, EndCondition.INTERRUPTED)

@@ -30,7 +30,7 @@ import org.firstinspires.ftc.teamcode.core.util.TelemetryBag
  *                    each init tick; commands and hardware writes do not.
  *  - [onStart]     — optional, runs the instant the start button is pressed
  *  - [onLoop]      — runs every tick after subsystem reads and input polling
- *                    but before Ivy commands and hardware writes
+ *                    but before commands and hardware writes
  *
  * Telemetry is doubled up: the Driver Station's built-in [Telemetry] and
  * Panels's dashboard telemetry are both driven from the same [TelemetryBag]
@@ -153,6 +153,23 @@ abstract class OpModeBase : LinearOpMode() {
             RobotLog.ee(logTag, t, "Telemetry flush failed ($telemetryFailures)")
         }
         false
+    }
+
+    /**
+     * Same policy for the init loop, which doesn't go through [Robot.loop]'s
+     * telemetry containment: a flaky voltage read or health string must not
+     * abort an otherwise healthy init. Real init failures (Preflight,
+     * configure, subsystem init) stay fail-loud.
+     */
+    private inline fun safeTelemetry(block: () -> Unit) {
+        try {
+            block()
+        } catch (t: Throwable) {
+            telemetryFailures++
+            if (telemetryFailures <= 5) {
+                RobotLog.ee(logTag, t, "Init telemetry failed ($telemetryFailures)")
+            }
+        }
     }
 
     private fun reportLoopCrash(t: Throwable) {
@@ -350,9 +367,11 @@ abstract class OpModeBase : LinearOpMode() {
                 driver.update(pollTriggers = false)
                 operator.update(pollTriggers = false)
                 onInitLoop()
-                refreshVoltage()
-                publishHealth(includeInitOnly = true)
-                if (publishFieldView) fieldView.draw(fieldViewDrive)
+                safeTelemetry {
+                    refreshVoltage()
+                    publishHealth(includeInitOnly = true)
+                    if (publishFieldView) fieldView.draw(fieldViewDrive)
+                }
                 safeFlush()
                 sleep(20)
             }

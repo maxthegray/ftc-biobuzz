@@ -61,6 +61,7 @@ class Robot(
 
     init {
         scheduler.faultHandler = ::handleCommandFault
+        scheduler.blockedHandler = ::handleBlockedSchedule
     }
 
     /** Number of contained command faults this op-mode. Surfaced in health telemetry. */
@@ -69,6 +70,10 @@ class Robot(
 
     /** The most recent contained fault, for telemetry and post-match triage. */
     var lastCommandFault: Throwable? = null
+        private set
+
+    /** Number of contained telemetry-phase faults this op-mode. */
+    var telemetryFaultCount: Int = 0
         private set
 
     /** Monotonic tick counter, useful for log throttling. */
@@ -90,6 +95,9 @@ class Robot(
     /** Subsystems whose default command has already been evented this op-mode. */
     private val defaultEventSent = HashSet<SubsystemBase>()
     private var lastOverrunEventNs = Long.MIN_VALUE
+    private var lastTelemetryFaultEventNs = Long.MIN_VALUE
+    private var lastBlockedEventMessage: String? = null
+    private var lastBlockedEventNs = Long.MIN_VALUE
 
     /**
      * Register a subsystem. Must happen before [init] (i.e. in the op-mode's
@@ -230,7 +238,14 @@ class Robot(
         for (s in subsystems) s.writeHardware()
         phaseStart = mark(phaseStart) { profile[LoopPhase.WRITE_HARDWARE] = it }
 
-        telemetry()
+        // Telemetry is observe-only by contract, so a failure here (a flaky
+        // voltage read, a throwing health() string) must never stop the robot
+        // — in teleop or auton.
+        try {
+            telemetry()
+        } catch (t: Throwable) {
+            recordTelemetryFault(t)
+        }
         val afterTelemetry = clock.nanos()
         profile[LoopPhase.TELEMETRY] = afterTelemetry - phaseStart
 
@@ -320,6 +335,47 @@ class Robot(
         }
     }
 
+    /**
+     * [Scheduler.blockedHandler]: a schedule was dropped because a strictly
+     * higher-priority command holds a requirement. Record it so "I pressed
+     * the button and nothing happened" is diagnosable from the flight log.
+     * Identical back-to-back messages are deduped for a second so a per-tick
+     * schedule loop cannot flood the log.
+     */
+    private fun handleBlockedSchedule(command: Command, holders: List<Command>) {
+        val message = "schedule blocked: $command by ${holders.joinToString()}"
+        val now = clock.nanos()
+        if (message == lastBlockedEventMessage &&
+            lastBlockedEventNs != Long.MIN_VALUE &&
+            now - lastBlockedEventNs < BLOCKED_EVENT_DEDUPE_NANOS
+        ) {
+            return
+        }
+        lastBlockedEventMessage = message
+        lastBlockedEventNs = now
+        recordEvent(message)
+    }
+
+    private fun recordTelemetryFault(t: Throwable) {
+        telemetryFaultCount++
+        if (telemetryFaultCount <= 5) {
+            try {
+                RobotLog.ee("Robot", t, "Telemetry fault contained (#$telemetryFaultCount)")
+            } catch (_: Throwable) {
+                // Host-side tests stub Android logging.
+            }
+        }
+        // Throttled: a persistently failing phase must not flood the
+        // recent-events ring that crash reports rely on.
+        val now = clock.nanos()
+        if (lastTelemetryFaultEventNs == Long.MIN_VALUE ||
+            now - lastTelemetryFaultEventNs > TELEMETRY_FAULT_EVENT_THROTTLE_NANOS
+        ) {
+            lastTelemetryFaultEventNs = now
+            recordEvent("TELEMETRY FAULT: ${t.javaClass.simpleName}: ${t.message}")
+        }
+    }
+
     private fun recordContainedFault(t: Throwable, context: String) {
         commandFaultCount++
         lastCommandFault = t
@@ -361,5 +417,7 @@ class Robot(
         const val RECENT_EVENT_LIMIT = 20
         const val LOOP_OVERRUN_NANOS = 100_000_000L
         const val OVERRUN_EVENT_THROTTLE_NANOS = 1_000_000_000L
+        const val TELEMETRY_FAULT_EVENT_THROTTLE_NANOS = 1_000_000_000L
+        const val BLOCKED_EVENT_DEDUPE_NANOS = 1_000_000_000L
     }
 }

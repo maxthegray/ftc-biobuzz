@@ -334,6 +334,75 @@ class RobotLoopTest {
     }
 
     @Test
+    fun telemetryFaultIsContainedAndCounted() {
+        robot.start()
+        robot.loop(telemetry = { error("dashboard hiccup") })
+
+        // The loop survived: the write phase ran and the tick completed.
+        assertEquals(listOf("periodic", "write"), events)
+        assertEquals(1L, robot.loopCount)
+        assertEquals(1, robot.telemetryFaultCount)
+        assertEquals(1, robot.recentEvents().count { "TELEMETRY FAULT" in it })
+    }
+
+    @Test
+    fun telemetryFaultEventsAreThrottled() {
+        robot.start()
+        robot.loop(telemetry = { error("boom") })
+        clock.advanceMs(5.0)
+        robot.loop(telemetry = { error("boom") })
+
+        // Every fault is counted, but the recent-events ring gets one entry
+        // per throttle window.
+        assertEquals(2, robot.telemetryFaultCount)
+        assertEquals(1, robot.recentEvents().count { "TELEMETRY FAULT" in it })
+
+        clock.advanceMs(1100.0)
+        robot.loop(telemetry = { error("boom") })
+        assertEquals(3, robot.telemetryFaultCount)
+        assertEquals(2, robot.recentEvents().count { "TELEMETRY FAULT" in it })
+    }
+
+    @Test
+    fun blockedScheduleIsRecordedAndDeduped() {
+        val req = Any()
+        val holder = CommandBuilder()
+            .requiring(req)
+            .setPriority(CommandPriorities.DRIVER_ACTION)
+            .setDone { false }
+            .setName("holder")
+        val low = CommandBuilder()
+            .requiring(req)
+            .setPriority(CommandPriorities.AUTON_ROUTINE)
+            .setDone { false }
+            .setName("low")
+
+        robot.start()
+        robot.scheduler.schedule(holder)
+        robot.scheduler.schedule(low)
+        robot.scheduler.schedule(low) // identical block within the window: deduped
+
+        val blocked = robot.recentEvents().filter { "schedule blocked" in it }
+        assertEquals(1, blocked.size)
+        assertTrue(blocked.first().contains("low"))
+        assertTrue(blocked.first().contains("holder"))
+
+        // A different blocked command is its own event...
+        val other = CommandBuilder()
+            .requiring(req)
+            .setPriority(CommandPriorities.AUTON_ROUTINE)
+            .setDone { false }
+            .setName("other")
+        robot.scheduler.schedule(other)
+        assertEquals(2, robot.recentEvents().count { "schedule blocked" in it })
+
+        // ...and the same command records again once the window has passed.
+        clock.advanceMs(1100.0)
+        robot.scheduler.schedule(low)
+        assertEquals(3, robot.recentEvents().count { "schedule blocked" in it })
+    }
+
+    @Test
     fun registerAfterContractIsEnforced() {
         class First : SubsystemBase("first")
         class Second : SubsystemBase("second") {
