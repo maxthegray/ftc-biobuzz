@@ -65,6 +65,15 @@ The contract, compressed:
   bindings there too (they lock at start). TeleOps extend `TeleOpBase` and
   use `configureTeleop()`.
 
+Bench op-modes: the default `requiredDevices` is `Preflight.standard`
+(drive motors + Pinpoint), so a mechanism-only test rig refuses to init.
+Override it with just what the rig has:
+
+```kotlin
+override val requiredDevices: List<Preflight.Requirement>
+    get() = listOf(Preflight.Requirement("liftMotor", DcMotorEx::class.java))
+```
+
 ## Single-motor mechanisms: don't hand-roll
 
 A lift/arm/turret is `ProfiledMotorSubsystem` — profile + PIDF + soft
