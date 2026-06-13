@@ -11,6 +11,7 @@ import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import org.firstinspires.ftc.teamcode.core.command.EndCondition
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -89,9 +90,11 @@ class MecanumDriveSubsystemTest {
     }
 
     @Test
-    fun logStateWithoutRealMotorsWritesNothing() {
+    fun logStateWithoutRealMotorsWritesNoMotorChannels() {
         // The fake follower's drivetrain is not Pedro's Mecanum, so init
-        // resolves no motors — logging must degrade to a silent no-op.
+        // resolves no motors — motor telemetry must degrade to a no-op. The
+        // field-centric drive-mode flag is config, not hardware, so it logs
+        // regardless.
         val drive = MecanumDriveSubsystem(fakeFollower())
         drive.init(com.qualcomm.robotcore.hardware.HardwareMap(null, null))
         val log = RecordingStateLog()
@@ -99,7 +102,8 @@ class MecanumDriveSubsystemTest {
         drive.periodic()
         drive.logState(log)
 
-        assertTrue(log.channels.isEmpty())
+        assertTrue(log.channels.containsKey("fieldCentric"))
+        assertFalse(log.channels.keys.any { it.startsWith("motors/") })
     }
 
     private class RecordingStateLog : org.firstinspires.ftc.teamcode.core.logging.StateLog {
