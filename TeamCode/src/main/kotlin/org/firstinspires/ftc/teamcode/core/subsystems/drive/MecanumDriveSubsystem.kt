@@ -363,6 +363,7 @@ class MecanumDriveSubsystem(
     }
 
     override fun logState(log: StateLog) {
+        log.put("fieldCentric", DriveConfig.fieldCentric)
         val index = sampledMotorIndex
         if (index < 0) return
         val label = MOTOR_LABELS.getOrElse(index) { "motor$index" }
