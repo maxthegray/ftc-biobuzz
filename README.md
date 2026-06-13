@@ -50,8 +50,12 @@ TeamCode/src/main/
 │                                      # Physical constants + createFollower().
 └── kotlin/org/firstinspires/ftc/teamcode/
     ├── core/
+    │   ├── command/        # Scheduler + Command/Commands/Groups (instance-scoped)
     │   ├── control/        # TrapezoidProfile, PIDF, ProfiledController
+    │   ├── estimation/     # PoseEstimator, WallSnap (correction math)
+    │   ├── geometry/       # Pose2d, Vector2d, angle utils (framework frame)
     │   ├── hardware/       # SRSHub wrapper + optional I2C bus thread
+    │   ├── hw/             # MotorIO seam (real + sim, replayable)
     │   ├── logging/        # WPILOG flight recorder + scheduler introspection
     │   ├── pathing/        # PathDSL, chaseTarget, PedroAutoRunner
     │   ├── runtime/        # Robot, OpModeBase, SubsystemBase, selector/config
@@ -59,7 +63,7 @@ TeamCode/src/main/
     │   │   ├── drive/      # MecanumDriveSubsystem, DriveConfig
     │   │   └── localization/ # LocalizerSubsystem, LocalizerConfig, PinpointDirect
     │   └── util/           # Alliance, GamepadEx, TelemetryBag, triggers
-    └── opmodes/            # Starter teleop examples
+    └── opmodes/            # Starter teleop + auton examples
 ```
 
 ## Writing a new op-mode
@@ -95,17 +99,18 @@ Driver Station + Panels telemetry flushing.
 The `path { }` DSL sits over Pedro's `PathBuilder`:
 
 ```kotlin
-val toScore = drive.path(Pose(9.0, 60.0, 0.0), alliance = Alliance.RED) {
-    lineTo(Pose(30.0, 60.0))
-    splineTo(Pose(38.0, 58.0), Pose(48.0, 40.0, Math.toRadians(-45.0)))
+val toScore = drive.path(startPose = Pose2d(9.0, 60.0, 0.0), alliance = Alliance.RED) {
+    lineTo(Pose2d(30.0, 60.0))
+    splineTo(Pose2d(38.0, 58.0), Pose2d(48.0, 40.0))
     constantHeading(Math.toRadians(-45.0))
 }
 ```
 
-And a full auton routine via `PedroAutoRunner` / the `autoRoutine { }` DSL:
+And a full auton routine via `PedroAutoRunner` / the `autoRoutine { }` DSL
+(pass `robot::recordEvent` to get a labelled step timeline in the flight log):
 
 ```kotlin
-val runner = autoRoutine(drive) {
+val runner = autoRoutine(robot, drive, robot::recordEvent) {
     follow(toScore)
     run { /* call a season-specific subsystem */ }
     wait(300)
@@ -113,7 +118,7 @@ val runner = autoRoutine(drive) {
         follow(toStack)
         run { /* call a season-specific subsystem */ }
     }
-    holdPose(Pose(36.0, 36.0, 0.0))
+    holdPose(Pose2d(36.0, 36.0, 0.0))
 }
 // in onStart:
 runner.schedule()

@@ -19,7 +19,7 @@ This is load-bearing. Each artifact resolves from exactly one repo:
 
 | Coordinate | Repository |
 |------------|------------|
-| `com.pedropathing:core` / `:ftc` / `:ivy` / `:telemetry` | Maven Central |
+| `com.pedropathing:core` / `:ftc` / `:telemetry` | Maven Central |
 | `org.jetbrains.kotlin:*` (stdlib, gradle plugin) | Maven Central |
 | `org.firstinspires.ftc:*` (RobotCore, Hardware, Vision, …) | Google |
 | `androidx.*`, `com.android.tools.build:gradle` (AGP) | Google |
