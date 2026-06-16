@@ -59,4 +59,8 @@ analyze: pull-logs ## Pull logs and print a one-page summary of the newest match
 analyze-last: ## Summarize the newest already-pulled log (no adb needed)
 	python3 tools/analyze_wpilog.py
 
-.PHONY: help build test clean install hot connect disconnect devices reset-adb logs logs-all pull-logs analyze analyze-last
+debug: ## Pull only the newest match log(s) and emit a JSON diagnostic bundle
+	@tools/pull-latest-logs.sh $(HUB_IP) $(HUB_PORT)
+	@python3 tools/analyze_wpilog.py --json
+
+.PHONY: help build test clean install hot connect disconnect devices reset-adb logs logs-all pull-logs analyze analyze-last debug

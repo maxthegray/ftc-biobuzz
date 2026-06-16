@@ -470,6 +470,25 @@ open `.wpilog` files in AdvantageScope, or `make analyze` for a quick
 post-match summary (loop percentiles, phase maxima, battery, follower
 error, events). `RUNBOOK.md` maps competition symptoms to log channels.
 
+### Post-match debugging (Claude runs this)
+
+When the user reports a match problem and is connected to the hub ("I'm
+plugged in", "figure out what went wrong this match", "the lift didn't lift
+this match") — run **`make debug`**. It reaches the hub over USB (wifi
+fallback), pulls only the newest match's log(s) — Auto + TeleOp, not all 30 —
+and prints a JSON diagnostic bundle (loop timing, battery, follower error,
+drive-mode time, full command-set transitions, full event/fault timeline,
+pose-correction tally, and a channel manifest). Anchor on the stated symptom,
+then drill into specific channels with:
+
+```
+python3 tools/analyze_wpilog.py --json --channel <name,name> robot-logs/<file>
+```
+
+The auton run is the second pulled file; `make debug`'s JSON defaults to the
+newest (TeleOp), so point at `robot-logs/Auto-*.wpilog` for auton symptoms.
+Don't fall back to `make pull-logs` here — it drags all 30 logs over the link.
+
 Auton routines can run headless before touching the robot: see
 `core/sim/SimAutonRoutineTest` (test sources) — `SimHarness` + `SimFollower`
 execute full `PedroAutoRunner` routines against real path geometry in
