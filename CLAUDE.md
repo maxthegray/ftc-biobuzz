@@ -489,6 +489,10 @@ The auton run is the second pulled file; `make debug`'s JSON defaults to the
 newest (TeleOp), so point at `robot-logs/Auto-*.wpilog` for auton symptoms.
 Don't fall back to `make pull-logs` here — it drags all 30 logs over the link.
 
+When a log doesn't uniquely determine the cause, don't assert one. Give the
+ranked hypotheses with what each predicts in the data, and name the one
+channel to pull or the one reproduction that decides it — then ask for it.
+
 Auton routines can run headless before touching the robot: see
 `core/sim/SimAutonRoutineTest` (test sources) — `SimHarness` + `SimFollower`
 execute full `PedroAutoRunner` routines against real path geometry in
