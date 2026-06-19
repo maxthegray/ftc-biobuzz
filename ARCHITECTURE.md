@@ -96,8 +96,12 @@ main loop. For those we spin up a dedicated bus thread via `I2CBusThread`:
   Pinpoint** — backgrounding the Pinpoint read was tried and reverted
   because it shares the Control Hub's Lynx serial link with the drive
   motor writes and just starves on link contention (see the postmortem in
-  `pedroPathing/Constants.java`). `I2CBusThread` is for devices on their
-  own I²C path, e.g. sensors hanging off an SRSHub.
+  `pedroPathing/Constants.java`). Note this caveat applies to the **SRSHub
+  too**: it plugs into a Control Hub I²C port, so its read shares that same
+  Lynx link — backgrounding it is *not* free, and inline is the default.
+  `I2CBusThread` is a measured-need escape hatch, not the plan for SRSHub
+  sensors. **See `SENSORS.md`** for the full decision record and the
+  bring-up sequence that's allowed to overturn it.
 - Published values go through a single volatile slot (`I2CBusThread.Ref`)
   — writer is the bus thread, readers are the main loop. No locks.
 - Transient I²C errors are swallowed: the thread skips publishing that

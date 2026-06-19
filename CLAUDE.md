@@ -400,6 +400,17 @@ For everything else:
 5. Register it on the `Robot` from the op-mode's `configure()` hook —
    not from anywhere else.
 
+## When the user asks you to add an I²C sensor (or touch SRSHub / I2CBusThread)
+
+**Read `SENSORS.md` first.** It is the decision record for I²C wiring. The
+short version: Pinpoint stays direct, all other I²C goes on one SRSHub read
+**inline** in `periodic()`, and you do **not** background the SRSHub read by
+default — it shares the Control Hub's Lynx serial link with the motor writes,
+so threading it is the same trap that was tried and reverted for the Pinpoint
+(postmortem in `pedroPathing/Constants.java`). `SENSORS.md` has the hazards,
+the integration gotchas, and the measure-first bring-up sequence that's
+allowed to overturn any of this.
+
 ## When the user asks you to add a path or auton routine
 
 Prefer the `PathDSL` / `PedroAutoRunner` DSLs in `core/pathing/`. They
