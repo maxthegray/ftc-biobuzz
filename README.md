@@ -27,19 +27,19 @@ Built on:
    make build
    ```
 
-3. Read [ADOPTING.md](ADOPTING.md) before changing framework code. It lists
-   the assumptions this starter makes and the files a new team usually edits.
+3. Read [ADOPTING.md](ADOPTING.md) before you touch framework code — it covers
+   what the starter assumes and the files you'll actually edit first.
 
 ### On a robot
 
 1. Make sure the Control Hub's active Configuration has these hardware names:
    - Motors: `frontLeftMotor`, `frontRightMotor`, `backLeftMotor`, `backRightMotor`
    - Pinpoint I²C: `pinpoint`
-2. Build and push to the Robot Controller. Select the op-mode
-   **Starter: Drive Only** to sanity-check the drivetrain and telemetry.
-3. Open the Panels dashboard at `http://192.168.43.1:8001` while the robot
-   is running to see live pose and tuning knobs.
-4. Work through [BRINGUP.md](BRINGUP.md) before trusting autonomous.
+2. Build and push to the Robot Controller, then run **Starter: Drive Only** to
+   check the drivetrain and telemetry work.
+3. With the robot running, open the Panels dashboard at
+   `http://192.168.43.1:8001` for live pose and tuning knobs.
+4. Walk through [BRINGUP.md](BRINGUP.md) before you trust it on the field.
 
 ## Repo layout
 
@@ -66,78 +66,18 @@ TeamCode/src/main/
     └── opmodes/            # Starter teleop + auton examples
 ```
 
-## Writing a new op-mode
+## Writing season code
 
-Teleops extend `TeleOpBase` — it registers drive + localizer, installs the
-stick-driven teleop default command, restores the persisted auton pose, and
-wires the standard chords (Back+Y heading reset, Back+B field-centric):
-
-```kotlin
-@TeleOp(name = "Match Teleop", group = "Competition")
-class MatchTeleop : TeleOpBase() {
-    override fun configureTeleop() {
-        // register season subsystems and trigger bindings here...
-    }
-
-    override fun onLoop() {
-        telemetryBag.section("Drive") {
-            put("pose", drive.pose)
-            put("loopHz", robot.loopHz, decimals = 1)
-        }
-    }
-}
-```
-
-Autons extend `OpModeBase` directly — copy `ExampleAuto` as the skeleton
-(alliance/routine/delay selection on dpad in init, paths mirrored from RED
-coordinates, sequencing via `autoRoutine`). `OpModeBase` handles the rest:
-Lynx bulk-read mode, command scheduler ticking, gamepad edge detection, joined
-Driver Station + Panels telemetry flushing.
-
-## Writing a path
-
-The `path { }` DSL sits over Pedro's `PathBuilder`:
-
-```kotlin
-val toScore = drive.path(startPose = Pose2d(9.0, 60.0, 0.0), alliance = Alliance.RED) {
-    lineTo(Pose2d(30.0, 60.0))
-    splineTo(Pose2d(38.0, 58.0), Pose2d(48.0, 40.0))
-    constantHeading(Math.toRadians(-45.0))
-}
-```
-
-And a full auton routine via `PedroAutoRunner` / the `autoRoutine { }` DSL
-(pass `robot::recordEvent` to get a labelled step timeline in the flight log):
-
-```kotlin
-val runner = autoRoutine(robot, drive, robot::recordEvent) {
-    follow(toScore)
-    run { /* call a season-specific subsystem */ }
-    wait(300)
-    parallel {
-        follow(toStack)
-        run { /* call a season-specific subsystem */ }
-    }
-    holdPose(Pose2d(36.0, 36.0, 0.0))
-}
-// in onStart:
-runner.schedule()
-// in onLoop:
-if (runner.isDone) requestOpModeStop()
-```
+Teleops extend `TeleOpBase` (wire subsystems + bindings in `configureTeleop()`);
+autons extend `OpModeBase` — copy `ExampleAuto`. Subsystems, commands, paths,
+config, and auton are covered end-to-end in [SEASON-GUIDE.md](SEASON-GUIDE.md);
+`DriveOnlyTeleOp` and `ExampleAuto` are the copyable skeletons.
 
 ## Logs and verification
 
-Run the host tests and Android debug assemble with JDK 17:
-
-```
-make test
-make build
-```
-
-Every op-mode writes a WPILOG flight-recorder file under
-`/sdcard/FIRST/logs`. Pull logs with `make pull-logs`, then open the newest
-`.wpilog` in AdvantageScope.
+`make test` / `make build` run the host tests and the JDK-17 debug assemble.
+Every op-mode writes a WPILOG under `/sdcard/FIRST/logs`; `make pull-logs` then
+open the newest `.wpilog` in AdvantageScope, or `make analyze` for a summary.
 
 ## Where to tune what
 

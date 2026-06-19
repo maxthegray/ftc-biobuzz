@@ -99,6 +99,11 @@ Host-test season mechanisms by injecting `io = SimMotorIO(clock, …)` — see
 `ProfiledMotorSubsystemTest` for the pattern (including a homing run against
 a simulated hard stop).
 
+On the robot, tune gains in order: **kG first** (mechanism holds against
+gravity open-loop), then **kV** along a slow profile, then **kP**. Verify the
+encoder survives the auton→teleop handoff (`zeroEncoderOnInit = false`) and
+that `homeCommand` finds the hard stop.
+
 ## Commands and priorities
 
 - Build with `Command.build()` or the `Commands` helpers; compose with

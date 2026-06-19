@@ -9,15 +9,19 @@ you have decided to use the starter.
 ## Where Season Code Goes
 
 - Subsystems: extend `SubsystemBase`, resolve hardware in `init`, read in `periodic`, command outputs from scheduler commands, and write final actuator state in `writeHardware`.
-- Teleop: copy `DriveOnlyTeleOp` or `LocalizationTestTeleOp`, register season subsystems in `configure`, and bind controls once with `GamepadEx` triggers.
+- Teleop: extend `TeleOpBase` (copy `DriveOnlyTeleOp`), register season subsystems and bind controls once with `GamepadEx` triggers in `configureTeleop()`. Autons extend `OpModeBase` and use `configure()`.
 - Autonomous: build paths with `PathDSL` and compose routines with `PedroAutoRunner`. Use priority `10` for autonomous actions and driver-triggered actions; defaults stay priority `0`.
 - Vision: add camera pipelines in the season fork and feed accepted field-pose measurements through `LocalizerSubsystem.applyCorrection`.
 
 ## Config And Hot Reload
 
-Pin `@Configurable` classes with `@dev.frozenmilk.sinister.loading.Pinned` only when live-tuned values must survive Sloth reload. Pinned code changes require a full install.
+Live-tuned values go through `ConfigStore`, not `@Pinned` — register the config
+object in `configure()` and tuned values survive reloads, installs, and power
+cycles while the code stays hot-reloadable (see SEASON-GUIDE.md "Config
+objects"). `PersistedPose` is the only `@Pinned` class.
 
-Use a full Android Studio install after dependency, manifest, pinned-class, or non-TeamCode changes. Use `make hot` / `deploySloth` for ordinary subsystem and op-mode iteration.
+Use `make hot` / `deploySloth` for ordinary subsystem and op-mode iteration; a
+full install after dependency, manifest, `@Pinned`, or non-TeamCode changes.
 
 ## Path Rendering Limitation
 

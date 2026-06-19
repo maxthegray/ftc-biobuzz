@@ -1,7 +1,7 @@
 # Adopting This Starter
 
-This guide is for teams deciding whether to fork this repo, and for new
-programmers trying to find the right first file to edit.
+For teams deciding whether to fork this repo, and for new programmers trying to
+find the right first file to edit.
 
 ## What this starter assumes
 
@@ -16,8 +16,8 @@ programmers trying to find the right first file to edit.
 - Control Hub hardware names from [README.md](README.md): four drive motors
   and a Pinpoint device named `pinpoint`.
 
-If your robot differs, that is fine, but expect your first work to be in the
-drive, localization, and config layers rather than only in op-modes.
+If your robot's different, that's fine — just expect your first work to land in
+the drive, localization, and config layers, not only in op-modes.
 
 ## First 30 minutes
 
