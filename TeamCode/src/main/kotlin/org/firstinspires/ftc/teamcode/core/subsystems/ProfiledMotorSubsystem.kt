@@ -258,13 +258,14 @@ open class ProfiledMotorSubsystem(
 
     override fun onCommandFault() {
         // Hold position rather than cut power: a lift dropping under gravity
-        // on a contained fault is worse than one frozen in place. A DISABLED
-        // mechanism stays disabled — don't energize something deliberately off.
-        if (outputMode == OutputMode.OPEN_LOOP || outputMode == OutputMode.HOMING) {
-            controller.reset(positionUnits, velocityUnitsPerSec)
-            controller.setGoal(clampToSoftLimits(positionUnits))
-            outputMode = OutputMode.CLOSED_LOOP
-        }
+        // on a contained fault is worse than one frozen in place. That
+        // includes closed-loop — the faulting command's last goal may be far
+        // away, and "frozen" means here, not there. A DISABLED mechanism
+        // stays disabled — don't energize something deliberately off.
+        if (outputMode == OutputMode.DISABLED) return
+        controller.reset(positionUnits, velocityUnitsPerSec)
+        controller.setGoal(clampToSoftLimits(positionUnits))
+        outputMode = OutputMode.CLOSED_LOOP
     }
 
     override fun health(): String =

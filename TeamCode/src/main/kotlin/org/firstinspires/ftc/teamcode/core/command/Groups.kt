@@ -37,6 +37,25 @@ private fun CommandBuilder.requireUnionOf(children: List<Command>): CommandBuild
     return requiring(children.flatMapTo(LinkedHashSet()) { it.requirements() })
 }
 
+/**
+ * End every child even when one of their end handlers throws — a plain loop
+ * would skip the remaining siblings' cleanup, breaking the scheduler's
+ * "every end handler runs" guarantee (and e.g. leave a drive command's
+ * follow un-broken). The first fault is rethrown afterwards so the
+ * scheduler still sees it.
+ */
+private fun endAll(children: List<Pair<Command, EndCondition>>) {
+    var firstFault: Throwable? = null
+    for ((child, condition) in children) {
+        try {
+            child.end(condition)
+        } catch (t: Throwable) {
+            if (firstFault == null) firstFault = t
+        }
+    }
+    firstFault?.let { throw it }
+}
+
 private class SequentialGroup(private val children: List<Command>) : CommandBuilder() {
     private var index = 0
 
@@ -84,17 +103,19 @@ private class ParallelGroup(private val children: List<Command>) : CommandBuilde
                 if (finished[i]) return@forEachIndexed
                 child.execute()
                 if (child.done()) {
-                    child.end(EndCondition.NATURALLY)
+                    // Mark before ending: if end() throws (faulting the whole
+                    // group), the group's end handler must not end it twice.
                     finished[i] = true
+                    child.end(EndCondition.NATURALLY)
                 }
             }
         }
         setDone { finished.all { it } }
         setEnd { condition ->
             if (condition == EndCondition.NATURALLY) return@setEnd
-            children.forEachIndexed { i, child ->
-                if (!finished[i]) child.end(condition)
-            }
+            endAll(
+                children.filterIndexed { i, _ -> !finished[i] }.map { it to condition },
+            )
         }
     }
 }
@@ -121,13 +142,15 @@ private class RaceGroup(private val children: List<Command>) : CommandBuilder() 
         }
         setDone { winner >= 0 }
         setEnd { condition ->
-            children.forEachIndexed { i, child ->
-                when {
-                    condition != EndCondition.NATURALLY -> child.end(condition)
-                    i == winner -> child.end(EndCondition.NATURALLY)
-                    else -> child.end(EndCondition.INTERRUPTED)
-                }
-            }
+            endAll(
+                children.mapIndexed { i, child ->
+                    child to when {
+                        condition != EndCondition.NATURALLY -> condition
+                        i == winner -> EndCondition.NATURALLY
+                        else -> EndCondition.INTERRUPTED
+                    }
+                },
+            )
         }
     }
 }
@@ -152,19 +175,19 @@ private class DeadlineGroup(
                 if (finished[i]) return@forEachIndexed
                 child.execute()
                 if (child.done()) {
-                    child.end(EndCondition.NATURALLY)
                     finished[i] = true
+                    child.end(EndCondition.NATURALLY)
                 }
             }
         }
         setDone { deadline.done() }
         setEnd { condition ->
-            deadline.end(condition)
             val othersCondition =
                 if (condition == EndCondition.NATURALLY) EndCondition.INTERRUPTED else condition
-            others.forEachIndexed { i, child ->
-                if (!finished[i]) child.end(othersCondition)
-            }
+            endAll(
+                listOf(deadline to condition) +
+                    others.filterIndexed { i, _ -> !finished[i] }.map { it to othersCondition },
+            )
         }
     }
 }

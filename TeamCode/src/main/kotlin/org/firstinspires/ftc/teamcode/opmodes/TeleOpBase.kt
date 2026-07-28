@@ -53,18 +53,7 @@ abstract class TeleOpBase : OpModeBase() {
         // Drive first, localizer second: the localizer samples pose history
         // right after the drive's writeHardware() runs Follower.update().
         drive = robot.register(MecanumDriveSubsystem(follower))
-        localizer = robot.register(
-            LocalizerSubsystem(
-                follower,
-                onEvent = robot::recordEvent,
-                isFollowing = drive::isFollowing,
-                // Watchdog policy: a dead localizer makes any active path
-                // dangerous; break it and let the driver keep stick control
-                // (the teleop default command resumes next tick).
-                onFault = { drive.breakPath() },
-            ),
-        )
-        drive.defaultCommand = drive.teleopCommand {
+        val teleopDefault = drive.teleopCommand {
             TeleopInput(
                 forward = driver.leftStickY,
                 strafe = driver.leftStickX,
@@ -72,10 +61,32 @@ abstract class TeleOpBase : OpModeBase() {
                 precision = driver.rightTrigger > 0.1,
             )
         }
+        drive.defaultCommand = teleopDefault
+        localizer = robot.register(
+            LocalizerSubsystem(
+                follower,
+                onEvent = robot::recordEvent,
+                isFollowing = drive::isFollowing,
+                // Watchdog policy: a dead localizer makes any active path
+                // dangerous; break it and hand back stick control. breakPath()
+                // also clears Pedro's manual-drive mode, and a teleop default
+                // that is already the active command would never re-enable it
+                // — cancel it so it reschedules next tick and its start runs
+                // enableTeleop() again.
+                onFault = {
+                    drive.breakPath()
+                    robot.scheduler.cancel(teleopDefault)
+                },
+            ),
+        )
         (driver.button(Button.BACK) and driver.button(Button.Y))
             .onTrue(
                 Commands.instant { localizer.setPose(drive.pose.withHeading(0.0)) }
                     .setName("reset heading")
+                    // Claiming the drive preempts an equal-priority path or
+                    // assist: hard-snapping the pose under a live path
+                    // controller would command a large corrective jerk.
+                    .requiring(drive)
                     .setPriority(CommandPriorities.DRIVER_ACTION),
             )
         (driver.button(Button.BACK) and driver.button(Button.B))

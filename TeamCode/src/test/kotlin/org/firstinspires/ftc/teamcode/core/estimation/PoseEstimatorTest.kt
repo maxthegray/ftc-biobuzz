@@ -48,6 +48,24 @@ class PoseEstimatorTest {
     )
 
     @Test
+    fun timestampNewerThanNewestSampleAnchorsToNewestSample() {
+        sample(0L, Pose2d(10.0, 0.0, 0.0))
+
+        // A wall snap stamped clock.nanos() mid-tick is newer than the last
+        // writeHardware() sample but not in the clock's future — it must
+        // anchor to the newest sample, not be rejected as NO_HISTORY.
+        clock.now = 2_000_000L
+        val result = estimator.applyCorrection(
+            measured = Pose2d(12.0, 0.0, 0.0),
+            timestampNanos = 2_000_000L,
+            blend = 1.0,
+        )
+
+        assertEquals(CorrectionResult.APPLIED, result)
+        assertEquals(12.0, currentPose.x, 1e-9)
+    }
+
+    @Test
     fun headingOnlyCorrectionLeavesTranslationAlone() {
         sample(0L, Pose2d(10.0, 20.0, 0.0))
 
