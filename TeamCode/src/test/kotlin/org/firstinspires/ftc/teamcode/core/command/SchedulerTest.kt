@@ -4,6 +4,7 @@ import org.firstinspires.ftc.teamcode.core.util.FakeClock
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -35,6 +36,13 @@ class SchedulerTest {
         override fun execute() { executes++ }
         override fun done(): Boolean = doneCondition()
         override fun end(endCondition: EndCondition) { ends += endCondition }
+    }
+
+    private enum class LifecyclePhase {
+        START,
+        EXECUTE,
+        DONE,
+        END,
     }
 
     // ------------------------------------------------------------- scheduling
@@ -238,6 +246,24 @@ class SchedulerTest {
         scheduler.execute()
 
         assertEquals(bad, faulted)
+        assertFalse(scheduler.isScheduled(bad))
+    }
+
+    @Test
+    fun rethrownNaturalEndFaultDoesNotEndTheCommandTwice() {
+        val ends = mutableListOf<EndCondition>()
+        scheduler.faultHandler = { _, fault -> throw fault }
+        val bad = Command.build()
+            .setDone { true }
+            .setEnd {
+                ends += it
+                error("end boom")
+            }
+        scheduler.schedule(bad)
+
+        assertThrows(IllegalStateException::class.java) { scheduler.execute() }
+
+        assertEquals(listOf(EndCondition.NATURALLY), ends)
         assertFalse(scheduler.isScheduled(bad))
     }
 
@@ -543,6 +569,72 @@ class SchedulerTest {
         // Rescheduling builds a fresh inner command.
         scheduler.schedule(deferred)
         assertEquals(2, built)
+    }
+
+    @Test
+    fun deferEndsItsInnerCommandExactlyOnceForEveryLifecycleFault() {
+        for (phase in LifecyclePhase.entries) {
+            val phaseScheduler = Scheduler().apply {
+                faultHandler = { _, _ -> }
+            }
+            val ends = mutableListOf<EndCondition>()
+            val deferred = Commands.defer {
+                Command.build()
+                    .setStart {
+                        if (phase == LifecyclePhase.START) error("start failed")
+                    }
+                    .setExecute {
+                        if (phase == LifecyclePhase.EXECUTE) error("execute failed")
+                    }
+                    .setDone {
+                        if (phase == LifecyclePhase.DONE) error("done failed")
+                        phase == LifecyclePhase.END
+                    }
+                    .setEnd {
+                        ends += it
+                        if (phase == LifecyclePhase.END) error("end failed")
+                    }
+            }
+
+            val scheduled = phaseScheduler.schedule(deferred)
+            assertEquals(phase != LifecyclePhase.START, scheduled)
+            if (scheduled) phaseScheduler.execute()
+
+            assertEquals(
+                listOf(
+                    if (phase == LifecyclePhase.END) {
+                        EndCondition.NATURALLY
+                    } else {
+                        EndCondition.FAULTED
+                    },
+                ),
+                ends,
+            )
+            assertFalse(phaseScheduler.isScheduled(deferred))
+        }
+    }
+
+    @Test
+    fun deferRejectsUndeclaredInnerRequirementsBeforeStarting() {
+        val declared = Any()
+        val undeclared = Any()
+        var innerStarted = false
+        val innerEnds = mutableListOf<EndCondition>()
+        var fault: Throwable? = null
+        scheduler.faultHandler = { _, thrown -> fault = thrown }
+        val deferred = Commands.defer(declared) {
+            Command.build()
+                .requiring(declared, undeclared)
+                .setStart { innerStarted = true }
+                .setEnd { innerEnds += it }
+        }
+
+        assertFalse(scheduler.schedule(deferred))
+
+        assertFalse(innerStarted)
+        assertTrue(innerEnds.isEmpty())
+        assertTrue(fault is IllegalArgumentException)
+        assertEquals("deferred command requires undeclared requirements", fault?.message)
     }
 
     @Test

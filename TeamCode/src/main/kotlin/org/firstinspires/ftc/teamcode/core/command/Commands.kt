@@ -55,7 +55,15 @@ object Commands {
         return Command.build()
             .setName("defer")
             .requiring(*requirements)
-            .setStart { inner = supplier().also { it.start() } }
+            .setStart {
+                inner = null
+                val supplied = supplier()
+                require(requirements.toSet().containsAll(supplied.requirements())) {
+                    "deferred command requires undeclared requirements"
+                }
+                inner = supplied
+                supplied.start()
+            }
             .setExecute { inner?.execute() }
             .setDone { inner?.done() ?: true }
             .setEnd { condition ->

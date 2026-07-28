@@ -105,6 +105,7 @@ class Scheduler {
     fun execute() {
         for (command in running.toList()) {
             if (command !in running) continue // ended by a sibling this tick
+            var completed = false
             try {
                 command.execute()
                 // execute() may have ended this command (e.g. it scheduled a
@@ -113,12 +114,17 @@ class Scheduler {
                 if (command !in running) continue
                 if (command.done()) {
                     remove(command)
-                    endReported(command, EndCondition.NATURALLY)
+                    completed = true
                 }
             } catch (t: Throwable) {
                 remove(command)
                 endSwallowed(command, EndCondition.FAULTED)
                 report(command, t)
+            }
+            if (completed) {
+                // Keep end faults outside the lifecycle catch: end already ran,
+                // so an escalating fault must not invoke it again as FAULTED.
+                endReported(command, EndCondition.NATURALLY)
             }
         }
     }
