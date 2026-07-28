@@ -1,7 +1,9 @@
 package org.firstinspires.ftc.teamcode.core.command
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -10,6 +12,50 @@ import org.junit.Test
  * too (a skipped drive-command end handler would leave a follow un-broken).
  */
 class GroupsEndHandlerTest {
+
+    private enum class LifecyclePhase {
+        START,
+        EXECUTE,
+        DONE,
+        END,
+    }
+
+    private fun faulting(
+        ends: MutableMap<String, MutableList<EndCondition>>,
+        name: String,
+        phase: LifecyclePhase,
+    ) = CommandBuilder()
+        .setName(name)
+        .setStart { if (phase == LifecyclePhase.START) error("$name start failed") }
+        .setExecute { if (phase == LifecyclePhase.EXECUTE) error("$name execute failed") }
+        .setDone {
+            if (phase == LifecyclePhase.DONE) error("$name done failed")
+            phase == LifecyclePhase.END
+        }
+        .setEnd {
+            ends.getOrPut(name, ::mutableListOf) += it
+            if (phase == LifecyclePhase.END) error("$name end failed")
+        }
+
+    private fun running(
+        ends: MutableMap<String, MutableList<EndCondition>>,
+        name: String,
+    ) = CommandBuilder()
+        .setName(name)
+        .setDone { false }
+        .setEnd { ends.getOrPut(name, ::mutableListOf) += it }
+
+    private fun assertEnds(
+        ends: Map<String, List<EndCondition>>,
+        name: String,
+        vararg expected: EndCondition,
+    ) {
+        assertEquals(expected.toList(), ends[name].orEmpty())
+    }
+
+    private fun scheduler() = Scheduler().apply {
+        faultHandler = { _, _ -> }
+    }
 
     private fun recording(ends: MutableList<String>, name: String) =
         CommandBuilder()
@@ -92,5 +138,153 @@ class GroupsEndHandlerTest {
 
         assertEquals(1, aEnds)
         assertEquals(listOf("b:FAULTED"), ends)
+    }
+
+    @Test
+    fun sequentialFaultsEndOnlyTheStartedChildOnce() {
+        for (phase in LifecyclePhase.entries) {
+            val ends = mutableMapOf<String, MutableList<EndCondition>>()
+            val group = Groups.sequential(
+                faulting(ends, "fault", phase),
+                running(ends, "later"),
+            )
+            val scheduler = scheduler()
+
+            val scheduled = scheduler.schedule(group)
+            assertEquals(phase != LifecyclePhase.START, scheduled)
+            if (scheduled) scheduler.execute()
+
+            assertFalse(scheduler.isScheduled(group))
+            assertEnds(
+                ends,
+                "fault",
+                if (phase == LifecyclePhase.END) {
+                    EndCondition.NATURALLY
+                } else {
+                    EndCondition.FAULTED
+                },
+            )
+            assertEnds(ends, "later")
+        }
+    }
+
+    @Test
+    fun parallelFaultsEndStartedChildrenOnceAndSkipNeverStartedChildren() {
+        for (phase in LifecyclePhase.entries) {
+            val ends = mutableMapOf<String, MutableList<EndCondition>>()
+            val group = Groups.parallel(
+                running(ends, "before"),
+                faulting(ends, "fault", phase),
+                running(ends, "after"),
+            )
+            val scheduler = scheduler()
+
+            val scheduled = scheduler.schedule(group)
+            assertEquals(phase != LifecyclePhase.START, scheduled)
+            if (scheduled) scheduler.execute()
+
+            assertFalse(scheduler.isScheduled(group))
+            assertEnds(ends, "before", EndCondition.FAULTED)
+            assertEnds(
+                ends,
+                "fault",
+                if (phase == LifecyclePhase.END) {
+                    EndCondition.NATURALLY
+                } else {
+                    EndCondition.FAULTED
+                },
+            )
+            if (phase == LifecyclePhase.START) {
+                assertEnds(ends, "after")
+            } else {
+                assertEnds(ends, "after", EndCondition.FAULTED)
+            }
+        }
+    }
+
+    @Test
+    fun raceFaultsEndStartedChildrenOnceAndSkipNeverStartedChildren() {
+        for (phase in LifecyclePhase.entries) {
+            val ends = mutableMapOf<String, MutableList<EndCondition>>()
+            val group = Groups.race(
+                running(ends, "before"),
+                faulting(ends, "fault", phase),
+                running(ends, "after"),
+            )
+            val scheduler = scheduler()
+
+            val scheduled = scheduler.schedule(group)
+            assertEquals(phase != LifecyclePhase.START, scheduled)
+            if (scheduled) scheduler.execute()
+
+            assertFalse(scheduler.isScheduled(group))
+            assertEnds(
+                ends,
+                "before",
+                if (phase == LifecyclePhase.END) {
+                    EndCondition.INTERRUPTED
+                } else {
+                    EndCondition.FAULTED
+                },
+            )
+            assertEnds(
+                ends,
+                "fault",
+                if (phase == LifecyclePhase.END) {
+                    EndCondition.NATURALLY
+                } else {
+                    EndCondition.FAULTED
+                },
+            )
+            if (phase == LifecyclePhase.START) {
+                assertEnds(ends, "after")
+            } else {
+                assertEnds(
+                    ends,
+                    "after",
+                    if (phase == LifecyclePhase.END) {
+                        EndCondition.INTERRUPTED
+                    } else {
+                        EndCondition.FAULTED
+                    },
+                )
+            }
+        }
+    }
+
+    @Test
+    fun deadlineFaultsEndStartedChildrenOnceAndSkipNeverStartedChildren() {
+        for (phase in LifecyclePhase.entries) {
+            val ends = mutableMapOf<String, MutableList<EndCondition>>()
+            val group = Groups.deadline(
+                running(ends, "deadline"),
+                running(ends, "before"),
+                faulting(ends, "fault", phase),
+                running(ends, "after"),
+            )
+            val scheduler = scheduler()
+
+            val scheduled = scheduler.schedule(group)
+            assertEquals(phase != LifecyclePhase.START, scheduled)
+            if (scheduled) scheduler.execute()
+
+            assertFalse(scheduler.isScheduled(group))
+            assertEnds(ends, "deadline", EndCondition.FAULTED)
+            assertEnds(ends, "before", EndCondition.FAULTED)
+            assertEnds(
+                ends,
+                "fault",
+                if (phase == LifecyclePhase.END) {
+                    EndCondition.NATURALLY
+                } else {
+                    EndCondition.FAULTED
+                },
+            )
+            if (phase == LifecyclePhase.START) {
+                assertEnds(ends, "after")
+            } else {
+                assertEnds(ends, "after", EndCondition.FAULTED)
+            }
+        }
     }
 }

@@ -58,12 +58,14 @@ private fun endAll(children: List<Pair<Command, EndCondition>>) {
 
 private class SequentialGroup(private val children: List<Command>) : CommandBuilder() {
     private var index = 0
+    private var currentStarted = false
 
     init {
         requireUnionOf(children)
         setName("sequential(${children.size})")
         setStart {
             index = 0
+            currentStarted = true
             children[0].start()
         }
         setExecute {
@@ -74,14 +76,24 @@ private class SequentialGroup(private val children: List<Command>) : CommandBuil
                 val child = children[index]
                 child.execute()
                 if (!child.done()) break
-                child.end(EndCondition.NATURALLY)
+                // Advance before ending: a throwing end handler must not make
+                // the group's fault cleanup end the same child twice.
+                currentStarted = false
                 index++
-                if (index < children.size) children[index].start()
+                child.end(EndCondition.NATURALLY)
+                if (index < children.size) {
+                    currentStarted = true
+                    children[index].start()
+                }
             }
         }
         setDone { index >= children.size }
         setEnd { condition ->
-            if (condition != EndCondition.NATURALLY && index < children.size) {
+            if (
+                condition != EndCondition.NATURALLY &&
+                index < children.size &&
+                currentStarted
+            ) {
                 children[index].end(condition)
             }
         }
@@ -89,14 +101,19 @@ private class SequentialGroup(private val children: List<Command>) : CommandBuil
 }
 
 private class ParallelGroup(private val children: List<Command>) : CommandBuilder() {
+    private val started = BooleanArray(children.size)
     private val finished = BooleanArray(children.size)
 
     init {
         requireUnionOf(children)
         setName("parallel(${children.size})")
         setStart {
+            started.fill(false)
             finished.fill(false)
-            for (child in children) child.start()
+            children.forEachIndexed { i, child ->
+                started[i] = true
+                child.start()
+            }
         }
         setExecute {
             children.forEachIndexed { i, child ->
@@ -114,21 +131,28 @@ private class ParallelGroup(private val children: List<Command>) : CommandBuilde
         setEnd { condition ->
             if (condition == EndCondition.NATURALLY) return@setEnd
             endAll(
-                children.filterIndexed { i, _ -> !finished[i] }.map { it to condition },
+                children
+                    .filterIndexed { i, _ -> started[i] && !finished[i] }
+                    .map { it to condition },
             )
         }
     }
 }
 
 private class RaceGroup(private val children: List<Command>) : CommandBuilder() {
+    private val started = BooleanArray(children.size)
     private var winner = -1
 
     init {
         requireUnionOf(children)
         setName("race(${children.size})")
         setStart {
+            started.fill(false)
             winner = -1
-            for (child in children) child.start()
+            children.forEachIndexed { i, child ->
+                started[i] = true
+                child.start()
+            }
         }
         setExecute {
             if (winner >= 0) return@setExecute
@@ -143,13 +167,17 @@ private class RaceGroup(private val children: List<Command>) : CommandBuilder() 
         setDone { winner >= 0 }
         setEnd { condition ->
             endAll(
-                children.mapIndexed { i, child ->
-                    child to when {
-                        condition != EndCondition.NATURALLY -> condition
-                        i == winner -> EndCondition.NATURALLY
-                        else -> EndCondition.INTERRUPTED
+                children.mapIndexedNotNull { i, child ->
+                    if (!started[i]) {
+                        null
+                    } else {
+                        child to when {
+                            condition != EndCondition.NATURALLY -> condition
+                            i == winner -> EndCondition.NATURALLY
+                            else -> EndCondition.INTERRUPTED
+                        }
                     }
-                },
+                }
             )
         }
     }
@@ -159,15 +187,22 @@ private class DeadlineGroup(
     private val deadline: Command,
     private val others: List<Command>,
 ) : CommandBuilder() {
+    private var deadlineStarted = false
+    private val started = BooleanArray(others.size)
     private val finished = BooleanArray(others.size)
 
     init {
         requireUnionOf(listOf(deadline) + others)
         setName("deadline(${1 + others.size})")
         setStart {
+            deadlineStarted = true
+            started.fill(false)
             finished.fill(false)
             deadline.start()
-            for (child in others) child.start()
+            others.forEachIndexed { i, child ->
+                started[i] = true
+                child.start()
+            }
         }
         setExecute {
             deadline.execute()
@@ -185,8 +220,10 @@ private class DeadlineGroup(
             val othersCondition =
                 if (condition == EndCondition.NATURALLY) EndCondition.INTERRUPTED else condition
             endAll(
-                listOf(deadline to condition) +
-                    others.filterIndexed { i, _ -> !finished[i] }.map { it to othersCondition },
+                listOfNotNull(if (deadlineStarted) deadline to condition else null) +
+                    others
+                        .filterIndexed { i, _ -> started[i] && !finished[i] }
+                        .map { it to othersCondition },
             )
         }
     }
