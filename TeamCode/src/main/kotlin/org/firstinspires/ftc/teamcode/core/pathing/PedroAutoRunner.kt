@@ -322,12 +322,16 @@ class PedroAutoRunner(
         return b
     }
 
-    /** Schedule the routine on the robot's scheduler. */
-    fun schedule(): PedroAutoRunner {
-        if (scheduled) return this
-        robot.scheduler.schedule(build())
-        scheduled = true
-        return this
+    /** Schedule the routine on the robot's scheduler and report whether it started. */
+    fun schedule(): Boolean {
+        if (scheduled) return true
+        val accepted = robot.scheduler.schedule(build())
+        scheduled = accepted
+        if (!accepted) {
+            val event = "auto routine schedule failed"
+            onEvent?.invoke(event) ?: robot.recordEvent(event)
+        }
+        return accepted
     }
 
     /** True once the routine has either completed or been cancelled. */

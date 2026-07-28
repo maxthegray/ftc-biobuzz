@@ -91,7 +91,7 @@ abstract class TeleOpBase : OpModeBase() {
             )
         (driver.button(Button.BACK) and driver.button(Button.B))
             .onTrue(
-                Commands.instant { DriveConfig.fieldCentric = !DriveConfig.fieldCentric }
+                Commands.instant { drive.toggleFieldCentric() }
                     .setName("toggle field-centric")
                     .setPriority(CommandPriorities.DRIVER_ACTION),
             )

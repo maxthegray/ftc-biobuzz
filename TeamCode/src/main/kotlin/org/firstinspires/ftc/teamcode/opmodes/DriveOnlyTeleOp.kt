@@ -23,7 +23,7 @@ class DriveOnlyTeleOp : TeleOpBase() {
             put("pose", drive.pose)
             put("velocity", drive.velocity)
             put("mode", drive.mode.name)
-            put("fieldCentric", DriveConfig.fieldCentric)
+            put("fieldCentric", drive.fieldCentric)
             put("inputExponent", DriveConfig.inputExponent)
             put("precision", precision)
         }

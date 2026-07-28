@@ -10,6 +10,7 @@ import org.firstinspires.ftc.teamcode.core.command.CommandBuilder
 import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import org.firstinspires.ftc.teamcode.core.command.EndCondition
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
+import org.firstinspires.ftc.teamcode.core.util.FakeClock
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -133,6 +134,80 @@ class MecanumDriveSubsystemTest {
     }
 
     @Test
+    fun holdCommandTimesOutWhenThePoseRemainsUnreachable() {
+        val clock = FakeClock()
+        val follower = fakeFollower()
+        val drive = MecanumDriveSubsystem(follower, clock)
+        val hold = drive.holdCommand(Pose2d(24.0, 0.0, 0.0), timeoutMs = 500.0)
+
+        hold.start()
+        follower.translationalErrorMagnitude = 24.0
+        drive.writeHardware()
+        assertFalse(hold.done())
+
+        clock.advanceMs(600.0)
+        assertTrue(hold.done())
+    }
+
+    @Test
+    fun pathProgressLatchesActualValuesWithoutSynthesizingCompletion() {
+        val follower = fakeFollower()
+        val drive = MecanumDriveSubsystem(follower)
+        val command = drive.trackDriveMode(
+            CommandBuilder().setDone { !follower.busyValue },
+            running = MecanumDriveSubsystem.Mode.FOLLOWING,
+            finished = MecanumDriveSubsystem.Mode.HOLDING,
+        )
+        follower.busyValue = true
+        command.start()
+
+        follower.pathProgressValue = 0.65
+        assertEquals(0.65, drive.pathProgress(), 1e-9)
+        follower.pathProgressValue = 0.4
+        assertEquals(0.65, drive.pathProgress(), 1e-9)
+
+        follower.busyValue = false
+        drive.periodic()
+        assertEquals(MecanumDriveSubsystem.Mode.HOLDING, drive.mode)
+        assertEquals(0.65, drive.pathProgress(), 1e-9)
+    }
+
+    @Test
+    fun pathProgressReturnsZeroAfterCancellation() {
+        val follower = fakeFollower()
+        val drive = MecanumDriveSubsystem(follower)
+        val command = drive.trackDriveMode(
+            CommandBuilder().setDone { false },
+            running = MecanumDriveSubsystem.Mode.FOLLOWING,
+            finished = MecanumDriveSubsystem.Mode.HOLDING,
+        )
+        follower.busyValue = true
+        command.start()
+        follower.pathProgressValue = 0.5
+        assertEquals(0.5, drive.pathProgress(), 1e-9)
+
+        command.end(EndCondition.INTERRUPTED)
+
+        assertEquals(0.0, drive.pathProgress(), 0.0)
+    }
+
+    @Test
+    fun fieldCentricRuntimeStateDoesNotMutateThePersistedDefault() {
+        val original = DriveConfig.fieldCentricDefault
+        try {
+            DriveConfig.fieldCentricDefault = false
+            val drive = MecanumDriveSubsystem(fakeFollower())
+
+            assertFalse(drive.fieldCentric)
+            drive.toggleFieldCentric()
+            assertTrue(drive.fieldCentric)
+            assertFalse(DriveConfig.fieldCentricDefault)
+        } finally {
+            DriveConfig.fieldCentricDefault = original
+        }
+    }
+
+    @Test
     fun logStateWithoutRealMotorsWritesNoMotorChannels() {
         // The fake follower's drivetrain is not Pedro's Mecanum, so init
         // resolves no motors — motor telemetry must degrade to a no-op. The
@@ -176,6 +251,8 @@ internal class FakeFollower : Follower(FollowerConstants(), FakeLocalizer(), Fak
     /** Error values Pedro would cache; recomputed only by [update] on the real thing. */
     var translationalErrorMagnitude = 0.0
     var headingErrorValue = 0.0
+    var busyValue = false
+    var pathProgressValue = 0.0
 
     override fun setPose(pose: Pose) {
         poseState = pose
@@ -187,7 +264,14 @@ internal class FakeFollower : Follower(FollowerConstants(), FakeLocalizer(), Fak
 
     override fun breakFollowing() {
         breakFollowingCalls++
+        busyValue = false
     }
+
+    override fun isBusy(): Boolean = busyValue
+
+    override fun getCurrentPathNumber(): Double = 0.0
+
+    override fun getCurrentTValue(): Double = pathProgressValue
 
     override fun holdPoint(pose: Pose) {
         heldPose = pose

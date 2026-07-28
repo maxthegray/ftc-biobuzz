@@ -163,4 +163,42 @@ class PoseEstimatorTest {
 
         assertEquals(8.0, currentPose.x, 1e-9)
     }
+
+    @Test
+    fun nonFiniteComposedPoseIsRejectedBeforeApplication() {
+        sample(0L, Pose2d(0.0, 0.0, 0.0))
+        currentPose = Pose2d(Double.NaN, 0.0, 0.0)
+
+        val result = apply(Pose2d(2.0, 0.0, 0.0))
+
+        assertEquals(CorrectionResult.REJECTED_JUMP, result)
+        assertTrue(events.any { "non-finite composed pose" in it })
+    }
+
+    @Test
+    fun nonFiniteBlendCannotPoisonTheAppliedPose() {
+        sample(0L, Pose2d(0.0, 0.0, 0.0))
+
+        val result = estimator.applyCorrection(
+            measured = Pose2d(2.0, 0.0, 0.0),
+            timestampNanos = clock.now,
+            blend = Double.NaN,
+        )
+
+        assertEquals(CorrectionResult.REJECTED_JUMP, result)
+        assertEquals(Pose2d(0.0, 0.0, 0.0), currentPose)
+    }
+
+    @Test
+    fun nonFiniteJumpLimitDoesNotDisableTheOutlierGate() {
+        sample(0L, Pose2d(0.0, 0.0, 0.0))
+
+        val result = apply(
+            measured = Pose2d(100.0, 0.0, 0.0),
+            maxJumpInches = Double.NaN,
+        )
+
+        assertEquals(CorrectionResult.REJECTED_JUMP, result)
+        assertEquals(Pose2d(0.0, 0.0, 0.0), currentPose)
+    }
 }

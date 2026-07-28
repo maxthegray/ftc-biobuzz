@@ -10,7 +10,9 @@ import org.firstinspires.ftc.teamcode.core.runtime.Robot
 import org.firstinspires.ftc.teamcode.core.util.FakeClock
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 /**
@@ -20,6 +22,11 @@ import org.junit.Test
 class ProfiledMotorSubsystemTest {
 
     private val clock = FakeClock()
+
+    @Before
+    fun clearHomingHandoff() {
+        ProfiledMotorSubsystem.clearPersistedHomingForTest()
+    }
 
     private fun controller() = ProfiledController(
         ProfileConstraints(maxVelocity = 50.0, maxAcceleration = 150.0),
@@ -51,7 +58,11 @@ class ProfiledMotorSubsystemTest {
         softMaxUnits = softMax,
         io = io,
         clock = clock,
-    ).also { it.init(HardwareMap(null, null)) }
+    ).also {
+        it.init(HardwareMap(null, null))
+        it.periodic()
+        it.setCurrentPosition(it.positionUnits)
+    }
 
     private fun tick(subsystem: ProfiledMotorSubsystem, ms: Double = 20.0) {
         clock.advanceMs(ms)
@@ -144,6 +155,7 @@ class ProfiledMotorSubsystemTest {
             stallTimeMs = 100.0,
             graceMs = 100.0,
             resetToUnits = 0.0,
+            timeoutMs = 3_000.0,
         )
         robot.scheduler.schedule(home)
 
@@ -155,6 +167,7 @@ class ProfiledMotorSubsystemTest {
         }
 
         assertFalse("homing should complete", robot.scheduler.isScheduled(home))
+        assertEquals(ProfiledMotorSubsystem.HomingState.HOMED, lift.homingState)
         // The hard stop (raw -30) is now defined as 0.
         assertTrue("expected ~0 at the stop, got ${lift.positionUnits}", abs(lift.positionUnits) < 1.0)
 
@@ -175,7 +188,7 @@ class ProfiledMotorSubsystemTest {
     }
 
     @Test
-    fun interruptedHomingHoldsInPlace() {
+    fun interruptedHomingFromUnknownZeroDisablesWithoutDeclaringHome() {
         val io = simIo(startTicks = 50.0, minTicks = -30.0)
         val robot = Robot(HardwareMap(null, null), clock)
         val lift = ProfiledMotorSubsystem(
@@ -190,23 +203,22 @@ class ProfiledMotorSubsystemTest {
         robot.init()
         robot.start()
 
-        val home = lift.homeCommand(power = -0.5, stallVelocityUnitsPerSec = 2.0)
+        val home = lift.homeCommand(
+            power = -0.5,
+            stallVelocityUnitsPerSec = 2.0,
+            timeoutMs = 3_000.0,
+        )
         robot.scheduler.schedule(home)
         repeat(20) {
             clock.advanceMs(20.0)
             robot.loop()
         }
         robot.scheduler.cancel(home)
-        val positionAtCancel = lift.positionUnits
+        clock.advanceMs(20.0)
+        robot.loop()
 
-        repeat(100) {
-            clock.advanceMs(20.0)
-            robot.loop()
-        }
-        assertTrue(
-            "expected to hold near $positionAtCancel, got ${lift.positionUnits}",
-            abs(lift.positionUnits - positionAtCancel) < 3.0,
-        )
+        assertEquals(ProfiledMotorSubsystem.HomingState.UNHOMED, lift.homingState)
+        assertEquals(0.0, io.lastPower, 0.0)
     }
 
     @Test
@@ -243,6 +255,8 @@ class ProfiledMotorSubsystemTest {
         )
         robot.register(lift)
         robot.init()
+        lift.periodic()
+        lift.setCurrentPosition(lift.positionUnits)
         robot.start()
 
         val blocked = lift.goToCommand(20.0, toleranceUnits = 0.5, timeoutMs = 500.0)
@@ -259,6 +273,7 @@ class ProfiledMotorSubsystemTest {
             robot.loop()
         }
         assertFalse(robot.scheduler.isScheduled(blocked))
+        assertEquals(ProfiledMotorSubsystem.GoalOutcome.TIMED_OUT, lift.lastGoalOutcome)
 
         // The subsystem keeps holding the (unreached) goal closed-loop:
         // pinned against the stop, not dropping.
@@ -286,6 +301,8 @@ class ProfiledMotorSubsystemTest {
         )
         robot.register(lift)
         robot.init()
+        lift.periodic()
+        lift.setCurrentPosition(lift.positionUnits)
         robot.start()
 
         val blocked = lift.goToCommand(20.0, toleranceUnits = 0.5)
@@ -308,5 +325,151 @@ class ProfiledMotorSubsystemTest {
         assertEquals(10.0, lift.positionUnits, 1e-9)
         lift.periodic()
         assertEquals(10.0, lift.positionUnits, 1e-9)
+        assertEquals(ProfiledMotorSubsystem.HomingState.HOMED, lift.homingState)
+    }
+
+    @Test
+    fun unhomedMechanismAllowsOpenLoopButRejectsClosedLoopGoals() {
+        val io = simIo(startTicks = 12.0)
+        val lift = ProfiledMotorSubsystem(
+            name = "Lift",
+            motorName = "unhomed",
+            controller = controller(),
+            ticksPerUnit = 1.0,
+            softMaxUnits = 10.0,
+            io = io,
+            clock = clock,
+        )
+        lift.init(HardwareMap(null, null))
+        lift.periodic()
+
+        assertThrows(IllegalStateException::class.java) { lift.setGoal(5.0) }
+
+        // The arbitrary pre-home coordinate must not activate the soft limit.
+        lift.openLoop(0.25)
+        tick(lift)
+        assertTrue(io.lastPower > 0.0)
+        assertEquals(ProfiledMotorSubsystem.HomingState.UNHOMED, lift.homingState)
+    }
+
+    @Test
+    fun homingTimeoutFaultsAndDisablesInsteadOfDeclaringZero() {
+        val io = simIo(startTicks = 0.0)
+        val robot = Robot(HardwareMap(null, null), clock)
+        robot.containCommandFaults = true
+        val lift = ProfiledMotorSubsystem(
+            name = "Lift",
+            motorName = "timeout",
+            controller = controller(),
+            ticksPerUnit = 1.0,
+            io = io,
+            clock = clock,
+        )
+        robot.register(lift)
+        robot.init()
+        robot.start()
+        val home = lift.homeCommand(
+            power = 0.5,
+            stallVelocityUnitsPerSec = 0.1,
+            stallTimeMs = 50.0,
+            graceMs = 50.0,
+            timeoutMs = 300.0,
+        )
+        assertTrue(robot.scheduler.schedule(home))
+
+        repeat(20) {
+            clock.advanceMs(20.0)
+            robot.loop()
+        }
+
+        assertFalse(robot.scheduler.isScheduled(home))
+        assertEquals(1, robot.commandFaultCount)
+        assertTrue(robot.lastCommandFault is ProfiledMotorSubsystem.HomingTimeoutException)
+        assertEquals(ProfiledMotorSubsystem.HomingState.FAULTED, lift.homingState)
+        assertEquals(0.0, io.lastPower, 0.0)
+    }
+
+    @Test
+    fun successfulHomePersistsItsCoordinateFrameIntoTheNextOpMode() {
+        val io = simIo(startTicks = 20.0, minTicks = -10.0)
+        val autoRobot = Robot(HardwareMap(null, null), clock)
+        val autoLift = ProfiledMotorSubsystem(
+            name = "Lift",
+            motorName = "handoff",
+            controller = controller(),
+            ticksPerUnit = 1.0,
+            io = io,
+            clock = clock,
+        )
+        autoRobot.register(autoLift)
+        autoRobot.init()
+        autoRobot.start()
+        val home = autoLift.homeCommand(
+            power = -0.5,
+            stallVelocityUnitsPerSec = 2.0,
+            stallTimeMs = 100.0,
+            graceMs = 100.0,
+            timeoutMs = 2_000.0,
+        )
+        autoRobot.scheduler.schedule(home)
+        repeat(150) {
+            clock.advanceMs(20.0)
+            autoRobot.loop()
+            if (!autoRobot.scheduler.isScheduled(home)) return@repeat
+        }
+        assertEquals(ProfiledMotorSubsystem.HomingState.HOMED, autoLift.homingState)
+        autoRobot.stop()
+
+        val teleopRobot = Robot(HardwareMap(null, null), clock)
+        val teleopLift = ProfiledMotorSubsystem(
+            name = "Lift",
+            motorName = "handoff",
+            controller = controller(),
+            ticksPerUnit = 1.0,
+            io = io,
+            clock = clock,
+        )
+        teleopRobot.register(teleopLift)
+        teleopRobot.init()
+        teleopLift.periodic()
+
+        assertEquals(ProfiledMotorSubsystem.HomingState.HOMED, teleopLift.homingState)
+        assertTrue("expected restored zero, got ${teleopLift.positionUnits}", abs(teleopLift.positionUnits) < 1.0)
+    }
+
+    @Test
+    fun nonFiniteFinalPowerFaultsAndWritesZero() {
+        val io = simIo()
+        val lift = lift(io)
+
+        lift.openLoop(Double.NaN)
+        tick(lift)
+
+        assertEquals(0.0, io.lastPower, 0.0)
+        assertEquals(ProfiledMotorSubsystem.HomingState.FAULTED, lift.homingState)
+    }
+
+    @Test
+    fun goalTimeoutCanOptIntoDisablingOutput() {
+        val io = simIo(maxTicks = 10.0)
+        val robot = Robot(HardwareMap(null, null), clock)
+        val lift = lift(io)
+        robot.register(lift)
+        robot.start()
+        val command = lift.goToCommand(
+            20.0,
+            toleranceUnits = 0.5,
+            timeoutMs = 300.0,
+            timeoutPolicy = ProfiledMotorSubsystem.GoalTimeoutPolicy.DISABLE,
+        )
+        robot.scheduler.schedule(command)
+
+        repeat(20) {
+            clock.advanceMs(20.0)
+            robot.loop()
+        }
+
+        assertEquals(ProfiledMotorSubsystem.GoalOutcome.TIMED_OUT, lift.lastGoalOutcome)
+        assertEquals(0.0, io.lastPower, 0.0)
     }
 }

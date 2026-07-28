@@ -118,8 +118,10 @@ class PoseEstimator(
         val wHeading = headingWeight.coerceIn(0.0, 1.0)
         val jumpInches = corrected.distanceTo(current)
         val headingDelta = shortestAngleDelta(current.heading, corrected.heading)
-        val translationRejected = wTranslation > 0.0 && jumpInches > maxJumpInches
-        val headingRejected = wHeading > 0.0 && abs(headingDelta) > maxJumpRadians
+        val translationRejected =
+            wTranslation > 0.0 && (!maxJumpInches.isFinite() || jumpInches > maxJumpInches)
+        val headingRejected =
+            wHeading > 0.0 && (!maxJumpRadians.isFinite() || abs(headingDelta) > maxJumpRadians)
         if (translationRejected || headingRejected) {
             onEvent(
                 "pose correction rejected: jump %.1f in / %.1f deg exceeds gate".format(
@@ -133,13 +135,16 @@ class PoseEstimator(
         val b = blend.coerceIn(0.0, 1.0) * followScale
         val bTranslation = b * wTranslation
         val bHeading = b * wHeading
-        applyPose(
-            Pose2d(
-                current.x + (corrected.x - current.x) * bTranslation,
-                current.y + (corrected.y - current.y) * bTranslation,
-                normalizeAngle(current.heading + headingDelta * bHeading),
-            ),
+        val composed = Pose2d(
+            current.x + (corrected.x - current.x) * bTranslation,
+            current.y + (corrected.y - current.y) * bTranslation,
+            normalizeAngle(current.heading + headingDelta * bHeading),
         )
+        if (!composed.x.isFinite() || !composed.y.isFinite() || !composed.heading.isFinite()) {
+            onEvent("pose correction rejected: non-finite composed pose $composed")
+            return CorrectionResult.REJECTED_JUMP
+        }
+        applyPose(composed)
         onEvent(
             "pose correction applied: %.1f in / %.1f deg (blend %.2f, w=%.2f/%.2f%s)".format(
                 Locale.US,

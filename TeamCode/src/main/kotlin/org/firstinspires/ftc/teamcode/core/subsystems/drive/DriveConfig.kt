@@ -42,8 +42,8 @@ object DriveConfig {
     /** Multiplier applied while the precision-mode trigger is held. */
     @JvmField var precisionPowerScale: Double = DEFAULT_PRECISION_POWER_SCALE
 
-    /** If true, teleop uses field-centric translation (heading from the localizer). */
-    @JvmField var fieldCentric: Boolean = true
+    /** Field-centric state copied into each drive subsystem at op-mode init. */
+    @JvmField var fieldCentricDefault: Boolean = true
 
     /**
      * When true the follower enters teleop with brake mode engaged: motors
