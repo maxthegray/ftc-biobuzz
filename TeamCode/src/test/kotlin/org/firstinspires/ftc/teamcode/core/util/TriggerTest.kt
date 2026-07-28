@@ -180,6 +180,49 @@ class TriggerTest {
     }
 
     @Test
+    fun quarantiningAnActiveWhileTrueTriggerCancelsItsCommand() {
+        var shouldThrow = false
+        var failures = 0
+        val isolatedHost = GamepadEx(Gamepad(), scheduler) { failures++ }
+        val command = endlessCommand()
+        isolatedHost.trigger {
+            if (shouldThrow) error("sensor failed")
+            true
+        }.whileTrue(command)
+
+        isolatedHost.update()
+        assertTrue(scheduler.isScheduled(command))
+
+        shouldThrow = true
+        isolatedHost.update()
+
+        assertEquals(1, failures)
+        assertFalse(scheduler.isScheduled(command))
+    }
+
+    @Test
+    fun composedTriggersSampleEachConditionOncePerPoll() {
+        var leftReads = 0
+        var rightReads = 0
+        val command = endlessCommand()
+        val left = host.trigger {
+            leftReads++
+            true
+        }
+        val right = host.trigger {
+            rightReads++
+            true
+        }
+        (left and right).onTrue(command)
+
+        poll()
+
+        assertEquals(1, leftReads)
+        assertEquals(1, rightReads)
+        assertTrue(scheduler.isScheduled(command))
+    }
+
+    @Test
     fun pollAdvancesSampledStateWhenABindingThrows() {
         val bad = CommandBuilder().setStart { error("start failed") }
         val trigger = host.trigger { condition }.onTrue(bad)

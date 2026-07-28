@@ -92,9 +92,18 @@ class ExampleAuto : OpModeBase() {
     }
 
     override fun onStart() {
+        localizer.fault?.let {
+            abortAuto("localizer fault before start: $it")
+            return
+        }
         localizer.setStartingPose(alliance.mirror(startRed))
-        runner = selector.selectedRunner()
-        runner?.schedule()
+        val selected = selector.selectedRunner()
+        if (selected == null) {
+            abortAuto("no routine selected")
+            return
+        }
+        runner = selected
+        if (!selected.schedule()) abortAuto("routine schedule rejected")
     }
 
     override fun onLoop() {
@@ -105,5 +114,10 @@ class ExampleAuto : OpModeBase() {
             put("done", runner?.isDone ?: false)
         }
         if (runner?.isDone == true) requestOpModeStop()
+    }
+
+    private fun abortAuto(reason: String) {
+        robot.recordEvent("AUTO ABORTED: $reason")
+        requestOpModeStop()
     }
 }

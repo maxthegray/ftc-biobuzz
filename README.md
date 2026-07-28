@@ -35,8 +35,8 @@ Built on:
 1. Make sure the Control Hub's active Configuration has these hardware names:
    - Motors: `frontLeftMotor`, `frontRightMotor`, `backLeftMotor`, `backRightMotor`
    - Pinpoint I²C: `pinpoint`
-2. Build and push to the Robot Controller, then run **Starter: Drive Only** to
-   check the drivetrain and telemetry work.
+2. Build and push to the Robot Controller. With the robot on blocks, run
+   **Starter: Motor Direction Test** before **Starter: Drive Only**.
 3. With the robot running, open the Panels dashboard at
    `http://192.168.43.1:8001` for live pose and tuning knobs.
 4. Walk through [BRINGUP.md](BRINGUP.md) before you trust it on the field.
