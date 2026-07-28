@@ -22,6 +22,7 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants
  *  - alliance / routine / start-delay picked on dpad in init via
  *    [AutonSelector] (press A to lock), so one op-mode serves both sides
  *  - sequencing via [autoRoutine] / [PedroAutoRunner]
+ *  - progress markers plus per-step and whole-routine timeouts
  *  - the auton lifecycle: set the starting pose at start, never install a
  *    teleop default command, schedule in [onStart], stop when the routine
  *    ends — the final pose persists automatically for teleop to restore
@@ -74,12 +75,16 @@ class ExampleAuto : OpModeBase() {
         }
         return autoRoutine(robot, drive, robot::recordEvent) {
             if (selector.startDelaySec > 0) wait(selector.startDelaySec * 1000L)
-            follow(outPath)
+            timeout(4_000) {
+                follow(outPath) {
+                    at(0.5, "outbound midpoint") {}
+                }
+            }
             holdPose(alliance.mirror(outRed))              // settle on the target pose
             wait(300)                                      // stand-in for "score"
             turnTo(alliance.mirror(Math.toRadians(90.0)))
             followAndHold(backPath)
-        }
+        }.timeout(29_000)
     }
 
     override fun onInitLoop() {
@@ -88,7 +93,8 @@ class ExampleAuto : OpModeBase() {
 
     override fun onStart() {
         localizer.setStartingPose(alliance.mirror(startRed))
-        runner = selector.selectedRunner()?.schedule()
+        runner = selector.selectedRunner()
+        runner?.schedule()
     }
 
     override fun onLoop() {

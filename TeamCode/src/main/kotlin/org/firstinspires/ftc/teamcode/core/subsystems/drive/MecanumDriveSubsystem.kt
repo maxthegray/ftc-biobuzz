@@ -63,7 +63,12 @@ class MecanumDriveSubsystem(
     var mode: Mode = Mode.IDLE
         private set
 
+    /** Per-op-mode driver state, seeded from the persisted tuning default. */
+    var fieldCentric: Boolean = DriveConfig.fieldCentricDefault
+        private set
+
     private var modeAfterFollow: Mode = Mode.IDLE
+    private var latchedPathProgress = 0.0
 
     /** Brake-mode argument of a teleop enable deferred to [writeHardware], or null. */
     private var pendingTeleopBrakeMode: Boolean? = null
@@ -120,7 +125,7 @@ class MecanumDriveSubsystem(
         // A non-finite heading (dead localizer) would NaN the field-centric
         // projection and with it the motor powers — fall back to robot-centric
         // so the driver keeps whatever control is still possible.
-        if (DriveConfig.fieldCentric && follower.pose.heading.isFinite()) {
+        if (fieldCentric && follower.pose.heading.isFinite()) {
             follower.setTeleOpDrive(fwd, strafeScaled, turnScaled, false)
         } else {
             follower.setTeleOpDrive(fwd, strafeScaled, turnScaled, true)
@@ -144,6 +149,7 @@ class MecanumDriveSubsystem(
 
     /** Start following a pre-built path chain. */
     internal fun followPath(chain: PathChain, holdEnd: Boolean = true) {
+        latchedPathProgress = 0.0
         follower.followPath(chain, holdEnd)
         modeAfterFollow = if (holdEnd) Mode.HOLDING else Mode.IDLE
         mode = Mode.FOLLOWING
@@ -151,6 +157,7 @@ class MecanumDriveSubsystem(
 
     /** Start following a path chain with a custom max-power cap. */
     internal fun followPath(chain: PathChain, maxPower: Double, holdEnd: Boolean = true) {
+        latchedPathProgress = 0.0
         follower.followPath(chain, maxPower, holdEnd)
         modeAfterFollow = if (holdEnd) Mode.HOLDING else Mode.IDLE
         mode = Mode.FOLLOWING
@@ -159,12 +166,14 @@ class MecanumDriveSubsystem(
     /** Cancel whatever path is running and drift to idle. */
     internal fun breakPath() {
         follower.breakFollowing()
+        latchedPathProgress = 0.0
         modeAfterFollow = Mode.IDLE
         mode = Mode.IDLE
     }
 
     /** Pin the follower to hold a field pose, typically called at the end of an auton leg. */
     internal fun holdPose(pose: Pose2d) {
+        latchedPathProgress = 0.0
         follower.holdPoint(pose.toPedro())
         modeAfterFollow = Mode.HOLDING
         mode = Mode.HOLDING
@@ -189,13 +198,18 @@ class MecanumDriveSubsystem(
      * [Follower.holdPoint], so both [holdPose] and this command agree. Done
      * once the follower is within its configured path constraints.
      */
-    fun holdCommand(pose: Pose2d): Command {
+    fun holdCommand(pose: Pose2d, timeoutMs: Double = DEFAULT_HOLD_TIMEOUT_MS): Command {
+        require(timeoutMs.isFinite() && timeoutMs >= 0.0) {
+            "hold timeout must be finite and non-negative"
+        }
         var updatesAtStart = 0L
+        var startNs = 0L
         return trackDriveMode(
             Command.build()
                 .setName("hold (%.1f, %.1f)".format(Locale.US, pose.x, pose.y))
                 .setStart {
                     updatesAtStart = updateCount
+                    startNs = clock.nanos()
                     follower.holdPoint(pose.toPedro())
                 }
                 .setDone {
@@ -204,9 +218,10 @@ class MecanumDriveSubsystem(
                     // are stale (previous motion's near-zero error would end
                     // this command instantly) or, on a first-ever hold, null
                     // inside Pedro. Wait for one update before evaluating.
-                    updateCount > updatesAtStart &&
+                    val reached = updateCount > updatesAtStart &&
                         follower.translationalError.magnitude < follower.constraints.translationalConstraint &&
                         abs(follower.headingError) < follower.constraints.headingConstraint
+                    reached || (clock.nanos() - startNs) / 1e6 >= timeoutMs
                 }
                 .asDriveAction(),
             running = Mode.HOLDING,
@@ -250,6 +265,7 @@ class MecanumDriveSubsystem(
         .setStart {
             modeAfterFollow = finished
             mode = running
+            if (running == Mode.FOLLOWING) latchedPathProgress = 0.0
             start()
         }
         .setDone { !follower.isBusy }
@@ -280,6 +296,10 @@ class MecanumDriveSubsystem(
             abs(target.y - current.y) < DriveConfig.safeHoldToleranceInches &&
             abs(shortestAngleDelta(current.heading, target.heading)) <
                 DriveConfig.safeHoldToleranceRadians
+    }
+
+    fun toggleFieldCentric() {
+        fieldCentric = !fieldCentric
     }
 
     // ------------------------------------------------- DriveTelemetrySource
@@ -313,22 +333,25 @@ class MecanumDriveSubsystem(
     /**
      * Progress through the path chain currently being followed, 0..1 across
      * the whole chain (a 3-path chain at the middle of path 2 reads ~0.5).
-     * Reads 1.0 once the follow has completed (or while HOLDING), 0.0 when
-     * idle or in teleop. Drives the auto runner's `at(progress)` markers.
+     * Latches monotonically from Pedro's actual path/t values. Completion
+     * never synthesizes 1.0: if Pedro ends a path early, unreached markers
+     * remain unfired. Idle/teleop and cancellation read 0.0.
      */
     fun pathProgress(): Double {
         when (mode) {
-            Mode.FOLLOWING -> {}
-            Mode.HOLDING -> return 1.0
+            Mode.FOLLOWING, Mode.HOLDING -> {}
             else -> return 0.0
         }
-        if (!follower.isBusy) return 1.0
-        return try {
+        val sampled = try {
             val size = follower.currentPathChain?.size() ?: 1
-            ((follower.currentPathNumber + follower.currentTValue) / size).coerceIn(0.0, 1.0)
+            (follower.currentPathNumber + follower.currentTValue) / size
         } catch (_: Throwable) {
-            0.0
+            Double.NaN
         }
+        if (sampled.isFinite()) {
+            latchedPathProgress = maxOf(latchedPathProgress, sampled.coerceIn(0.0, 1.0))
+        }
+        return latchedPathProgress
     }
 
     override fun currentPathPoses(samplesPerPath: Int): List<List<Pose2d>> {
@@ -391,7 +414,7 @@ class MecanumDriveSubsystem(
     }
 
     override fun logState(log: StateLog) {
-        log.put("fieldCentric", DriveConfig.fieldCentric)
+        log.put("fieldCentric", fieldCentric)
         val index = sampledMotorIndex
         if (index < 0) return
         val label = MOTOR_LABELS.getOrElse(index) { "motor$index" }
@@ -434,6 +457,7 @@ class MecanumDriveSubsystem(
         pendingTeleopBrakeMode = null
         modeAfterFollow = Mode.IDLE
         mode = Mode.IDLE
+        latchedPathProgress = 0.0
     }
 
     /**
@@ -450,6 +474,7 @@ class MecanumDriveSubsystem(
             .setStart {
                 modeAfterFollow = finished
                 mode = running
+                if (running == Mode.FOLLOWING) latchedPathProgress = 0.0
                 command.start()
             }
             .setExecute(command::execute)
@@ -472,6 +497,7 @@ class MecanumDriveSubsystem(
         /** Pedro's Mecanum.getMotors() order. */
         val MOTOR_LABELS = listOf("leftFront", "leftRear", "rightFront", "rightRear")
         const val MOTOR_SAMPLE_INTERVAL_NS = 50_000_000L
+        const val DEFAULT_HOLD_TIMEOUT_MS = 2_000.0
     }
 }
 

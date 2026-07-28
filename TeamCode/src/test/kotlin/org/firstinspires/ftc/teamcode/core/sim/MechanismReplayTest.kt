@@ -85,6 +85,8 @@ class MechanismReplayTest {
                 directory = logDir,
             )
             robot.init()
+            lift.periodic()
+            lift.setCurrentPosition(lift.positionUnits)
             robot.start()
             robot.scheduler.schedule(lift.goToCommand(GOAL, toleranceUnits = 0.5))
             repeat(TICKS) {
@@ -117,6 +119,8 @@ class MechanismReplayTest {
                 ),
             )
             replayRobot.init()
+            replayLift.periodic()
+            replayLift.setCurrentPosition(replayLift.positionUnits)
             replayRobot.start()
             replayRobot.scheduler.schedule(replayLift.goToCommand(GOAL, toleranceUnits = 0.5))
             repeat(TICKS) {

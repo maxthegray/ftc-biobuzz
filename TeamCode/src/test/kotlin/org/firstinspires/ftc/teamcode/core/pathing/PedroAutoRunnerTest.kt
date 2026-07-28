@@ -125,6 +125,24 @@ class PedroAutoRunnerTest {
         assertTrue(runner.isDone)
     }
 
+    @Test
+    fun scheduleFailureIsReturnedRecordedAndDoesNotLookDone() {
+        val requirement = Any()
+        val holder = CommandBuilder()
+            .requiring(requirement)
+            .setPriority(CommandPriorities.DRIVER_ACTION)
+            .setDone { false }
+        robot.scheduler.schedule(holder)
+        val events = mutableListOf<String>()
+        val runner = PedroAutoRunner(robot, drive, events::add)
+            .then(commandWithRequirement(requirement))
+
+        assertFalse(runner.schedule())
+
+        assertFalse(runner.isDone)
+        assertTrue(events.contains("auto routine schedule failed"))
+    }
+
     private fun commandWithRequirement(requirement: Any): Command =
         CommandBuilder().requiring(requirement).setDone { false }
 }

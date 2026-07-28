@@ -143,7 +143,8 @@ class ConfigStoreTest {
         )
         val snapshot = ConfigStore.snapshot()
         assertTrue("drive.inputExponent" in snapshot)
-        assertTrue("drive.fieldCentric" in snapshot)
+        assertTrue("drive.fieldCentricDefault" in snapshot)
+        assertFalse("drive.fieldCentric" in snapshot)
         assertTrue("localizer.correctionBlend" in snapshot)
         assertTrue("localizer.followingBlendScale" in snapshot)
         // Private defaults and synthetic fields must not leak.

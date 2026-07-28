@@ -9,15 +9,15 @@ import org.firstinspires.ftc.teamcode.core.util.TelemetryBag
 /**
  * Init-loop autonomous menu controlled by dpad.
  *
- * Up/down moves between fields; left/right changes the selected value. Press
- * A to lock the choice before start. The selected alliance is written to
- * [robot] each update so path builders and [OpModeBase.alliance] share one
- * source of truth during init.
+ * Up/down moves between fields; left/right changes the selected value. When
+ * multiple routines are registered, A freezes the displayed choice. If the
+ * driver starts without locking, the prominently displayed live selection
+ * still runs; a single registered routine needs no confirmation.
  *
  * The last locked selection is persisted to disk and restored (unlocked) on
  * the next init — re-initializing right before a match doesn't mean
- * re-selecting the routine under pressure. The restore is only a default;
- * it still has to be locked with A.
+ * re-selecting the routine under pressure. The restore remains editable
+ * until A freezes it.
  */
 class AutonSelector(
     private val robot: Robot,
@@ -54,7 +54,7 @@ class AutonSelector(
             if (driver.dpadDownPressed) field = Field.entries[(field.ordinal + 1) % Field.entries.size]
             if (driver.dpadLeftPressed) step(-1)
             if (driver.dpadRightPressed) step(1)
-            if (driver.aPressed) {
+            if (driver.aPressed && requiresConfirmation) {
                 lockedSelection = Selection(alliance, clampedRoutineIndex, delaySec)
                 persistToDisk()
             }
@@ -66,13 +66,16 @@ class AutonSelector(
 
     fun selectedRunner(): PedroAutoRunner? = routines.getOrNull(selection.routineIndex)?.build?.invoke()
 
-    val isLocked: Boolean get() = lockedSelection != null
+    val isLocked: Boolean get() = !requiresConfirmation || lockedSelection != null
     val selectedAlliance: Alliance get() = selection.alliance
     val selectedRoutineName: String get() = routines.getOrNull(selection.routineIndex)?.name ?: "-"
     val startDelaySec: Int get() = selection.delaySec
 
     private val selection: Selection
         get() = lockedSelection ?: Selection(alliance, clampedRoutineIndex, delaySec)
+
+    private val requiresConfirmation: Boolean
+        get() = routines.size > 1
 
     /** A restored index may point past the routines registered this run. */
     private val clampedRoutineIndex: Int
@@ -89,8 +92,14 @@ class AutonSelector(
     }
 
     private fun render() {
+        val status = when {
+            routines.isEmpty() -> "NO ROUTINE"
+            lockedSelection != null -> "LOCKED — WILL RUN $selectedRoutineName"
+            requiresConfirmation -> "UNLOCKED — WILL RUN $selectedRoutineName (press A to lock)"
+            else -> "READY — WILL RUN $selectedRoutineName"
+        }
         telemetryBag.section("Auton") {
-            put("status", if (isLocked) "LOCKED" else "EDIT")
+            put("status", status)
             put("field", field.name)
             put("alliance", selectedAlliance)
             put("routine", selectedRoutineName)

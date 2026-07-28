@@ -8,6 +8,7 @@ import org.firstinspires.ftc.teamcode.core.util.FakeClock
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx
 import org.firstinspires.ftc.teamcode.core.util.TelemetryBag
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -15,8 +16,11 @@ import org.junit.Test
 class AutonSelectorTest {
 
     private class FakeSink : TelemetryBag.Sink {
+        val data = mutableMapOf<String, String>()
         override fun addLine(text: String) {}
-        override fun addData(key: String, value: String) {}
+        override fun addData(key: String, value: String) {
+            data[key] = value
+        }
         override fun update() {}
     }
 
@@ -26,7 +30,8 @@ class AutonSelectorTest {
     private val robot = Robot(HardwareMap(null, null), clock)
     private val raw = Gamepad()
     private val driver = GamepadEx(raw, robot.scheduler)
-    private val bag = TelemetryBag(listOf(FakeSink()), transmitIntervalMs = 0.0, clock = clock)
+    private val sink = FakeSink()
+    private val bag = TelemetryBag(listOf(sink), transmitIntervalMs = 0.0, clock = clock)
     private val selector by lazy { AutonSelector(robot, bag) }
 
     private lateinit var tempFile: File
@@ -147,5 +152,37 @@ class AutonSelectorTest {
             .register("only") { throw SelectedRoutine("only") }
         assertEquals(Alliance.RED, restored.selectedAlliance)
         assertEquals(0, restored.startDelaySec)
+    }
+
+    @Test
+    fun singleRoutineNeedsNoConfirmation() {
+        val single = selector.register("only") { throw SelectedRoutine("only") }
+
+        assertTrue(single.isLocked)
+        try {
+            single.selectedRunner()
+            fail("Expected the only routine builder to run")
+        } catch (selected: SelectedRoutine) {
+            assertEquals("only", selected.routine)
+        }
+    }
+
+    @Test
+    fun unlockedMultipleChoiceLoudlyReportsAndRunsTheDisplayedRoutine() {
+        selector
+            .register("one") { throw SelectedRoutine("one") }
+            .register("two") { throw SelectedRoutine("two") }
+        pressDown()
+        pressRight()
+
+        assertFalse(selector.isLocked)
+        bag.flush()
+        assertTrue(sink.data.getValue("status").contains("UNLOCKED — WILL RUN two"))
+        try {
+            selector.selectedRunner()
+            fail("Expected the displayed unlocked routine builder to run")
+        } catch (selected: SelectedRoutine) {
+            assertEquals("two", selected.routine)
+        }
     }
 }

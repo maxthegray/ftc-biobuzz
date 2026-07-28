@@ -8,7 +8,6 @@ import org.firstinspires.ftc.teamcode.core.command.Commands
 import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import org.firstinspires.ftc.teamcode.core.pathing.path
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
-import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
 
 /**
  * Teleop for testing localization consistency over time.
@@ -122,7 +121,7 @@ class LocalizationTestTeleOp : TeleOpBase() {
         telemetryBag.section("Localization Test") {
             put("state", state)
             put("target", targetLabel)
-            put("fieldCentric", DriveConfig.fieldCentric)
+            put("fieldCentric", drive.fieldCentric)
         }
         telemetryBag.section("Drive") {
             put("pose", drive.pose)
