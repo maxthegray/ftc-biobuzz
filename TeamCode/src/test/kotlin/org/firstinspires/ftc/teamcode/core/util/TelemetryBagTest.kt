@@ -4,6 +4,7 @@ import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import org.firstinspires.ftc.teamcode.core.geometry.Vector2d
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -118,5 +119,66 @@ class TelemetryBagTest {
         bag.section("Empty") { }
         bag.flush()
         assertTrue(sink.lines.isEmpty())
+    }
+
+    @Test
+    fun failingSinkIsDisabledWithoutBlockingHealthySinkOrReplayingLines() {
+        var failingCalls = 0
+        val failing = object : TelemetryBag.Sink {
+            override fun addLine(text: String) {
+                failingCalls++
+                error("sink failed")
+            }
+
+            override fun addData(key: String, value: String) {
+                failingCalls++
+                error("sink failed")
+            }
+
+            override fun update() {
+                failingCalls++
+                error("sink failed")
+            }
+        }
+        val healthy = FakeSink()
+        val isolatedBag = TelemetryBag(
+            listOf(failing, healthy),
+            transmitIntervalMs = 50.0,
+            clock = clock,
+        )
+        isolatedBag.section("S") { put("k", "v") }
+        isolatedBag.line("first")
+
+        assertTrue(isolatedBag.flush())
+        assertEquals(1, failingCalls)
+        assertEquals(listOf("== S ==", "first"), healthy.lines)
+        assertEquals(listOf("k" to "v"), healthy.data)
+        assertEquals(1, healthy.updates)
+
+        healthy.reset()
+        isolatedBag.line("second")
+        clock.advanceMs(50.0)
+        assertTrue(isolatedBag.flush())
+        assertEquals(1, failingCalls)
+        assertEquals(listOf("second"), healthy.lines)
+        assertEquals(1, healthy.updates)
+    }
+
+    @Test
+    fun flushClearsBuffersEvenWhenFormattingThrows() {
+        val badValue = object {
+            override fun toString(): String = error("format failed")
+        }
+        bag.section("S") { put("bad", badValue) }
+        bag.line("event")
+
+        assertThrows(IllegalStateException::class.java) { bag.flush() }
+
+        sink.reset()
+        clock.advanceMs(50.0)
+        assertTrue(bag.flush())
+        assertTrue(sink.lines.isEmpty())
+        assertTrue(sink.data.isEmpty())
+        assertEquals(1, sink.updates)
     }
 }

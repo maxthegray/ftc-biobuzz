@@ -19,7 +19,11 @@ import org.firstinspires.ftc.teamcode.core.command.Scheduler
  * drive.arcade(driver.leftStickY, driver.leftStickX, driver.rightStickX)
  * ```
  */
-class GamepadEx(val raw: Gamepad, internal val scheduler: Scheduler) {
+class GamepadEx(
+    val raw: Gamepad,
+    internal val scheduler: Scheduler,
+    private val triggerFaultHandler: (Throwable) -> Unit = {},
+) {
 
     var leftStickDeadband: Double = 0.05
     var rightStickDeadband: Double = 0.05
@@ -38,6 +42,7 @@ class GamepadEx(val raw: Gamepad, internal val scheduler: Scheduler) {
     }
 
     private val triggers = mutableListOf<Trigger>()
+    private val quarantinedTriggers = HashSet<Trigger>()
     private val buttonTriggers = HashMap<Button, Trigger>()
 
     /**
@@ -54,7 +59,15 @@ class GamepadEx(val raw: Gamepad, internal val scheduler: Scheduler) {
         // Triggers are not polled during init, so lastState is stale false.
         // Prime from the current condition so a button held across start
         // doesn't fire its binding as a phantom rising edge on the first poll.
-        for (t in triggers) t.prime()
+        for (t in triggers) {
+            if (t !in quarantinedTriggers) {
+                try {
+                    t.prime()
+                } catch (fault: Throwable) {
+                    quarantine(t, fault)
+                }
+            }
+        }
     }
 
     internal fun requireBindingsUnlocked() {
@@ -73,7 +86,17 @@ class GamepadEx(val raw: Gamepad, internal val scheduler: Scheduler) {
     fun update(pollTriggers: Boolean = true) {
         prev.copyFrom(curr)
         curr.read(raw)
-        if (pollTriggers) for (t in triggers) t.poll()
+        if (pollTriggers) {
+            for (t in triggers) {
+                if (t !in quarantinedTriggers) {
+                    try {
+                        t.poll()
+                    } catch (fault: Throwable) {
+                        quarantine(t, fault)
+                    }
+                }
+            }
+        }
     }
 
     val leftStickX: Double get() = applyDeadband(raw.left_stick_x.toDouble(), leftStickDeadband)
@@ -140,6 +163,15 @@ class GamepadEx(val raw: Gamepad, internal val scheduler: Scheduler) {
     fun trigger(condition: BooleanSupplier): Trigger {
         requireBindingsUnlocked()
         return Trigger(this, condition).also { triggers += it }
+    }
+
+    private fun quarantine(trigger: Trigger, fault: Throwable) {
+        quarantinedTriggers += trigger
+        try {
+            triggerFaultHandler(fault)
+        } catch (_: Throwable) {
+            // Fault reporting must not starve later triggers.
+        }
     }
 
     private fun stateOf(button: Button): Boolean = when (button) {

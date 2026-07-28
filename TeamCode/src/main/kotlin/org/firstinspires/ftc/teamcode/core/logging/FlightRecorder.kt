@@ -11,6 +11,7 @@ import java.util.Locale
 import org.firstinspires.ftc.teamcode.core.runtime.DriveTelemetrySource
 import org.firstinspires.ftc.teamcode.core.runtime.LoopPhase
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
+import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx
 
 /**
@@ -61,6 +62,7 @@ class FlightRecorder private constructor(
     // allocation beyond a first-time channel registration.
     private val channelIds = HashMap<String, Int>()
     private val lastStrings = HashMap<String, String>()
+    private val disabledSubsystemLogs = HashSet<SubsystemBase>()
     private val subsystemSink = SubsystemSink()
 
     private inner class SubsystemSink : StateLog {
@@ -156,8 +158,23 @@ class FlightRecorder private constructor(
 
             subsystemSink.timestampUs = ts
             for (subsystem in robot.subsystems()) {
+                if (subsystem in disabledSubsystemLogs) continue
                 subsystemSink.prefix = subsystem.name + "/"
-                subsystem.logState(subsystemSink)
+                try {
+                    subsystem.logState(subsystemSink)
+                } catch (t: Throwable) {
+                    if (isIoFailure(t)) throw t
+                    disabledSubsystemLogs += subsystem
+                    val message =
+                        "SUBSYSTEM LOGGING DISABLED: ${subsystem.name}: " +
+                            "${t.javaClass.simpleName}: ${t.message}"
+                    writer.appendString(events, message, ts)
+                    try {
+                        RobotLog.ee("FlightRecorder", t, message)
+                    } catch (_: Throwable) {
+                        // Host-side tests stub Android logging.
+                    }
+                }
             }
 
             // Periodic flush so a brownout or battery pull — exactly the runs
@@ -235,9 +252,12 @@ class FlightRecorder private constructor(
         } catch (e: IOException) {
             disable(e)
         } catch (e: RuntimeException) {
-            if (e.cause is IOException) disable(e) else throw e
+            if (isIoFailure(e)) disable(e) else throw e
         }
     }
+
+    private fun isIoFailure(t: Throwable): Boolean =
+        t is IOException || t.cause is IOException
 
     private fun disable(t: Throwable) {
         enabled = false
@@ -266,8 +286,8 @@ class FlightRecorder private constructor(
         ): FlightRecorder? = try {
             directory.mkdirs()
             prune(directory)
-            val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
-            val file = File(directory, "$opModeClassName-$stamp.wpilog")
+            val stamp = SimpleDateFormat("yyyyMMdd-HHmmss-SSS", Locale.US).format(Date())
+            val file = File.createTempFile("$opModeClassName-$stamp-", ".wpilog", directory)
             FlightRecorder(
                 WpiLogWriter(BufferedOutputStream(FileOutputStream(file)), "ftc-starter"),
                 gamepad1,
