@@ -25,6 +25,8 @@ import sys
 
 
 def read_varint(data, pos, length):
+    if pos + length > len(data):
+        raise EOFError("truncated varint")
     value = 0
     for i in range(length):
         value |= data[pos + i] << (8 * i)
@@ -37,11 +39,16 @@ def parse_wpilog(path):
 
     if data[:6] != b"WPILOG":
         raise ValueError(f"{path}: not a WPILOG file")
+    if len(data) < 12:
+        return {}, {}, True
     extra_len = struct.unpack_from("<I", data, 8)[0]
     pos = 12 + extra_len
+    if pos > len(data):
+        return {}, {}, True
 
     entries = {}   # id -> (name, type)
     records = {}   # name -> list[(timestamp_us, value)]
+    truncated = False
 
     while pos < len(data):
         header = data[pos]
@@ -50,23 +57,39 @@ def parse_wpilog(path):
         size_len = ((header >> 2) & 0x3) + 1
         time_len = ((header >> 4) & 0x7) + 1
 
-        entry_id = read_varint(data, pos, entry_len)
-        pos += entry_len
-        payload_size = read_varint(data, pos, size_len)
-        pos += size_len
-        timestamp = read_varint(data, pos, time_len)
-        pos += time_len
+        try:
+            entry_id = read_varint(data, pos, entry_len)
+            pos += entry_len
+            payload_size = read_varint(data, pos, size_len)
+            pos += size_len
+            timestamp = read_varint(data, pos, time_len)
+            pos += time_len
+        except EOFError:
+            truncated = True
+            break
+        if pos + payload_size > len(data):
+            truncated = True
+            break
         payload = data[pos:pos + payload_size]
         pos += payload_size
 
         if entry_id == 0:
             if payload and payload[0] == 0:  # start record
-                eid = struct.unpack_from("<I", payload, 1)[0]
-                name_len = struct.unpack_from("<I", payload, 5)[0]
-                name = payload[9:9 + name_len].decode("utf-8")
-                type_off = 9 + name_len
-                type_len = struct.unpack_from("<I", payload, type_off)[0]
-                type_name = payload[type_off + 4:type_off + 4 + type_len].decode("utf-8")
+                try:
+                    eid = struct.unpack_from("<I", payload, 1)[0]
+                    name_len = struct.unpack_from("<I", payload, 5)[0]
+                    name_end = 9 + name_len
+                    if name_end + 4 > len(payload):
+                        raise EOFError
+                    name = payload[9:name_end].decode("utf-8")
+                    type_len = struct.unpack_from("<I", payload, name_end)[0]
+                    type_end = name_end + 4 + type_len
+                    if type_end > len(payload):
+                        raise EOFError
+                    type_name = payload[name_end + 4:type_end].decode("utf-8")
+                except (EOFError, struct.error, UnicodeDecodeError):
+                    truncated = True
+                    break
                 entries[eid] = (name, type_name)
             continue
 
@@ -74,21 +97,33 @@ def parse_wpilog(path):
             continue
         name, type_name = entries[entry_id]
         if type_name == "double":
+            if len(payload) != 8:
+                truncated = True
+                break
             value = struct.unpack("<d", payload)[0]
         elif type_name == "int64":
+            if len(payload) != 8:
+                truncated = True
+                break
             value = struct.unpack("<q", payload)[0]
         elif type_name == "double[]":
+            if len(payload) % 8 != 0:
+                truncated = True
+                break
             value = list(struct.unpack(f"<{len(payload) // 8}d", payload))
         elif type_name == "string":
             value = payload.decode("utf-8", errors="replace")
         elif type_name == "boolean":
+            if not payload:
+                truncated = True
+                break
             value = payload[0] != 0
         else:
             continue
         records.setdefault(name, []).append((timestamp, value))
 
     channel_types = {name: type_name for name, type_name in entries.values()}
-    return records, channel_types
+    return records, channel_types, truncated
 
 
 def percentile(sorted_values, fraction):
@@ -116,9 +151,9 @@ PHASES = [
 _SCALAR_TYPES = ("double", "int64")
 
 
-def build_report(records, channel_types, path):
+def build_report(records, channel_types, path, truncated=False):
     """Compute every metric once; both the text and JSON outputs read this."""
-    report = {"file": os.path.basename(path)}
+    report = {"file": os.path.basename(path), "truncated": truncated}
     all_ts = [ts for series in records.values() for ts, _ in series]
     if not all_ts:
         report["empty"] = True
@@ -180,7 +215,7 @@ def build_report(records, channel_types, path):
     # --- events ------------------------------------------------------------
     events = records.get("events", [])
     faults = [(ts, text) for ts, text in events
-              if "COMMAND FAULT" in text or "CRASH" in text]
+              if "FAULT" in text or "CRASH" in text]
     corrections = [(ts, text) for ts, text in events if "pose correction" in text]
     report["events"] = [{"tSec": ts / 1e6, "text": text} for ts, text in events]
     report["faults"] = [{"tSec": ts / 1e6, "text": text} for ts, text in faults]
@@ -207,6 +242,8 @@ def build_report(records, channel_types, path):
 
 def print_text_report(report):
     print(f"=== {report['file']} ===")
+    if report["truncated"]:
+        print("  WARNING: log is truncated; complete records before the damaged tail were analyzed")
     if report["empty"]:
         print("  (empty log)")
         return
@@ -264,7 +301,8 @@ def print_text_report(report):
 
 def to_json_dict(report):
     """Reshape the internal report into the compact, documented JSON bundle."""
-    out = {"file": report["file"], "empty": report["empty"]}
+    out = {"file": report["file"], "empty": report["empty"],
+           "truncated": report["truncated"]}
     if report["empty"]:
         return out
     out["durationSec"] = round(report["durationSec"], 1)
@@ -363,8 +401,8 @@ def main():
         import json
         bundles = []
         for path in paths:
-            records, channel_types = parse_wpilog(path)
-            bundle = to_json_dict(build_report(records, channel_types, path))
+            records, channel_types, truncated = parse_wpilog(path)
+            bundle = to_json_dict(build_report(records, channel_types, path, truncated))
             if args.channel:
                 names = [n for n in args.channel.split(",") if n]
                 bundle["series"] = dump_channels(records, names)
@@ -373,8 +411,8 @@ def main():
         return 0
 
     for path in paths:
-        records, channel_types = parse_wpilog(path)
-        print_text_report(build_report(records, channel_types, path))
+        records, channel_types, truncated = parse_wpilog(path)
+        print_text_report(build_report(records, channel_types, path, truncated))
     return 0
 
 

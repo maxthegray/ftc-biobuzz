@@ -25,8 +25,9 @@ you whether it faulted once or every press.
 ## Auton drove to the wrong place
 
 - **Wrong from the first path** → starting pose. Was the robot placed where
-  `setStartingPose` claims? Was the right alliance locked on the selector
-  (the `Auton` telemetry section shows LOCKED + alliance)?
+  `setStartingPose` claims? Did the selector's loud `WILL RUN …` status show
+  the intended routine and alliance? With multiple routines, A freezes it;
+  starting unlocked still runs the displayed selection.
 - **Mirrored side only** → heading mirroring. Check every bare heading went
   through `Alliance.mirror(heading)` — run the routine through a
   `SimAutonRoutineTest`-style mirror test; it catches exactly this.
@@ -42,7 +43,8 @@ you whether it faulted once or every press.
 
 Heading reference is stale. Back+Y re-zeros heading (square the robot
 first). If it happens after auton→teleop: check `restorePersistedPose`
-returned true — the event timeline and `Health` section show it; a Robot
+returned true — the event timeline shows `PERSISTED POSE RESTORE: APPLIED`
+and the Localizer row in `Health` shows `poseRestore=applied`; a Robot
 Controller restart older than 2 min ages the persisted pose out.
 
 ## Mechanism slammed into its hard stop / soft limit confusion
@@ -52,7 +54,9 @@ gates open-loop power past a violated limit — if a mechanism still hit the
 stop, either the limits are wrong (check `<Mech>/goalUnits` vs
 `<Mech>/positionUnits` in the log) or the zero drifted (encoder skipped or
 the mechanism was moved while disabled). Re-home (`homeCommand`) and check
-`<Mech>/mode` shows HOMING → CLOSED_LOOP in the log.
+`<Mech>/mode` shows HOMING → CLOSED_LOOP and `<Mech>/homingState` shows
+HOMING → HOMED. A timeout is a command fault and leaves the mechanism
+FAULTED with zero output; it never declares a zero.
 
 ## Tuned values reverted
 

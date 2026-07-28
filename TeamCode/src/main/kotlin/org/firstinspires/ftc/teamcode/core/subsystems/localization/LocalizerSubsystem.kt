@@ -144,7 +144,13 @@ class LocalizerSubsystem(
         }
     }
 
-    override fun health(): String = fault?.let { "FAULT: $it" } ?: "ok"
+    private var lastPoseRestoreSucceeded: Boolean? = null
+
+    override fun health(): String {
+        val base = fault?.let { "FAULT: $it" } ?: "ok"
+        val restored = lastPoseRestoreSucceeded ?: return base
+        return "$base poseRestore=${if (restored) "applied" else "not applied"}"
+    }
 
     override fun logState(log: StateLog) {
         log.put("faulted", fault != null)
@@ -177,6 +183,7 @@ class LocalizerSubsystem(
      * @return true if a valid, fresh pose was applied to the follower.
      */
     fun restorePersistedPose(maxAgeMs: Long = 120_000): Boolean {
+        lastPoseRestoreSucceeded = false
         PersistedPose.restoreFromDiskIfNeeded()
         if (!PersistedPose.valid) return false
         val ageMs = System.currentTimeMillis() - PersistedPose.wallTimeMs
@@ -186,6 +193,7 @@ class LocalizerSubsystem(
         // the follower — a poisoned pose here corrupts the whole op-mode.
         if (!p.x.isFinite() || !p.y.isFinite() || !p.heading.isFinite()) return false
         setPose(p)
+        lastPoseRestoreSucceeded = true
         return true
     }
 

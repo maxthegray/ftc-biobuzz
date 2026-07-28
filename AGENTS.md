@@ -236,7 +236,8 @@ val lift = robot.register(
 )
 operator.button(GamepadEx.Button.Y).onTrue(lift.goToCommand(24.0, toleranceUnits = 0.5))
 operator.button(GamepadEx.Button.BACK).onTrue(
-    lift.homeCommand(power = -0.3, stallVelocityUnitsPerSec = 1.0))  // re-zero on hard stop
+    lift.homeCommand(power = -0.3, stallVelocityUnitsPerSec = 1.0,
+        timeoutMs = 3_000.0))  // timeout faults; it never silently declares zero
 lift.openLoop(0.3)   // bring-up only; setGoal()/goToCommand() for real control
 ```
 
@@ -244,6 +245,9 @@ lift.openLoop(0.3)   // bring-up only; setGoal()/goToCommand() for real control
 hold) — no default command needed. The encoder is not reset on init by
 default so lift position survives the auton → teleop handoff; `homeCommand`
 re-establishes a true zero (velocity-stall detection, software offset).
+A fresh mechanism is UNHOMED: open-loop movement and homing are allowed, but
+closed-loop goals and coordinate-based soft limits are rejected until a zero
+is established or restored.
 
 Hardware goes through the `MotorIO` seam (`core/hw/`): real op-modes
 resolve a `RealMotorIO` automatically; host tests inject
@@ -351,7 +355,8 @@ ConfigStore.register("lift", LiftConfig)
 
 Only public `@JvmField` mutable primitive/String fields are persisted,
 keyed `<section>.<field>`. Delete the file to fall back to compiled
-defaults. Tunables on `@Configurable` *op-modes* (the Pedro `Tuning`
+defaults. Change `RobotConfig.CONFIG_SCHEMA` in every season fork; files from
+a different schema are ignored. Tunables on `@Configurable` *op-modes* (the Pedro `Tuning`
 op-mode, `LocalizationTestTeleOp`) are deliberately not persisted — move
 anything that must persist into a registered config object.
 

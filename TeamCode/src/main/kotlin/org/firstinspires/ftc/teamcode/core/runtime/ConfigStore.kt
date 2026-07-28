@@ -35,11 +35,16 @@ import java.util.Locale
  * To hand-edit: `adb pull`/`push` the file, or delete it to fall back to
  * compiled defaults. Compiled defaults also apply for any key missing from
  * the file, so adding a new field never requires touching the file.
+ * Files whose schema does not match [RobotConfig.CONFIG_SCHEMA] are ignored,
+ * preventing a season fork from inheriting stale tuning by accident.
  */
 object ConfigStore {
 
+    internal const val SCHEMA_KEY = "config.schema"
+
     /** Overridable for host tests; null disables persistence entirely. */
     internal var file: File? = File("/sdcard/FIRST/config/tuning.properties")
+    internal var schemaId: String = RobotConfig.CONFIG_SCHEMA
 
     private val sections = LinkedHashMap<String, Any>()
     private var lastPersisted: Map<String, String>? = null
@@ -61,12 +66,19 @@ object ConfigStore {
         val target = file ?: return
         try {
             if (target.exists()) {
+                val persisted = LinkedHashMap<String, String>()
                 for (line in target.readLines()) {
                     val trimmed = line.trim()
                     if (trimmed.isEmpty() || trimmed.startsWith("#")) continue
                     val eq = trimmed.indexOf('=')
                     if (eq <= 0) continue
-                    applyValue(trimmed.substring(0, eq).trim(), trimmed.substring(eq + 1).trim())
+                    persisted[trimmed.substring(0, eq).trim()] =
+                        trimmed.substring(eq + 1).trim()
+                }
+                if (persisted[SCHEMA_KEY] == schemaId) {
+                    for ((key, value) in persisted) {
+                        if (key != SCHEMA_KEY) applyValue(key, value)
+                    }
                 }
             }
         } catch (t: Throwable) {
@@ -93,6 +105,7 @@ object ConfigStore {
                     appendLine("# ftc-starter live-tuning values. Written by ConfigStore;")
                     appendLine("# loaded into config objects at every op-mode init.")
                     appendLine("# Delete this file to fall back to compiled defaults.")
+                    appendLine("$SCHEMA_KEY=$schemaId")
                     for ((key, value) in current) appendLine("$key=$value")
                 },
             )
