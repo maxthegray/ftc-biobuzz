@@ -65,6 +65,12 @@ class MecanumDriveSubsystem(
 
     private var modeAfterFollow: Mode = Mode.IDLE
 
+    /** Brake-mode argument of a teleop enable deferred to [writeHardware], or null. */
+    private var pendingTeleopBrakeMode: Boolean? = null
+
+    /** Ticks of [writeHardware] so far — commands use it to detect "an update has run". */
+    private var updateCount = 0L
+
     override fun init(hardwareMap: HardwareMap) {
         // Follower is constructed in configure() from pedroPathing/Constants;
         // reuse the motors Pedro already resolved for the log channels. A
@@ -72,9 +78,17 @@ class MecanumDriveSubsystem(
         loggedMotors = (follower.drivetrain as? Mecanum)?.motors ?: emptyList()
     }
 
-    /** Switch the follower into teleop drive mode. Called by [teleopCommand]. */
+    /**
+     * Switch the follower into teleop drive mode. Called by [teleopCommand].
+     *
+     * The actual [Follower.startTeleOpDrive] call is deferred to
+     * [writeHardware]: Pedro 2.1.1 runs a full [Follower.update] inside it,
+     * so calling it here (command start) *and* updating again in
+     * [writeHardware] would double the localizer read and PID step in one
+     * tick. Deferred, it substitutes for that tick's update instead.
+     */
     internal fun enableTeleop(brakeMode: Boolean = DriveConfig.brakeOnTeleop) {
-        follower.startTeleOpDrive(brakeMode)
+        pendingTeleopBrakeMode = brakeMode
         modeAfterFollow = Mode.IDLE
         mode = Mode.TELEOP
     }
@@ -103,7 +117,10 @@ class MecanumDriveSubsystem(
         // FTC sticks use +x right/CW turn; Pedro uses +lateral left/CCW-positive heading.
         val strafeScaled = -strafe.curve(exp) * scale
         val turnScaled = -turn.curve(exp) * scale
-        if (DriveConfig.fieldCentric) {
+        // A non-finite heading (dead localizer) would NaN the field-centric
+        // projection and with it the motor powers — fall back to robot-centric
+        // so the driver keeps whatever control is still possible.
+        if (DriveConfig.fieldCentric && follower.pose.heading.isFinite()) {
             follower.setTeleOpDrive(fwd, strafeScaled, turnScaled, false)
         } else {
             follower.setTeleOpDrive(fwd, strafeScaled, turnScaled, true)
@@ -172,19 +189,30 @@ class MecanumDriveSubsystem(
      * [Follower.holdPoint], so both [holdPose] and this command agree. Done
      * once the follower is within its configured path constraints.
      */
-    fun holdCommand(pose: Pose2d): Command =
-        trackDriveMode(
+    fun holdCommand(pose: Pose2d): Command {
+        var updatesAtStart = 0L
+        return trackDriveMode(
             Command.build()
                 .setName("hold (%.1f, %.1f)".format(Locale.US, pose.x, pose.y))
-                .setStart { follower.holdPoint(pose.toPedro()) }
+                .setStart {
+                    updatesAtStart = updateCount
+                    follower.holdPoint(pose.toPedro())
+                }
                 .setDone {
-                    follower.translationalError.magnitude < follower.constraints.translationalConstraint &&
+                    // Pedro recomputes its cached errors only inside
+                    // Follower.update(); on the tick holdPoint() is issued they
+                    // are stale (previous motion's near-zero error would end
+                    // this command instantly) or, on a first-ever hold, null
+                    // inside Pedro. Wait for one update before evaluating.
+                    updateCount > updatesAtStart &&
+                        follower.translationalError.magnitude < follower.constraints.translationalConstraint &&
                         abs(follower.headingError) < follower.constraints.headingConstraint
                 }
                 .asDriveAction(),
             running = Mode.HOLDING,
             finished = Mode.HOLDING,
         )
+    }
 
     /**
      * Turn in place to an absolute heading: follow a zero-length path pinned at the
@@ -376,7 +404,18 @@ class MecanumDriveSubsystem(
         // localizer, runs the path or teleop vectors, and writes motor powers.
         // Must run every tick, after the command scheduler has decided what
         // setTeleOpDrive / followPath / holdPoint call to issue.
-        follower.update()
+        val pendingBrakeMode = pendingTeleopBrakeMode
+        pendingTeleopBrakeMode = null
+        if (pendingBrakeMode != null && mode == Mode.TELEOP) {
+            // startTeleOpDrive runs Follower.update() internally, so it *is*
+            // this tick's update — calling both would double the localizer
+            // read and PID step. (The mode guard covers a teleop command
+            // preempted by a path in the same tick.)
+            follower.startTeleOpDrive(pendingBrakeMode)
+        } else {
+            follower.update()
+        }
+        updateCount++
     }
 
     override fun persistState() {
@@ -392,6 +431,7 @@ class MecanumDriveSubsystem(
     private fun halt() {
         zero()
         follower.breakFollowing()
+        pendingTeleopBrakeMode = null
         modeAfterFollow = Mode.IDLE
         mode = Mode.IDLE
     }

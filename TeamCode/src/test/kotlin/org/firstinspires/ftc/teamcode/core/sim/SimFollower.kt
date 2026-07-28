@@ -152,6 +152,10 @@ class SimFollower(
     override fun startTeleopDrive(useBrakeMode: Boolean) {
         clearMotion()
         teleop = true
+        // Pedro 2.1.1 runs a full update() inside startTeleopDrive, and the
+        // drive subsystem relies on that as the enable tick's only update —
+        // keep the sim's integration cadence identical.
+        update()
     }
 
     override fun startTeleOpDrive(useBrakeMode: Boolean) = startTeleopDrive(useBrakeMode)

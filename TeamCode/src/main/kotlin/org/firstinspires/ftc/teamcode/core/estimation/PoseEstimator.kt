@@ -96,7 +96,16 @@ class PoseEstimator(
             onEvent("pose correction rejected: stale (age ${age / 1_000_000} ms)")
             return CorrectionResult.STALE
         }
-        val historical = history.lookup(timestampNanos)
+        // A timestamp between the newest sample and now is normal for a
+        // measurement taken mid-tick (e.g. a driver-chord wall snap stamped
+        // clock.nanos()): the pose hasn't been re-sampled since the last
+        // writeHardware(). Anchor it to the newest sample instead of
+        // rejecting it — the age gate above already bounds how far ahead a
+        // timestamp may be.
+        val newest = history.newestTimestamp()
+        val lookupTimestamp =
+            if (newest != null && timestampNanos > newest) newest else timestampNanos
+        val historical = history.lookup(lookupTimestamp)
         if (historical == null) {
             onEvent("pose correction rejected: timestamp outside pose history")
             return CorrectionResult.NO_HISTORY

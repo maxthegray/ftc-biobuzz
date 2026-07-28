@@ -86,4 +86,20 @@ class PersistedPoseTest {
         PersistedPose.restoreFromDiskIfNeeded()
         assertFalse(PersistedPose.valid)
     }
+
+    @Test
+    fun nonFiniteRecordFailsClosed() {
+        PersistedPose.record(Pose2d(Double.NaN, 2.0, 3.0))
+        assertFalse(PersistedPose.valid)
+
+        // A later non-finite record (localizer died mid-match) keeps the
+        // previous good pose instead of poisoning the next op-mode.
+        PersistedPose.record(Pose2d(1.0, 2.0, 3.0))
+        PersistedPose.record(Pose2d(4.0, Double.POSITIVE_INFINITY, 3.0))
+
+        assertTrue(PersistedPose.valid)
+        assertEquals(1.0, PersistedPose.x, 1e-12)
+        assertEquals(2.0, PersistedPose.y, 1e-12)
+        assertEquals(3.0, PersistedPose.headingRad, 1e-12)
+    }
 }

@@ -33,6 +33,9 @@ class PoseHistory(private val capacity: Int = 512) {
         if (size < capacity) size++
     }
 
+    /** Timestamp of the newest retained sample, or null when empty. */
+    fun newestTimestamp(): Long? = if (size == 0) null else times[physicalIndex(size - 1)]
+
     fun lookup(timestampNanos: Long): Pose2d? {
         if (size == 0) return null
         val oldest = physicalIndex(0)

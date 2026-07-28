@@ -29,11 +29,21 @@ import org.firstinspires.ftc.teamcode.core.subsystems.localization.PinpointSourc
  * Handles are stored by the caller; reads after [periodic] return whatever
  * the most recent `hub.update()` decoded. The hub itself is configured once
  * during [init] from the registrations made before init.
+ *
+ * Write-side commands issued before the hub is ready are queued and flushed
+ * from [periodic] once it is — Pedro's `PoseTracker` calls the localizer's
+ * `resetIMU()` while the follower is being *constructed* (in `configure()`,
+ * before any subsystem's init), so a [PinpointHandle] must tolerate that.
+ *
+ * An op-mode that localizes through an SRSHub Pinpoint has no direct-I2C
+ * Pinpoint in its configuration — override `requiredDevices` so
+ * `Preflight.standard`'s raw-Pinpoint requirement doesn't fail init.
  */
 class SRSHubSubsystem(name: String = "srsHub") : SubsystemBase(name) {
 
     private lateinit var hub: SRSHub
     private val config = SRSHub.Config()
+    private val pendingCommands = mutableListOf<SRSHub.Command>()
 
     private val analogPins = mutableListOf<Int>()
     private val digitalPins = mutableListOf<Int>()
@@ -94,12 +104,20 @@ class SRSHubSubsystem(name: String = "srsHub") : SubsystemBase(name) {
     ): PinpointHandle {
         val dev = SRSHub.GoBildaPinpoint(xPodOffsetMm, yPodOffsetMm, ticksPerMm, xDir, yDir)
         register(bus, dev)
-        return PinpointHandle(bus, dev) { cmd -> hub.runCommand(cmd) }
+        return PinpointHandle(bus, dev, ::send)
     }
 
-    /** Forward a write-side command (e.g. Pinpoint reset). */
+    /**
+     * Forward a write-side command (e.g. Pinpoint reset). Queued until the
+     * hub reports ready; queued commands flush in [periodic], in order,
+     * ahead of any command sent while ready.
+     */
     fun send(command: SRSHub.Command) {
-        hub.runCommand(command)
+        if (isReady && pendingCommands.isEmpty()) {
+            hub.runCommand(command)
+        } else {
+            pendingCommands += command
+        }
     }
 
     override fun init(hardwareMap: HardwareMap) {
@@ -115,7 +133,13 @@ class SRSHubSubsystem(name: String = "srsHub") : SubsystemBase(name) {
     }
 
     override fun periodic() {
-        if (::hub.isInitialized && hub.ready()) hub.update()
+        if (::hub.isInitialized && hub.ready()) {
+            if (pendingCommands.isNotEmpty()) {
+                pendingCommands.forEach(hub::runCommand)
+                pendingCommands.clear()
+            }
+            hub.update()
+        }
     }
 
     override fun health(): String = when {

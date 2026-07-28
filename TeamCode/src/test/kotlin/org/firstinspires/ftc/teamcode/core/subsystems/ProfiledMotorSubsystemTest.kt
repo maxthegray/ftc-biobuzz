@@ -72,6 +72,28 @@ class ProfiledMotorSubsystemTest {
     }
 
     @Test
+    fun onCommandFaultFreezesAClosedLoopMoveInPlace() {
+        val io = simIo()
+        val lift = lift(io)
+
+        lift.setGoal(24.0)
+        repeat(25) { tick(lift) } // 0.5 s — mid-travel
+        val positionAtFault = lift.positionUnits
+        assertTrue("expected mid-travel, got $positionAtFault", positionAtFault < 20.0)
+
+        lift.onCommandFault()
+        repeat(200) { tick(lift) }
+
+        // Frozen where the fault happened — not at the abandoned goal, and
+        // not de-energized (health still shows closed-loop hold).
+        assertTrue(
+            "expected to hold near $positionAtFault, got ${lift.positionUnits}",
+            abs(lift.positionUnits - positionAtFault) < 2.0,
+        )
+        assertTrue(lift.health().contains("CLOSED_LOOP"))
+    }
+
+    @Test
     fun goalsClampToSoftLimits() {
         val io = simIo()
         val lift = lift(io, softMin = 0.0, softMax = 10.0)

@@ -90,6 +90,49 @@ class MecanumDriveSubsystemTest {
     }
 
     @Test
+    fun teleopEnableRunsExactlyOneFollowerUpdateThatTick() {
+        val follower = fakeFollower()
+        val drive = MecanumDriveSubsystem(follower)
+        val teleop = drive.teleopCommand { MecanumDriveSubsystem.TeleopInput(0.0, 0.0, 0.0) }
+
+        teleop.start()
+        teleop.execute()
+        drive.writeHardware()
+
+        // startTeleOpDrive() updates internally; writeHardware() must not
+        // update again on the enable tick.
+        assertEquals(1, follower.startTeleopDriveCalls)
+        assertEquals(1, follower.updateCalls)
+
+        teleop.execute()
+        drive.writeHardware()
+        assertEquals(1, follower.startTeleopDriveCalls)
+        assertEquals(2, follower.updateCalls)
+    }
+
+    @Test
+    fun holdCommandWaitsForAFollowerUpdateBeforeTrustingErrors() {
+        val follower = fakeFollower()
+        val drive = MecanumDriveSubsystem(follower)
+        val hold = drive.holdCommand(Pose2d(24.0, 0.0, 0.0))
+
+        hold.start()
+        // No update has run since holdPoint(): Pedro's cached errors are
+        // stale (or null on a first-ever hold) — done() must neither read
+        // them (the fake throws) nor complete.
+        assertFalse(hold.done())
+
+        follower.translationalErrorMagnitude = 24.0
+        drive.writeHardware()
+        assertFalse(hold.done())
+
+        follower.translationalErrorMagnitude = 0.0
+        follower.headingErrorValue = 0.0
+        drive.writeHardware()
+        assertTrue(hold.done())
+    }
+
+    @Test
     fun logStateWithoutRealMotorsWritesNoMotorChannels() {
         // The fake follower's drivetrain is not Pedro's Mecanum, so init
         // resolves no motors — motor telemetry must degrade to a no-op. The
@@ -125,6 +168,14 @@ internal class FakeFollower : Follower(FollowerConstants(), FakeLocalizer(), Fak
         private set
     var heldPose: Pose? = null
         private set
+    var updateCalls = 0
+        private set
+    var startTeleopDriveCalls = 0
+        private set
+
+    /** Error values Pedro would cache; recomputed only by [update] on the real thing. */
+    var translationalErrorMagnitude = 0.0
+    var headingErrorValue = 0.0
 
     override fun setPose(pose: Pose) {
         poseState = pose
@@ -140,6 +191,41 @@ internal class FakeFollower : Follower(FollowerConstants(), FakeLocalizer(), Fak
 
     override fun holdPoint(pose: Pose) {
         heldPose = pose
+    }
+
+    // The base implementation stores into VectorCalculator state that only
+    // exists after a real breakFollowing() has run — which this fake
+    // deliberately intercepts. Recording the values is all tests need.
+    var lastTeleOpDrive: DoubleArray? = null
+        private set
+
+    override fun setTeleOpDrive(forward: Double, strafe: Double, turn: Double, isRobotCentric: Boolean) {
+        lastTeleOpDrive = doubleArrayOf(forward, strafe, turn)
+    }
+
+    override fun update() {
+        updateCalls++
+    }
+
+    // Pedro 2.1.1 runs a full update() inside startTeleopDrive — emulate it
+    // so a double-update on the teleop enable tick is visible to tests.
+    override fun startTeleopDrive(useBrakeMode: Boolean) {
+        startTeleopDriveCalls++
+        update()
+    }
+
+    override fun startTeleOpDrive(useBrakeMode: Boolean) = startTeleopDrive(useBrakeMode)
+
+    // Pedro computes these from fields that stay null until the first-ever
+    // update() — reading earlier NPEs. Emulate that hazard.
+    override fun getTranslationalError(): Vector {
+        check(updateCalls > 0) { "Pedro NPEs when errors are read before the first update()" }
+        return Vector(translationalErrorMagnitude, 0.0)
+    }
+
+    override fun getHeadingError(): Double {
+        check(updateCalls > 0) { "Pedro NPEs when errors are read before the first update()" }
+        return headingErrorValue
     }
 }
 

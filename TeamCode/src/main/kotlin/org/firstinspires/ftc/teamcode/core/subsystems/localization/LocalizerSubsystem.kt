@@ -181,7 +181,11 @@ class LocalizerSubsystem(
         if (!PersistedPose.valid) return false
         val ageMs = System.currentTimeMillis() - PersistedPose.wallTimeMs
         if (ageMs < 0 || ageMs > maxAgeMs) return false
-        setPose(Pose2d(PersistedPose.x, PersistedPose.y, PersistedPose.headingRad))
+        val p = Pose2d(PersistedPose.x, PersistedPose.y, PersistedPose.headingRad)
+        // record() rejects non-finite poses, but this is the last gate before
+        // the follower — a poisoned pose here corrupts the whole op-mode.
+        if (!p.x.isFinite() || !p.y.isFinite() || !p.heading.isFinite()) return false
+        setPose(p)
         return true
     }
 
