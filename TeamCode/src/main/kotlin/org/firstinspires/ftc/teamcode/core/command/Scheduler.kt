@@ -30,6 +30,7 @@ class Scheduler {
 
     private val running = LinkedHashSet<Command>()
     private val activeRequirements = HashMap<Any, Command>()
+    private var lifecycleDepth = 0
 
     /**
      * Receives (command, exception) for every contained lifecycle fault.
@@ -69,14 +70,22 @@ class Scheduler {
         running += command
         for (requirement in command.requirements()) activeRequirements[requirement] = command
         try {
-            command.start()
+            lifecycle { command.start() }
+        } catch (reported: ReportedFault) {
+            if (command in running) {
+                remove(command)
+                endSwallowed(command, EndCondition.FAULTED)
+            }
+            propagate(reported)
         } catch (t: Throwable) {
-            remove(command)
-            endSwallowed(command, EndCondition.FAULTED)
+            if (command in running) {
+                remove(command)
+                endSwallowed(command, EndCondition.FAULTED)
+            }
             report(command, t)
             return false
         }
-        return true
+        return command in running
     }
 
     /** Cancel [command] if it is running; its end handler runs with INTERRUPTED. */
@@ -107,18 +116,25 @@ class Scheduler {
             if (command !in running) continue // ended by a sibling this tick
             var completed = false
             try {
-                command.execute()
+                lifecycle { command.execute() }
                 // execute() may have ended this command (e.g. it scheduled a
                 // sibling that preempted it) — its end handler already ran,
                 // so skip the done path to keep "end exactly once per run".
                 if (command !in running) continue
-                if (command.done()) {
+                if (lifecycle { command.done() }) {
                     remove(command)
                     completed = true
                 }
+            } catch (reported: ReportedFault) {
+                propagate(reported)
             } catch (t: Throwable) {
-                remove(command)
-                endSwallowed(command, EndCondition.FAULTED)
+                // A command may cancel or preempt itself and then throw. Its
+                // interrupted end handler has already run, so report the new
+                // fault without ending that run a second time.
+                if (command in running) {
+                    remove(command)
+                    endSwallowed(command, EndCondition.FAULTED)
+                }
                 report(command, t)
             }
             if (completed) {
@@ -155,7 +171,9 @@ class Scheduler {
     /** Run the end handler; a throwing end handler is itself a fault. */
     private fun endReported(command: Command, condition: EndCondition) {
         try {
-            command.end(condition)
+            lifecycle { command.end(condition) }
+        } catch (reported: ReportedFault) {
+            propagate(reported)
         } catch (t: Throwable) {
             report(command, t)
         }
@@ -163,14 +181,39 @@ class Scheduler {
 
     private fun endSwallowed(command: Command, condition: EndCondition) {
         try {
-            command.end(condition)
+            lifecycle { command.end(condition) }
         } catch (_: Throwable) {
             // Best-effort: the command is already being torn down.
         }
     }
 
     private fun report(command: Command, t: Throwable) {
-        val handler = faultHandler ?: throw t
-        handler(command, t)
+        try {
+            val handler = faultHandler ?: throw t
+            handler(command, t)
+        } catch (escalated: Throwable) {
+            // A scheduler call made from inside another lifecycle callback can
+            // report and rethrow a fault into the outer callback. Tag that
+            // propagation so the outer catch doesn't report or end it again.
+            if (lifecycleDepth > 0) throw ReportedFault(escalated)
+            throw escalated
+        }
     }
+
+    private inline fun <T> lifecycle(block: () -> T): T {
+        lifecycleDepth++
+        return try {
+            block()
+        } finally {
+            lifecycleDepth--
+        }
+    }
+
+    private fun propagate(reported: ReportedFault): Nothing {
+        if (lifecycleDepth > 0) throw reported
+        throw reported.fault
+    }
+
+    private class ReportedFault(val fault: Throwable) :
+        RuntimeException(null, null, false, false)
 }

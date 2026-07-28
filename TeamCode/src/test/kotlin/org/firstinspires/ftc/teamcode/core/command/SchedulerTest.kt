@@ -289,6 +289,60 @@ class SchedulerTest {
         assertTrue(scheduler.isScheduled(replacement))
     }
 
+    @Test
+    fun rethrownEndFaultDuringSelfPreemptionDoesNotEndTheCommandTwice() {
+        val req = Any()
+        val replacement = Probe(req)
+        val ends = mutableListOf<EndCondition>()
+        scheduler.faultHandler = { _, fault -> throw fault }
+        val selfPreempting = Command.build()
+            .requiring(req)
+            .setExecute { scheduler.schedule(replacement) }
+            .setEnd {
+                ends += it
+                error("interrupted end failed")
+            }
+        scheduler.schedule(selfPreempting)
+
+        assertThrows(IllegalStateException::class.java) { scheduler.execute() }
+
+        assertEquals(listOf(EndCondition.INTERRUPTED), ends)
+        assertFalse(scheduler.isScheduled(selfPreempting))
+        assertFalse(scheduler.isScheduled(replacement))
+    }
+
+    @Test
+    fun selfCancelledCommandThatThenThrowsIsNotEndedTwice() {
+        val ends = mutableListOf<EndCondition>()
+        scheduler.faultHandler = { _, _ -> }
+        lateinit var command: Command
+        command = Command.build()
+            .setExecute {
+                scheduler.cancel(command)
+                error("execute failed after cancel")
+            }
+            .setEnd { ends += it }
+        scheduler.schedule(command)
+
+        scheduler.execute()
+
+        assertEquals(listOf(EndCondition.INTERRUPTED), ends)
+        assertFalse(scheduler.isScheduled(command))
+    }
+
+    @Test
+    fun scheduleReturnsFalseWhenStartPreemptsTheCommandItself() {
+        val req = Any()
+        val replacement = Probe(req)
+        val command = Command.build()
+            .requiring(req)
+            .setStart { scheduler.schedule(replacement) }
+
+        assertFalse(scheduler.schedule(command))
+        assertFalse(scheduler.isScheduled(command))
+        assertTrue(scheduler.isScheduled(replacement))
+    }
+
     // ------------------------------------------------------------------ reuse
 
     @Test

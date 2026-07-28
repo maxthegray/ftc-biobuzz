@@ -18,10 +18,12 @@ show up as step 2 failing instead.
 
 ## 2. Per-motor direction (on blocks)
 
-Drive each wheel individually at low power, verify name + direction.
-`MecanumDriveSubsystem.driveRaw(forward, strafe, turn, robotCentric)` is the
-sanctioned bring-up API. Fix directions in `pedroPathing/Constants.java`
-(`*MotorDirection`), not by re-wiring.
+Run **Starter: Motor Direction Test**. Dpad left/right selects a configured
+motor; the right and left triggers command that motor forward and reverse at no
+more than 20% power. Verify the displayed name matches the wheel that moves and
+that positive power turns each wheel in the robot-forward direction. Fix
+directions in `pedroPathing/Constants.java` (`*MotorDirection`), not by
+re-wiring.
 
 ## 3. Pinpoint axes and heading sign (on blocks, then by hand)
 
@@ -42,11 +44,12 @@ field-true; reset heading (Back+Y) and confirm "away from driver" is +x.
 
 ## 5. First path (capped power)
 
-Run a single 24" `lineTo` at `followCommand(chain, maxPower = 0.3, holdEnd =
-true)` — or `Starter: Localization Test`, which follows on button press. Watch
-the field view, then drive a slow lap and compare the final pose against the
-field. Endpoint drift with low follower error is localization (check pods);
-high error is following/battery — see `RUNBOOK.md`.
+Run **Starter: Localization Test** from a clear origin. Y follows 24" forward
+and A returns to the origin; both paths are capped at 30% power by default.
+Press the active target button again or move a stick to cancel. Watch the field
+view, then drive a slow lap and compare the final pose against the field.
+Endpoint drift with low follower error is localization (check pods); high error
+is following/battery — see `RUNBOOK.md`.
 
 ## 6. Fault drills (on blocks)
 

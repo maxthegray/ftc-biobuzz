@@ -168,6 +168,11 @@ class GamepadEx(
     private fun quarantine(trigger: Trigger, fault: Throwable) {
         quarantinedTriggers += trigger
         try {
+            trigger.quarantine()
+        } catch (cleanupFault: Throwable) {
+            fault.addSuppressed(cleanupFault)
+        }
+        try {
             triggerFaultHandler(fault)
         } catch (_: Throwable) {
             // Fault reporting must not starve later triggers.

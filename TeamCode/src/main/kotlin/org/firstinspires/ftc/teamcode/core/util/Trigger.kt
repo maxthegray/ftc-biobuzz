@@ -40,6 +40,7 @@ class Trigger internal constructor(
 ) {
     private var lastState = false
     private val bindings = mutableListOf<(prev: Boolean, curr: Boolean) -> Unit>()
+    private val quarantineActions = mutableListOf<() -> Unit>()
 
     /** Schedule [command] once on each rising edge (skipped if it is already scheduled). */
     fun onTrue(command: Command): Trigger {
@@ -73,6 +74,12 @@ class Trigger internal constructor(
                 host.scheduler.cancel(command)
             }
         }
+        // If a sensor-backed condition dies while true, there will never be a
+        // falling edge. Quarantine must still release the command this trigger
+        // was keeping alive.
+        quarantineActions += {
+            if (lastState) host.scheduler.cancel(command)
+        }
         return this
     }
 
@@ -100,7 +107,12 @@ class Trigger internal constructor(
     /** Active exactly when this trigger is not. Also usable as `!trigger`. */
     operator fun not(): Trigger = host.trigger { !read() }
 
-    internal fun read(): Boolean = condition.asBoolean
+    /**
+     * Read this trigger's sample for the current host tick. Operand triggers
+     * are registered before composed triggers, so `and` / `or` / `not` reuse
+     * their samples instead of polling sensor conditions a second time.
+     */
+    internal fun read(): Boolean = lastState
 
     /**
      * Sample the condition without firing bindings. [GamepadEx.lockBindings]
@@ -120,5 +132,18 @@ class Trigger internal constructor(
         } finally {
             lastState = curr
         }
+    }
+
+    internal fun quarantine() {
+        var firstFault: Throwable? = null
+        for (action in quarantineActions) {
+            try {
+                action()
+            } catch (t: Throwable) {
+                if (firstFault == null) firstFault = t
+            }
+        }
+        lastState = false
+        firstFault?.let { throw it }
     }
 }

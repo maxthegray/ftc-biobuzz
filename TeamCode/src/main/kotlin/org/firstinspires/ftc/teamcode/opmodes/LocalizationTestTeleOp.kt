@@ -16,9 +16,12 @@ import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
  * Back+Y heading reset and Back+B field-centric chords from [TeleOpBase]),
  * with two extra buttons:
  *
- *  - **Triangle (Y)** — Pedro-follows to waypoint A (configurable in Panels).
- *    Press again, or move a stick, or press Cross to cancel mid-path.
- *  - **Cross (A)** — Pedro-follows to field center. Same interrupt rules.
+ *  - **Triangle (Y)** — Pedro-follows 24" forward to waypoint A by default.
+ *  - **Cross (A)** — Pedro-follows back to the test origin by default.
+ *
+ * Destinations and the path power cap are configurable in Panels. Press the
+ * active target's button again or move a stick to cancel mid-path; pressing
+ * the other target button switches paths.
  *
  * After each path (completed or interrupted) control returns to manual teleop
  * automatically. Drive around, press again, and compare where the robot thinks
@@ -32,35 +35,42 @@ class LocalizationTestTeleOp : TeleOpBase() {
 
     companion object {
         /** X coordinate of waypoint A (inches). Adjust for your field. */
-        @JvmField var waypointAX: Double = 70.75
+        @JvmField var waypointAX: Double = 24.0
         /** Y coordinate of waypoint A (inches). Adjust for your field. */
-        @JvmField var waypointAY: Double = 70.75
+        @JvmField var waypointAY: Double = 0.0
 
-        /** X coordinate of the field-center target (inches). */
-        @JvmField var fieldCenterX: Double = 70.75
-        /** Y coordinate of the field-center target (inches). */
-        @JvmField var fieldCenterY: Double = 70.75
+        /** X coordinate of the return target (inches). */
+        @JvmField var returnX: Double = 0.0
+        /** Y coordinate of the return target (inches). */
+        @JvmField var returnY: Double = 0.0
+
+        /** Maximum follower power during localization test paths. */
+        @JvmField var pathMaxPower: Double = 0.3
 
         /** Stick axis magnitude above which a path is considered interrupted by the driver. */
         @JvmField var stickInterruptThreshold: Double = 0.1
+
+        private const val DEFAULT_PATH_MAX_POWER = 0.3
     }
 
     private var activeFollow: Command? = null
     private var targetLabel: String = "-"
 
+    override val restorePoseFromAuton: Boolean get() = false
+
     override fun configureTeleop() {
         // Y only when it isn't the Back+Y heading-reset chord; A only when
         // it isn't the Driver Station's Start+A gamepad re-bind chord.
-        driver.trigger { driver.y && !driver.back }.onTrue(
+        driver.trigger { driver.y && !driver.back }.toggleOnTrue(
             followTo(
                 label = { "(%.1f, %.1f)".format(waypointAX, waypointAY) },
                 target = { Pose2d(waypointAX, waypointAY, 0.0) },
             ),
         )
-        driver.trigger { driver.a && !driver.start }.onTrue(
+        driver.trigger { driver.a && !driver.start }.toggleOnTrue(
             followTo(
-                label = { "(%.1f, %.1f)".format(fieldCenterX, fieldCenterY) },
-                target = { Pose2d(fieldCenterX, fieldCenterY, 0.0) },
+                label = { "(%.1f, %.1f)".format(returnX, returnY) },
+                target = { Pose2d(returnX, returnY, 0.0) },
             ),
         )
         driver.trigger { stickMoved() }.whileTrue(
@@ -104,7 +114,7 @@ class LocalizationTestTeleOp : TeleOpBase() {
             }
             activeFollow = outer
             targetLabel = label()
-            drive.followCommand(chain, holdEnd = false)
+            drive.followCommand(chain, maxPower = safePathMaxPower(), holdEnd = false)
         }
             .setName("followTo")
             .setPriority(CommandPriorities.DRIVER_ACTION)
@@ -115,6 +125,9 @@ class LocalizationTestTeleOp : TeleOpBase() {
         abs(driver.leftStickY) > stickInterruptThreshold ||
             abs(driver.leftStickX) > stickInterruptThreshold ||
             abs(driver.rightStickX) > stickInterruptThreshold
+
+    private fun safePathMaxPower(): Double =
+        if (pathMaxPower.isFinite()) pathMaxPower.coerceIn(0.0, 1.0) else DEFAULT_PATH_MAX_POWER
 
     private fun emitTelemetry() {
         val state = if (activeFollow == null) "TELEOP" else "PATH"
