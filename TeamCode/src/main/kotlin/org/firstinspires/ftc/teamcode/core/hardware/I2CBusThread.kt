@@ -6,17 +6,18 @@ import java.util.concurrent.atomic.AtomicReference
 import org.firstinspires.ftc.teamcode.core.util.Clock
 
 /**
- * A single background thread that polls one I2C-bound device at a fixed
- * target rate and publishes the result via a [Ref]. Designed for things like
- * the GoBilda Pinpoint driver, where each read takes ~2 ms of blocking I²C
- * traffic and would otherwise tank the main-loop frequency.
+ * A measured-need escape hatch for polling one I2C-bound device at a fixed
+ * target rate and publishing the result via a [Ref]. The default architecture
+ * keeps Pinpoint direct and reads the SRSHub inline; read `SENSORS.md` before
+ * using this class. Backgrounding a device on the Control Hub's Lynx link can
+ * delay motor writes even when it shortens the apparent main-loop time.
  *
  * Usage:
  *
  * ```kotlin
- * val bus = I2CBusThread("pinpoint", 200.0) {
- *     pinpoint.update()
- *     pinpoint.position
+ * val bus = I2CBusThread("independent-aux-sensor", 50.0) {
+ *     val reading = independentAdapter.read()
+ *     AuxSnapshot(reading.distanceMm, reading.status)
  * }
  * bus.start()
  * // somewhere in your loop

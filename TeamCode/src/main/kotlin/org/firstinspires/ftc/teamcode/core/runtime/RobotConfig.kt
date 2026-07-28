@@ -14,6 +14,13 @@ package org.firstinspires.ftc.teamcode.core.runtime
  */
 object RobotConfig {
 
+    /**
+     * Change this in every season fork. ConfigStore ignores tuning files
+     * written under a different schema so last season's values cannot win
+     * over this season's compiled defaults.
+     */
+    const val CONFIG_SCHEMA = "ftc-starter-v1"
+
     object Drive {
         const val FRONT_LEFT_MOTOR = "frontLeftMotor"
         const val FRONT_RIGHT_MOTOR = "frontRightMotor"

@@ -10,7 +10,7 @@ you have decided to use the starter.
 
 - Subsystems: extend `SubsystemBase`, resolve hardware in `init`, read in `periodic`, command outputs from scheduler commands, and write final actuator state in `writeHardware`.
 - Teleop: extend `TeleOpBase` (copy `DriveOnlyTeleOp`), register season subsystems and bind controls once with `GamepadEx` triggers in `configureTeleop()`. Autons extend `OpModeBase` and use `configure()`.
-- Autonomous: build paths with `PathDSL` and compose routines with `PedroAutoRunner`. Use priority `10` for autonomous actions and driver-triggered actions; defaults stay priority `0`.
+- Autonomous: build paths with `PathDSL` and compose routines with `PedroAutoRunner`. The priority ladder is defaults `0`, autonomous routines/assists `10`, driver actions `20`, and panic/manual overrides `30`.
 - Vision: add camera pipelines in the season fork and feed accepted field-pose measurements through `LocalizerSubsystem.applyCorrection`.
 
 ## Config And Hot Reload
@@ -19,6 +19,10 @@ Live-tuned values go through `ConfigStore`, not `@Pinned` — register the confi
 object in `configure()` and tuned values survive reloads, installs, and power
 cycles while the code stays hot-reloadable (see SEASON-GUIDE.md "Config
 objects"). `PersistedPose` is the only `@Pinned` class.
+
+Change `RobotConfig.CONFIG_SCHEMA` when creating the season fork. ConfigStore
+ignores a tuning file written under a different schema, so the new season
+starts from its compiled defaults instead of silently inheriting old values.
 
 Use `make hot` / `deploySloth` for ordinary subsystem and op-mode iteration; a
 full install after dependency, manifest, `@Pinned`, or non-TeamCode changes.

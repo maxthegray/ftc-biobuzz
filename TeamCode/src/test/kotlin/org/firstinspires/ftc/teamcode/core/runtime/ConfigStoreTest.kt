@@ -1,6 +1,9 @@
 package org.firstinspires.ftc.teamcode.core.runtime
 
+import com.bylazar.configurables.annotations.Configurable
 import java.io.File
+import org.firstinspires.ftc.teamcode.core.control.PIDFGains
+import org.firstinspires.ftc.teamcode.core.control.ProfileConstraints
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -19,6 +22,24 @@ class ConfigStoreTest {
         @JvmField var label: String = "default"
     }
 
+    @Configurable
+    private object MechanismTuning {
+        @JvmField var kP: Double = 0.1
+        @JvmField var kV: Double = 0.02
+        @JvmField var maxVelocity: Double = 30.0
+        @JvmField var maxAcceleration: Double = 60.0
+
+        val gains = PIDFGains()
+        val constraints = ProfileConstraints(1.0, 1.0)
+
+        fun sync() {
+            gains.kP = kP
+            gains.kV = kV
+            constraints.maxVelocity = maxVelocity
+            constraints.maxAcceleration = maxAcceleration
+        }
+    }
+
     private lateinit var tempFile: File
     private var originalFile: File? = null
 
@@ -32,6 +53,11 @@ class ConfigStoreTest {
         TestTuning.enabled = false
         TestTuning.count = 3
         TestTuning.label = "default"
+        MechanismTuning.kP = 0.1
+        MechanismTuning.kV = 0.02
+        MechanismTuning.maxVelocity = 30.0
+        MechanismTuning.maxAcceleration = 60.0
+        MechanismTuning.sync()
     }
 
     @After
@@ -86,6 +112,7 @@ class ConfigStoreTest {
     fun unknownKeysAndGarbageLinesAreIgnored() {
         tempFile.writeText(
             """
+            $schemaLine
             # comment
             not a key value pair
             test.doesNotExist=42
@@ -104,6 +131,7 @@ class ConfigStoreTest {
     fun invalidValuesFallBackToCompiledDefaults() {
         tempFile.writeText(
             """
+            $schemaLine
             test.gain=NaN
             test.count=not-a-number
             test.enabled=maybe
@@ -165,4 +193,48 @@ class ConfigStoreTest {
 
         assertEquals(1.0 / 3.0, TestTuning.gain, 0.0)
     }
+
+    @Test
+    fun schemaMismatchIgnoresStaleSeasonValues() {
+        tempFile.writeText(
+            """
+            ${ConfigStore.SCHEMA_KEY}=previous-season
+            test.gain=9.0
+            """.trimIndent(),
+        )
+        ConfigStore.register("test", TestTuning)
+
+        ConfigStore.loadFromDisk()
+
+        assertEquals(0.5, TestTuning.gain, 0.0)
+    }
+
+    @Test
+    fun primitiveMechanismConfigRoundTripsIntoLiveHolders() {
+        ConfigStore.register("lift", MechanismTuning)
+        ConfigStore.loadFromDisk()
+        MechanismTuning.kP = 0.75
+        MechanismTuning.kV = 0.08
+        MechanismTuning.maxVelocity = 42.0
+        MechanismTuning.maxAcceleration = 84.0
+        assertTrue(ConfigStore.persistIfDirty())
+
+        MechanismTuning.kP = 0.1
+        MechanismTuning.kV = 0.02
+        MechanismTuning.maxVelocity = 30.0
+        MechanismTuning.maxAcceleration = 60.0
+        ConfigStore.reset()
+        ConfigStore.file = tempFile
+        ConfigStore.register("lift", MechanismTuning)
+        ConfigStore.loadFromDisk()
+        MechanismTuning.sync()
+
+        assertEquals(0.75, MechanismTuning.gains.kP, 0.0)
+        assertEquals(0.08, MechanismTuning.gains.kV, 0.0)
+        assertEquals(42.0, MechanismTuning.constraints.maxVelocity, 0.0)
+        assertEquals(84.0, MechanismTuning.constraints.maxAcceleration, 0.0)
+    }
+
+    private val schemaLine: String
+        get() = "${ConfigStore.SCHEMA_KEY}=${ConfigStore.schemaId}"
 }

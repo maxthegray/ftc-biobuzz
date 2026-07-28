@@ -103,6 +103,11 @@ abstract class TeleOpBase : OpModeBase() {
 
     /** If you override this, call `super.onStart()` to keep the pose handoff. */
     override fun onStart() {
-        if (restorePoseFromAuton) localizer.restorePersistedPose()
+        if (restorePoseFromAuton) {
+            val restored = localizer.restorePersistedPose()
+            robot.recordEvent(
+                "PERSISTED POSE RESTORE: ${if (restored) "APPLIED" else "NOT APPLIED"}",
+            )
+        }
     }
 }

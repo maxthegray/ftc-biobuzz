@@ -80,20 +80,60 @@ A lift/arm/turret is `ProfiledMotorSubsystem` — profile + PIDF + soft
 limits + stall-detect homing + hold-at-goal + log channels, already tested:
 
 ```kotlin
+@Configurable
 object LiftConfig {
-    @JvmField var gains = PIDFGains(kP = 0.1, kV = 0.02, kG = 0.08)
-    @JvmField var constraints = ProfileConstraints(maxVelocity = 30.0, maxAcceleration = 60.0)
+    @JvmField var kP = 0.1
+    @JvmField var kV = 0.02
+    @JvmField var kG = 0.08
+    @JvmField var maxVelocity = 30.0
+    @JvmField var maxAcceleration = 60.0
+
+    internal val gains = PIDFGains()
+    internal val constraints = ProfileConstraints(1.0, 1.0)
+
+    internal fun syncLiveHolders() {
+        gains.kP = kP
+        gains.kV = kV
+        gains.kG = kG
+        constraints.maxVelocity = maxVelocity
+        constraints.maxAcceleration = maxAcceleration
+    }
 }
 
-val lift = robot.register(ProfiledMotorSubsystem(
-    "Lift", "liftMotor", ProfiledController(LiftConfig.constraints, LiftConfig.gains),
+class LiftSubsystem : ProfiledMotorSubsystem(
+    "Lift",
+    "liftMotor",
+    ProfiledController(LiftConfig.constraints, LiftConfig.gains),
     ticksPerUnit = 83.7,
-    softMinUnits = 0.0, softMaxUnits = 26.0,
-))
+    softMinUnits = 0.0,
+    softMaxUnits = 26.0,
+) {
+    override fun init(hardwareMap: HardwareMap) {
+        LiftConfig.syncLiveHolders()
+        super.init(hardwareMap)
+    }
+
+    override fun periodic() {
+        LiftConfig.syncLiveHolders()
+        super.periodic()
+    }
+}
+
+ConfigStore.register("lift", LiftConfig)
+val lift = robot.register(LiftSubsystem())
 operator.button(GamepadEx.Button.Y).onTrue(lift.goToCommand(24.0, toleranceUnits = 0.5))
 operator.button(GamepadEx.Button.BACK)
-    .onTrue(lift.homeCommand(power = -0.3, stallVelocityUnitsPerSec = 1.0))
+    .onTrue(lift.homeCommand(
+        power = -0.3,
+        stallVelocityUnitsPerSec = 1.0,
+        timeoutMs = 3_000.0,
+    ))
 ```
+
+Only the primitive fields are persisted and discovered by Panels; the
+holders are synchronized in place because `ProfiledController` keeps their
+references. `ConfigStoreTest.primitiveMechanismConfigRoundTripsIntoLiveHolders`
+locks this pattern down.
 
 Host-test season mechanisms by injecting `io = SimMotorIO(clock, …)` — see
 `ProfiledMotorSubsystemTest` for the pattern (including a homing run against
@@ -102,7 +142,9 @@ a simulated hard stop).
 On the robot, tune gains in order: **kG first** (mechanism holds against
 gravity open-loop), then **kV** along a slow profile, then **kP**. Verify the
 encoder survives the auton→teleop handoff (`zeroEncoderOnInit = false`) and
-that `homeCommand` finds the hard stop.
+that `homeCommand` finds the hard stop. A fresh mechanism is UNHOMED:
+closed-loop goals and coordinate-based soft limits stay disabled until a
+successful home or explicit `setCurrentPosition`.
 
 ## Commands and priorities
 
