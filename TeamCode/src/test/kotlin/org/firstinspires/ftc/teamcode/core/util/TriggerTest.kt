@@ -4,7 +4,9 @@ import com.qualcomm.robotcore.hardware.Gamepad
 import org.firstinspires.ftc.teamcode.core.command.Command
 import org.firstinspires.ftc.teamcode.core.command.CommandBuilder
 import org.firstinspires.ftc.teamcode.core.command.Scheduler
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -151,5 +153,41 @@ class TriggerTest {
         host.trigger { condition }.onTrue(cmd)
         poll()
         assertTrue(scheduler.isScheduled(cmd))
+    }
+
+    @Test
+    fun failingTriggerIsQuarantinedWithoutStarvingLaterTriggers() {
+        var failures = 0
+        var badReads = 0
+        val isolatedHost = GamepadEx(Gamepad(), scheduler) { failures++ }
+        val good = endlessCommand()
+        isolatedHost.trigger {
+            badReads++
+            error("sensor failed")
+        }.onTrue(endlessCommand())
+        isolatedHost.trigger { condition }.onTrue(good)
+
+        condition = true
+        isolatedHost.update()
+
+        assertEquals(1, failures)
+        assertEquals(1, badReads)
+        assertTrue(scheduler.isScheduled(good))
+
+        isolatedHost.update()
+        assertEquals(1, failures)
+        assertEquals(1, badReads)
+    }
+
+    @Test
+    fun pollAdvancesSampledStateWhenABindingThrows() {
+        val bad = CommandBuilder().setStart { error("start failed") }
+        val trigger = host.trigger { condition }.onTrue(bad)
+        condition = true
+
+        assertThrows(IllegalStateException::class.java) { trigger.poll() }
+
+        // Still true is no longer a rising edge, so the bad binding is not retried.
+        trigger.poll()
     }
 }

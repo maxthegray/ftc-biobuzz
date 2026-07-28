@@ -113,8 +113,12 @@ class Trigger internal constructor(
 
     /** Sample the condition and fire any binding whose edge matched. Called once per loop by [host]. */
     internal fun poll() {
-        val curr = condition.asBoolean
-        for (b in bindings) b(lastState, curr)
-        lastState = curr
+        var curr = lastState
+        try {
+            curr = condition.asBoolean
+            for (b in bindings) b(lastState, curr)
+        } finally {
+            lastState = curr
+        }
     }
 }

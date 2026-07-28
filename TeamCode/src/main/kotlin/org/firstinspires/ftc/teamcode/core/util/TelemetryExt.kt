@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.core.util
 
 import com.bylazar.telemetry.TelemetryManager
+import com.qualcomm.robotcore.util.RobotLog
 import java.util.Locale
 import org.firstinspires.ftc.robotcore.external.Telemetry
 import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
@@ -80,6 +81,7 @@ class TelemetryBag internal constructor(
 
     private val transmitIntervalNs = (transmitIntervalMs * 1_000_000.0).toLong()
     private var lastTransmitNs = Long.MIN_VALUE
+    private val enabledSinks = BooleanArray(sinks.size) { true }
 
     private val sections = linkedMapOf<String, SectionData>()
     private val loose = mutableListOf<String>()
@@ -112,23 +114,41 @@ class TelemetryBag internal constructor(
         if (lastTransmitNs != Long.MIN_VALUE && now - lastTransmitNs < transmitIntervalNs) return false
         lastTransmitNs = now
 
-        for ((name, data) in sections) {
-            if (data.entries.isEmpty()) continue
-            for (sink in sinks) sink.addLine("== $name ==")
-            for ((k, v) in data.entries) {
-                val formatted = formatValue(v)
-                for (sink in sinks) sink.addData(k, formatted)
+        try {
+            for ((name, data) in sections) {
+                if (data.entries.isEmpty()) continue
+                forEachSink { it.addLine("== $name ==") }
+                for ((k, v) in data.entries) {
+                    val formatted = formatValue(v)
+                    forEachSink { it.addData(k, formatted) }
+                }
+            }
+            for (text in loose) {
+                forEachSink { it.addLine(text) }
+            }
+            forEachSink { it.update() }
+        } finally {
+            // Reuse the section/entry maps — clear contents, not the structure.
+            for (data in sections.values) data.entries.clear()
+            loose.clear()
+        }
+        return true
+    }
+
+    private inline fun forEachSink(action: (Sink) -> Unit) {
+        sinks.forEachIndexed { i, sink ->
+            if (!enabledSinks[i]) return@forEachIndexed
+            try {
+                action(sink)
+            } catch (t: Throwable) {
+                enabledSinks[i] = false
+                try {
+                    RobotLog.ee("TelemetryBag", t, "Telemetry sink disabled")
+                } catch (_: Throwable) {
+                    // Host-side tests stub Android logging.
+                }
             }
         }
-        for (text in loose) {
-            for (sink in sinks) sink.addLine(text)
-        }
-        for (sink in sinks) sink.update()
-
-        // Reuse the section/entry maps — clear contents, not the structure.
-        for (data in sections.values) data.entries.clear()
-        loose.clear()
-        return true
     }
 
     /** A section's reused entry map plus the reused [Section] wrapper over it. */

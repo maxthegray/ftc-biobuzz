@@ -324,8 +324,12 @@ abstract class OpModeBase : LinearOpMode() {
             it.alliance = initialAlliance
             it.containCommandFaults = containCommandFaults
         }
-        driver = GamepadEx(gamepad1, robot.scheduler)
-        operator = GamepadEx(gamepad2, robot.scheduler)
+        driver = GamepadEx(gamepad1, robot.scheduler) {
+            robot.recordTriggerFault("driver", it)
+        }
+        operator = GamepadEx(gamepad2, robot.scheduler) {
+            robot.recordTriggerFault("operator", it)
+        }
 
         // Restore live-tuned values before configure() reads any of them.
         ConfigStore.register("drive", DriveConfig)

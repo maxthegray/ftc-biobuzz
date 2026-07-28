@@ -76,6 +76,14 @@ class Robot(
     var telemetryFaultCount: Int = 0
         private set
 
+    /** Number of triggers quarantined after a condition or binding fault. */
+    var triggerFaultCount: Int = 0
+        private set
+
+    /** Number of recorder failures contained by the main loop. */
+    var recorderFaultCount: Int = 0
+        private set
+
     /** Monotonic tick counter, useful for log throttling. */
     var loopCount: Long = 0
         private set
@@ -140,6 +148,10 @@ class Robot(
 
     fun recordEvent(message: String) {
         flightRecorder?.event(message)
+        rememberEvent(message)
+    }
+
+    private fun rememberEvent(message: String) {
         recentEvents.addLast("[loop $loopCount] $message")
         while (recentEvents.size > RECENT_EVENT_LIMIT) recentEvents.removeFirst()
     }
@@ -257,8 +269,12 @@ class Robot(
             // (the recorder can't time its own final write), the second adds
             // that write's cost so the profile accounts for the full phase.
             val recordStart = clock.nanos()
-            recorder.record(this)
-            recorder.recordRecorderNanos(clock.nanos() - recordStart)
+            try {
+                recorder.record(this)
+                recorder.recordRecorderNanos(clock.nanos() - recordStart)
+            } catch (t: Throwable) {
+                recordRecorderFault(t)
+            }
             profile[LoopPhase.RECORD] = clock.nanos() - recordStart
         }
         val now = clock.nanos()
@@ -374,6 +390,34 @@ class Robot(
             lastTelemetryFaultEventNs = now
             recordEvent("TELEMETRY FAULT: ${t.javaClass.simpleName}: ${t.message}")
         }
+    }
+
+    internal fun recordTriggerFault(source: String, t: Throwable) {
+        triggerFaultCount++
+        try {
+            RobotLog.ee("Robot", t, "$source trigger quarantined (#$triggerFaultCount)")
+        } catch (_: Throwable) {
+            // Host-side tests stub Android logging.
+        }
+        recordEvent(
+            "TRIGGER FAULT: $source quarantined: ${t.javaClass.simpleName}: ${t.message}",
+        )
+    }
+
+    private fun recordRecorderFault(t: Throwable) {
+        recorderFaultCount++
+        try {
+            RobotLog.ee("Robot", t, "Flight recorder fault contained")
+        } catch (_: Throwable) {
+            // Host-side tests stub Android logging.
+        }
+        rememberEvent("RECORDER FAULT: ${t.javaClass.simpleName}: ${t.message}")
+        try {
+            flightRecorder?.close()
+        } catch (_: Throwable) {
+            // The recorder has already faulted; shutdown is best-effort.
+        }
+        flightRecorder = null
     }
 
     private fun recordContainedFault(t: Throwable, context: String) {
