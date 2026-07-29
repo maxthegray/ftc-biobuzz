@@ -43,7 +43,9 @@ import org.firstinspires.ftc.teamcode.core.geometry.Vector2d
  * Semantics: section entries are "current state" — repeated [put]s with the
  * same key overwrite, and the latest value at transmit time is the one sent.
  * [line] entries are "events" — they accumulate across the throttle window so
- * nothing logged between transmissions is dropped.
+ * nothing logged between transmissions is dropped. A sink that throws is
+ * disabled for the rest of the op-mode without blocking other sinks, and the
+ * buffers are cleared even when transmission fails.
  */
 class TelemetryBag internal constructor(
     private val sinks: List<Sink>,

@@ -48,8 +48,9 @@ class Robot(
      * its requirements are released), only the subsystems *that command
      * required* get [SubsystemBase.onCommandFault] to safe their actuators,
      * and every other running command keeps going. Default commands for the
-     * freed subsystems resume on the next tick. A fault in trigger-polling
-     * code that isn't tied to a command is logged and skipped for the tick.
+     * freed subsystems resume on the next tick. A fault in one trigger
+     * condition or binding quarantines only that trigger; later triggers keep
+     * polling, and an active `whileTrue` command is interrupted.
      *
      * Off by default. Teleop op-modes turn it on (a dead robot for the rest
      * of a match is strictly worse than one mechanism going limp); auton
