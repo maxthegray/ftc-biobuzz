@@ -1,9 +1,8 @@
-# Season Guide
+# Development Guide
 
-How to build a season on this framework. ARCHITECTURE.md explains *why* the
-framework is shaped this way; this is the *how* for the code you'll write in
-a fork: subsystems, commands, config, auton. Expert-oriented — it states
-contracts, not tutorials.
+How this team adds subsystems, commands, configuration, autonomous routines,
+and sensors. It states the framework contracts and copyable patterns without
+duplicating the full AI reference in `AI-GUIDE.md`.
 
 ## A season subsystem, end to end
 
@@ -194,13 +193,18 @@ fat-fingered Panels edit could hurt (see `DriveConfig` for the pattern).
   }
   ```
 
-- **Selector**: `AutonSelector` on dpad in `onInitLoop` (A locks; last
-  locked selection is restored as the default after a re-init).
+- **Selector**: `AutonSelector` on dpad in `onInitLoop`. With multiple
+  routines, A freezes the choice; starting unlocked still runs the prominently
+  displayed live selection. A single routine needs no confirmation. The last
+  locked selection restores as the editable default after a re-init.
+- **Start gate**: before setting the starting pose or scheduling, abort loudly
+  if `localizer.fault` is already latched. Also check
+  `PedroAutoRunner.schedule()`; false means the routine never started.
 - **Relocalization**: feed vision through
   `localizer.applyCorrection(measured, timestampNanos, …)` — gated,
   blended, axis-weighted, scaled down automatically mid-path. Wall contact:
-  `WallSnap.pose(...)` with `blend = 1.0`. The AprilTag subsystem spec is in
-  ARCHITECTURE.md (Localisation Hooks).
+  `WallSnap.pose(...)` with `blend = 1.0`. Use the camera frame-acquisition
+  timestamp, not the time processing finished.
 
 ## Sim before carpet
 
@@ -212,11 +216,74 @@ control quality), but it catches the whole class of sequencing/mirroring
 bugs for free. `MechanismReplayTest` is the pattern for "did my refactor
 change control outputs?".
 
+## Sensors and I²C
+
+The default wiring policy is deliberate:
+
+1. Keep Pinpoint direct on its own Control Hub I²C port. Pedro reads it inline
+   inside `Follower.update()`.
+2. Put auxiliary I²C sensors on one SRSHub and read the hub inline from
+   `SRSHubSubsystem.periodic()`.
+3. Do not background the SRSHub unless measurements prove the inline read is
+   the loop-time problem.
+
+The SRSHub helps because downstream sensor retries happen on the hub and the
+Control Hub performs one bounded register read. A background thread does not
+remove that read from the Control Hub's Lynx serial link; it can instead
+contend with motor writes and leave the follower using stale data. That exact
+failure mode was tried and reverted for Pinpoint.
+
+Integration rules:
+
+- Register the drive before the localizer so pose history is sampled after
+  `Follower.update()`.
+- If an SRSHub ever feeds a custom localizer, initialize the hub before
+  constructing the follower. `FollowerBuilder` calls `resetIMU()` during
+  construction.
+- Pinpoint behind the SRSHub loses the raw device-status watchdog unless its
+  status is explicitly routed into `LocalizerSubsystem`.
+- If threading is ever justified, publish one immutable snapshot, route
+  write-side commands through the bus owner, poll near the main-loop rate, and
+  feed snapshot age into the localizer watchdog. Never share the SRSHub's
+  in-place decoded objects across threads.
+
+Measure in this order before changing the policy:
+
+1. Baseline direct Pinpoint from a full battery down to roughly 11 V. Compare
+   loop time against voltage.
+2. Add the SRSHub with auxiliary sensors only, still inline. Log
+   `hub.update()` duration and CRC mismatches.
+3. Only if direct Pinpoint showed sag-correlated latency, test Pinpoint behind
+   the SRSHub while still reading inline.
+4. Only if the inline SRSHub read itself stretches the loop, evaluate
+   `I2CBusThread` and verify that motor-write timing does not regress.
+
+Typical auxiliary-sensor setup:
+
+```kotlin
+val srs = robot.register(SRSHubSubsystem())
+val intakeColor = srs.color(bus = 1)
+val frontDistance = srs.distance(bus = 2)
+```
+
+Register SRSHub devices before robot initialization, then consume their latest
+values from the owning subsystem's `periodic()`.
+
+## Season rollover
+
+- Keep game-specific subsystems, paths, and op-modes in the season fork.
+- Set `RobotConfig.Field.SYMMETRY` from the game manual and verify the field
+  length before writing paths.
+- Change `RobotConfig.CONFIG_SCHEMA` so stale tuning files from the previous
+  season are ignored.
+- Recalibrate every placeholder in `pedroPathing/Constants.java` when the
+  chassis, weight, wheel setup, or odometry geometry changes.
+- Keep config objects unpinned and registered with `ConfigStore`.
+
 ## Deploy + diagnose
 
 - `make hot` for iteration; full install after dependency/manifest/@Pinned
-  changes (see CLAUDE.md Workflow).
-- `make analyze` after every run that surprised you; `RUNBOOK.md` maps
-  symptoms to channels. Watch the `Health` telemetry section during driver
-  practice — contained faults show up there long before they show up as a
-  dead mechanism in a match.
+  changes.
+- `make analyze` after every surprising run; `OPERATIONS.md` maps symptoms to
+  channels. Watch the `Health` telemetry section during driver practice —
+  contained faults show up there before they become match failures.

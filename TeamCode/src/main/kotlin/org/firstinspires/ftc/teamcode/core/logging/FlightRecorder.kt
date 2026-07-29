@@ -17,8 +17,9 @@ import org.firstinspires.ftc.teamcode.core.util.GamepadEx
 /**
  * Per-op-mode binary flight recorder.
  *
- * I/O failures permanently disable the recorder for this op-mode. The loop
- * should keep running even if storage is full or unavailable.
+ * I/O failures permanently disable the recorder for this op-mode. A non-I/O
+ * exception from one subsystem's [SubsystemBase.logState] disables only that
+ * subsystem's channels and records why. The loop keeps running either way.
  */
 class FlightRecorder private constructor(
     private val writer: WpiLogWriter,

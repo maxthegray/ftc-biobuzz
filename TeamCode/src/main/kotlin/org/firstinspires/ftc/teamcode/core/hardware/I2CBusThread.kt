@@ -8,9 +8,10 @@ import org.firstinspires.ftc.teamcode.core.util.Clock
 /**
  * A measured-need escape hatch for polling one I2C-bound device at a fixed
  * target rate and publishing the result via a [Ref]. The default architecture
- * keeps Pinpoint direct and reads the SRSHub inline; read `SENSORS.md` before
- * using this class. Backgrounding a device on the Control Hub's Lynx link can
- * delay motor writes even when it shortens the apparent main-loop time.
+ * keeps Pinpoint direct and reads the SRSHub inline; read the sensor section
+ * in `DEVELOPMENT.md` before using this class. Backgrounding a device on the
+ * Control Hub's Lynx link can delay motor writes even when it shortens the
+ * apparent main-loop time.
  *
  * Usage:
  *

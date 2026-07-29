@@ -4,7 +4,7 @@
 
 // Fail fast with a clear message instead of an inscrutable AGP/Kotlin error
 // when Gradle runs on the wrong JDK. This build needs JDK 17 (see README /
-// CLAUDE.md); newer JDKs (e.g. 21+) are untested against Gradle 8.x + AGP here.
+// AI-GUIDE.md); newer JDKs (e.g. 21+) are untested against Gradle 8.x + AGP here.
 def javaMajor = JavaVersion.current().majorVersion.toInteger()
 if (javaMajor < 17) {
     throw new GradleException(

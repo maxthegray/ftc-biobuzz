@@ -20,12 +20,14 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants
  *    *and* heading interpolation for BLUE, and [org.firstinspires.ftc.teamcode.core.util.Alliance.mirror]
  *    covers the bare `turnTo` heading
  *  - alliance / routine / start-delay picked on dpad in init via
- *    [AutonSelector] (press A to lock), so one op-mode serves both sides
+ *    [AutonSelector]; A freezes a multi-routine choice, while a single
+ *    routine needs no confirmation and an unlocked displayed choice still runs
  *  - sequencing via [autoRoutine] / [PedroAutoRunner]
  *  - progress markers plus per-step and whole-routine timeouts
- *  - the auton lifecycle: set the starting pose at start, never install a
- *    teleop default command, schedule in [onStart], stop when the routine
- *    ends — the final pose persists automatically for teleop to restore
+ *  - the auton lifecycle: abort on a pre-start localizer fault, set the
+ *    starting pose at start, never install a teleop default command, require
+ *    scheduling to succeed in [onStart], stop when the routine ends — the
+ *    final pose persists automatically for teleop to restore
  *
  * Copy this file as the skeleton for a real routine.
  */

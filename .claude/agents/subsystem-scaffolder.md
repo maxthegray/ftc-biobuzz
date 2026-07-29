@@ -10,7 +10,7 @@ conventions. The pattern is strict and easy to get subtly wrong — your job is
 to produce a correctly-shaped skeleton, not season-specific game logic.
 
 Before writing, read the live exemplars so you match current idiom:
-- `SEASON-GUIDE.md` (the worked subsystem example + contract)
+- `DEVELOPMENT.md` (the worked subsystem example + contract)
 - `TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/core/runtime/SubsystemBase.kt`
 - `TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/core/runtime/DeviceReaders.kt`
 - `TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/core/subsystems/ProfiledMotorSubsystem.kt`

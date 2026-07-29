@@ -24,7 +24,9 @@ import org.firstinspires.ftc.teamcode.core.command.Command
  * Create one through [GamepadEx.button] / [GamepadEx.trigger], or by composing
  * existing triggers with [and] / [or] / [not] — never construct directly. The
  * owning [GamepadEx] samples every trigger once per loop from
- * [GamepadEx.update], which runs before the command scheduler ticks.
+ * [GamepadEx.update], which runs before the command scheduler ticks. Composed
+ * triggers reuse their operands' samples rather than evaluating conditions
+ * again.
  *
  * Edge semantics: the condition is sampled once per loop. A "rising edge" is a
  * loop where it read false last tick and true this tick; a "falling edge" is
@@ -33,6 +35,10 @@ import org.firstinspires.ftc.teamcode.core.command.Command
  * Composition caveat: compose triggers from the same [GamepadEx] host. A
  * cross-gamepad composition is polled by the left-hand trigger's host, so the
  * other gamepad may still be on its previous loop sample.
+ *
+ * A throwing condition or binding quarantines this trigger only. Later
+ * triggers continue polling; quarantine also interrupts a command held by an
+ * active [whileTrue] binding.
  */
 class Trigger internal constructor(
     private val host: GamepadEx,

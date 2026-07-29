@@ -1,100 +1,92 @@
 # ftc-starter
 
-Season-agnostic starter for FIRST Tech Challenge. Fork this at the start of
-every season, rename the OpModes, and focus on the game, not the plumbing.
+Our Kotlin FTC base for a mecanum robot with goBILDA Pinpoint localization,
+Pedro Pathing, Panels telemetry, WPILOG recording, and Sloth hot reload.
 
-Built on:
+## Start here
 
-| Layer              | Library                                      | Version |
-|--------------------|----------------------------------------------|---------|
-| Robot controller   | `FtcRobotController` (FTC SDK)               | 11.1.0  |
-| Path following     | [Pedro Pathing](https://pedropathing.com/)   | 2.1.1   |
-| Telemetry adapter  | Pedro Telemetry                              | 1.0.0   |
-| Dashboard / tuning | [FTControl Panels](https://panels.bylazar.com/) (`fullpanels`) | 1.0.12  |
-| Hot reload         | [Sloth](https://docs.dairy.foundation/sloth/) (Dairy Foundation / Sinister) | 0.2.4 |
-| Odometry           | goBILDA Pinpoint (2× dead-wheel + IMU)       | —       |
-| Language           | Kotlin                                       | 2.0.21  |
+Workstation:
 
-## Quick start
-
-### Without a robot
-
-1. Install Android Studio and a JDK 17 distribution.
-2. Open this project in Android Studio, or verify it from a terminal:
-
-   ```
-   make test
-   make build
-   ```
-
-3. Read [ADOPTING.md](ADOPTING.md) before you touch framework code — it covers
-   what the starter assumes and the files you'll actually edit first.
-
-### On a robot
-
-1. Make sure the Control Hub's active Configuration has these hardware names:
-   - Motors: `frontLeftMotor`, `frontRightMotor`, `backLeftMotor`, `backRightMotor`
-   - Pinpoint I²C: `pinpoint`
-2. Build and push to the Robot Controller. With the robot on blocks, run
-   **Starter: Motor Direction Test** before **Starter: Drive Only**.
-3. With the robot running, open the Panels dashboard at
-   `http://192.168.43.1:8001` for live pose and tuning knobs.
-4. Walk through [BRINGUP.md](BRINGUP.md) before you trust it on the field.
-
-## Repo layout
-
+```sh
+make test
+make build
 ```
+
+Robot:
+
+1. Use Control Hub names `frontLeftMotor`, `frontRightMotor`,
+   `backLeftMotor`, `backRightMotor`, and `pinpoint`.
+2. Do a full APK install for the first deployment.
+3. Follow [OPERATIONS.md](OPERATIONS.md) from the motor-direction test through
+   Pedro calibration. The shipped Pedro numbers are placeholders.
+
+The Panels dashboard is available at `http://192.168.43.1:8001` while the
+robot is running.
+
+## Documentation
+
+- [DEVELOPMENT.md](DEVELOPMENT.md) — adding subsystems, commands, config,
+  autonomous routines, and sensors
+- [OPERATIONS.md](OPERATIONS.md) — hardware bring-up, Pedro tuning, logs, and
+  symptom diagnosis
+- [AI-GUIDE.md](AI-GUIDE.md) — complete framework contract for AI assistants
+
+`AGENTS.md` and `CLAUDE.md` are discovery pointers to the same AI guide.
+
+## Main files
+
+| Task | Start here |
+|---|---|
+| TeleOp | `opmodes/DriveOnlyTeleOp.kt`, then override `configureTeleop()` |
+| Autonomous | `opmodes/ExampleAuto.kt` |
+| Mechanism | `core/subsystems/ProfiledMotorSubsystem.kt` |
+| Buttons and triggers | `core/util/GamepadEx.kt`, `Trigger.kt` |
+| Drive feel | `core/subsystems/drive/DriveConfig.kt` |
+| Localization and vision corrections | `core/subsystems/localization/` |
+| Hardware names, field size, config schema | `core/runtime/RobotConfig.kt` |
+| Pedro calibration | `pedroPathing/Constants.java` |
+| Diagnose a run | `make debug`, then `OPERATIONS.md` |
+
+Paths above are relative to
+`TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/` except
+`pedroPathing/Constants.java`, which is under the Java source root.
+
+## Repository map
+
+```text
 TeamCode/src/main/
 ├── java/org/firstinspires/ftc/teamcode/pedroPathing/
-│   └── Constants.java                 # Pedro's required config path.
-│                                      # Physical constants + createFollower().
+│   ├── Constants.java
+│   └── Tuning.java
 └── kotlin/org/firstinspires/ftc/teamcode/
     ├── core/
-    │   ├── command/        # Scheduler + Command/Commands/Groups (instance-scoped)
-    │   ├── control/        # TrapezoidProfile, PIDF, ProfiledController
-    │   ├── estimation/     # PoseEstimator, WallSnap (correction math)
-    │   ├── geometry/       # Pose2d, Vector2d, angle utils (framework frame)
-    │   ├── hardware/       # SRSHub wrapper + optional I2C bus thread
-    │   ├── hw/             # MotorIO seam (real + sim, replayable)
-    │   ├── logging/        # WPILOG flight recorder + scheduler introspection
-    │   ├── pathing/        # PathDSL, chaseTarget, PedroAutoRunner
-    │   ├── runtime/        # Robot, OpModeBase, SubsystemBase, selector/config
-    │   ├── subsystems/     # ProfiledMotorSubsystem (lift/arm base)
-    │   │   ├── drive/      # MecanumDriveSubsystem, DriveConfig
-    │   │   └── localization/ # LocalizerSubsystem, LocalizerConfig, PinpointDirect
-    │   └── util/           # Alliance, GamepadEx, TelemetryBag, triggers
-    └── opmodes/            # Starter teleop + auton examples
+    │   ├── command/          scheduler, commands, groups
+    │   ├── control/          profiles and PIDF
+    │   ├── estimation/       pose correction and wall snap
+    │   ├── geometry/         framework pose/vector types
+    │   ├── hardware/         SRSHub and optional I²C thread
+    │   ├── hw/               real/sim motor seam
+    │   ├── logging/          WPILOG and field view
+    │   ├── pathing/          path DSL and auton runner
+    │   ├── runtime/          robot lifecycle and config
+    │   ├── subsystems/       mechanisms, drive, localization
+    │   └── util/             gamepads, triggers, telemetry
+    └── opmodes/              starter diagnostics, teleop, auton
 ```
 
-## Writing season code
+## Daily commands
 
-Teleops extend `TeleOpBase` (wire subsystems + bindings in `configureTeleop()`);
-autons extend `OpModeBase` — copy `ExampleAuto`. Subsystems, commands, paths,
-config, and auton are covered end-to-end in [SEASON-GUIDE.md](SEASON-GUIDE.md);
-`DriveOnlyTeleOp` and `ExampleAuto` are the copyable skeletons.
+```sh
+make test       # host tests
+make build      # debug APK
+make install    # full APK install
+make hot        # TeamCode-only Sloth reload
+make debug      # newest match logs + JSON diagnosis
+```
 
-## Logs and verification
+Use a full install after dependency, manifest, `@Pinned`, or non-TeamCode
+changes. Ordinary TeamCode iteration can use hot reload.
 
-`make test` / `make build` run the host tests and the JDK-17 debug assemble.
-Every op-mode writes a WPILOG under `/sdcard/FIRST/logs`; `make pull-logs` then
-open the newest `.wpilog` in AdvantageScope, or `make analyze` for a summary.
-
-## Where to tune what
-
-| I want to change…                               | Edit this                                                   |
-|-------------------------------------------------|-------------------------------------------------------------|
-| Motor physics (mass, zero-power accel, etc.)    | `pedroPathing/Constants.java`                               |
-| Motor / sensor hardware names                   | `core/runtime/RobotConfig.kt`                               |
-| Teleop feel (scaling, precision, field-centric) | `core/subsystems/drive/DriveConfig.kt`                      |
-| Field length for alliance mirroring             | `core/runtime/RobotConfig.kt`                               |
-| Path constraints (max velocity, etc.)           | `pedroPathing/Constants.pathConstraints`                    |
-
-## Further reading
-
-- Architecture decisions and lifecycle timing: [ARCHITECTURE.md](ARCHITECTURE.md)
-- Adoption assumptions and first edits: [ADOPTING.md](ADOPTING.md)
-- Writing season code on the framework: [SEASON-GUIDE.md](SEASON-GUIDE.md)
-- Competition symptom → log channel triage: [RUNBOOK.md](RUNBOOK.md)
-- Robot bring-up checklist: [BRINGUP.md](BRINGUP.md)
-- Season fork guide: [FORKING.md](FORKING.md)
-- Guidance for AI-assisted edits: [CLAUDE.md](CLAUDE.md)
+Pinned versions are FTC SDK 11.1.0, Kotlin 2.0.21, Pedro 2.1.1, Panels
+1.0.12, and Sloth 0.2.4. Verify artifacts in their real repositories before
+changing any version.

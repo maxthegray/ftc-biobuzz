@@ -196,7 +196,9 @@ class MecanumDriveSubsystem(
     /**
      * Command that holds [pose] — position *and* heading — via
      * [Follower.holdPoint], so both [holdPose] and this command agree. Done
-     * once the follower is within its configured path constraints.
+     * once the follower is within its configured path constraints or
+     * [timeoutMs] expires. Either way the subsystem remains in HOLDING mode;
+     * the timeout only bounds how long a routine waits for convergence.
      */
     fun holdCommand(pose: Pose2d, timeoutMs: Double = DEFAULT_HOLD_TIMEOUT_MS): Command {
         require(timeoutMs.isFinite() && timeoutMs >= 0.0) {
