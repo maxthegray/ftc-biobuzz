@@ -1,4 +1,6 @@
-package org.firstinspires.ftc.teamcode.core.util
+package org.firstinspires.ftc.teamcode.core.sim
+
+import org.firstinspires.ftc.teamcode.core.util.Clock
 
 /** Controllable [Clock] for tests. */
 class FakeClock(start: Long = 1_000_000_000L) : Clock {

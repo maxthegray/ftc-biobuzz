@@ -4,7 +4,7 @@ import com.pedropathing.geometry.Pose
 import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.fakeFollower
 import org.firstinspires.ftc.teamcode.core.estimation.CorrectionResult
-import org.firstinspires.ftc.teamcode.core.util.FakeClock
+import org.firstinspires.ftc.teamcode.core.sim.FakeClock
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

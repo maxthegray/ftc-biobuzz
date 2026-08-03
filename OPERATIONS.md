@@ -16,6 +16,17 @@ The numeric Pedro values in `pedroPathing/Constants.java` are placeholders,
 not a calibration for the new chassis. Do not run `Starter: Example Auto`
 until the localization, dynamics, and control checks below are complete.
 
+## 0. Chassis-free framework smoke test
+
+Run **Starter: Framework Smoke Test** before hardware configuration. It needs
+no configured devices and verifies the Control Hub runtime, lifecycle ordering,
+gamepad input, command scheduling/preemption/containment, telemetry, Panels,
+ConfigStore visibility, loop profiling, and WPILOG output. During init,
+`periodic ticks` must advance while `write ticks` stays at zero; after start,
+both must advance. The op-mode displays its controls and every action is
+software-only. Its main loop is intentionally paced to roughly 50 Hz so the
+absence of hardware I/O cannot create oversized flight logs.
+
 ## 1. Configuration names
 
 Confirm the Driver Station config names: `frontLeftMotor`, `frontRightMotor`,
@@ -94,6 +105,9 @@ These check the safety behavior you'd otherwise only find out about mid-match:
 ## Logs and post-run diagnosis
 
 Every op-mode writes a WPILOG under `/sdcard/FIRST/logs`.
+Continuous channels are capped at 100 Hz; events and command transitions are
+immediate, and the analyzer uses per-window timing maxima so short spikes are
+not hidden by the cap.
 
 ```sh
 make debug       # newest Auto + TeleOp, JSON diagnostic bundle

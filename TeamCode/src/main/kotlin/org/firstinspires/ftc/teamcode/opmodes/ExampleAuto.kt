@@ -5,10 +5,11 @@ import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import org.firstinspires.ftc.teamcode.core.pathing.PedroAutoRunner
 import org.firstinspires.ftc.teamcode.core.pathing.autoRoutine
 import org.firstinspires.ftc.teamcode.core.pathing.path
-import org.firstinspires.ftc.teamcode.core.runtime.AutonSelector
 import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
+import org.firstinspires.ftc.teamcode.core.runtime.StartDelay
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerSubsystem
+import org.firstinspires.ftc.teamcode.core.util.Alliance
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants
 
 /**
@@ -19,9 +20,9 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants
  *  - poses written once in RED coordinates; the `path` DSL mirrors waypoints
  *    *and* heading interpolation for BLUE, and [org.firstinspires.ftc.teamcode.core.util.Alliance.mirror]
  *    covers the bare `turnTo` heading
- *  - alliance / routine / start-delay picked on dpad in init via
- *    [AutonSelector]; A freezes a multi-routine choice, while a single
- *    routine needs no confirmation and an unlocked displayed choice still runs
+ *  - one op-mode per alliance and routine, so the Driver Station dropdown is
+ *    the selector: copy this file and override [initialAlliance] for BLUE.
+ *    Only the start delay is picked at init, on dpad, via [StartDelay]
  *  - sequencing via [autoRoutine] / [PedroAutoRunner]
  *  - progress markers plus per-step and whole-routine timeouts
  *  - the auton lifecycle: abort on a pre-start localizer fault, set the
@@ -40,8 +41,11 @@ class ExampleAuto : OpModeBase() {
 
     private lateinit var drive: MecanumDriveSubsystem
     private lateinit var localizer: LocalizerSubsystem
-    private lateinit var selector: AutonSelector
+    private lateinit var startDelay: StartDelay
     private var runner: PedroAutoRunner? = null
+
+    /** The BLUE copy of this file overrides this and changes nothing else. */
+    override val initialAlliance: Alliance get() = Alliance.RED
 
     override fun configure() {
         val follower = Constants.createFollower(hardwareMap)
@@ -61,11 +65,10 @@ class ExampleAuto : OpModeBase() {
                 },
             ),
         )
-        selector = AutonSelector(robot, telemetryBag)
-            .register("Out and back") { outAndBack() }
+        startDelay = StartDelay(telemetryBag)
     }
 
-    /** Built at start, after the selector has fixed the alliance. */
+    /** Built at start, so the paths see the final tuned config. */
     private fun outAndBack(): PedroAutoRunner {
         val outPath = drive.path(startPose = startRed, alliance = alliance) {
             lineTo(outRed)
@@ -76,7 +79,7 @@ class ExampleAuto : OpModeBase() {
             linearHeading(Math.toRadians(90.0), 0.0)
         }
         return autoRoutine(robot, drive, robot::recordEvent) {
-            if (selector.startDelaySec > 0) wait(selector.startDelaySec * 1000L)
+            if (startDelay.millis > 0) wait(startDelay.millis)
             timeout(4_000) {
                 follow(outPath) {
                     at(0.5, "outbound midpoint") {}
@@ -90,7 +93,7 @@ class ExampleAuto : OpModeBase() {
     }
 
     override fun onInitLoop() {
-        selector.update(driver)
+        startDelay.update(driver)
     }
 
     override fun onStart() {
@@ -99,11 +102,7 @@ class ExampleAuto : OpModeBase() {
             return
         }
         localizer.setStartingPose(alliance.mirror(startRed))
-        val selected = selector.selectedRunner()
-        if (selected == null) {
-            abortAuto("no routine selected")
-            return
-        }
+        val selected = outAndBack()
         runner = selected
         if (!selected.schedule()) abortAuto("routine schedule rejected")
     }

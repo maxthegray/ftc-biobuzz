@@ -84,4 +84,8 @@ lint/tmp/
 # lint/reports/
 # Local per-machine deploy state for the /deploy skill
 .claude/.last-deploy-sha
+.agents/.last-deploy-sha
 __pycache__/
+
+# Local Control Hub flight logs (binary and can get very large)
+robot-logs/

@@ -2,6 +2,8 @@ package org.firstinspires.ftc.teamcode.core.util
 
 import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import org.firstinspires.ftc.teamcode.core.geometry.Vector2d
+import org.firstinspires.ftc.teamcode.core.sim.FakeClock
+import org.firstinspires.ftc.teamcode.core.sim.FakeSink
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
@@ -9,20 +11,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TelemetryBagTest {
-
-    private class FakeSink : TelemetryBag.Sink {
-        val lines = mutableListOf<String>()
-        val data = mutableListOf<Pair<String, String>>()
-        var updates = 0
-
-        override fun addLine(text: String) { lines += text }
-        override fun addData(key: String, value: String) { data += key to value }
-        override fun update() { updates++ }
-
-        fun reset() {
-            lines.clear(); data.clear(); updates = 0
-        }
-    }
 
     private val clock = FakeClock()
     private val sink = FakeSink()

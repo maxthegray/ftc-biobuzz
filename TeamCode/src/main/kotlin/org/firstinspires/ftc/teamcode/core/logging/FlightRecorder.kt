@@ -8,14 +8,20 @@ import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.max
 import org.firstinspires.ftc.teamcode.core.runtime.DriveTelemetrySource
 import org.firstinspires.ftc.teamcode.core.runtime.LoopPhase
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
+import org.firstinspires.ftc.teamcode.core.util.Clock
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx
 
 /**
  * Per-op-mode binary flight recorder.
+ *
+ * Continuous channels are sampled at no more than 100 Hz while events and
+ * command-set transitions remain immediate. Timing-window maxima preserve
+ * spikes that occur between continuous samples.
  *
  * I/O failures permanently disable the recorder for this op-mode. A non-I/O
  * exception from one subsystem's [SubsystemBase.logState] disables only that
@@ -27,11 +33,17 @@ class FlightRecorder private constructor(
     private val gamepad2: () -> GamepadEx?,
     private val batteryVoltage: () -> Double?,
     private val runningCommandNames: () -> List<String>,
+    private val clock: Clock,
 ) : AutoCloseable {
-    private val startNs = System.nanoTime()
+    private val startNs = clock.nanos()
     private var enabled = true
     private var lastRunningCommands = ""
     private var lastFlushNs = startNs
+    private var nextSampleNs = Long.MIN_VALUE
+    private var sampledThisLoop = false
+    private var sampleTimestampUs = 0L
+    private var windowMaxTotalNanos = 0L
+    private val windowMaxPhaseNanos = LongArray(LoopPhase.entries.size)
 
     // Resolved once and reused: record() runs every tick, so no per-tick
     // subsystem filtering or array allocation.
@@ -51,6 +63,10 @@ class FlightRecorder private constructor(
     private val loopTotal = writer.startEntry("loop/totalNanos", "int64")
     private val loopPhaseEntries = IntArray(LoopPhase.entries.size) { i ->
         writer.startEntry("loop/${LoopPhase.entries[i].label}Nanos", "int64")
+    }
+    private val loopWindowMaxTotal = writer.startEntry("loop/windowMaxTotalNanos", "int64")
+    private val loopWindowMaxPhaseEntries = IntArray(LoopPhase.entries.size) { i ->
+        writer.startEntry("loop/windowMax/${LoopPhase.entries[i].label}Nanos", "int64")
     }
     private val battery = writer.startEntry("battery", "double")
     private val runningCommands = writer.startEntry("commands/running", "string")
@@ -98,7 +114,16 @@ class FlightRecorder private constructor(
     fun record(robot: Robot) {
         if (!enabled) return
         guard {
-            val ts = timestampUs()
+            sampledThisLoop = false
+            val now = clock.nanos()
+            val ts = timestampUs(now)
+            recordCommandTransition(ts)
+            accumulateTiming(robot)
+            maybeFlush(now)
+            if (!continuousSampleDue(now)) return@guard
+
+            sampledThisLoop = true
+            sampleTimestampUs = ts
             if (!driveResolved) {
                 driveResolved = true
                 for (subsystem in robot.subsystems()) {
@@ -147,14 +172,17 @@ class FlightRecorder private constructor(
                 if (phase == LoopPhase.RECORD) continue
                 writer.appendInt64(loopPhaseEntries[phase.ordinal], p[phase], ts)
             }
+            writer.appendInt64(loopWindowMaxTotal, windowMaxTotalNanos, ts)
+            for (phase in LoopPhase.entries) {
+                writer.appendInt64(
+                    loopWindowMaxPhaseEntries[phase.ordinal],
+                    windowMaxPhaseNanos[phase.ordinal],
+                    ts,
+                )
+            }
+            resetTimingWindow()
             batteryVoltage()?.takeIf { it.isFinite() }?.let {
                 writer.appendDouble(battery, it, ts)
-            }
-
-            val running = runningCommandNames().joinToString("\n")
-            if (running != lastRunningCommands) {
-                writer.appendString(runningCommands, running, ts)
-                lastRunningCommands = running
             }
 
             subsystemSink.timestampUs = ts
@@ -177,21 +205,18 @@ class FlightRecorder private constructor(
                     }
                 }
             }
-
-            // Periodic flush so a brownout or battery pull — exactly the runs
-            // worth diagnosing — doesn't lose the buffered tail of the log.
-            val now = System.nanoTime()
-            if (now - lastFlushNs >= FLUSH_INTERVAL_NS) {
-                writer.flush()
-                lastFlushNs = now
-            }
         }
     }
 
     fun recordRecorderNanos(recordNanos: Long) {
         if (!enabled) return
         guard {
-            writer.appendInt64(loopPhaseEntries[LoopPhase.RECORD.ordinal], recordNanos, timestampUs())
+            val index = LoopPhase.RECORD.ordinal
+            windowMaxPhaseNanos[index] = max(windowMaxPhaseNanos[index], recordNanos)
+            if (sampledThisLoop) {
+                writer.appendInt64(loopPhaseEntries[index], recordNanos, sampleTimestampUs)
+            }
+            sampledThisLoop = false
         }
     }
 
@@ -245,7 +270,47 @@ class FlightRecorder private constructor(
         return mask
     }
 
-    private fun timestampUs(): Long = (System.nanoTime() - startNs) / 1_000L
+    private fun recordCommandTransition(timestampUs: Long) {
+        val running = runningCommandNames().joinToString("\n")
+        if (running == lastRunningCommands) return
+        writer.appendString(runningCommands, running, timestampUs)
+        lastRunningCommands = running
+    }
+
+    private fun accumulateTiming(robot: Robot) {
+        val profile = robot.profile
+        windowMaxTotalNanos = max(windowMaxTotalNanos, profile.totalNanos)
+        for (phase in LoopPhase.entries) {
+            val index = phase.ordinal
+            windowMaxPhaseNanos[index] = max(windowMaxPhaseNanos[index], profile[phase])
+        }
+    }
+
+    private fun resetTimingWindow() {
+        windowMaxTotalNanos = 0L
+        windowMaxPhaseNanos.fill(0L)
+    }
+
+    private fun continuousSampleDue(nowNs: Long): Boolean {
+        if (nextSampleNs == Long.MIN_VALUE) {
+            nextSampleNs = nowNs + SAMPLE_INTERVAL_NS
+            return true
+        }
+        if (nowNs < nextSampleNs) return false
+        val intervalsElapsed = (nowNs - nextSampleNs) / SAMPLE_INTERVAL_NS + 1L
+        nextSampleNs += intervalsElapsed * SAMPLE_INTERVAL_NS
+        return true
+    }
+
+    private fun maybeFlush(nowNs: Long) {
+        // Periodic flush so a brownout or battery pull — exactly the runs
+        // worth diagnosing — doesn't lose the buffered tail of the log.
+        if (nowNs - lastFlushNs < FLUSH_INTERVAL_NS) return
+        writer.flush()
+        lastFlushNs = nowNs
+    }
+
+    private fun timestampUs(nowNs: Long = clock.nanos()): Long = (nowNs - startNs) / 1_000L
 
     private inline fun guard(block: () -> Unit) {
         try {
@@ -276,6 +341,7 @@ class FlightRecorder private constructor(
     companion object {
         private const val MAX_LOG_FILES = 30
         private const val FLUSH_INTERVAL_NS = 1_000_000_000L
+        private const val SAMPLE_INTERVAL_NS = 10_000_000L
 
         fun open(
             opModeClassName: String,
@@ -283,6 +349,7 @@ class FlightRecorder private constructor(
             gamepad2: () -> GamepadEx?,
             batteryVoltage: () -> Double?,
             runningCommandNames: () -> List<String>,
+            clock: Clock = Clock.SYSTEM,
             directory: File = File("/sdcard/FIRST/logs"),
         ): FlightRecorder? = try {
             directory.mkdirs()
@@ -295,6 +362,7 @@ class FlightRecorder private constructor(
                 gamepad2,
                 batteryVoltage,
                 runningCommandNames,
+                clock,
             ).also { it.event("init $opModeClassName") }
         } catch (t: Throwable) {
             try {

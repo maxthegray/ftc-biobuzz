@@ -15,7 +15,7 @@ import kotlin.math.atan2
 import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.withSign
-import org.firstinspires.ftc.teamcode.core.util.FakeClock
+import org.firstinspires.ftc.teamcode.core.sim.FakeClock
 
 /**
  * Headless, kinematic "perfect follower" for JVM tests.

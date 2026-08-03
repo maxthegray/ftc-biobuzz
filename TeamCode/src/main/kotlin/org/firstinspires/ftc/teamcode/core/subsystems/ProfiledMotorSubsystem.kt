@@ -8,8 +8,8 @@ import kotlin.math.abs
 import org.firstinspires.ftc.teamcode.core.command.Command
 import org.firstinspires.ftc.teamcode.core.command.EndCondition
 import org.firstinspires.ftc.teamcode.core.control.ProfiledController
-import org.firstinspires.ftc.teamcode.core.hw.MotorIO
-import org.firstinspires.ftc.teamcode.core.hw.RealMotorIO
+import org.firstinspires.ftc.teamcode.core.io.MotorIO
+import org.firstinspires.ftc.teamcode.core.io.RealMotorIO
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.DeviceReaders

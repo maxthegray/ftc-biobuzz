@@ -222,9 +222,7 @@ localizer.applyCorrection(measured, timestampNs) // latency-compensated vision s
                                                  // translationWeight/headingWeight for
                                                  // partial corrections; auto-scaled by
                                                  // followingBlendScale while pathing
-WallSnap.pose(wall, contactOffsetIn, current)    // wall-contact relocalization pose;
-                                                 // apply with blend = 1.0
-val selector = AutonSelector(robot, telemetryBag)
+val startDelay = StartDelay(telemetryBag)       // dpad left/right in the init loop
 robot.recordEvent("marker")                      // also writes to WPILOG
 autoRoutine(robot, drive, robot::recordEvent) { ... }  // optional event sink → labelled
                                                  // per-step timeline in the WPILOG
@@ -255,11 +253,20 @@ A fresh mechanism is UNHOMED: open-loop movement and homing are allowed, but
 closed-loop goals and coordinate-based soft limits are rejected until a zero
 is established or restored.
 
-Hardware goes through the `MotorIO` seam (`core/hw/`): real op-modes
+Hardware goes through the `MotorIO` seam (`core/io/`): real op-modes
 resolve a `RealMotorIO` automatically; host tests inject
 `SimMotorIO(clock, …)` via the `io` constructor parameter and the whole
 mechanism — profile, PIDF, soft limits, homing — runs headless
 (`ProfiledMotorSubsystemTest`, `MechanismReplayTest`).
+
+Two packages sound alike and are not interchangeable. `core/io/` is the
+**abstraction seam** — interfaces plus their real implementations, so
+subsystem code can run against hardware or a fake. `core/hardware/` is
+**concrete device drivers** (`SRSHubSubsystem`, `I2CBusThread`) that only
+work on a real robot. Every test double lives in `core/sim/` under the test
+source root — `SimFollower`, `SimHarness`, `SimMotorIO`, `FakeClock`,
+`FakeSink` — so nothing fake ever ships in the APK. Doubles used by a single
+test stay nested in that test.
 
 Subsystems log tuning channels by overriding
 `logState(log: StateLog)` — the flight recorder prefixes them with
@@ -448,15 +455,19 @@ you have a reason — and if you do, remember `Alliance.mirror(heading)`
 for the heading-interpolation arguments; pose mirroring alone doesn't
 cover them.
 
-`ExampleAuto` is the copyable skeleton: `AutonSelector` on dpad in the
-init loop (A freezes the choice when multiple routines are registered; one
-routine needs no confirmation; an unlocked displayed selection still runs;
-the last locked selection restores as the editable default after a re-init),
-RED-coordinate poses mirrored by the DSL, routine built at start from the
-selected alliance, sequenced with `autoRoutine`, final pose persisted
-automatically for teleop to restore. Its `onStart` aborts before scheduling
-when the localizer already faulted and treats a rejected schedule as an
-auton abort; preserve both gates in season copies.
+There is no init-loop auton menu. Every alliance/routine combination is its
+own `@Autonomous` class, so the Driver Station dropdown is the selector —
+the chosen name is displayed in large text and there is nothing to confirm.
+A BLUE variant is a copy of the RED op-mode that overrides `initialAlliance`
+and changes nothing else. Only the start delay is chosen at init, via
+`StartDelay` on dpad left/right, because it is picked minutes before the
+match to avoid an alliance partner's routine.
+
+`ExampleAuto` is the copyable skeleton: RED-coordinate poses mirrored by the
+DSL, routine built at start, sequenced with `autoRoutine`, final pose
+persisted automatically for teleop to restore. Its `onStart` aborts before
+scheduling when the localizer already faulted and treats a rejected schedule
+as an auton abort; preserve both gates in season copies.
 
 Mid-path actions use progress markers instead of parallel/waitUntil
 contortions:
@@ -511,6 +522,9 @@ Logs live on the robot at `/sdcard/FIRST/logs`. Use `make pull-logs` and
 open `.wpilog` files in AdvantageScope, or `make analyze` for a quick
 post-match summary (loop percentiles, phase maxima, battery, follower
 error, events). `OPERATIONS.md` maps competition symptoms to log channels.
+Continuous channels are capped at 100 Hz independently of the control-loop
+rate; events and command transitions remain immediate, and per-window timing
+maxima preserve spikes between samples.
 
 ### Post-match debugging (the AI runs this)
 
