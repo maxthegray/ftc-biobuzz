@@ -10,7 +10,7 @@ import org.firstinspires.ftc.teamcode.core.command.CommandBuilder
 import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import org.firstinspires.ftc.teamcode.core.command.EndCondition
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
-import org.firstinspires.ftc.teamcode.core.util.FakeClock
+import org.firstinspires.ftc.teamcode.core.sim.FakeClock
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

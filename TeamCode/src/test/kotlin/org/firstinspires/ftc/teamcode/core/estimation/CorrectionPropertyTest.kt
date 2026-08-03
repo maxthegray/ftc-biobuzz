@@ -5,7 +5,7 @@ import kotlin.random.Random
 import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import org.firstinspires.ftc.teamcode.core.geometry.normalizeAngleSigned
 import org.firstinspires.ftc.teamcode.core.geometry.shortestAngleDelta
-import org.firstinspires.ftc.teamcode.core.util.FakeClock
+import org.firstinspires.ftc.teamcode.core.sim.FakeClock
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

@@ -26,7 +26,7 @@ running old code. Always classify before deploying.
 1. **Classify the pending changes.** Run:
 
    ```
-   bash .Codex/skills/deploy/classify-deploy.sh
+   bash .agents/skills/deploy/classify-deploy.sh
    ```
 
    It prints `RECOMMENDATION: HOT|FULL`, a one-line `REASON`, and the deciding
@@ -56,7 +56,7 @@ running old code. Always classify before deploying.
 6. **On success, update the deploy marker** so the next run diffs from here:
 
    ```
-   git rev-parse HEAD > .Codex/.last-deploy-sha
+   git rev-parse HEAD > .agents/.last-deploy-sha
    ```
 
    (Skip this if the deploy failed.)
@@ -69,7 +69,7 @@ running old code. Always classify before deploying.
 
 - Run everything from the repo root (the script `cd`s to the git toplevel
   itself, but the gradle commands assume root).
-- The marker `.Codex/.last-deploy-sha` is local per-machine state and is
+- The marker `.agents/.last-deploy-sha` is local per-machine state and is
   gitignored — don't commit it.
 - If `classify-deploy.sh` reports "no changes detected", there's nothing to
   push; mention that rather than deploying needlessly.

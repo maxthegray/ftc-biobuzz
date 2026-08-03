@@ -17,7 +17,9 @@ Robot:
 1. Use Control Hub names `frontLeftMotor`, `frontRightMotor`,
    `backLeftMotor`, `backRightMotor`, and `pinpoint`.
 2. Do a full APK install for the first deployment.
-3. Follow [OPERATIONS.md](OPERATIONS.md) from the motor-direction test through
+3. Run `Starter: Framework Smoke Test` to verify the Control Hub, lifecycle,
+   gamepad, scheduler, telemetry, and WPILOG pipeline without configured hardware.
+4. Follow [OPERATIONS.md](OPERATIONS.md) from the motor-direction test through
    Pedro calibration. The shipped Pedro numbers are placeholders.
 
 The Panels dashboard is available at `http://192.168.43.1:8001` while the
@@ -29,6 +31,7 @@ robot is running.
   autonomous routines, and sensors
 - [OPERATIONS.md](OPERATIONS.md) — hardware bring-up, Pedro tuning, logs, and
   symptom diagnosis
+- [PROGRESS.md](PROGRESS.md) — running notes from actual lab testing
 - [AI-GUIDE.md](AI-GUIDE.md) — complete framework contract for AI assistants
 
 `AGENTS.md` and `CLAUDE.md` are discovery pointers to the same AI guide.
@@ -62,10 +65,10 @@ TeamCode/src/main/
     ├── core/
     │   ├── command/          scheduler, commands, groups
     │   ├── control/          profiles and PIDF
-    │   ├── estimation/       pose correction and wall snap
+    │   ├── estimation/       pose correction
     │   ├── geometry/         framework pose/vector types
     │   ├── hardware/         SRSHub and optional I²C thread
-    │   ├── hw/               real/sim motor seam
+    │   ├── io/               real motor abstraction seam
     │   ├── logging/          WPILOG and field view
     │   ├── pathing/          path DSL and auton runner
     │   ├── runtime/          robot lifecycle and config

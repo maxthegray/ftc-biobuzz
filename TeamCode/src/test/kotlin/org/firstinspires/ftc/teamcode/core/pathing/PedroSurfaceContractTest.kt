@@ -19,7 +19,7 @@ import org.firstinspires.ftc.teamcode.core.geometry.FieldSymmetry
 import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import org.firstinspires.ftc.teamcode.core.geometry.normalizeAngle
 import org.firstinspires.ftc.teamcode.core.sim.SimFollower
-import org.firstinspires.ftc.teamcode.core.util.FakeClock
+import org.firstinspires.ftc.teamcode.core.sim.FakeClock
 import org.junit.Assert.assertEquals
 import org.junit.Assert.fail
 import org.junit.Test

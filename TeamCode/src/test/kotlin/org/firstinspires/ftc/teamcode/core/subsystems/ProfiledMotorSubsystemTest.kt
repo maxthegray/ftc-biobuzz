@@ -5,9 +5,9 @@ import kotlin.math.abs
 import org.firstinspires.ftc.teamcode.core.control.PIDFGains
 import org.firstinspires.ftc.teamcode.core.control.ProfileConstraints
 import org.firstinspires.ftc.teamcode.core.control.ProfiledController
-import org.firstinspires.ftc.teamcode.core.hw.SimMotorIO
+import org.firstinspires.ftc.teamcode.core.sim.SimMotorIO
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
-import org.firstinspires.ftc.teamcode.core.util.FakeClock
+import org.firstinspires.ftc.teamcode.core.sim.FakeClock
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows

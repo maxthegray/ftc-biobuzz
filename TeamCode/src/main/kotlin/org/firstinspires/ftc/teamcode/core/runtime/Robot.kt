@@ -143,6 +143,7 @@ class Robot(
             operator,
             batteryVoltage,
             runningCommandNames = { scheduler.runningCommandNames() },
+            clock = clock,
             directory = directory,
         )
     }

@@ -4,7 +4,6 @@ import com.pedropathing.paths.PathChain
 import org.firstinspires.ftc.teamcode.core.command.Command
 import org.firstinspires.ftc.teamcode.core.command.CommandBuilder
 import org.firstinspires.ftc.teamcode.core.command.Commands
-import org.firstinspires.ftc.teamcode.core.command.EndCondition
 import org.firstinspires.ftc.teamcode.core.command.Groups
 import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
@@ -127,30 +126,6 @@ class PedroAutoRunner(
     /** Turn in place to an absolute heading in radians. */
     fun turnTo(radians: Double): PedroAutoRunner =
         append("turnTo %.0f deg".format(java.util.Locale.US, Math.toDegrees(radians)), drive.turnToCommand(radians))
-
-    /**
-     * Chase a moving target by feeding Pedro's holdPoint each tick. Ends
-     * when [done] returns true; compose inside a `race { }` for a timeout.
-     * See [chaseTarget] for details.
-     */
-    fun chase(
-        target: () -> Pose2d?,
-        done: (currentTarget: Pose2d?) -> Boolean = { false },
-        reissueEpsilonInches: Double = 0.5,
-        reissueHeadingEpsilonRadians: Double = Math.toRadians(5.0),
-        onEnd: (EndCondition) -> Unit = { drive.breakPath() },
-    ): PedroAutoRunner =
-        append(
-            "chase",
-            chaseTarget(
-                drive,
-                target,
-                done,
-                reissueEpsilonInches,
-                reissueHeadingEpsilonRadians,
-                onEnd,
-            ),
-        )
 
     /** Inject an arbitrary one-shot action (e.g. "drop pre-load"). */
     fun run(action: Runnable): PedroAutoRunner =

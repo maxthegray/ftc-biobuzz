@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.core.runtime
 
 import com.bylazar.telemetry.JoinedTelemetry
 import com.bylazar.telemetry.PanelsTelemetry
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode
 import com.qualcomm.robotcore.hardware.VoltageSensor
 import com.qualcomm.robotcore.util.RobotLog
@@ -278,12 +279,17 @@ abstract class OpModeBase : LinearOpMode() {
                 if (health != null) put(subsystem.name, health)
             }
             if (includeInitOnly) {
-                put("Pinpoint status", pinpointStatusThrottled())
+                if (requiresRawPinpoint()) put("Pinpoint status", pinpointStatusThrottled())
                 if (!cachedVoltage.isNaN() && cachedVoltage < LOW_BATTERY_WARN_VOLTS) {
                     put("battery WARNING", "LOW — swap before the match")
                 }
             }
         }
+    }
+
+    private fun requiresRawPinpoint(): Boolean = requiredDevices.any {
+        it.name == RobotConfig.Localization.PINPOINT &&
+            GoBildaPinpointDriver::class.java.isAssignableFrom(it.type)
     }
 
     private var cachedPinpointStatus = ""

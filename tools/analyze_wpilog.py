@@ -19,6 +19,7 @@ faults, and the event timeline.
 
 import glob
 import os
+import re
 import statistics
 import struct
 import sys
@@ -168,14 +169,20 @@ def build_report(records, channel_types, path, truncated=False):
     totals = sorted(v for _, v in records.get("loop/totalNanos", []) if v > 0)
     if totals:
         p50, p90, p99 = (percentile(totals, f) for f in (0.50, 0.90, 0.99))
+        window_total_maxima = [v for _, v in records.get("loop/windowMaxTotalNanos", [])]
         phases = []
         for label, key in PHASES:
             series = [v for _, v in records.get(key, [])]
             if series:
-                phases.append({"label": label, "maxNs": max(series),
+                window_maxima = [
+                    v for _, v in records.get(f"loop/windowMax/{label}Nanos", [])
+                ]
+                phases.append({"label": label,
+                               "maxNs": max(window_maxima) if window_maxima else max(series),
                                "meanNs": statistics.mean(series)})
         report["loop"] = {"p50Ns": p50, "p90Ns": p90, "p99Ns": p99,
-                          "maxNs": totals[-1], "phases": phases}
+                          "maxNs": max(window_total_maxima) if window_total_maxima else totals[-1],
+                          "phases": phases}
 
     # --- battery -----------------------------------------------------------
     battery = [v for _, v in records.get("battery", [])]
@@ -372,12 +379,29 @@ def dump_channels(records, names):
     return out
 
 
+_RUN_TIMESTAMP_RE = re.compile(r"-(\d{8})-(\d{6})-(\d{3})-.*[.]wpilog$")
+
+
+def run_timestamp_from_filename(path):
+    match = _RUN_TIMESTAMP_RE.search(os.path.basename(path))
+    if match is None:
+        return None
+    return "".join(match.groups())
+
+
 def resolve_paths(paths):
     if paths:
         return paths
     candidates = glob.glob("robot-logs/**/*.wpilog", recursive=True)
     if not candidates:
         return []
+    timestamped = [
+        (timestamp, os.path.getmtime(path), path)
+        for path in candidates
+        if (timestamp := run_timestamp_from_filename(path)) is not None
+    ]
+    if timestamped:
+        return [max(timestamped)[2]]
     return [max(candidates, key=os.path.getmtime)]
 
 

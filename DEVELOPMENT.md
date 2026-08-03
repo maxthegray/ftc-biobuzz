@@ -193,18 +193,21 @@ fat-fingered Panels edit could hurt (see `DriveConfig` for the pattern).
   }
   ```
 
-- **Selector**: `AutonSelector` on dpad in `onInitLoop`. With multiple
-  routines, A freezes the choice; starting unlocked still runs the prominently
-  displayed live selection. A single routine needs no confirmation. The last
-  locked selection restores as the editable default after a re-init.
+- **Alliance and routine**: one `@Autonomous` op-mode each — no init-loop
+  menu. The Driver Station dropdown already shows the selection in large text
+  with nothing to confirm, which beats a telemetry line plus a lock button
+  under match pressure. A BLUE variant copies the RED op-mode and overrides
+  `initialAlliance`; everything else mirrors automatically.
+- **Start delay**: `StartDelay(telemetryBag)` on dpad left/right in
+  `onInitLoop`, 0–10 s. The one choice that can't be a separate op-mode —
+  it's decided in the alliance meeting to dodge a partner's auto.
 - **Start gate**: before setting the starting pose or scheduling, abort loudly
   if `localizer.fault` is already latched. Also check
   `PedroAutoRunner.schedule()`; false means the routine never started.
 - **Relocalization**: feed vision through
   `localizer.applyCorrection(measured, timestampNanos, …)` — gated,
-  blended, axis-weighted, scaled down automatically mid-path. Wall contact:
-  `WallSnap.pose(...)` with `blend = 1.0`. Use the camera frame-acquisition
-  timestamp, not the time processing finished.
+  blended, axis-weighted, scaled down automatically mid-path. Use the camera
+  frame-acquisition timestamp, not the time processing finished.
 
 ## Sim before carpet
 
@@ -241,7 +244,13 @@ Integration rules:
   constructing the follower. `FollowerBuilder` calls `resetIMU()` during
   construction.
 - Pinpoint behind the SRSHub loses the raw device-status watchdog unless its
-  status is explicitly routed into `LocalizerSubsystem`.
+  status is explicitly routed into `LocalizerSubsystem`. `PinpointSource` does
+  not currently carry a status field, so this is interface work, not wiring.
+- Pedro's tuning op-modes (`pedroPathing/Tuning.java`) call
+  `Constants.createFollower(hardwareMap)` — the direct-Pinpoint overload,
+  hardcoded. Pinpoint behind the SRSHub therefore means either forking vendor
+  tuning code or calibrating `xVelocity`/`yVelocity`/zero-power accel against a
+  different localizer than the one you race with.
 - If threading is ever justified, publish one immutable snapshot, route
   write-side commands through the bus owner, poll near the main-loop rate, and
   feed snapshot age into the localizer watchdog. Never share the SRSHub's
