@@ -443,8 +443,8 @@ all other I²C goes on one SRSHub read **inline** in `periodic()`. Do not
 background the SRSHub by default: it shares the Control Hub's Lynx serial link
 with motor writes, the same trap that was tried and reverted for Pinpoint
 (postmortem in `pedroPathing/Constants.java`). The development guide contains
-the hazards, integration gotchas, and measure-first sequence allowed to
-overturn this.
+the hazards, integration rules, and measurement sequence for any SRSHub
+threading decision.
 
 ## When the user asks you to add a path or auton routine
 

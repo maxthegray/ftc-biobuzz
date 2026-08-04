@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode.core.hardware
 import com.qualcomm.robotcore.hardware.HardwareMap
 import org.firstinspires.ftc.teamcode.core.runtime.HardwareConfigError
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
-import org.firstinspires.ftc.teamcode.core.subsystems.localization.PinpointSource
 
 /**
  * Subsystem that owns an SRSHub and bulk-reads every sensor attached to it
@@ -17,33 +16,16 @@ import org.firstinspires.ftc.teamcode.core.subsystems.localization.PinpointSourc
  * val liftEncoder   = srsHub.encoder(port = 1, type = SRSHub.Encoder.QUADRATURE)
  * val limitSwitch   = srsHub.digital(pin = 1)
  * val potentiometer = srsHub.analog(pin = 2)
- * val pinpoint      = srsHub.pinpoint(
- *     bus = 1,
- *     xPodOffsetMm = 84f, yPodOffsetMm = -168f,
- *     ticksPerMm = 13.26291192f,
- *     xDir = SRSHub.GoBildaPinpoint.EncoderDirection.FORWARD,
- *     yDir = SRSHub.GoBildaPinpoint.EncoderDirection.REVERSED,
- * )
  * ```
  *
  * Handles are stored by the caller; reads after [periodic] return whatever
  * the most recent `hub.update()` decoded. The hub itself is configured once
  * during [init] from the registrations made before init.
- *
- * Write-side commands issued before the hub is ready are queued and flushed
- * from [periodic] once it is — Pedro's `PoseTracker` calls the localizer's
- * `resetIMU()` while the follower is being *constructed* (in `configure()`,
- * before any subsystem's init), so a [PinpointHandle] must tolerate that.
- *
- * An op-mode that localizes through an SRSHub Pinpoint has no direct-I2C
- * Pinpoint in its configuration — override `requiredDevices` so
- * `Preflight.standard`'s raw-Pinpoint requirement doesn't fail init.
  */
 class SRSHubSubsystem(name: String = "srsHub") : SubsystemBase(name) {
 
     private lateinit var hub: SRSHub
     private val config = SRSHub.Config()
-    private val pendingCommands = mutableListOf<SRSHub.Command>()
 
     private val analogPins = mutableListOf<Int>()
     private val digitalPins = mutableListOf<Int>()
@@ -94,32 +76,6 @@ class SRSHubSubsystem(name: String = "srsHub") : SubsystemBase(name) {
         return TofGridHandle(dev)
     }
 
-    fun pinpoint(
-        bus: Int,
-        xPodOffsetMm: Float,
-        yPodOffsetMm: Float,
-        ticksPerMm: Float,
-        xDir: SRSHub.GoBildaPinpoint.EncoderDirection,
-        yDir: SRSHub.GoBildaPinpoint.EncoderDirection,
-    ): PinpointHandle {
-        val dev = SRSHub.GoBildaPinpoint(xPodOffsetMm, yPodOffsetMm, ticksPerMm, xDir, yDir)
-        register(bus, dev)
-        return PinpointHandle(bus, dev, ::send)
-    }
-
-    /**
-     * Forward a write-side command (e.g. Pinpoint reset). Queued until the
-     * hub reports ready; queued commands flush in [periodic], in order,
-     * ahead of any command sent while ready.
-     */
-    fun send(command: SRSHub.Command) {
-        if (isReady && pendingCommands.isEmpty()) {
-            hub.runCommand(command)
-        } else {
-            pendingCommands += command
-        }
-    }
-
     override fun init(hardwareMap: HardwareMap) {
         hub = try {
             hardwareMap.get(SRSHub::class.java, name)
@@ -134,10 +90,6 @@ class SRSHubSubsystem(name: String = "srsHub") : SubsystemBase(name) {
 
     override fun periodic() {
         if (::hub.isInitialized && hub.ready()) {
-            if (pendingCommands.isNotEmpty()) {
-                pendingCommands.forEach(hub::runCommand)
-                pendingCommands.clear()
-            }
             hub.update()
         }
     }
@@ -198,22 +150,4 @@ class SRSHubSubsystem(name: String = "srsHub") : SubsystemBase(name) {
         val disconnected: Boolean get() = dev.disconnected
     }
 
-    class PinpointHandle internal constructor(
-        val bus: Int,
-        private val dev: SRSHub.GoBildaPinpoint,
-        private val send: (SRSHub.Command) -> Unit,
-    ) : PinpointSource {
-        override val xMm: Float get() = dev.xPosition
-        override val yMm: Float get() = dev.yPosition
-        override val headingRad: Float get() = dev.hOrientation
-        override val xVelMmPerSec: Float get() = dev.xVelocity
-        override val yVelMmPerSec: Float get() = dev.yVelocity
-        override val headingVelRadPerSec: Float get() = dev.hVelocity
-        val deviceStatus: Short get() = dev.deviceStatus
-        val disconnected: Boolean get() = dev.disconnected
-
-        override fun resetImu() = send(SRSHub.GoBildaPinpoint.ResetIMUCommand(bus))
-        override fun setPose(xMm: Float, yMm: Float, headingRad: Float) =
-            send(SRSHub.GoBildaPinpoint.SetPositionCommand(bus, xMm, yMm, headingRad))
-    }
 }

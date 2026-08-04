@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode.opmodes
 
-import com.pedropathing.follower.Follower
 import org.firstinspires.ftc.teamcode.core.command.Commands
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
@@ -35,9 +34,6 @@ abstract class TeleOpBase : OpModeBase() {
     protected lateinit var localizer: LocalizerSubsystem
         private set
 
-    /** Override to localise off something else (e.g. an SRSHub Pinpoint). */
-    protected open fun createFollower(): Follower = Constants.createFollower(hardwareMap)
-
     /** Override to false for teleops that must not inherit auton's field pose. */
     protected open val restorePoseFromAuton: Boolean get() = true
 
@@ -49,7 +45,7 @@ abstract class TeleOpBase : OpModeBase() {
     override val containCommandFaults: Boolean get() = true
 
     final override fun configure() {
-        val follower = createFollower()
+        val follower = Constants.createFollower(hardwareMap)
         // Drive first, localizer second: the localizer samples pose history
         // right after the drive's writeHardware() runs Follower.update().
         drive = robot.register(MecanumDriveSubsystem(follower))

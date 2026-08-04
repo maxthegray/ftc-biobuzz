@@ -80,9 +80,9 @@ class LocalizerSubsystem(
     private var hasLastPose = false
 
     override fun init(hardwareMap: HardwareMap) {
-        // The follower owns the localizer; the raw Pinpoint (when present —
-        // not with the SRSHub variant or in host tests) is only for the
-        // watchdog's device-status check.
+        // The follower owns the localizer; the raw Pinpoint is resolved
+        // separately for the watchdog's device-status check. It may be absent
+        // in host tests.
         rawPinpoint = try {
             DeviceReaders.maybe(
                 hardwareMap,
