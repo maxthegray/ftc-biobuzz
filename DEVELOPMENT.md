@@ -240,21 +240,12 @@ Integration rules:
 
 - Register the drive before the localizer so pose history is sampled after
   `Follower.update()`.
-- If an SRSHub ever feeds a custom localizer, initialize the hub before
-  constructing the follower. `FollowerBuilder` calls `resetIMU()` during
-  construction.
-- Pinpoint behind the SRSHub loses the raw device-status watchdog unless its
-  status is explicitly routed into `LocalizerSubsystem`. `PinpointSource` does
-  not currently carry a status field, so this is interface work, not wiring.
-- Pedro's tuning op-modes (`pedroPathing/Tuning.java`) call
-  `Constants.createFollower(hardwareMap)` — the direct-Pinpoint overload,
-  hardcoded. Pinpoint behind the SRSHub therefore means either forking vendor
-  tuning code or calibrating `xVelocity`/`yVelocity`/zero-power accel against a
-  different localizer than the one you race with.
-- If threading is ever justified, publish one immutable snapshot, route
-  write-side commands through the bus owner, poll near the main-loop rate, and
-  feed snapshot age into the localizer watchdog. Never share the SRSHub's
-  in-place decoded objects across threads.
+- Pinpoint through the SRSHub is not supported. The direct connection preserves
+  the raw device-status watchdog and keeps Pedro's tuning op-modes identical to
+  the competition localizer.
+- If threading auxiliary sensors is ever justified, publish one immutable
+  snapshot and poll near the main-loop rate. Never share the SRSHub's in-place
+  decoded objects across threads.
 
 Measure in this order before changing the policy:
 
@@ -262,9 +253,7 @@ Measure in this order before changing the policy:
    loop time against voltage.
 2. Add the SRSHub with auxiliary sensors only, still inline. Log
    `hub.update()` duration and CRC mismatches.
-3. Only if direct Pinpoint showed sag-correlated latency, test Pinpoint behind
-   the SRSHub while still reading inline.
-4. Only if the inline SRSHub read itself stretches the loop, evaluate
+3. Only if the inline SRSHub read itself stretches the loop, evaluate
    `I2CBusThread` and verify that motor-write timing does not regress.
 
 Typical auxiliary-sensor setup:

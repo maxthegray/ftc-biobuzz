@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode.pedroPathing;
 
 import com.pedropathing.follower.Follower;
 import com.pedropathing.follower.FollowerConstants;
-import com.pedropathing.localization.Localizer;
 import com.pedropathing.ftc.FollowerBuilder;
 import com.pedropathing.ftc.drivetrains.MecanumConstants;
 import com.pedropathing.ftc.localization.constants.PinpointConstants;
@@ -93,18 +92,4 @@ public final class Constants {
                 .build();
     }
 
-    /**
-     * Same follower, but with a caller-supplied localizer instead of the
-     * direct-I2C Pinpoint — e.g. {@code SRSHubPinpointLocalizer} when the
-     * Pinpoint hangs off an SRSHub. Note the Follower's constructor calls
-     * {@code localizer.resetIMU()} immediately, so the localizer must
-     * tolerate being poked before the op-mode initialises its hardware.
-     */
-    public static Follower createFollower(HardwareMap hardwareMap, Localizer localizer) {
-        return new FollowerBuilder(followerConstants, hardwareMap)
-                .setLocalizer(localizer)
-                .pathConstraints(pathConstraints)
-                .mecanumDrivetrain(driveConstants)
-                .build();
-    }
 }
