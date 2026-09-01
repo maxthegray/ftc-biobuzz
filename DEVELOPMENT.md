@@ -1,8 +1,8 @@
 # Development Guide
 
-How this team adds subsystems, commands, configuration, autonomous routines,
-and sensors. It states the framework contracts and copyable patterns without
-duplicating the full AI reference in `AI-GUIDE.md`.
+How I add subsystems, commands, configuration, autonomous routines, and
+sensors — the framework contracts and the patterns worth copying, without
+repeating all of `AI-GUIDE.md`.
 
 ## A season subsystem, end to end
 
