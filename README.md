@@ -1,19 +1,18 @@
 # ftc-biobuzz
 
-My robot code for BioBuzz's FTC season — a mecanum robot with goBILDA Pinpoint
+Robot code for BioBuzz's FTC season — a mecanum robot with goBILDA Pinpoint
 localization, Pedro Pathing, Panels telemetry, WPILOG flight recording, and
 Sloth hot reload.
 
-It's built on [`ftc-starter`](https://github.com/maxthegray/ftc-starter), the
-season-agnostic base I maintain and re-fork every year. That repo stays clean;
+Built on [`ftc-starter`](https://github.com/maxthegray/ftc-starter), a
+season-agnostic base that gets re-forked every year. That repo stays clean;
 this one is where the actual season happens.
 
-Mostly I keep this tidy for my own sake, but if you wandered in from a search:
-the reusable half is `core/`. There's a command scheduler with a real
-requirements system, a trapezoidal-profile + PIDF mechanism toolkit, WPILOG
-logging you can open in AdvantageScope, and a Pedro Pathing wrapper that keeps
-Pedro's API behind an adapter layer. Most of it runs headless in JUnit, so you
-can poke at it without a robot on the desk.
+If you wandered in from a search: the reusable half is `core/`. There's a
+command scheduler with a real requirements system, a trapezoidal-profile +
+PIDF mechanism toolkit, WPILOG logging you can open in AdvantageScope, and a
+Pedro Pathing wrapper that keeps Pedro's API behind an adapter layer. Most of
+it runs headless in JUnit, so you can poke at it without a robot on the desk.
 
 ## Start here
 
