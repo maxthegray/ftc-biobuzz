@@ -1,6 +1,6 @@
 # Development Guide
 
-How I add subsystems, commands, configuration, autonomous routines, and
+How to add subsystems, commands, configuration, autonomous routines, and
 sensors — the framework contracts and the patterns worth copying, without
 repeating all of `AI-GUIDE.md`.
 
