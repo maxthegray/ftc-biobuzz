@@ -133,5 +133,9 @@ testing.
 
 Do not invent game-specific behavior (full intake/shooter/lift logic, PID
 constants, state machines) beyond the skeleton and the specific methods the
-user requested. This is a season-agnostic starter template — the user writes
-the real logic when the season starts.
+user requested. Season subsystems belong in this repo, but scaffold the one
+that was asked for — the user writes the real logic and tunes the gains.
+
+Scaffold season subsystems under `teamcode/subsystems/`, never under
+`core/subsystems/`. `core/` is the season-agnostic framework that gets
+cherry-picked back to `ftc-starter`; game logic there breaks that.

@@ -31,7 +31,7 @@ import org.firstinspires.ftc.teamcode.core.util.GamepadEx
  * record the pair, repeat. The slope of power against steady-state
  * velocity is kV; the intercept is kS (+ kG on a vertical mechanism).
  */
-@TeleOp(name = "Starter: Panels Motor Spin", group = "Starter Diagnostics")
+@TeleOp(name = "BioBuzz: Panels Motor Spin", group = "BioBuzz Diagnostics")
 class PanelsMotorSpinTeleOp : OpModeBase() {
 
     private lateinit var spin: MotorSpinSubsystem
