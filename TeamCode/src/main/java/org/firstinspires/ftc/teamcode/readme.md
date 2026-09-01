@@ -1,6 +1,6 @@
 # TeamCode Module
 
-TeamCode is where the robot-specific code lives. In this starter, most code is
+TeamCode is where the robot-specific code lives. In this repo, most code is
 under `src/main/kotlin/org/firstinspires/ftc/teamcode`; the Java package is
 kept for FTC/Pedro compatibility files such as `pedroPathing/Constants.java`.
 
@@ -13,5 +13,5 @@ Start at the repo root:
   Pedro tuning, logging, and diagnosis.
 
 FTC SDK sample op-modes are still available under the `FtcRobotController`
-module, but new season code should usually copy from this starter's op-modes
+module, but new season code should usually copy from this repo's op-modes
 instead of starting from the SDK samples.

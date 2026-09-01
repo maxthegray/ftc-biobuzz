@@ -102,7 +102,7 @@ object ConfigStore {
             val tmp = File(target.path + ".tmp")
             tmp.writeText(
                 buildString {
-                    appendLine("# ftc-starter live-tuning values. Written by ConfigStore;")
+                    appendLine("# ftc-biobuzz live-tuning values. Written by ConfigStore;")
                     appendLine("# loaded into config objects at every op-mode init.")
                     appendLine("# Delete this file to fall back to compiled defaults.")
                     appendLine("$SCHEMA_KEY=$schemaId")

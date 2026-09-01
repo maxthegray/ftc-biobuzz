@@ -9,7 +9,7 @@ import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.runtime.Preflight
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 
-@TeleOp(name = "Starter: SRS Loop Benchmark", group = "Starter Diagnostics")
+@TeleOp(name = "BioBuzz: SRS Loop Benchmark", group = "BioBuzz Diagnostics")
 class SrsLoopBenchmarkTeleOp : OpModeBase() {
 
     private lateinit var hub: SRSHubSubsystem

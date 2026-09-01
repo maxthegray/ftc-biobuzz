@@ -32,7 +32,7 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants
  *
  * Copy this file as the skeleton for a real routine.
  */
-@Autonomous(name = "Starter: Example Auto", group = "Starter")
+@Autonomous(name = "BioBuzz: Example Auto", group = "BioBuzz")
 class ExampleAuto : OpModeBase() {
 
     // RED-coordinate poses. BLUE gets these mirrored automatically.

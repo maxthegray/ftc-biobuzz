@@ -11,10 +11,25 @@ Human documentation has three entry points:
 
 ## What this repo is
 
-A Kotlin FTC starter template built on top of an unmodified clone of
-`FIRST-Tech-Challenge/FtcRobotController` 11.1.0. The user forks it every
-season. Season-specific code does **not** live here — keep this repo
-clean so the next fork inherits a stable base.
+BioBuzz's robot code for the current FTC season, forked from
+`maxthegray/ftc-starter` — itself built on an unmodified clone of
+`FIRST-Tech-Challenge/FtcRobotController` 11.1.0.
+
+Season code **does** belong here; that is what this repo is for. The
+boundary that matters is a directory one:
+
+- `core/` is season- and chassis-agnostic framework. Fixes made here get
+  cherry-picked back to `ftc-starter`, so keep it free of game logic,
+  season constants, and this year's mechanism names.
+- Everything else — `opmodes/`, season subsystems, `RobotConfig`,
+  `pedroPathing/Constants.java` — is this season's and never flows upstream.
+
+The code currently runs on a **sensorbot**: a temporary chassis to develop
+against while the competition robot is built. The competition robot replaces
+it in place — re-measure `pedroPathing/Constants.java`, update `RobotConfig`,
+bump `RobotConfig.CONFIG_SCHEMA`. There is no sensorbot branch and no robot
+profile switch: the swap is one commit on `main`, with the last sensorbot
+commit tagged `sensorbot-final`.
 
 Stack (exact versions; these are load-bearing):
 
@@ -383,8 +398,10 @@ ConfigStore.register("lift", LiftConfig)
 
 Only public `@JvmField` mutable primitive/String fields are persisted,
 keyed `<section>.<field>`. Delete the file to fall back to compiled
-defaults. Change `RobotConfig.CONFIG_SCHEMA` in every season fork; files from
-a different schema are ignored. Tunables on `@Configurable` *op-modes* (the Pedro `Tuning`
+defaults. Bump `RobotConfig.CONFIG_SCHEMA` whenever the tuned values stop
+applying — a new season fork, and the sensorbot → competition-robot swap,
+since the Control Hub usually moves between chassis and carries its tuning
+file with it. Files recorded under a different schema are ignored. Tunables on `@Configurable` *op-modes* (the Pedro `Tuning`
 op-mode, `LocalizationTestTeleOp`) are deliberately not persisted — move
 anything that must persist into a registered config object.
 
@@ -494,8 +511,11 @@ progress.
   from that exact package path.
 - Don't add Kalman filters, PID overhauls, or "cleaner architecture"
   refactors.
-- Don't generate example game-specific code (intake, shooter, lift). The
-  user will write those when the season starts.
+- Don't invent game-specific mechanisms nobody asked for. Season subsystems
+  belong in this repo now, but build the one requested — not a speculative
+  intake/shooter/lift set alongside it.
+- Don't put season code in `core/`. That directory is what gets cherry-picked
+  back to `ftc-starter`; game logic in it makes the merge manual forever.
 
 ## Workflow
 

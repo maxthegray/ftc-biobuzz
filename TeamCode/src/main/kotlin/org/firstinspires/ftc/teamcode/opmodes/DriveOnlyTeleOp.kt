@@ -6,7 +6,7 @@ import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
 /**
  *  Just driving teleop, copy and paste where needed
  */
-@TeleOp(name = "Starter: Drive Only", group = "Starter")
+@TeleOp(name = "BioBuzz: Drive Only", group = "BioBuzz")
 class DriveOnlyTeleOp : TeleOpBase() {
 
     override fun onLoop() {

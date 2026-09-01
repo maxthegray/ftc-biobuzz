@@ -15,7 +15,7 @@ import java.util.Locale
  * On-blocks drivetrain mapping check. Dpad left/right selects one motor;
  * the triggers spin only that motor at up to 20% power.
  */
-@TeleOp(name = "Starter: Motor Direction Test", group = "Starter")
+@TeleOp(name = "BioBuzz: Motor Direction Test", group = "BioBuzz")
 class MotorDirectionTestTeleOp : OpModeBase() {
 
     private lateinit var motorTest: DriveMotorTestSubsystem

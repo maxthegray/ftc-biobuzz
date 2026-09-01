@@ -357,7 +357,7 @@ class FlightRecorder private constructor(
             val stamp = SimpleDateFormat("yyyyMMdd-HHmmss-SSS", Locale.US).format(Date())
             val file = File.createTempFile("$opModeClassName-$stamp-", ".wpilog", directory)
             FlightRecorder(
-                WpiLogWriter(BufferedOutputStream(FileOutputStream(file)), "ftc-starter"),
+                WpiLogWriter(BufferedOutputStream(FileOutputStream(file)), "ftc-biobuzz"),
                 gamepad1,
                 gamepad2,
                 batteryVoltage,

@@ -18,7 +18,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
  * One source of truth for Pedro Pathing's physical + mechanical constants.
  *
  * Pedro reads this package via the exact name {@code pedroPathing.Constants} — it
- * must stay at this path. The numeric calibration values shipped in the starter
+ * must stay at this path. The numeric calibration values shipped here
  * are placeholders; measure the physical chassis with Pedro's tuning op-modes
  * and replace them before running autonomous paths.
  *
@@ -74,7 +74,7 @@ public final class Constants {
     /**
      * Build a fully-configured {@link Follower} with mecanum drive + Pinpoint
      * localisation. Call this exactly once per op-mode (typically from the
-     * {@code configure()} hook on the starter's {@code OpModeBase}).
+     * {@code configure()} hook on the framework's {@code OpModeBase}).
      *
      * <p>The Pinpoint is read synchronously inside {@code Follower.update()}.
      * Moving that I2C read to a background thread was tried and reverted: the

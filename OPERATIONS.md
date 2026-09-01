@@ -13,12 +13,12 @@ backwards. So do them in order, **robot on blocks until step 4.** (Diagnostics
 are below; mechanism gains are covered in `DEVELOPMENT.md`.)
 
 The numeric Pedro values in `pedroPathing/Constants.java` are placeholders,
-not a calibration for the new chassis. Do not run `Starter: Example Auto`
+not a calibration for the new chassis. Do not run `BioBuzz: Example Auto`
 until the localization, dynamics, and control checks below are complete.
 
 ## 0. Chassis-free framework smoke test
 
-Run **Starter: Framework Smoke Test** before hardware configuration. It needs
+Run **BioBuzz: Framework Smoke Test** before hardware configuration. It needs
 no configured devices and verifies the Control Hub runtime, lifecycle ordering,
 gamepad input, command scheduling/preemption/containment, telemetry, Panels,
 ConfigStore visibility, loop profiling, and WPILOG output. During init,
@@ -36,7 +36,7 @@ show up as step 2 failing instead.
 
 ## 2. Per-motor direction (on blocks)
 
-Run **Starter: Motor Direction Test**. Dpad left/right selects a configured
+Run **BioBuzz: Motor Direction Test**. Dpad left/right selects a configured
 motor; the right and left triggers command that motor forward and reverse at no
 more than 20% power. Verify the displayed name matches the wheel that moves and
 that positive power turns each wheel in the robot-forward direction. Fix
@@ -45,7 +45,7 @@ re-wiring.
 
 ## 3. Pinpoint axes and heading sign (on blocks, then by hand)
 
-- Init any starter op-mode; confirm **Pinpoint status** reads `READY` in the
+- Init any BioBuzz op-mode; confirm **Pinpoint status** reads `READY` in the
   Health section first.
 - Push the robot by hand, watch the Panels field view: +x forward, +y left.
   Rotate CCW by hand: heading must increase. Fix signs via the encoder
@@ -54,7 +54,7 @@ re-wiring.
 
 ## 4. Teleop signs and field-centric (on carpet, slow)
 
-In `Starter: Drive Only` at low stick input, check forward/back, strafe
+In `BioBuzz: Drive Only` at low stick input, check forward/back, strafe
 left/right, and turn sign — these are framework defaults
 (`MecanumDriveSubsystem.applyTeleopDrive`), not yet verified on your chassis.
 Toggle field-centric (Back+B), rotate the robot, confirm translation stays
@@ -81,7 +81,7 @@ temporary.
 
 ## 6. First framework path (capped power)
 
-Run **Starter: Localization Test** from a clear origin. Y follows 24" forward
+Run **BioBuzz: Localization Test** from a clear origin. Y follows 24" forward
 and A returns to the origin; both paths are capped at 30% power by default.
 Press the active target button again or move a stick to cancel. Watch the field
 view, then drive a slow lap and compare the final pose against the field.
