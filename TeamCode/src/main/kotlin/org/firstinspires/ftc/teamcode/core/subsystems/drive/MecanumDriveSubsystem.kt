@@ -58,6 +58,16 @@ class MecanumDriveSubsystem(
         val strafe: Double,
         val turn: Double,
         val precision: Boolean = false,
+        /**
+         * When non-null, replaces the curved-and-scaled stick [turn] with a
+         * direct motor power, CCW-positive (Pedro's convention, unlike [turn]
+         * which is stick-convention +right/CW).
+         *
+         * For heading assists whose controller output is already a power: the
+         * stick input curve squashes small values towards zero, which is
+         * exactly where a settling controller lives.
+         */
+        val turnPower: Double? = null,
     )
 
     var mode: Mode = Mode.IDLE
@@ -102,26 +112,58 @@ class MecanumDriveSubsystem(
      * Default teleop command. It starts Pedro's teleop drive mode whenever the
      * drive requirement becomes free, then applies [DriveConfig] scaling and
      * field-centric selection every tick.
+     *
+     * [name] and [priority] exist so a driver assist can reuse this exact path
+     * — same input curve, power scale, precision handling, field-centric
+     * selection — while overriding one channel via [TeleopInput.turnPower] and
+     * outranking the default command. [onStart] / [onEnd] hang assist-side
+     * bookkeeping off the command's lifecycle.
      */
-    fun teleopCommand(input: () -> TeleopInput): Command = Command.build()
-        .setName("teleop drive")
+    fun teleopCommand(
+        name: String = "teleop drive",
+        priority: Int = CommandPriorities.DEFAULT,
+        onStart: () -> Unit = {},
+        onEnd: (EndCondition) -> Unit = {},
+        input: () -> TeleopInput,
+    ): Command = Command.build()
+        .setName(name)
         .requiring(this)
-        .setPriority(CommandPriorities.DEFAULT)
-        .setStart { enableTeleop() }
+        .setPriority(priority)
+        // onStart composes with the teleop enable rather than replacing it:
+        // an assist built on this command must still put the follower into
+        // manual-drive mode when it preempts a path.
+        .setStart {
+            enableTeleop()
+            onStart()
+        }
         .setExecute {
             val i = input()
-            applyTeleopDrive(i.forward, i.strafe, i.turn, i.precision)
+            applyTeleopDrive(i.forward, i.strafe, i.turn, i.precision, i.turnPower)
         }
         .setDone { false }
+        .setEnd(onEnd)
 
-    private fun applyTeleopDrive(forward: Double, strafe: Double, turn: Double, precision: Boolean) {
+    private fun applyTeleopDrive(
+        forward: Double,
+        strafe: Double,
+        turn: Double,
+        precision: Boolean,
+        turnPower: Double? = null,
+    ) {
         val scale = DriveConfig.safeTeleopPowerScale *
             (if (precision) DriveConfig.safePrecisionPowerScale else 1.0)
         val exp = DriveConfig.safeInputExponent
         val fwd = forward.curve(exp) * scale
         // FTC sticks use +x right/CW turn; Pedro uses +lateral left/CCW-positive heading.
         val strafeScaled = -strafe.curve(exp) * scale
-        val turnScaled = -turn.curve(exp) * scale
+        // turnPower is already a CCW-positive power, so it skips both the curve
+        // and the stick-convention negation. A dead controller must not NaN the
+        // motor powers any more than a dead localizer may.
+        val turnScaled = if (turnPower != null) {
+            if (turnPower.isFinite()) turnPower.coerceIn(-1.0, 1.0) else 0.0
+        } else {
+            -turn.curve(exp) * scale
+        }
         // A non-finite heading (dead localizer) would NaN the field-centric
         // projection and with it the motor powers — fall back to robot-centric
         // so the driver keeps whatever control is still possible.

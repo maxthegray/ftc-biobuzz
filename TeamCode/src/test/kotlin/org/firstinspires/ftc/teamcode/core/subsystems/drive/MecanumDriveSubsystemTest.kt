@@ -112,6 +112,77 @@ class MecanumDriveSubsystemTest {
     }
 
     @Test
+    fun turnPowerBypassesTheStickCurveAndTheStickNegation() {
+        val follower = fakeFollower()
+        val drive = MecanumDriveSubsystem(follower)
+        // A small assist output is exactly what the squared stick curve would
+        // destroy (0.1^2 = 0.01), and it is already CCW-positive, so it must
+        // reach the follower untouched by the sign flip stick turn gets.
+        val teleop = drive.teleopCommand {
+            MecanumDriveSubsystem.TeleopInput(0.0, 0.0, turn = 0.0, turnPower = 0.1)
+        }
+
+        teleop.start()
+        teleop.execute()
+
+        assertEquals(0.1, follower.lastTeleOpDrive!![2], 1e-9)
+    }
+
+    @Test
+    fun turnPowerTakesPrecedenceOverStickTurn() {
+        val follower = fakeFollower()
+        val drive = MecanumDriveSubsystem(follower)
+        val teleop = drive.teleopCommand {
+            MecanumDriveSubsystem.TeleopInput(0.0, 0.0, turn = 1.0, turnPower = -0.2)
+        }
+
+        teleop.start()
+        teleop.execute()
+
+        assertEquals(-0.2, follower.lastTeleOpDrive!![2], 1e-9)
+    }
+
+    @Test
+    fun nonFiniteTurnPowerCommandsZeroInsteadOfNaNingTheMotors() {
+        val follower = fakeFollower()
+        val drive = MecanumDriveSubsystem(follower)
+        val teleop = drive.teleopCommand {
+            MecanumDriveSubsystem.TeleopInput(0.0, 0.0, 0.0, turnPower = Double.NaN)
+        }
+
+        teleop.start()
+        teleop.execute()
+
+        assertEquals(0.0, follower.lastTeleOpDrive!![2], 1e-9)
+    }
+
+    @Test
+    fun teleopCommandStartHooksComposeWithTheTeleopEnable() {
+        val follower = fakeFollower()
+        val drive = MecanumDriveSubsystem(follower)
+        var starts = 0
+        var endCondition: EndCondition? = null
+        val teleop = drive.teleopCommand(
+            name = "assist",
+            priority = CommandPriorities.AUTON_ROUTINE,
+            onStart = { starts++ },
+            onEnd = { endCondition = it },
+        ) { MecanumDriveSubsystem.TeleopInput(0.0, 0.0, 0.0) }
+
+        teleop.start()
+        drive.writeHardware()
+        teleop.end(EndCondition.INTERRUPTED)
+
+        assertEquals(1, starts)
+        // The hook must not have replaced enableTeleop(), or an assist
+        // preempting a path would never enter manual drive mode.
+        assertEquals(1, follower.startTeleopDriveCalls)
+        assertEquals(CommandPriorities.AUTON_ROUTINE, teleop.priority())
+        assertEquals("assist", teleop.toString())
+        assertEquals(EndCondition.INTERRUPTED, endCondition)
+    }
+
+    @Test
     fun holdCommandWaitsForAFollowerUpdateBeforeTrustingErrors() {
         val follower = fakeFollower()
         val drive = MecanumDriveSubsystem(follower)
