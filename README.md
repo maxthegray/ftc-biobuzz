@@ -29,7 +29,7 @@ On the robot:
 1. Name things `frontLeftMotor`, `frontRightMotor`, `backLeftMotor`,
    `backRightMotor`, and `pinpoint` in the Driver Station config.
 2. Do a full APK install the first time.
-3. Run `BioBuzz: Framework Smoke Test`. It needs no configured hardware and
+3. Run `Framework Smoke Test`. It needs no configured hardware and
    checks the Control Hub, lifecycle, gamepad, scheduler, telemetry, and
    WPILOG pipeline in one go.
 4. Then work through [OPERATIONS.md](OPERATIONS.md) from the motor-direction

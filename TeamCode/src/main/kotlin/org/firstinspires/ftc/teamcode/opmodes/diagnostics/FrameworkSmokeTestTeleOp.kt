@@ -14,7 +14,7 @@ import org.firstinspires.ftc.teamcode.core.util.Clock
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx.Button
 
 /** Chassis-free end-to-end check of the framework and Control Hub runtime. */
-@TeleOp(name = "BioBuzz: Framework Smoke Test", group = "BioBuzz Diagnostics")
+@TeleOp(name = "Framework Smoke Test", group = "Diagnostics")
 class FrameworkSmokeTestTeleOp : OpModeBase() {
 
     private lateinit var smoke: FrameworkSmokeSubsystem
