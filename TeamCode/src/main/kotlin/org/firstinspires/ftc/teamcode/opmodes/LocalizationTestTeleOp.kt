@@ -29,7 +29,7 @@ import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
  *
  * All destination coordinates are live-editable in Panels (see companion object).
  */
-@TeleOp(name = "BioBuzz: Localization Test", group = "BioBuzz")
+@TeleOp(name = "Localization Test", group = "Diagnostics")
 @Configurable
 class LocalizationTestTeleOp : TeleOpBase() {
 

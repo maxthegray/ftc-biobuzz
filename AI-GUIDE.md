@@ -501,6 +501,30 @@ through completion, and are dropped if the path never reaches them
 (deadline semantics). They work in the sim — `SimFollower` emulates
 progress.
 
+## Naming op-modes
+
+The Driver Station dropdown is the UI, and it is read under match pressure.
+
+- **No team or season prefix.** `"Ball Follow"`, not `"BioBuzz: Ball Follow"`.
+  Every op-mode here is BioBuzz's, for this season; the prefix costs the same
+  characters on every row and distinguishes nothing.
+- **Two groups, by purpose.** `"Match"` for anything run in a match,
+  `"Diagnostics"` for bench work. The Driver Station already splits Auto from
+  TeleOp, so a group named after the op-mode kind is redundant.
+- **Title Case, no punctuation, no `TeleOp`/`Auto` suffix** in the name — the
+  dropdown section already says which it is.
+- **Alliance variants end in the alliance:** `"Far Side RED"` / `"Far Side BLUE"`.
+- **Class names keep their suffix** (`BallFollowTeleOp`, `ExampleAuto`). That is
+  a Kotlin identifier, not a driver-facing string.
+
+```kotlin
+@TeleOp(name = "Ball Follow", group = "Match")
+@Autonomous(name = "Example Auto", group = "Match")
+@TeleOp(name = "Limelight Ball Test", group = "Diagnostics")
+```
+
+Pedro's vendored `Tuning` op-mode keeps its own name and group — it is not ours.
+
 ## Things not to do unless explicitly asked
 
 - Don't rename hardware-map strings (`frontLeftMotor`, `pinpoint`,

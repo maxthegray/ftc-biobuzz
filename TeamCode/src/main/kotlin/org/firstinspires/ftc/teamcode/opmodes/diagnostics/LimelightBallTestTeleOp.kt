@@ -6,7 +6,7 @@ import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.runtime.Preflight
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSubsystem
 
-@TeleOp(name = "BioBuzz: Limelight Ball Test", group = "BioBuzz Diagnostics")
+@TeleOp(name = "Limelight Ball Test", group = "Diagnostics")
 class LimelightBallTestTeleOp : OpModeBase() {
 
     private lateinit var limelight: LimelightSubsystem
