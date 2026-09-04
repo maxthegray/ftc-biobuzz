@@ -68,6 +68,18 @@ class MecanumDriveSubsystem(
          * exactly where a settling controller lives.
          */
         val turnPower: Double? = null,
+        /**
+         * When non-null, replaces the curved-and-scaled stick [forward] with a
+         * direct motor power (+forward) **and forces robot-centric drive for
+         * that tick**.
+         *
+         * For vision approach assists: a camera-derived forward power means
+         * "towards what the camera sees", which is robot-relative by
+         * construction. Sending it through the field-centric projection would
+         * rotate it into whatever direction the robot happens to be facing.
+         * [turnPower] needs no such treatment — turn is frame-independent.
+         */
+        val forwardPower: Double? = null,
     )
 
     var mode: Mode = Mode.IDLE
@@ -115,8 +127,9 @@ class MecanumDriveSubsystem(
      *
      * [name] and [priority] exist so a driver assist can reuse this exact path
      * — same input curve, power scale, precision handling, field-centric
-     * selection — while overriding one channel via [TeleopInput.turnPower] and
-     * outranking the default command. [onStart] / [onEnd] hang assist-side
+     * selection — while overriding individual channels via
+     * [TeleopInput.turnPower] / [TeleopInput.forwardPower] and outranking the
+     * default command. [onStart] / [onEnd] hang assist-side
      * bookkeeping off the command's lifecycle.
      */
     fun teleopCommand(
@@ -138,7 +151,14 @@ class MecanumDriveSubsystem(
         }
         .setExecute {
             val i = input()
-            applyTeleopDrive(i.forward, i.strafe, i.turn, i.precision, i.turnPower)
+            applyTeleopDrive(
+                i.forward,
+                i.strafe,
+                i.turn,
+                i.precision,
+                i.turnPower,
+                i.forwardPower,
+            )
         }
         .setDone { false }
         .setEnd(onEnd)
@@ -149,29 +169,26 @@ class MecanumDriveSubsystem(
         turn: Double,
         precision: Boolean,
         turnPower: Double? = null,
+        forwardPower: Double? = null,
     ) {
         val scale = DriveConfig.safeTeleopPowerScale *
             (if (precision) DriveConfig.safePrecisionPowerScale else 1.0)
         val exp = DriveConfig.safeInputExponent
-        val fwd = forward.curve(exp) * scale
+        // The override channels are already motor powers, so they skip the
+        // curve — and turnPower skips the stick-convention negation too, being
+        // CCW-positive already.
+        val fwd = forwardPower?.asDirectPower() ?: (forward.curve(exp) * scale)
         // FTC sticks use +x right/CW turn; Pedro uses +lateral left/CCW-positive heading.
         val strafeScaled = -strafe.curve(exp) * scale
-        // turnPower is already a CCW-positive power, so it skips both the curve
-        // and the stick-convention negation. A dead controller must not NaN the
-        // motor powers any more than a dead localizer may.
-        val turnScaled = if (turnPower != null) {
-            if (turnPower.isFinite()) turnPower.coerceIn(-1.0, 1.0) else 0.0
-        } else {
-            -turn.curve(exp) * scale
-        }
-        // A non-finite heading (dead localizer) would NaN the field-centric
-        // projection and with it the motor powers — fall back to robot-centric
-        // so the driver keeps whatever control is still possible.
-        if (fieldCentric && follower.pose.heading.isFinite()) {
-            follower.setTeleOpDrive(fwd, strafeScaled, turnScaled, false)
-        } else {
-            follower.setTeleOpDrive(fwd, strafeScaled, turnScaled, true)
-        }
+        val turnScaled = turnPower?.asDirectPower() ?: (-turn.curve(exp) * scale)
+        // A vision-derived forward is robot-relative by construction — the
+        // field-centric projection would rotate it off the target. And a
+        // non-finite heading (dead localizer) would NaN that projection and
+        // with it the motor powers, so fall back to robot-centric there too and
+        // let the driver keep whatever control is still possible.
+        val robotCentric =
+            forwardPower != null || !fieldCentric || !follower.pose.heading.isFinite()
+        follower.setTeleOpDrive(fwd, strafeScaled, turnScaled, robotCentric)
     }
 
     /**
@@ -547,6 +564,12 @@ class MecanumDriveSubsystem(
 
 private fun CommandBuilder.asDriveAction(): CommandBuilder =
     setPriority(CommandPriorities.DRIVER_ACTION)
+
+/**
+ * A controller output consumed directly as a motor power. A dead controller
+ * must not NaN the motor powers any more than a dead localizer may.
+ */
+private fun Double.asDirectPower(): Double = if (isFinite()) coerceIn(-1.0, 1.0) else 0.0
 
 /** Applies a signed power curve: preserves sign, scales magnitude by x^exponent. */
 private fun Double.curve(exponent: Double): Double = Math.copySign(Math.pow(Math.abs(this), exponent), this)
