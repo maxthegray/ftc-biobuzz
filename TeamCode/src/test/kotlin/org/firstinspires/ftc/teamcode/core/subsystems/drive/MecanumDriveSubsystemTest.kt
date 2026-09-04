@@ -157,6 +157,91 @@ class MecanumDriveSubsystemTest {
     }
 
     @Test
+    fun forwardPowerBypassesTheStickCurveAndReplacesStickForward() {
+        val follower = fakeFollower()
+        val drive = MecanumDriveSubsystem(follower)
+        // A small approach output is exactly what the squared stick curve would
+        // destroy (0.1^2 = 0.01), and it must win over the stick.
+        val teleop = drive.teleopCommand {
+            MecanumDriveSubsystem.TeleopInput(forward = 1.0, 0.0, 0.0, forwardPower = 0.1)
+        }
+
+        teleop.start()
+        teleop.execute()
+
+        assertEquals(0.1, follower.lastTeleOpDrive!![0], 1e-9)
+    }
+
+    @Test
+    fun forwardPowerForcesRobotCentricEvenWhenFieldCentricIsOn() {
+        val follower = fakeFollower()
+        val drive = MecanumDriveSubsystem(follower)
+        // A vision-derived forward means "towards what the camera sees"; the
+        // field-centric projection would rotate it off the target entirely.
+        assertTrue("test assumes the field-centric default", drive.fieldCentric)
+        val teleop = drive.teleopCommand {
+            MecanumDriveSubsystem.TeleopInput(0.0, 0.0, 0.0, forwardPower = 0.2)
+        }
+
+        teleop.start()
+        teleop.execute()
+
+        assertEquals(true, follower.lastRobotCentric)
+    }
+
+    @Test
+    fun stickOnlyTeleopStillDrivesFieldCentric() {
+        val follower = fakeFollower()
+        val drive = MecanumDriveSubsystem(follower)
+        val teleop = drive.teleopCommand {
+            MecanumDriveSubsystem.TeleopInput(0.5, 0.0, 0.0)
+        }
+
+        teleop.start()
+        teleop.execute()
+
+        assertEquals(false, follower.lastRobotCentric)
+    }
+
+    @Test
+    fun nonFiniteForwardPowerCommandsZeroInsteadOfNaNingTheMotors() {
+        val follower = fakeFollower()
+        val drive = MecanumDriveSubsystem(follower)
+        val teleop = drive.teleopCommand {
+            MecanumDriveSubsystem.TeleopInput(0.0, 0.0, 0.0, forwardPower = Double.NaN)
+        }
+
+        teleop.start()
+        teleop.execute()
+
+        assertEquals(0.0, follower.lastTeleOpDrive!![0], 1e-9)
+    }
+
+    @Test
+    fun forwardAndTurnPowerComposeWhileTheDriverKeepsStrafe() {
+        val follower = fakeFollower()
+        val drive = MecanumDriveSubsystem(follower)
+        val teleop = drive.teleopCommand {
+            MecanumDriveSubsystem.TeleopInput(
+                forward = 0.0,
+                strafe = 1.0,
+                turn = 0.0,
+                turnPower = -0.15,
+                forwardPower = 0.25,
+            )
+        }
+
+        teleop.start()
+        teleop.execute()
+
+        val commanded = follower.lastTeleOpDrive!!
+        assertEquals(0.25, commanded[0], 1e-9)
+        // Stick strafe still runs through the curve and the stick-convention flip.
+        assertEquals(-1.0, commanded[1], 1e-9)
+        assertEquals(-0.15, commanded[2], 1e-9)
+    }
+
+    @Test
     fun teleopCommandStartHooksComposeWithTheTeleopEnable() {
         val follower = fakeFollower()
         val drive = MecanumDriveSubsystem(follower)
@@ -354,8 +439,12 @@ internal class FakeFollower : Follower(FollowerConstants(), FakeLocalizer(), Fak
     var lastTeleOpDrive: DoubleArray? = null
         private set
 
+    var lastRobotCentric: Boolean? = null
+        private set
+
     override fun setTeleOpDrive(forward: Double, strafe: Double, turn: Double, isRobotCentric: Boolean) {
         lastTeleOpDrive = doubleArrayOf(forward, strafe, turn)
+        lastRobotCentric = isRobotCentric
     }
 
     override fun update() {
