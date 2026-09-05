@@ -51,22 +51,25 @@ class BallAimController {
     }
 
     /**
-     * Pick the tx to aim at: the largest color blob above
+     * Pick the ball to act on: the largest color blob above
      * [BallAimConfig.minAreaPercent], so a second ball further away doesn't drag
      * the aim off the near one. Falls back to the Limelight's own primary target
      * when the per-target list is empty, and returns null when nothing qualifies.
      *
+     * Returns the whole target rather than just its tx so that an approach can
+     * read tx and ty off the *same* blob — picking them independently could mix
+     * the heading of one ball with the range of another.
+     *
      * Both arguments come straight off `LimelightSubsystem`, which already
      * clears them when the result is stale, invalid, or from the wrong pipeline.
      */
-    fun selectTx(
+    fun selectTarget(
         targets: List<LimelightColorTarget>,
         primary: LimelightColorTarget?,
-    ): Double? {
+    ): LimelightColorTarget? {
         val minArea = BallAimConfig.safeMinAreaPercent
-        val best = targets.filter { it.areaPercent >= minArea }.maxByOrNull { it.areaPercent }
+        return targets.filter { it.areaPercent >= minArea }.maxByOrNull { it.areaPercent }
             ?: primary?.takeIf { it.areaPercent >= minArea }
-        return best?.txDegrees?.takeIf { it.isFinite() }
     }
 
     /**
