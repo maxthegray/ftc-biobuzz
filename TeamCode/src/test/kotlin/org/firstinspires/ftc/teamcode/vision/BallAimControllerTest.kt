@@ -124,7 +124,7 @@ class BallAimControllerTest {
 
     @Test
     fun selectsTheLargestTargetSoASecondBallDoesNotDragTheAim() {
-        val tx = controller.selectTx(
+        val target = controller.selectTarget(
             targets = listOf(
                 LimelightColorTarget(txDegrees = -12.0, tyDegrees = 0.0, areaPercent = 0.4),
                 LimelightColorTarget(txDegrees = 5.0, tyDegrees = 0.0, areaPercent = 2.5),
@@ -132,34 +132,34 @@ class BallAimControllerTest {
             primary = null,
         )
 
-        assertEquals(5.0, tx)
+        assertEquals(5.0, target?.txDegrees)
     }
 
     @Test
     fun ignoresBlobsBelowTheMinimumArea() {
-        val tx = controller.selectTx(
+        val target = controller.selectTarget(
             targets = listOf(
                 LimelightColorTarget(txDegrees = 8.0, tyDegrees = 0.0, areaPercent = 0.01),
             ),
             primary = null,
         )
 
-        assertNull(tx)
+        assertNull(target)
     }
 
     @Test
     fun fallsBackToThePrimaryTargetWhenTheColorListIsEmpty() {
-        val tx = controller.selectTx(
+        val target = controller.selectTarget(
             targets = emptyList(),
             primary = LimelightColorTarget(txDegrees = -3.0, tyDegrees = 0.0, areaPercent = 1.0),
         )
 
-        assertEquals(-3.0, tx)
+        assertEquals(-3.0, target?.txDegrees)
     }
 
     @Test
     fun noVisibleTargetSelectsNothing() {
-        assertNull(controller.selectTx(targets = emptyList(), primary = null))
+        assertNull(controller.selectTarget(targets = emptyList(), primary = null))
     }
 
     @Test

@@ -8,22 +8,28 @@ import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.ConfigStore
 import org.firstinspires.ftc.teamcode.core.runtime.Preflight
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem.TeleopInput
+import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightColorTarget
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSubsystem
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx.Button
 import org.firstinspires.ftc.teamcode.vision.BallAimConfig
 import org.firstinspires.ftc.teamcode.vision.BallAimController
+import org.firstinspires.ftc.teamcode.vision.BallApproachConfig
+import org.firstinspires.ftc.teamcode.vision.BallAssistSubsystem
+import org.firstinspires.ftc.teamcode.vision.BallRangeController
 
 /**
- * Drive plus a Limelight ball-heading assist — an ordinary [TeleOpBase] teleop,
+ * Drive plus two Limelight ball assists — an ordinary [TeleOpBase] teleop,
  * built the way a season teleop should be: subsystems and trigger bindings in
  * [configureTeleop], telemetry in [onLoop], nothing imperative in the loop.
  * Copy this shape for future teleops.
  *
- * Controls (the [TeleOpBase] standard set plus this op-mode's assist):
+ * Controls (the [TeleOpBase] standard set plus this op-mode's assists):
  *  - left stick translate, right stick turn
  *  - **right trigger** — precision mode while held
  *  - **right bumper** — aim at the yellow ball while held; the Limelight owns
  *    heading, the driver keeps translation
+ *  - **left bumper** — aim *and* drive towards the ball while held. Inert until
+ *    [BallApproachConfig.kP] is raised off zero in Panels.
  *  - **Back + Y** — reset heading, **Back + B** — toggle field-centric
  */
 @TeleOp(name = "Ball Follow", group = "Match")
@@ -31,8 +37,9 @@ class BallFollowTeleOp : TeleOpBase() {
 
     private lateinit var limelight: LimelightSubsystem
     private val ballAim = BallAimController()
+    private val ballRange = BallRangeController()
 
-    /** Nanos of the previous aim step, for the controller's dt. */
+    /** Nanos of the previous vision step, for the controllers' dt. */
     private var lastAimNs = Long.MIN_VALUE
 
     override val requiredDevices: List<Preflight.Requirement>
@@ -41,11 +48,14 @@ class BallFollowTeleOp : TeleOpBase() {
 
     override fun configureTeleop() {
         ConfigStore.register("ballAim", BallAimConfig)
+        ConfigStore.register("ballApproach", BallApproachConfig)
         // Pipeline 0 is the subsystem's own default; the yellow color config
         // lives on the Limelight, not here.
         limelight = robot.register(LimelightSubsystem())
+        robot.register(BallAssistSubsystem(ballAim, ballRange))
 
         driver.button(Button.RIGHT_BUMPER).whileTrue(aimAtBallCommand())
+        driver.button(Button.LEFT_BUMPER).whileTrue(approachBallCommand())
     }
 
     /**
@@ -75,14 +85,55 @@ class BallFollowTeleOp : TeleOpBase() {
             strafe = driver.leftStickX,
             turn = 0.0,
             precision = driver.rightTrigger > 0.1,
-            turnPower = ballAim.update(aimDtSeconds(), selectedTx()),
+            turnPower = ballAim.update(visionDtSeconds(), selectedTarget()?.txDegrees),
         )
     }
 
-    private fun selectedTx(): Double? =
-        ballAim.selectTx(limelight.colorTargets, limelight.primaryTarget)
+    /**
+     * The same heading assist, plus forward power from the ball's `ty`. Forward
+     * is the Limelight's; the driver keeps strafe (robot-relative for the
+     * duration, since a vision-derived forward forces robot-centric drive).
+     *
+     * Ships inert: [BallApproachConfig.kP] is zero until tuned, which makes this
+     * binding behave exactly like the aim-only one.
+     */
+    private fun approachBallCommand(): Command = drive.teleopCommand(
+        name = "approach ball",
+        priority = CommandPriorities.AUTON_ROUTINE,
+        onStart = {
+            ballAim.reset()
+            ballRange.reset()
+            lastAimNs = Long.MIN_VALUE
+            robot.recordEvent("BALL APPROACH: engaged")
+        },
+        onEnd = { endCondition: EndCondition ->
+            ballAim.reset()
+            ballRange.reset()
+            robot.recordEvent("BALL APPROACH: released ($endCondition)")
+        },
+    ) {
+        val dt = visionDtSeconds()
+        // One target for both axes: picking tx and ty separately could mix the
+        // heading of one ball with the range of another.
+        val target = selectedTarget()
+        TeleopInput(
+            forward = 0.0,
+            strafe = driver.leftStickX,
+            turn = 0.0,
+            precision = driver.rightTrigger > 0.1,
+            turnPower = ballAim.update(dt, target?.txDegrees),
+            forwardPower = ballRange.update(dt, target?.tyDegrees, target?.txDegrees),
+        )
+    }
 
-    private fun aimDtSeconds(): Double {
+    private fun selectedTarget(): LimelightColorTarget? =
+        ballAim.selectTarget(limelight.colorTargets, limelight.primaryTarget)
+
+    /**
+     * Shared by both assists — they both require the drive, so only one runs at
+     * a time and both clear [lastAimNs] on start.
+     */
+    private fun visionDtSeconds(): Double {
         val now = robot.clock.nanos()
         val previous = lastAimNs
         lastAimNs = now
@@ -104,6 +155,15 @@ class BallFollowTeleOp : TeleOpBase() {
             put("on target", ballAim.onTarget)
             put("tx deg", ballAim.lastTxDegrees, decimals = 2)
             put("turn power", ballAim.lastOutput, decimals = 3)
+        }
+        // Published whether or not the approach is engaged, so an aim-only run
+        // still collects the ty readings the approach has to be tuned against.
+        telemetryBag.section("Ball Approach") {
+            put("ty deg", selectedTarget()?.tyDegrees ?: "—")
+            put("target ty deg", BallApproachConfig.targetTyDegrees, decimals = 2)
+            put("kP", BallApproachConfig.kP, decimals = 4)
+            put("at target", ballRange.atTarget)
+            put("forward power", ballRange.lastOutput, decimals = 3)
         }
     }
 }

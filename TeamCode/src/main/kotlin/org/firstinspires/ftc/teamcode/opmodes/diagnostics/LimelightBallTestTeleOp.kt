@@ -68,5 +68,12 @@ class LimelightBallTestTeleOp : OpModeBase() {
             put("3", "Run 2 minutes and watch the Loop maxima")
             put("4", "Stop normally so the WPILOG closes")
         }
+        telemetryBag.section("Range Survey") {
+            put("1", "Tape the floor at 2, 3, 4, 6, 8 ft; record ty at each")
+            put("2", "Note the jitter in ty — that is what kP must tolerate")
+            put("3", "Walk the ball in until it leaves frame: that is the blind zone")
+            put("4", "Repeat one distance: against a wall, half-hidden, rolling")
+            put("5", "ty at intake distance becomes ballApproach.targetTyDegrees")
+        }
     }
 }
