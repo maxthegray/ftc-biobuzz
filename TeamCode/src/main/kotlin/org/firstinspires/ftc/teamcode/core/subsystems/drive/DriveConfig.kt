@@ -61,6 +61,17 @@ object DriveConfig {
     /** Default heading tolerance (radians) for pose holds. */
     @JvmField var holdToleranceRadians: Double = DEFAULT_HOLD_TOLERANCE_RADIANS
 
+    fun resetDefaults() {
+        inputExponent = DEFAULT_INPUT_EXPONENT
+        teleopPowerScale = DEFAULT_TELEOP_POWER_SCALE
+        precisionPowerScale = DEFAULT_PRECISION_POWER_SCALE
+        fieldCentricDefault = true
+        brakeOnTeleop = true
+        stoppedVelocityThreshold = DEFAULT_STOPPED_VELOCITY_THRESHOLD
+        holdToleranceInches = DEFAULT_HOLD_TOLERANCE_INCHES
+        holdToleranceRadians = DEFAULT_HOLD_TOLERANCE_RADIANS
+    }
+
     internal val safeInputExponent: Double
         get() = finiteAtLeast(inputExponent, min = Double.MIN_VALUE, fallback = 1.0)
 

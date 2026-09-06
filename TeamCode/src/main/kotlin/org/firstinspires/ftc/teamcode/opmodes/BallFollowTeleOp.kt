@@ -47,8 +47,8 @@ class BallFollowTeleOp : TeleOpBase() {
             Preflight.Requirement(LimelightSubsystem.DEFAULT_HARDWARE_NAME, Limelight3A::class.java)
 
     override fun configureTeleop() {
-        ConfigStore.register("ballAim", BallAimConfig)
-        ConfigStore.register("ballApproach", BallApproachConfig)
+        ConfigStore.register("ballAim", BallAimConfig, BallAimConfig::resetDefaults)
+        ConfigStore.register("ballApproach", BallApproachConfig, BallApproachConfig::resetDefaults)
         // Pipeline 0 is the subsystem's own default; the yellow color config
         // lives on the Limelight, not here.
         limelight = robot.register(LimelightSubsystem())

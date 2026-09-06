@@ -156,6 +156,16 @@ object BallApproachConfig {
     /** Beyond this much horizontal error, don't drive forward at all — turn first. */
     @JvmField var alignGateDegrees: Double = DEFAULT_ALIGN_GATE_DEGREES
 
+    fun resetDefaults() {
+        kP = DEFAULT_KP
+        kD = DEFAULT_KD
+        targetTyDegrees = DEFAULT_TARGET_TY_DEGREES
+        maxForwardPower = DEFAULT_MAX_FORWARD_POWER
+        minForwardPower = DEFAULT_MIN_FORWARD_POWER
+        deadbandDegrees = DEFAULT_DEADBAND_DEGREES
+        alignGateDegrees = DEFAULT_ALIGN_GATE_DEGREES
+    }
+
     internal val safeKp: Double get() = finiteAtLeast(kP, min = 0.0, fallback = 0.0)
 
     internal val safeKd: Double get() = finiteAtLeast(kD, min = 0.0, fallback = 0.0)

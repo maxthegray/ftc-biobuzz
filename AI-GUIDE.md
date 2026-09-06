@@ -411,12 +411,19 @@ hot-reloads normally.
 forks register their own objects in `configure()`:
 
 ```kotlin
-ConfigStore.register("lift", LiftConfig)
+ConfigStore.register("lift", LiftConfig, LiftConfig::resetDefaults)
 ```
 
 Only public `@JvmField` mutable primitive/String fields are persisted,
-keyed `<section>.<field>`. Delete the file to fall back to compiled
-defaults. Bump `RobotConfig.CONFIG_SCHEMA` whenever the tuned values stop
+keyed `<section>.<field>`. Each config supplies `resetDefaults()`, restoring
+all its tunable fields from compiled constants; never capture live values
+as defaults, since Panels can edit them before registration. Every load
+resets registered objects before applying overrides, so deleting the file
+or omitting/rejecting a key restores defaults even between warm op-mode runs.
+Dirty saves merge with matching-schema disk keys, preserving sections and
+fields this op-mode has not registered. A failed replacement leaves the old
+file intact and the values dirty for retry.
+Bump `RobotConfig.CONFIG_SCHEMA` whenever the tuned values stop
 applying — a new season fork, and the sensorbot → competition-robot swap,
 since the Control Hub usually moves between chassis and carries its tuning
 file with it. Files recorded under a different schema are ignored. Tunables on `@Configurable` *op-modes* (the Pedro `Tuning`

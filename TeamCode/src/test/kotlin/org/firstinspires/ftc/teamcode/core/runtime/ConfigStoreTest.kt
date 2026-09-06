@@ -2,7 +2,13 @@ package org.firstinspires.ftc.teamcode.core.runtime
 
 import com.bylazar.configurables.annotations.Configurable
 import java.io.File
+import java.lang.reflect.Modifier
 import org.firstinspires.ftc.teamcode.core.control.PIDFGains
+import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
+import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerConfig
+import org.firstinspires.ftc.teamcode.opmodes.diagnostics.MotorTestConfig
+import org.firstinspires.ftc.teamcode.vision.BallAimConfig
+import org.firstinspires.ftc.teamcode.vision.BallApproachConfig
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -25,6 +31,13 @@ class ConfigStoreTest {
         @JvmField var enabled: Boolean = false
         @JvmField var count: Int = 3
         @JvmField var label: String = "default"
+
+        fun resetDefaults() {
+            gain = 0.5
+            enabled = false
+            count = 3
+            label = "default"
+        }
     }
 
     @Configurable
@@ -36,6 +49,13 @@ class ConfigStoreTest {
 
         val gains = PIDFGains()
         val constraints = TestConstraints(1.0, 1.0)
+
+        fun resetDefaults() {
+            kP = 0.1
+            kV = 0.02
+            maxVelocity = 30.0
+            maxAcceleration = 60.0
+        }
 
         fun sync() {
             gains.kP = kP
@@ -54,14 +74,8 @@ class ConfigStoreTest {
         originalFile = ConfigStore.file
         ConfigStore.reset()
         ConfigStore.file = tempFile
-        TestTuning.gain = 0.5
-        TestTuning.enabled = false
-        TestTuning.count = 3
-        TestTuning.label = "default"
-        MechanismTuning.kP = 0.1
-        MechanismTuning.kV = 0.02
-        MechanismTuning.maxVelocity = 30.0
-        MechanismTuning.maxAcceleration = 60.0
+        TestTuning.resetDefaults()
+        MechanismTuning.resetDefaults()
         MechanismTuning.sync()
     }
 
@@ -69,12 +83,13 @@ class ConfigStoreTest {
     fun tearDown() {
         ConfigStore.reset()
         ConfigStore.file = originalFile
-        tempFile.delete()
+        tempFile.deleteRecursively()
+        File(tempFile.path + ".tmp").deleteRecursively()
     }
 
     @Test
     fun roundTripsTunedValuesAcrossAProcessRestart() {
-        ConfigStore.register("test", TestTuning)
+        ConfigStore.register("test", TestTuning, TestTuning::resetDefaults)
         ConfigStore.loadFromDisk()
 
         // "Panels tunes some values mid-match."
@@ -91,7 +106,7 @@ class ConfigStoreTest {
         TestTuning.label = "default"
         ConfigStore.reset()
         ConfigStore.file = tempFile
-        ConfigStore.register("test", TestTuning)
+        ConfigStore.register("test", TestTuning, TestTuning::resetDefaults)
         ConfigStore.loadFromDisk()
 
         assertEquals(0.875, TestTuning.gain, 0.0)
@@ -102,7 +117,7 @@ class ConfigStoreTest {
 
     @Test
     fun cleanStateDoesNotRewriteTheFile() {
-        ConfigStore.register("test", TestTuning)
+        ConfigStore.register("test", TestTuning, TestTuning::resetDefaults)
         ConfigStore.loadFromDisk()
         assertFalse("nothing changed — no write expected", ConfigStore.persistIfDirty())
         assertFalse(tempFile.exists())
@@ -125,7 +140,7 @@ class ConfigStoreTest {
             test.gain=0.75
             """.trimIndent(),
         )
-        ConfigStore.register("test", TestTuning)
+        ConfigStore.register("test", TestTuning, TestTuning::resetDefaults)
         ConfigStore.loadFromDisk()
 
         assertEquals(0.75, TestTuning.gain, 0.0)
@@ -134,6 +149,11 @@ class ConfigStoreTest {
 
     @Test
     fun invalidValuesFallBackToCompiledDefaults() {
+        ConfigStore.register("test", TestTuning, TestTuning::resetDefaults)
+        TestTuning.gain = 0.9
+        TestTuning.count = 9
+        TestTuning.enabled = true
+        TestTuning.label = "previous opmode"
         tempFile.writeText(
             """
             $schemaLine
@@ -142,24 +162,184 @@ class ConfigStoreTest {
             test.enabled=maybe
             """.trimIndent(),
         )
-        ConfigStore.register("test", TestTuning)
         ConfigStore.loadFromDisk()
 
         assertEquals(0.5, TestTuning.gain, 0.0)
         assertEquals(3, TestTuning.count)
         assertFalse(TestTuning.enabled)
+        assertEquals("default", TestTuning.label)
+    }
+
+    @Test
+    fun deletingFileRestoresDefaultsOnNextWarmInit() {
+        ConfigStore.register("test", TestTuning, TestTuning::resetDefaults)
+        ConfigStore.loadFromDisk()
+        TestTuning.gain = 0.9
+        TestTuning.enabled = true
+        assertTrue(ConfigStore.persistIfDirty())
+
+        assertTrue(tempFile.delete())
+        ConfigStore.register("test", TestTuning, TestTuning::resetDefaults)
+        ConfigStore.loadFromDisk()
+
+        assertEquals(0.5, TestTuning.gain, 0.0)
+        assertFalse(TestTuning.enabled)
+        assertFalse(ConfigStore.persistIfDirty())
+        assertFalse(tempFile.exists())
+    }
+
+    @Test
+    fun tuningBeforeFirstRegistrationDoesNotBecomeTheDefault() {
+        TestTuning.gain = 0.9
+        TestTuning.enabled = true
+        ConfigStore.register("test", TestTuning, TestTuning::resetDefaults)
+
+        ConfigStore.loadFromDisk()
+
+        assertEquals(0.5, TestTuning.gain, 0.0)
+        assertFalse(TestTuning.enabled)
+    }
+
+    @Test
+    fun missingKeyRestoresDefaultInsteadOfLastOpmodeValue() {
+        ConfigStore.register("test", TestTuning, TestTuning::resetDefaults)
+        tempFile.writeText("$schemaLine\ntest.gain=0.9\ntest.count=9\n")
+        ConfigStore.loadFromDisk()
+        assertEquals(9, TestTuning.count)
+
+        tempFile.writeText("$schemaLine\ntest.gain=0.75\n")
+        ConfigStore.loadFromDisk()
+
+        assertEquals(0.75, TestTuning.gain, 0.0)
+        assertEquals(3, TestTuning.count)
+    }
+
+    @Test
+    fun partialRegistrationPreservesOtherOpmodesTuningAcrossRestart() {
+        tempFile.writeText("$schemaLine\ntest.gain=0.75\nlift.kP=0.8\ntest.futureField=42\n")
+        ConfigStore.register("test", TestTuning, TestTuning::resetDefaults)
+        ConfigStore.loadFromDisk()
+        TestTuning.count = 8
+        assertTrue(ConfigStore.persistIfDirty())
+        assertTrue(tempFile.readLines().contains("test.futureField=42"))
+
+        ConfigStore.reset()
+        ConfigStore.register("lift", MechanismTuning, MechanismTuning::resetDefaults)
+        ConfigStore.loadFromDisk()
+        assertEquals(0.8, MechanismTuning.kP, 0.0)
+        MechanismTuning.kV = 0.06
+        assertTrue(ConfigStore.persistIfDirty())
+
+        ConfigStore.reset()
+        ConfigStore.register("test", TestTuning, TestTuning::resetDefaults)
+        ConfigStore.loadFromDisk()
+        assertEquals(0.75, TestTuning.gain, 0.0)
+        assertEquals(8, TestTuning.count)
+    }
+
+    @Test
+    fun persistWithoutLoadStillPreservesUnregisteredKeys() {
+        tempFile.writeText("$schemaLine\nlift.kP=0.8\n")
+        ConfigStore.register("test", TestTuning, TestTuning::resetDefaults)
+        TestTuning.gain = 0.75
+
+        assertTrue(ConfigStore.persistIfDirty())
+        assertTrue(tempFile.readLines().contains("lift.kP=0.8"))
+    }
+
+    @Test
+    fun secondInitLoadRestoresNewSectionsWithoutChangingEarlierOverrides() {
+        tempFile.writeText("$schemaLine\ntest.gain=0.75\nlift.kP=0.8\n")
+        ConfigStore.register("test", TestTuning, TestTuning::resetDefaults)
+        ConfigStore.loadFromDisk()
+        ConfigStore.register("test", TestTuning, TestTuning::resetDefaults)
+        ConfigStore.register("lift", MechanismTuning, MechanismTuning::resetDefaults)
+        ConfigStore.loadFromDisk()
+
+        assertEquals(0.75, TestTuning.gain, 0.0)
+        assertEquals(0.8, MechanismTuning.kP, 0.0)
+        assertFalse(ConfigStore.persistIfDirty())
+    }
+
+    @Test
+    fun invalidDestinationIsNotDeletedAndSaveCanRetry() {
+        ConfigStore.register("test", TestTuning, TestTuning::resetDefaults)
+        ConfigStore.loadFromDisk()
+        TestTuning.gain = 0.75
+        assertTrue(tempFile.mkdir())
+
+        assertFalse(ConfigStore.persistIfDirty())
+        assertTrue("a failed replacement must never delete the destination", tempFile.isDirectory)
+        assertFalse(ConfigStore.persistIfDirty())
+
+        assertTrue(tempFile.delete())
+        assertTrue(ConfigStore.persistIfDirty())
+        TestTuning.gain = 0.0
+        ConfigStore.loadFromDisk()
+        assertEquals(0.75, TestTuning.gain, 0.0)
+        assertFalse(ConfigStore.persistIfDirty())
+    }
+
+    @Test
+    fun failedTempWritePreservesPreviousFileAndRetries() {
+        ConfigStore.register("test", TestTuning, TestTuning::resetDefaults)
+        ConfigStore.loadFromDisk()
+        TestTuning.gain = 0.75
+        assertTrue(ConfigStore.persistIfDirty())
+        val previous = tempFile.readText()
+        val blockedTemp = File(tempFile.path + ".tmp")
+        assertTrue(blockedTemp.mkdir())
+        val marker = File(blockedTemp, "keep").also { it.writeText("occupied") }
+        TestTuning.gain = 0.9
+
+        assertFalse(ConfigStore.persistIfDirty())
+        assertEquals(previous, tempFile.readText())
+        assertTrue(marker.exists())
+        assertTrue(blockedTemp.deleteRecursively())
+        assertTrue(ConfigStore.persistIfDirty())
+        TestTuning.gain = 0.0
+        ConfigStore.loadFromDisk()
+        assertEquals(0.9, TestTuning.gain, 0.0)
+    }
+
+    @Test
+    fun failedRenamePreservesPreviousFileAndRetries() {
+        ConfigStore.register("test", TestTuning, TestTuning::resetDefaults)
+        ConfigStore.loadFromDisk()
+        TestTuning.gain = 0.75
+        assertTrue(ConfigStore.persistIfDirty())
+        val previous = tempFile.readText()
+        TestTuning.gain = 0.9
+        var attemptedRenames = 0
+        val rejectRename: (File, File) -> Boolean = { _, _ ->
+            attemptedRenames++
+            false
+        }
+
+        assertFalse(ConfigStore.persistIfDirty(rejectRename))
+        assertEquals(1, attemptedRenames)
+        assertEquals(previous, tempFile.readText())
+        assertFalse(ConfigStore.persistIfDirty(rejectRename))
+        assertEquals(2, attemptedRenames)
+        assertEquals(previous, tempFile.readText())
+        assertFalse(File(tempFile.path + ".tmp").exists())
+        assertTrue(ConfigStore.persistIfDirty())
+        TestTuning.gain = 0.0
+        ConfigStore.loadFromDisk()
+        assertEquals(0.9, TestTuning.gain, 0.0)
+        assertFalse(ConfigStore.persistIfDirty())
     }
 
     @Test
     fun missingFileLeavesDefaultsUntouched() {
-        ConfigStore.register("test", TestTuning)
+        ConfigStore.register("test", TestTuning, TestTuning::resetDefaults)
         ConfigStore.loadFromDisk()
         assertEquals(0.5, TestTuning.gain, 0.0)
     }
 
     @Test
     fun snapshotKeysAreSectionQualified() {
-        ConfigStore.register("test", TestTuning)
+        ConfigStore.register("test", TestTuning, TestTuning::resetDefaults)
         val snapshot = ConfigStore.snapshot()
         assertTrue("test.gain" in snapshot)
         assertTrue("test.enabled" in snapshot)
@@ -169,10 +349,11 @@ class ConfigStoreTest {
 
     @Test
     fun frameworkConfigObjectsExposeTheirTunables() {
-        ConfigStore.register("drive", org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig)
+        ConfigStore.register("drive", DriveConfig, DriveConfig::resetDefaults)
         ConfigStore.register(
             "localizer",
-            org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerConfig,
+            LocalizerConfig,
+            LocalizerConfig::resetDefaults,
         )
         val snapshot = ConfigStore.snapshot()
         assertTrue("drive.inputExponent" in snapshot)
@@ -185,15 +366,48 @@ class ConfigStoreTest {
     }
 
     @Test
+    fun everyProductionTunableIsResetOnWarmInit() {
+        val configs = listOf(DriveConfig, LocalizerConfig, BallAimConfig, BallApproachConfig, MotorTestConfig)
+        val originals = configs.flatMap { config ->
+            config.javaClass.declaredFields
+                .filter { Modifier.isPublic(it.modifiers) && !Modifier.isFinal(it.modifiers) }
+                .map { field -> Triple(config, field, field.get(config)) }
+        }
+        ConfigStore.register("drive", DriveConfig, DriveConfig::resetDefaults)
+        ConfigStore.register("localizer", LocalizerConfig, LocalizerConfig::resetDefaults)
+        ConfigStore.register("ballAim", BallAimConfig, BallAimConfig::resetDefaults)
+        ConfigStore.register("ballApproach", BallApproachConfig, BallApproachConfig::resetDefaults)
+        ConfigStore.register("motorTest", MotorTestConfig, MotorTestConfig::resetDefaults)
+        try {
+            ConfigStore.loadFromDisk()
+            val defaults = ConfigStore.snapshot()
+            for ((config, field) in originals) {
+                when (field.type) {
+                    java.lang.Double.TYPE -> field.setDouble(config, field.getDouble(config) + 1.0)
+                    java.lang.Integer.TYPE -> field.setInt(config, field.getInt(config) + 1)
+                    java.lang.Boolean.TYPE -> field.setBoolean(config, !field.getBoolean(config))
+                    else -> error("Add a mutation for tunable ${field.name}")
+                }
+            }
+
+            ConfigStore.loadFromDisk()
+
+            assertEquals(defaults, ConfigStore.snapshot())
+        } finally {
+            for ((config, field, value) in originals) field.set(config, value)
+        }
+    }
+
+    @Test
     fun doubleRoundTripIsExact() {
-        ConfigStore.register("test", TestTuning)
+        ConfigStore.register("test", TestTuning, TestTuning::resetDefaults)
         TestTuning.gain = 1.0 / 3.0
         ConfigStore.persistIfDirty()
 
         TestTuning.gain = 0.0
         ConfigStore.reset()
         ConfigStore.file = tempFile
-        ConfigStore.register("test", TestTuning)
+        ConfigStore.register("test", TestTuning, TestTuning::resetDefaults)
         ConfigStore.loadFromDisk()
 
         assertEquals(1.0 / 3.0, TestTuning.gain, 0.0)
@@ -201,22 +415,27 @@ class ConfigStoreTest {
 
     @Test
     fun schemaMismatchIgnoresStaleSeasonValues() {
+        ConfigStore.register("test", TestTuning, TestTuning::resetDefaults)
+        TestTuning.gain = 0.8
         tempFile.writeText(
             """
             ${ConfigStore.SCHEMA_KEY}=previous-season
             test.gain=9.0
+            lift.kP=8.0
             """.trimIndent(),
         )
-        ConfigStore.register("test", TestTuning)
-
         ConfigStore.loadFromDisk()
 
         assertEquals(0.5, TestTuning.gain, 0.0)
+        TestTuning.count = 8
+        assertTrue(ConfigStore.persistIfDirty())
+        assertFalse(tempFile.readText().contains("lift.kP"))
+        assertTrue(tempFile.readLines().contains(schemaLine))
     }
 
     @Test
     fun primitiveMechanismConfigRoundTripsIntoLiveHolders() {
-        ConfigStore.register("lift", MechanismTuning)
+        ConfigStore.register("lift", MechanismTuning, MechanismTuning::resetDefaults)
         ConfigStore.loadFromDisk()
         MechanismTuning.kP = 0.75
         MechanismTuning.kV = 0.08
@@ -230,7 +449,7 @@ class ConfigStoreTest {
         MechanismTuning.maxAcceleration = 60.0
         ConfigStore.reset()
         ConfigStore.file = tempFile
-        ConfigStore.register("lift", MechanismTuning)
+        ConfigStore.register("lift", MechanismTuning, MechanismTuning::resetDefaults)
         ConfigStore.loadFromDisk()
         MechanismTuning.sync()
 
