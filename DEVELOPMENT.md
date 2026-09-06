@@ -73,77 +73,28 @@ override val requiredDevices: List<Preflight.Requirement>
     get() = listOf(Preflight.Requirement("liftMotor", DcMotorEx::class.java))
 ```
 
-## Single-motor mechanisms: don't hand-roll
+## Single-motor mechanisms
 
-A lift/arm/turret is `ProfiledMotorSubsystem` — profile + PIDF + soft
-limits + stall-detect homing + hold-at-goal + log channels, already tested:
+There is no generic mechanism base class in this repo, on purpose. A
+`ProfiledMotorSubsystem` (profile + PIDF + soft limits + stall homing) and a
+`TrapezoidProfile` were written during the 2026 offseason, never got wired to
+a real mechanism, and were deleted before kickoff rather than carried as
+untested surface. Code review kept generating findings against them that no
+match could ever hit.
 
-```kotlin
-@Configurable
-object LiftConfig {
-    @JvmField var kP = 0.1
-    @JvmField var kV = 0.02
-    @JvmField var kG = 0.08
-    @JvmField var maxVelocity = 30.0
-    @JvmField var maxAcceleration = 60.0
+When this season has an actual lift/arm/turret: build it as a plain
+`SubsystemBase`, against the real hardware, with `PIDFController` +
+`PIDFGains` from `core/control/` and the `MotorIO` seam from `core/io/`
+(inject `SimMotorIO(clock, …)` to host-test it). Homing, soft limits, and
+motion profiling are worth adding only once you can validate each on the
+mechanism itself. `git log --diff-filter=D` will surface the old
+implementation if it turns out to fit.
 
-    internal val gains = PIDFGains()
-    internal val constraints = ProfileConstraints(1.0, 1.0)
-
-    internal fun syncLiveHolders() {
-        gains.kP = kP
-        gains.kV = kV
-        gains.kG = kG
-        constraints.maxVelocity = maxVelocity
-        constraints.maxAcceleration = maxAcceleration
-    }
-}
-
-class LiftSubsystem : ProfiledMotorSubsystem(
-    "Lift",
-    "liftMotor",
-    ProfiledController(LiftConfig.constraints, LiftConfig.gains),
-    ticksPerUnit = 83.7,
-    softMinUnits = 0.0,
-    softMaxUnits = 26.0,
-) {
-    override fun init(hardwareMap: HardwareMap) {
-        LiftConfig.syncLiveHolders()
-        super.init(hardwareMap)
-    }
-
-    override fun periodic() {
-        LiftConfig.syncLiveHolders()
-        super.periodic()
-    }
-}
-
-ConfigStore.register("lift", LiftConfig)
-val lift = robot.register(LiftSubsystem())
-operator.button(GamepadEx.Button.Y).onTrue(lift.goToCommand(24.0, toleranceUnits = 0.5))
-operator.button(GamepadEx.Button.BACK)
-    .onTrue(lift.homeCommand(
-        power = -0.3,
-        stallVelocityUnitsPerSec = 1.0,
-        timeoutMs = 3_000.0,
-    ))
-```
-
-Only the primitive fields are persisted and discovered by Panels; the
-holders are synchronized in place because `ProfiledController` keeps their
-references. `ConfigStoreTest.primitiveMechanismConfigRoundTripsIntoLiveHolders`
-locks this pattern down.
-
-Host-test season mechanisms by injecting `io = SimMotorIO(clock, …)` — see
-`ProfiledMotorSubsystemTest` for the pattern (including a homing run against
-a simulated hard stop).
-
-On the robot, tune gains in order: **kG first** (mechanism holds against
-gravity open-loop), then **kV** along a slow profile, then **kP**. Verify the
-encoder survives the auton→teleop handoff (`zeroEncoderOnInit = false`) and
-that `homeCommand` finds the hard stop. A fresh mechanism is UNHOMED:
-closed-loop goals and coordinate-based soft limits stay disabled until a
-successful home or explicit `setCurrentPosition`.
+The live-holder config pattern below is still the right shape for tunables:
+primitive `@JvmField` fields are what Panels discovers and `ConfigStore`
+persists; non-primitive holders get synced from them in `periodic()`.
+`ConfigStoreTest.primitiveMechanismConfigRoundTripsIntoLiveHolders` locks
+that down.
 
 ## Commands and priorities
 
@@ -216,8 +167,7 @@ geometry, real scheduling, real waits in virtual time, RED/BLUE mirror
 symmetry, marker timing, pose handoff. A routine that's wrong in sim is
 wrong on carpet; the reverse isn't guaranteed (sim doesn't model Pedro's
 control quality), but it catches the whole class of sequencing/mirroring
-bugs for free. `MechanismReplayTest` is the pattern for "did my refactor
-change control outputs?".
+bugs for free.
 
 ## Sensors and I²C
 
@@ -253,8 +203,10 @@ Measure in this order before changing the policy:
    loop time against voltage.
 2. Add the SRSHub with auxiliary sensors only, still inline. Log
    `hub.update()` duration and CRC mismatches.
-3. Only if the inline SRSHub read itself stretches the loop, evaluate
-   `I2CBusThread` and verify that motor-write timing does not regress.
+3. Only if the inline SRSHub read itself stretches the loop, evaluate moving
+   it to a bounded background worker — and verify that motor-write timing
+   does not regress. (An unused `I2CBusThread` was deleted before kickoff;
+   write the smallest thing the measurement justifies.)
 
 Typical auxiliary-sensor setup:
 

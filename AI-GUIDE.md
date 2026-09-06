@@ -247,37 +247,27 @@ autoRoutine(robot, drive, robot::recordEvent) { ... }  // optional event sink �
 
 ```kotlin
 val gains = PIDFGains(kP = 0.1, kV = 0.02, kG = 0.08)   // mutable; Panels-tunable
-val constraints = ProfileConstraints(maxVelocity = 30.0, maxAcceleration = 60.0)
-val lift = robot.register(
-    ProfiledMotorSubsystem("Lift", "liftMotor", ProfiledController(constraints, gains),
-        ticksPerUnit = 83.7,
-        softMinUnits = 0.0, softMaxUnits = 26.0),   // clamp goals, gate open-loop
-)
-operator.button(GamepadEx.Button.Y).onTrue(lift.goToCommand(24.0, toleranceUnits = 0.5))
-operator.button(GamepadEx.Button.BACK).onTrue(
-    lift.homeCommand(power = -0.3, stallVelocityUnitsPerSec = 1.0,
-        timeoutMs = 3_000.0))  // timeout faults; it never silently declares zero
-lift.openLoop(0.3)   // bring-up only; setGoal()/goToCommand() for real control
 ```
 
-`ProfiledMotorSubsystem` holds the last goal after a command ends (gravity
-hold) — no default command needed. The encoder is not reset on init by
-default so lift position survives the auton → teleop handoff; `homeCommand`
-re-establishes a true zero (velocity-stall detection, software offset).
-A fresh mechanism is UNHOMED: open-loop movement and homing are allowed, but
-closed-loop goals and coordinate-based soft limits are rejected until a zero
-is established or restored.
+`PIDFController` + `PIDFGains` are live — the ball aim/range controllers use
+them. Gains are read every call, so Panels edits apply without a redeploy.
 
-Hardware goes through the `MotorIO` seam (`core/io/`): real op-modes
-resolve a `RealMotorIO` automatically; host tests inject
-`SimMotorIO(clock, …)` via the `io` constructor parameter and the whole
-mechanism — profile, PIDF, soft limits, homing — runs headless
-(`ProfiledMotorSubsystemTest`, `MechanismReplayTest`).
+There is deliberately **no generic mechanism subsystem.** A
+`ProfiledMotorSubsystem`, `ProfiledController`, `TrapezoidProfile`, and a
+WPILOG replay harness lived here through the 2026 offseason, were never wired
+to a real mechanism, and were deleted before kickoff. Do not reintroduce a
+generic version speculatively: build what the season's mechanism actually
+needs, against the real hardware. The old implementation is in git history if
+it turns out to fit.
+
+Hardware goes through the `MotorIO` seam (`core/io/`): real op-modes resolve a
+`RealMotorIO`; host tests inject `SimMotorIO(clock, …)` so subsystem logic
+runs headless.
 
 Two packages sound alike and are not interchangeable. `core/io/` is the
 **abstraction seam** — interfaces plus their real implementations, so
 subsystem code can run against hardware or a fake. `core/hardware/` is
-**concrete device drivers** (`SRSHubSubsystem`, `I2CBusThread`) that only
+**concrete device drivers** (`SRSHubSubsystem`) that only
 work on a real robot. Every test double lives in `core/sim/` under the test
 source root — `SimFollower`, `SimHarness`, `SimMotorIO`, `FakeClock`,
 `FakeSink` — so nothing fake ever ships in the APK. Doubles used by a single
@@ -285,8 +275,8 @@ test stay nested in that test.
 
 Subsystems log tuning channels by overriding
 `logState(log: StateLog)` — the flight recorder prefixes them with
-`<subsystem name>/` (e.g. `Lift/goalUnits`, `Lift/setpointUnits`,
-`Lift/outputPower`) for AdvantageScope.
+`<subsystem name>/` (e.g. `Drive/fieldCentric`,
+`Drive/motors/frontLeft/power`) for AdvantageScope.
 
 ### Panels telemetry
 
@@ -342,8 +332,8 @@ driver.trigger { driver.rightTrigger > 0.5 }.whileTrue(drive.slowMode())
 1. **Bulk reads are MANUAL.** Every Lynx module is in
    `BulkCachingMode.MANUAL` at init. The main loop clears caches once
    per tick at the top. Do **not** read motor/encoder values outside of
-   the main tick window; if you must (e.g. from an I2CBusThread), use
-   the raw Lynx APIs and accept stale data.
+   the main tick window; if you ever must (e.g. from a background poller),
+   use the raw Lynx APIs and accept stale data.
 
 2. **`periodic()` reads. Commands write. `writeHardware()` flushes.**
    A subsystem's `periodic` must not set motor power — if you feel the
@@ -438,10 +428,8 @@ for). Don't pin config objects.
 
 (`DEVELOPMENT.md` has the full worked example with the same contract.)
 
-For a single profiled motor (lift, arm, turret), extend or instantiate
-`ProfiledMotorSubsystem` instead of hand-rolling the control loop — it
-already implements the lifecycle below plus profile + PIDF + hold-at-goal.
-For everything else:
+There is no generic profiled-motor base class — see the mechanism note
+above. Build the mechanism the season needs, following this contract:
 
 1. Extend `SubsystemBase(name = "…")`.
 2. Resolve hardware in `init(hardwareMap)` using `DeviceReaders.motor`
@@ -453,7 +441,7 @@ For everything else:
 5. Register it on the `Robot` from the op-mode's `configure()` hook —
    not from anywhere else.
 
-## When the user asks you to add an I²C sensor (or touch SRSHub / I2CBusThread)
+## When the user asks you to add an I²C sensor (or touch SRSHub)
 
 **Read the sensor section in `DEVELOPMENT.md` first.** Pinpoint stays direct;
 all other I²C goes on one SRSHub read **inline** in `periodic()`. Do not

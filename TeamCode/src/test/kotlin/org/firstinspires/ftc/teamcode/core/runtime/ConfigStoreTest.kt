@@ -3,13 +3,18 @@ package org.firstinspires.ftc.teamcode.core.runtime
 import com.bylazar.configurables.annotations.Configurable
 import java.io.File
 import org.firstinspires.ftc.teamcode.core.control.PIDFGains
-import org.firstinspires.ftc.teamcode.core.control.ProfileConstraints
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+
+/** Stand-in for a non-primitive live holder synced from primitive config fields. */
+private class TestConstraints(
+    @JvmField var maxVelocity: Double,
+    @JvmField var maxAcceleration: Double,
+)
 
 class ConfigStoreTest {
 
@@ -30,7 +35,7 @@ class ConfigStoreTest {
         @JvmField var maxAcceleration: Double = 60.0
 
         val gains = PIDFGains()
-        val constraints = ProfileConstraints(1.0, 1.0)
+        val constraints = TestConstraints(1.0, 1.0)
 
         fun sync() {
             gains.kP = kP

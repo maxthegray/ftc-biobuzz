@@ -3,7 +3,7 @@ package org.firstinspires.ftc.teamcode.core.util
 /**
  * Monotonic nanosecond time source. Everything in the runtime that measures
  * durations ([org.firstinspires.ftc.teamcode.core.runtime.Robot],
- * [TelemetryBag], [org.firstinspires.ftc.teamcode.core.hardware.I2CBusThread])
+ * [TelemetryBag])
  * reads time through this so JVM unit tests can substitute a controllable
  * fake instead of `System.nanoTime()`.
  */
