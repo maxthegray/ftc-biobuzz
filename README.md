@@ -53,7 +53,6 @@ Panels is at `http://192.168.43.1:8001` while the robot is on.
 |---|---|
 | TeleOp | `opmodes/DriveOnlyTeleOp.kt`, then override `configureTeleop()` |
 | Autonomous | `opmodes/ExampleAuto.kt` |
-| Mechanism | `core/subsystems/ProfiledMotorSubsystem.kt` |
 | Buttons and triggers | `core/util/GamepadEx.kt`, `Trigger.kt` |
 | Drive feel | `core/subsystems/drive/DriveConfig.kt` |
 | Localization and vision corrections | `core/subsystems/localization/` |

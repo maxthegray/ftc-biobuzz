@@ -35,7 +35,7 @@ class PIDFGains(
 
 /**
  * Position PID with kS/kV/kG feedforward, designed to be fed a profiled
- * setpoint (see [ProfiledController]). Gains are read every call, so live
+ * setpoint. Gains are read every call, so live
  * tuning takes effect immediately. Single-threaded, like everything else in
  * the main loop.
  */

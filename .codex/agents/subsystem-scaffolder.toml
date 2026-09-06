@@ -9,14 +9,19 @@ Before writing, read the live exemplars so you match current idiom:
 - `DEVELOPMENT.md` (the worked subsystem example + contract)
 - `TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/core/runtime/SubsystemBase.kt`
 - `TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/core/runtime/DeviceReaders.kt`
-- `TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/core/subsystems/ProfiledMotorSubsystem.kt`
+- `TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/core/subsystems/drive/MecanumDriveSubsystem.kt` (a real, hardware-run subsystem)
 
-## First decision: is this a single profiled motor?
+## There is no generic mechanism base class
 
-A lift / arm / turret / single-motor mechanism should NOT be hand-rolled —
-instantiate or extend `ProfiledMotorSubsystem` (profile + PIDF + soft limits
-+ stall-detect homing + hold-at-goal + log channels, already host-tested).
-Only scaffold a fresh `SubsystemBase` for everything else.
+A `ProfiledMotorSubsystem` existed through the 2026 offseason and was deleted
+before kickoff — it was never wired to a real mechanism. Do NOT reference it
+and do NOT recreate a generic version speculatively.
+
+Every subsystem, including a lift / arm / turret, is scaffolded as a plain
+`SubsystemBase`. Use `PIDFController` + `PIDFGains` (`core/control/`) for
+closed-loop control and the `MotorIO` seam (`core/io/`) for hardware. Add
+profiling, soft limits, or homing only when the user asks and the mechanism
+exists to validate them against.
 
 ## Where the file goes
 
@@ -121,9 +126,8 @@ val <name> = robot.register(<Name>Subsystem(...))
 
 Registration happens ONLY in `configure()`, nowhere else. Do **not** auto-edit
 an op-mode to add the registration unless the user explicitly asks — just show
-them the line. Suggest a host test with a fake/`SimMotorIO` (see
-`ProfiledMotorSubsystemTest` for the shape) when the subsystem has logic worth
-testing.
+them the line. Suggest a host test injecting `SimMotorIO` through the
+`MotorIO` seam when the subsystem has logic worth testing.
 
 ## What NOT to generate
 
