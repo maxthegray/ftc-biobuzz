@@ -63,6 +63,11 @@ class Robot(
     init {
         scheduler.faultHandler = ::handleCommandFault
         scheduler.blockedHandler = ::handleBlockedSchedule
+        scheduler.lifecycleListener = { command, event ->
+            val message = "COMMAND $event: $command"
+            flightRecorder?.commandEvent(message)
+            rememberEvent(message)
+        }
     }
 
     /** Number of contained command faults this op-mode. Surfaced in health telemetry. */
@@ -100,6 +105,7 @@ class Robot(
     private var flightRecorder: FlightRecorder? = null
 
     private var initialized = false
+    private var stopped = false
 
     /** Subsystems whose default command has already been evented this op-mode. */
     private val defaultEventSent = HashSet<SubsystemBase>()
@@ -213,6 +219,7 @@ class Robot(
         control: () -> Unit = {},
         telemetry: () -> Unit = {},
     ): Long {
+        check(!stopped) { "Cannot loop a stopped Robot" }
         var phaseStart = clock.nanos()
 
         bulkRead.clearCaches()
@@ -436,23 +443,26 @@ class Robot(
     }
 
     /**
-     * Shutdown everything. The scheduler interrupts every running command
-     * (end handlers run, best-effort), then each subsystem's
-     * [SubsystemBase.stop] does hardware-level cleanup. Exceptions are
-     * swallowed so all subsystems get a chance to clean up.
+     * Stop every subsystem before callbacks or storage can block. The optional
+     * [afterHardwareStopped] callback can report a crash while the scheduler's
+     * running-command list is still intact. Cleanup and persistence then run
+     * best-effort, once. End handlers must not re-energize stopped hardware.
      */
-    fun stop() {
-        recordEvent("stop")
+    fun stop(afterHardwareStopped: () -> Unit = {}) {
+        if (stopped) return
+        stopped = true
+        for (s in subsystems) {
+            try { s.stop() } catch (_: Throwable) { /* try every subsystem */ }
+        }
+        try { afterHardwareStopped() } catch (_: Throwable) { /* preserve the original fault */ }
+        try { scheduler.reset() } catch (_: Throwable) { /* best-effort */ }
+        try { recordEvent("stop") } catch (_: Throwable) { /* best-effort */ }
         if (loopCount > 0) {
             for (s in subsystems) {
                 try { s.persistState() } catch (_: Throwable) { /* best-effort */ }
             }
         }
-        scheduler.reset()
-        for (s in subsystems) {
-            try { s.stop() } catch (_: Throwable) { /* best-effort */ }
-        }
-        closeFlightRecorder()
+        try { closeFlightRecorder() } catch (_: Throwable) { /* best-effort */ }
     }
 
     /** Average loop frequency in Hz over the most recent tick. */

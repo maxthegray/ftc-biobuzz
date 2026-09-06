@@ -62,6 +62,7 @@ abstract class SubsystemBase(val name: String) {
      * Persist subsystem state that should survive op-mode handoff. Called
      * during [Robot.stop] only after at least one real loop has run, so an
      * init-cancelled op-mode cannot overwrite useful state with defaults.
+     * All subsystems have already stopped; use cached state, not fresh hardware reads.
      */
     open fun persistState() {}
 
@@ -90,8 +91,9 @@ abstract class SubsystemBase(val name: String) {
     open fun onCommandFault() {}
 
     /**
-     * Called once at the end of the OpMode. Zero motors, stop threads,
-     * release any resources. Never throw from here.
+     * Called once at the end of the OpMode, before command end handlers,
+     * diagnostics, and persistence. Zero actuators first; avoid logging or
+     * storage I/O here. Preserve cached state needed by [persistState]. Never throw.
      */
     open fun stop() {}
 

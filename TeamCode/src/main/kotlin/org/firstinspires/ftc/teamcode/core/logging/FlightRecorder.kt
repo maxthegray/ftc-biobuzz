@@ -20,8 +20,9 @@ import org.firstinspires.ftc.teamcode.core.util.GamepadEx
  * Per-op-mode binary flight recorder.
  *
  * Continuous channels are sampled at no more than 100 Hz while events and
- * command-set transitions remain immediate. Timing-window maxima preserve
- * spikes that occur between continuous samples.
+ * scheduled command lifecycle events retain their original timestamps.
+ * commands/running is the set sampled after each loop; short commands appear
+ * in events even when absent from that set. Timing-window maxima preserve spikes.
  *
  * I/O failures permanently disable the recorder for this op-mode. A non-I/O
  * exception from one subsystem's [SubsystemBase.logState] disables only that
@@ -43,6 +44,8 @@ class FlightRecorder private constructor(
     private var sampledThisLoop = false
     private var sampleTimestampUs = 0L
     private var windowMaxTotalNanos = 0L
+    private data class CommandEvent(val timestampUs: Long, val message: String)
+    private val commandEvents = ArrayDeque<CommandEvent>()
     private val windowMaxPhaseNanos = LongArray(LoopPhase.entries.size)
 
     // Resolved once and reused: record() runs every tick, so no per-tick
@@ -115,6 +118,7 @@ class FlightRecorder private constructor(
         if (!enabled) return
         guard {
             sampledThisLoop = false
+            writeCommandEvents()
             val now = clock.nanos()
             val ts = timestampUs(now)
             recordCommandTransition(ts)
@@ -223,13 +227,27 @@ class FlightRecorder private constructor(
     fun event(message: String) {
         if (!enabled) return
         guard {
+            writeCommandEvents()
             writer.appendString(events, message, timestampUs())
+        }
+    }
+
+    /** Called inside scheduler lifecycles; buffer only, so observing cannot block cleanup. */
+    fun commandEvent(message: String) {
+        if (enabled) commandEvents.addLast(CommandEvent(timestampUs(), message))
+    }
+
+    private fun writeCommandEvents() {
+        while (commandEvents.isNotEmpty()) {
+            val event = commandEvents.removeFirst()
+            writer.appendString(events, event.message, event.timestampUs)
         }
     }
 
     override fun close() {
         if (!enabled) return
         guard {
+            writeCommandEvents()
             writer.flush()
             writer.close()
         }
@@ -327,6 +345,7 @@ class FlightRecorder private constructor(
 
     private fun disable(t: Throwable) {
         enabled = false
+        commandEvents.clear()
         try {
             RobotLog.ee("FlightRecorder", t, "Flight recorder disabled")
         } catch (_: Throwable) {

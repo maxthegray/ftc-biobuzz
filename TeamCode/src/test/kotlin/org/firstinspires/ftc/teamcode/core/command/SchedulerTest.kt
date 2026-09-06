@@ -18,6 +18,18 @@ class SchedulerTest {
 
     private val scheduler = Scheduler()
 
+    @Test
+    fun throwingLifecycleObserverCannotFaultACommand() {
+        var notifications = 0
+        scheduler.lifecycleListener = { _, _ -> notifications++; error("observer failed") }
+        val command = Probe(done = { true })
+        assertTrue(scheduler.schedule(command))
+        scheduler.execute()
+        assertEquals(listOf(EndCondition.NATURALLY), command.ends)
+        assertEquals(1, notifications)
+        assertNull(scheduler.lifecycleListener)
+    }
+
     private class Probe(
         requirement: Any? = null,
         priority: Int = 0,

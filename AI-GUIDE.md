@@ -229,6 +229,11 @@ drive.defaultCommand = drive.teleopCommand {
 drive/path helpers are internal; use `followCommand`, `holdCommand`,
 `turnToCommand`, `PedroAutoRunner`, and trigger bindings for real op-modes.
 
+`turnToCommand(radians, timeoutMs = 2000.0)` holds position until measured
+heading is within `DriveConfig.holdToleranceRadians`. Its timeout faults the
+command/routine; it never reports an unfinished turn as success. `turnTo(...)`
+in the auto DSL uses this same policy.
+
 Season teleops should extend `TeleOpBase` instead of wiring this by hand:
 it registers drive + localizer, installs the teleop default command,
 restores the persisted auton pose, and wires the standard driver chords —
@@ -381,6 +386,15 @@ driver.trigger { driver.rightTrigger > 0.5 }.whileTrue(drive.slowMode())
    Trigger condition/binding faults are separately quarantined per trigger in
    every mode. `periodic()`, `writeHardware()`, and `onLoop()` always fail
    fast.
+
+8. **Shutdown hardware before diagnostics or persistence.** `Robot.stop()`
+   calls every subsystem's `stop()` first, then optional crash reporting,
+   command end handlers, persistence, and recorder close. It runs once even
+   when reached through both a catch and finally. Subsystem `stop()` must zero
+   actuators before resource cleanup and avoid storage/logging; keep cached
+   pose/state available for `persistState()`. Command end handlers must not
+   re-energize stopped hardware. Crash reporting goes through
+   `robot.stop { reportCrash() }` so it can still see the pre-cleanup command list.
 
 ## Config persistence (ConfigStore) + Sloth hot reload + Panels
 
@@ -569,8 +583,11 @@ open `.wpilog` files in AdvantageScope, or `make analyze` for a quick
 post-match summary (loop percentiles, phase maxima, battery, follower
 error, events). `OPERATIONS.md` maps competition symptoms to log channels.
 Continuous channels are capped at 100 Hz independently of the control-loop
-rate; events and command transitions remain immediate, and per-window timing
-maxima preserve spikes between samples.
+rate. Scheduler STARTED/FINISHED/INTERRUPTED/FAULTED transitions are timestamped
+when they occur and buffered into `events`, including commands shorter than a
+loop; `commands/running` is the set sampled after each loop. Group children
+are not separately scheduled; autonomous step events provide their timeline.
+Per-window timing maxima preserve spikes between samples.
 
 ### Post-match debugging (the AI runs this)
 
