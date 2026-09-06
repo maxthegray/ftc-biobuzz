@@ -307,7 +307,7 @@ class Robot(
      */
     fun initTick() {
         bulkRead.clearCaches()
-        for (s in subsystems) s.periodic()
+        for (s in subsystems) s.initPeriodic()
     }
 
     /** Record the duration of the just-finished phase and return the new phase start. */

@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.core.subsystems.drive
 import com.pedropathing.follower.Follower
 import com.pedropathing.ftc.drivetrains.Mecanum
 import com.pedropathing.geometry.BezierPoint
+import com.pedropathing.math.Vector
 import com.pedropathing.paths.HeadingInterpolator
 import com.pedropathing.paths.Path
 import com.pedropathing.paths.PathChain
@@ -94,6 +95,14 @@ class MecanumDriveSubsystem(
 
     /** Brake-mode argument of a teleop enable deferred to [writeHardware], or null. */
     private var pendingTeleopBrakeMode: Boolean? = null
+    private var teleopForward = 0.0
+    private var teleopStrafe = 0.0
+    private var teleopTurn = 0.0
+    private var teleopRobotCentric = true
+
+    /** Latched for this opmode: manual drive bypasses all odometry and follower control. */
+    var odometryFallback: Boolean = false
+        private set
 
     /** Ticks of [writeHardware] so far — commands use it to detect "an update has run". */
     private var updateCount = 0L
@@ -115,6 +124,7 @@ class MecanumDriveSubsystem(
      * tick. Deferred, it substitutes for that tick's update instead.
      */
     internal fun enableTeleop(brakeMode: Boolean = DriveConfig.brakeOnTeleop) {
+        zero()
         pendingTeleopBrakeMode = brakeMode
         modeAfterFollow = Mode.IDLE
         mode = Mode.TELEOP
@@ -163,6 +173,21 @@ class MecanumDriveSubsystem(
         .setDone { false }
         .setEnd(onEnd)
 
+    /**
+     * Fault recovery owns drive for the rest of the run, preempting even a
+     * held assist or a grouped path command. Use raw driver sticks here.
+     * Scheduling only stages state; the write phase stops Pedro and switches
+     * the drivetrain to a sensor-independent, robot-relative mixer.
+     */
+    fun robotCentricFallbackCommand(input: () -> TeleopInput): Command =
+        teleopCommand(
+            name = "localizer fault: robot-centric sticks",
+            priority = Int.MAX_VALUE,
+            onStart = { odometryFallback = true },
+            onEnd = { zero(); mode = Mode.IDLE },
+            input = input,
+        )
+
     private fun applyTeleopDrive(
         forward: Double,
         strafe: Double,
@@ -181,14 +206,8 @@ class MecanumDriveSubsystem(
         // FTC sticks use +x right/CW turn; Pedro uses +lateral left/CCW-positive heading.
         val strafeScaled = -strafe.curve(exp) * scale
         val turnScaled = turnPower?.asDirectPower() ?: (-turn.curve(exp) * scale)
-        // A vision-derived forward is robot-relative by construction — the
-        // field-centric projection would rotate it off the target. And a
-        // non-finite heading (dead localizer) would NaN that projection and
-        // with it the motor powers, so fall back to robot-centric there too and
-        // let the driver keep whatever control is still possible.
-        val robotCentric =
-            forwardPower != null || !fieldCentric || !follower.pose.heading.isFinite()
-        follower.setTeleOpDrive(fwd, strafeScaled, turnScaled, robotCentric)
+        val robotCentric = forwardPower != null || !fieldCentric || odometryFallback
+        driveRaw(fwd, strafeScaled, turnScaled, robotCentric)
     }
 
     /**
@@ -198,12 +217,15 @@ class MecanumDriveSubsystem(
      * scaling and participates in the scheduler's requirement arbitration.
      */
     fun driveRaw(forward: Double, strafe: Double, turn: Double, robotCentric: Boolean) {
-        follower.setTeleOpDrive(forward, strafe, turn, robotCentric)
+        teleopForward = forward.asDirectPower()
+        teleopStrafe = strafe.asDirectPower()
+        teleopTurn = turn.asDirectPower()
+        teleopRobotCentric = robotCentric
     }
 
     /** Zero the teleop movement vectors — robot coasts/brakes per [DriveConfig.brakeOnTeleop]. */
     internal fun zero() {
-        follower.setTeleOpDrive(0.0, 0.0, 0.0, true)
+        driveRaw(0.0, 0.0, 0.0, true)
     }
 
     /** Start following a pre-built path chain. */
@@ -476,6 +498,7 @@ class MecanumDriveSubsystem(
 
     override fun logState(log: StateLog) {
         log.put("fieldCentric", fieldCentric)
+        log.put("odometryFallback", odometryFallback)
         val index = sampledMotorIndex
         if (index < 0) return
         val label = MOTOR_LABELS.getOrElse(index) { "motor$index" }
@@ -484,29 +507,63 @@ class MecanumDriveSubsystem(
     }
 
     override fun writeHardware() {
-        // Pedro's Follower.update() is a single mega-method that reads the
-        // localizer, runs the path or teleop vectors, and writes motor powers.
-        // Must run every tick, after the command scheduler has decided what
-        // setTeleOpDrive / followPath / holdPoint call to issue.
         val pendingBrakeMode = pendingTeleopBrakeMode
         pendingTeleopBrakeMode = null
+        if (odometryFallback) {
+            if (pendingBrakeMode != null) {
+                follower.breakFollowing()
+                follower.drivetrain.updateConstants()
+                follower.drivetrain.startTeleopDrive(pendingBrakeMode)
+            }
+            writeRobotCentricFallback()
+            return
+        }
         if (pendingBrakeMode != null && mode == Mode.TELEOP) {
-            // startTeleOpDrive runs Follower.update() internally, so it *is*
-            // this tick's update — calling both would double the localizer
-            // read and PID step. (The mode guard covers a teleop command
-            // preempted by a path in the same tick.)
+            // Startup clears inputs and runs the one sensor/controller update
+            // for this tick. Only then is Pedro's vector calculator initialized.
             follower.startTeleOpDrive(pendingBrakeMode)
+            submitTeleopInput()
+            // Flush the new vectors without another odometry read or PID step,
+            // so the very first stick sample reaches the wheels this tick.
+            follower.drivetrain.runDrive(
+                follower.centripetalForceCorrection,
+                follower.teleopHeadingVector,
+                follower.teleopDriveVector,
+                follower.pose.heading,
+                follower.velocity,
+            )
         } else {
+            if (mode == Mode.TELEOP) submitTeleopInput()
             follower.update()
         }
         updateCount++
+    }
+
+    private fun submitTeleopInput() {
+        follower.setTeleOpDrive(teleopForward, teleopStrafe, teleopTurn, teleopRobotCentric)
+    }
+
+    private fun writeRobotCentricFallback() {
+        if (mode != Mode.TELEOP) zero()
+        val translation = Vector().apply {
+            setOrthogonalComponents(teleopForward, teleopStrafe)
+            magnitude = magnitude.coerceAtMost(1.0)
+        }
+        // Express both inputs and wheel geometry in the robot frame. No pose,
+        // velocity, centripetal correction, or Pinpoint read enters this path.
+        val powers = follower.drivetrain.calculateDrive(
+            Vector(), Vector(teleopTurn, 0.0), translation, 0.0,
+        )
+        for (i in powers.indices) powers[i] = powers[i].asDirectPower()
+        follower.drivetrain.runDrive(powers)
     }
 
     override fun persistState() {
         PersistedPose.record(pose)
     }
 
-    override fun health(): String = "mode=$mode"
+    override fun health(): String =
+        if (odometryFallback) "mode=$mode LOCALIZER FAULT: robot-centric sticks only" else "mode=$mode"
 
     override fun onCommandFault() = halt()
 

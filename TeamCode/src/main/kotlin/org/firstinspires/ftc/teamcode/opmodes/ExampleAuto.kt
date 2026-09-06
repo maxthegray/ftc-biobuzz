@@ -97,8 +97,8 @@ class ExampleAuto : OpModeBase() {
     }
 
     override fun onStart() {
-        localizer.fault?.let {
-            abortAuto("localizer fault before start: $it")
+        if (!localizer.ready) {
+            abortAuto("localizer not ready before start: ${localizer.health()}")
             return
         }
         localizer.setStartingPose(alliance.mirror(startRed))

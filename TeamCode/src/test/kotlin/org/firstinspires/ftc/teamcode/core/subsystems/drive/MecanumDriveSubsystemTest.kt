@@ -124,6 +124,7 @@ class MecanumDriveSubsystemTest {
 
         teleop.start()
         teleop.execute()
+        drive.writeHardware()
 
         assertEquals(0.1, follower.lastTeleOpDrive!![2], 1e-9)
     }
@@ -138,6 +139,7 @@ class MecanumDriveSubsystemTest {
 
         teleop.start()
         teleop.execute()
+        drive.writeHardware()
 
         assertEquals(-0.2, follower.lastTeleOpDrive!![2], 1e-9)
     }
@@ -152,6 +154,7 @@ class MecanumDriveSubsystemTest {
 
         teleop.start()
         teleop.execute()
+        drive.writeHardware()
 
         assertEquals(0.0, follower.lastTeleOpDrive!![2], 1e-9)
     }
@@ -168,6 +171,7 @@ class MecanumDriveSubsystemTest {
 
         teleop.start()
         teleop.execute()
+        drive.writeHardware()
 
         assertEquals(0.1, follower.lastTeleOpDrive!![0], 1e-9)
     }
@@ -185,6 +189,7 @@ class MecanumDriveSubsystemTest {
 
         teleop.start()
         teleop.execute()
+        drive.writeHardware()
 
         assertEquals(true, follower.lastRobotCentric)
     }
@@ -199,6 +204,7 @@ class MecanumDriveSubsystemTest {
 
         teleop.start()
         teleop.execute()
+        drive.writeHardware()
 
         assertEquals(false, follower.lastRobotCentric)
     }
@@ -213,6 +219,7 @@ class MecanumDriveSubsystemTest {
 
         teleop.start()
         teleop.execute()
+        drive.writeHardware()
 
         assertEquals(0.0, follower.lastTeleOpDrive!![0], 1e-9)
     }
@@ -233,6 +240,7 @@ class MecanumDriveSubsystemTest {
 
         teleop.start()
         teleop.execute()
+        drive.writeHardware()
 
         val commanded = follower.lastTeleOpDrive!!
         assertEquals(0.25, commanded[0], 1e-9)
@@ -433,9 +441,8 @@ internal class FakeFollower : Follower(FollowerConstants(), FakeLocalizer(), Fak
         heldPose = pose
     }
 
-    // The base implementation stores into VectorCalculator state that only
-    // exists after a real breakFollowing() has run — which this fake
-    // deliberately intercepts. Recording the values is all tests need.
+    // Adapter scaling tests use recorded values; PedroTeleopStartupTest
+    // exercises initialization and wheel output against the real follower.
     var lastTeleOpDrive: DoubleArray? = null
         private set
 
@@ -449,6 +456,12 @@ internal class FakeFollower : Follower(FollowerConstants(), FakeLocalizer(), Fak
 
     override fun update() {
         updateCalls++
+    }
+
+    override fun getCentripetalForceCorrection(): Vector = Vector()
+    override fun getTeleopHeadingVector(): Vector = Vector(lastTeleOpDrive?.get(2) ?: 0.0, 0.0)
+    override fun getTeleopDriveVector(): Vector = Vector().apply {
+        setOrthogonalComponents(lastTeleOpDrive?.get(0) ?: 0.0, lastTeleOpDrive?.get(1) ?: 0.0)
     }
 
     // Pedro 2.1.1 runs a full update() inside startTeleopDrive — emulate it

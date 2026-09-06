@@ -48,6 +48,9 @@ abstract class SubsystemBase(val name: String) {
      */
     open fun periodic() {}
 
+    /** Init-loop reads, without commands or actuator writes. Defaults to [periodic]. */
+    open fun initPeriodic() = periodic()
+
     /**
      * Called every main-loop tick after [periodic] and the scheduler tick.
      * Useful for writing the final motor power / servo position decided by

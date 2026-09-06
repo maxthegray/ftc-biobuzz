@@ -49,7 +49,7 @@ abstract class TeleOpBase : OpModeBase() {
         // Drive first, localizer second: the localizer samples pose history
         // right after the drive's writeHardware() runs Follower.update().
         drive = robot.register(MecanumDriveSubsystem(follower))
-        val teleopDefault = drive.teleopCommand {
+        val stickInput = {
             TeleopInput(
                 forward = driver.leftStickY,
                 strafe = driver.leftStickX,
@@ -57,21 +57,18 @@ abstract class TeleOpBase : OpModeBase() {
                 precision = driver.rightTrigger > 0.1,
             )
         }
-        drive.defaultCommand = teleopDefault
+        drive.defaultCommand = drive.teleopCommand(input = stickInput)
+        val faultFallback = drive.robotCentricFallbackCommand(stickInput)
         localizer = robot.register(
             LocalizerSubsystem(
                 follower,
                 onEvent = robot::recordEvent,
                 isFollowing = drive::isFollowing,
-                // Watchdog policy: a dead localizer makes any active path
-                // dangerous; break it and hand back stick control. breakPath()
-                // also clears Pedro's manual-drive mode, and a teleop default
-                // that is already the active command would never re-enable it
-                // — cancel it so it reschedules next tick and its start runs
-                // enableTeleop() again.
                 onFault = {
-                    drive.breakPath()
-                    robot.scheduler.cancel(teleopDefault)
+                    // Preempt the actual drive owner and prevent assists from
+                    // reclaiming it while localization remains faulted.
+                    drive.defaultCommand = faultFallback
+                    robot.scheduler.schedule(faultFallback)
                 },
             ),
         )
@@ -99,7 +96,7 @@ abstract class TeleOpBase : OpModeBase() {
 
     /** If you override this, call `super.onStart()` to keep the pose handoff. */
     override fun onStart() {
-        if (restorePoseFromAuton) {
+        if (restorePoseFromAuton && localizer.ready) {
             val restored = localizer.restorePersistedPose()
             robot.recordEvent(
                 "PERSISTED POSE RESTORE: ${if (restored) "APPLIED" else "NOT APPLIED"}",
