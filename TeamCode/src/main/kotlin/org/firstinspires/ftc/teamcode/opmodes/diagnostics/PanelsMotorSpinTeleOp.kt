@@ -42,7 +42,7 @@ class PanelsMotorSpinTeleOp : OpModeBase() {
     override val endgameRumble: Boolean get() = false
 
     override fun configure() {
-        ConfigStore.register("motorTest", MotorTestConfig)
+        ConfigStore.register("motorTest", MotorTestConfig, MotorTestConfig::resetDefaults)
         spin = robot.register(MotorSpinSubsystem(MOTOR_NAME))
         driver.button(GamepadEx.Button.RIGHT_BUMPER).whileTrue(spin.spinCommand())
     }
@@ -91,6 +91,11 @@ object MotorTestConfig {
      * meant 0.1 should not launch the mechanism across the shop.
      */
     @JvmField var maxPower: Double = DEFAULT_MAX_POWER
+
+    fun resetDefaults() {
+        power = DEFAULT_POWER
+        maxPower = DEFAULT_MAX_POWER
+    }
 
     internal val safeMaxPower: Double
         get() = if (maxPower.isFinite()) maxPower.coerceIn(0.0, 1.0) else DEFAULT_MAX_POWER

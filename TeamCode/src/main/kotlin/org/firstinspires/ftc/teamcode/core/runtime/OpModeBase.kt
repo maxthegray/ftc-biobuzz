@@ -337,8 +337,8 @@ abstract class OpModeBase : LinearOpMode() {
         }
 
         // Restore live-tuned values before configure() reads any of them.
-        ConfigStore.register("drive", DriveConfig)
-        ConfigStore.register("localizer", LocalizerConfig)
+        ConfigStore.register("drive", DriveConfig, DriveConfig::resetDefaults)
+        ConfigStore.register("localizer", LocalizerConfig, LocalizerConfig::resetDefaults)
         ConfigStore.loadFromDisk()
 
         val panels = PanelsTelemetry.telemetry

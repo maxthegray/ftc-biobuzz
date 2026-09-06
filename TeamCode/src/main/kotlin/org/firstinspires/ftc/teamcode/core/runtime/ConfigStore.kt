@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.core.runtime
 
 import com.qualcomm.robotcore.util.RobotLog
 import java.io.File
+import java.io.IOException
 import java.lang.reflect.Field
 import java.lang.reflect.Modifier
 import java.util.Locale
@@ -23,7 +24,7 @@ import java.util.Locale
  * (see [OpModeBase]); season forks add their own in `configure()`:
  *
  * ```kotlin
- * ConfigStore.register("lift", LiftConfig)
+ * ConfigStore.register("lift", LiftConfig, LiftConfig::resetDefaults)
  * ```
  *
  * Only public `@JvmField` mutable fields of primitive-ish types (Double,
@@ -46,40 +47,34 @@ object ConfigStore {
     internal var file: File? = File("/sdcard/FIRST/config/tuning.properties")
     internal var schemaId: String = RobotConfig.CONFIG_SCHEMA
 
-    private val sections = LinkedHashMap<String, Any>()
+    private class Section(val config: Any, val resetDefaults: () -> Unit)
+
+    private val sections = LinkedHashMap<String, Section>()
     private var lastPersisted: Map<String, String>? = null
 
-    /** Register a config object under [section]. Idempotent; re-registering replaces. */
-    fun register(section: String, config: Any) {
+    /**
+     * Register a config object under [section]. Re-registering replaces both arguments.
+     * [resetDefaults] must restore its tunable fields from compiled constants, not
+     * a snapshot of live values; Panels may already have changed those values.
+     */
+    fun register(section: String, config: Any, resetDefaults: () -> Unit) {
         require(section.isNotBlank() && '.' !in section && '=' !in section) {
             "section must be a simple name, got \"$section\""
         }
-        sections[section] = config
+        sections[section] = Section(config, resetDefaults)
     }
 
     /**
-     * Apply persisted overrides to every registered object. Missing file,
-     * unknown keys, and unparseable values are ignored — compiled defaults
-     * win wherever the file has nothing better to say.
+     * Reset every registered object, then apply matching-schema overrides.
+     * Missing files/keys and invalid values leave compiled defaults in place,
+     * including in a warm process. Unknown keys are retained when persisting.
      */
     fun loadFromDisk() {
         val target = file ?: return
         try {
-            if (target.exists()) {
-                val persisted = LinkedHashMap<String, String>()
-                for (line in target.readLines()) {
-                    val trimmed = line.trim()
-                    if (trimmed.isEmpty() || trimmed.startsWith("#")) continue
-                    val eq = trimmed.indexOf('=')
-                    if (eq <= 0) continue
-                    persisted[trimmed.substring(0, eq).trim()] =
-                        trimmed.substring(eq + 1).trim()
-                }
-                if (persisted[SCHEMA_KEY] == schemaId) {
-                    for ((key, value) in persisted) {
-                        if (key != SCHEMA_KEY) applyValue(key, value)
-                    }
-                }
+            for (section in sections.values) section.resetDefaults()
+            for ((key, value) in readMatchingValues(target)) {
+                applyValue(key, value)
             }
         } catch (t: Throwable) {
             log(t, "Failed to load tuning config")
@@ -93,38 +88,45 @@ object ConfigStore {
      * persist. Atomic (tmp + rename), best-effort, cheap when clean (one
      * reflective snapshot). Returns true when a write happened.
      */
-    fun persistIfDirty(): Boolean {
+    fun persistIfDirty(): Boolean = persistIfDirty(File::renameTo)
+
+    internal fun persistIfDirty(replaceFile: (File, File) -> Boolean): Boolean {
         val target = file ?: return false
         val current = snapshot()
         if (current == lastPersisted) return false
+        val tmp = File(target.path + ".tmp")
         try {
+            // Read on each dirty write so partial registrations (even without a
+            // prior load) and hand-edited unknown keys survive this opmode.
+            val merged = readMatchingValues(target) + current
             target.parentFile?.mkdirs()
-            val tmp = File(target.path + ".tmp")
             tmp.writeText(
                 buildString {
                     appendLine("# ftc-biobuzz live-tuning values. Written by ConfigStore;")
                     appendLine("# loaded into config objects at every op-mode init.")
                     appendLine("# Delete this file to fall back to compiled defaults.")
                     appendLine("$SCHEMA_KEY=$schemaId")
-                    for ((key, value) in current) appendLine("$key=$value")
+                    for ((key, value) in merged) appendLine("$key=$value")
                 },
             )
-            if (!tmp.renameTo(target)) {
-                target.delete()
-                tmp.renameTo(target)
+            if (!replaceFile(tmp, target)) {
+                throw IOException("Could not replace tuning file $target")
             }
             lastPersisted = current
             return true
         } catch (t: Throwable) {
             log(t, "Failed to persist tuning config")
             return false
+        } finally {
+            if (tmp.isFile) tmp.delete()
         }
     }
 
     /** Current values of every registered field, keyed `<section>.<field>`. */
     internal fun snapshot(): Map<String, String> {
         val values = LinkedHashMap<String, String>()
-        for ((section, config) in sections) {
+        for ((section, registration) in sections) {
+            val config = registration.config
             for (field in tunableFields(config)) {
                 values["$section.${field.name}"] = formatValue(field.get(config))
             }
@@ -138,10 +140,24 @@ object ConfigStore {
         lastPersisted = null
     }
 
+    private fun readMatchingValues(target: File): Map<String, String> {
+        if (!target.exists()) return emptyMap()
+        val persisted = LinkedHashMap<String, String>()
+        for (line in target.readLines()) {
+            val trimmed = line.trim()
+            if (trimmed.isEmpty() || trimmed.startsWith("#")) continue
+            val eq = trimmed.indexOf('=')
+            if (eq <= 0) continue
+            persisted[trimmed.substring(0, eq).trim()] = trimmed.substring(eq + 1).trim()
+        }
+        if (persisted.remove(SCHEMA_KEY) != schemaId) return emptyMap()
+        return persisted
+    }
+
     private fun applyValue(key: String, raw: String) {
         val dot = key.indexOf('.')
         if (dot <= 0) return
-        val config = sections[key.substring(0, dot)] ?: return
+        val config = sections[key.substring(0, dot)]?.config ?: return
         val fieldName = key.substring(dot + 1)
         val field = tunableFields(config).firstOrNull { it.name == fieldName } ?: return
         try {

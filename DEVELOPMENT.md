@@ -115,15 +115,22 @@ registered with the store in `configure()`:
 
 ```kotlin
 @Configurable
-object ShooterConfig { @JvmField var targetRpm: Double = 3200.0 }
+object ShooterConfig {
+    private const val DEFAULT_TARGET_RPM = 3200.0
+    @JvmField var targetRpm: Double = DEFAULT_TARGET_RPM
+
+    fun resetDefaults() { targetRpm = DEFAULT_TARGET_RPM }
+}
 // in configure():
-ConfigStore.register("shooter", ShooterConfig)
+ConfigStore.register("shooter", ShooterConfig, ShooterConfig::resetDefaults)
 ```
 
 Tuned values persist to `/sdcard/FIRST/config/tuning.properties` and restore
 at every init — power cycles, installs, and hot reloads included. Do **not**
 `@Pinned` config objects. Add `safe*` clamping getters for values where a
 fat-fingered Panels edit could hurt (see `DriveConfig` for the pattern).
+Keep `resetDefaults()` in sync with all persisted fields. It runs before
+each load so missing or invalid settings cannot retain a previous run's tuning.
 
 ## Auton
 

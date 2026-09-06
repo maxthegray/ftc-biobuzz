@@ -100,8 +100,9 @@ class <Name>Subsystem(/* injected deps if any */) : SubsystemBase("<Name>") {
    If the command needs run-time state (e.g. a path from the current pose),
    use `Commands.defer(this) { build() }`.
 6. **Tunable values** go in an `@Configurable` object with `@JvmField` vars,
-   registered via `ConfigStore.register("<section>", <Config>)` in
-   `configure()` — never `@Pinned`.
+   registered via `ConfigStore.register("<section>", <Config>, <Config>::resetDefaults)`
+   in `configure()` — never `@Pinned`. `resetDefaults()` restores every persisted
+   field from compiled constants before each load; do not snapshot live values.
 
 ### Command API reminders (this repo's own scheduler — core/command)
 

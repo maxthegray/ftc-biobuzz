@@ -60,6 +60,15 @@ object LocalizerConfig {
      */
     @JvmField var frozenPoseTicks: Int = DEFAULT_FROZEN_POSE_TICKS
 
+    fun resetDefaults() {
+        correctionBlend = DEFAULT_CORRECTION_BLEND
+        maxCorrectionInches = DEFAULT_MAX_CORRECTION_INCHES
+        maxCorrectionRadians = DEFAULT_MAX_CORRECTION_RADIANS
+        followingBlendScale = DEFAULT_FOLLOWING_BLEND_SCALE
+        watchdogEnabled = true
+        frozenPoseTicks = DEFAULT_FROZEN_POSE_TICKS
+    }
+
     internal val safeFrozenPoseTicks: Int
         get() = if (frozenPoseTicks >= 2) frozenPoseTicks else DEFAULT_FROZEN_POSE_TICKS
 

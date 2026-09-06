@@ -159,6 +159,15 @@ object BallAimConfig {
     /** Color blobs smaller than this fraction of frame area are ignored as noise. */
     @JvmField var minAreaPercent: Double = DEFAULT_MIN_AREA_PERCENT
 
+    fun resetDefaults() {
+        kP = DEFAULT_KP
+        kD = DEFAULT_KD
+        maxTurnPower = DEFAULT_MAX_TURN_POWER
+        minTurnPower = DEFAULT_MIN_TURN_POWER
+        deadbandDegrees = DEFAULT_DEADBAND_DEGREES
+        minAreaPercent = DEFAULT_MIN_AREA_PERCENT
+    }
+
     internal val safeKp: Double get() = finiteAtLeast(kP, min = 0.0, fallback = 0.0)
 
     internal val safeKd: Double get() = finiteAtLeast(kD, min = 0.0, fallback = 0.0)
