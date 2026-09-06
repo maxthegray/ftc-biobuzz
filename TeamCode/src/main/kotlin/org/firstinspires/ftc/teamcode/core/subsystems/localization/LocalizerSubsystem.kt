@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.core.subsystems.localization
 
 import com.pedropathing.follower.Follower
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver.DeviceStatus
 import com.qualcomm.robotcore.hardware.HardwareMap
 import org.firstinspires.ftc.teamcode.core.estimation.CorrectionResult
 import org.firstinspires.ftc.teamcode.core.estimation.PoseEstimator
@@ -43,8 +44,11 @@ import org.firstinspires.ftc.teamcode.core.util.Clock
  * — the failure everything downstream silently trusts not to happen. It trips
  * on a non-finite pose, on a pose frozen bit-identical for
  * [LocalizerConfig.frozenPoseTicks] ticks while a path is being followed, or
- * on a non-READY Pinpoint device status (checked ~1 Hz, only when the raw
- * Pinpoint is in the hardware map). A trip latches [fault], surfaces in
+ * on a non-READY Pinpoint device status (checked ~1 Hz during the run, only
+ * when the raw Pinpoint is in the hardware map). [initPeriodic] refreshes
+ * odometry without actuator writes and allows up to five seconds for initial
+ * NOT_READY/CALIBRATING status; [ready] gates autonomous startup.
+ * A trip latches [fault], surfaces in
  * [health] and the flight log, and fires [onFault] once — wire the policy
  * there (teleop: break the path, driver keeps stick control; auton: cancel
  * the routine and stop, because driving blind is worse than parking).
@@ -74,12 +78,19 @@ class LocalizerSubsystem(
         private set
 
     private var rawPinpoint: GoBildaPinpointDriver? = null
+    private var pinpointReady = false
+    private var initStartedNs = 0L
+
     private var lastStatusNs = Long.MIN_VALUE
     private var frozenTicks = 0
     private var lastPose = Pose2d.ZERO
     private var hasLastPose = false
 
+    /** A real status sample must report READY before autonomous may start. */
+    val ready: Boolean get() = fault == null && (rawPinpoint == null || pinpointReady)
+
     override fun init(hardwareMap: HardwareMap) {
+        initStartedNs = clock.nanos()
         // The follower owns the localizer; the raw Pinpoint is resolved
         // separately for the watchdog's device-status check. It may be absent
         // in host tests.
@@ -94,8 +105,26 @@ class LocalizerSubsystem(
         }
     }
 
+    override fun initPeriodic() {
+        if (fault != null) return
+        try {
+            // updatePose reads odometry only; Follower.update would also drive motors.
+            follower.updatePose()
+        } catch (t: Exception) {
+            trip("odometry init read failed: ${t.message}")
+            return
+        }
+        checkPinpointStatus(initializing = true)
+        if (ready) checkPose()
+    }
+
     override fun periodic() {
         if (fault != null || !LocalizerConfig.watchdogEnabled) return
+        checkPinpointStatus(initializing = false)
+        if (fault == null) checkPose()
+    }
+
+    private fun checkPose() {
         val p = pose
         if (!p.x.isFinite() || !p.y.isFinite() || !p.heading.isFinite()) {
             trip("non-finite pose $p")
@@ -118,18 +147,30 @@ class LocalizerSubsystem(
         }
         lastPose = p
         hasLastPose = true
+    }
 
+    private fun checkPinpointStatus(initializing: Boolean) {
         val pinpoint = rawPinpoint ?: return
         val now = clock.nanos()
-        if (lastStatusNs != Long.MIN_VALUE && now - lastStatusNs < STATUS_INTERVAL_NS) return
+        if (!initializing && pinpointReady && lastStatusNs != Long.MIN_VALUE &&
+            now - lastStatusNs < STATUS_INTERVAL_NS
+        ) return
         lastStatusNs = now
         val status = try {
             pinpoint.deviceStatus
-        } catch (_: Throwable) {
-            null // a flaky status read alone shouldn't kill localization
+        } catch (t: Exception) {
+            trip("Pinpoint status read failed: ${t.message}")
+            return
         }
-        if (status != null && status != GoBildaPinpointDriver.DeviceStatus.READY) {
-            trip("Pinpoint status $status")
+        when {
+            status == DeviceStatus.READY -> pinpointReady = true
+            initializing && !pinpointReady &&
+                (status == DeviceStatus.NOT_READY || status == DeviceStatus.CALIBRATING) -> {
+                if (now - initStartedNs >= STARTUP_TIMEOUT_NS) {
+                    trip("Pinpoint startup timed out: $status")
+                }
+            }
+            else -> trip("Pinpoint status $status")
         }
     }
 
@@ -147,7 +188,7 @@ class LocalizerSubsystem(
     private var lastPoseRestoreSucceeded: Boolean? = null
 
     override fun health(): String {
-        val base = fault?.let { "FAULT: $it" } ?: "ok"
+        val base = fault?.let { "FAULT: $it" } ?: if (ready) "ok" else "waiting for Pinpoint READY"
         val restored = lastPoseRestoreSucceeded ?: return base
         return "$base poseRestore=${if (restored) "applied" else "not applied"}"
     }
@@ -224,5 +265,6 @@ class LocalizerSubsystem(
 
     private companion object {
         const val STATUS_INTERVAL_NS = 1_000_000_000L
+        const val STARTUP_TIMEOUT_NS = 5_000_000_000L
     }
 }

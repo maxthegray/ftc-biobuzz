@@ -45,8 +45,10 @@ re-wiring.
 
 ## 3. Pinpoint axes and heading sign (on blocks, then by hand)
 
-- Init any BioBuzz op-mode; confirm **Pinpoint status** reads `READY` in the
-  Health section first.
+- Init a drive op-mode; confirm **Pinpoint status** reads `READY` in the
+  Health section first. Initialization refreshes odometry without driving
+  motors and allows five seconds for calibration. `Example Auto` refuses to
+  start while readiness is pending or faulted.
 - Push the robot by hand, watch the Panels field view: +x forward, +y left.
   Rotate CCW by hand: heading must increase. Fix signs via the encoder
   directions in `pedroPathing/Constants.java`, then re-verify.
@@ -92,11 +94,16 @@ is following or battery.
 
 These check the safety behavior you'd otherwise only find out about mid-match:
 
-- **Watchdog:** with a path running, unplug an odometry pod. Within ~0.5 s the
-  Health section must show `Localizer: FAULT`, the path must break (teleop:
-  sticks keep working; auton: routine cancels), and the log must carry a
-  `LOCALIZER FAULT` event. If nothing trips, check
-  `LocalizerConfig.watchdogEnabled` and the `pinpoint` hardware name.
+- **Watchdog:** with a path running, unplug an odometry pod. The device-status
+  check runs about once per second. Health must show `Localizer: FAULT` and
+  the log must carry a `LOCALIZER FAULT` event. In teleop, the active drive
+  command must end and sticks must work robot-centric; field-centric drive
+  and assists stay disabled until a new op-mode run. Repeat while holding a
+  ball assist, and verify forward, strafe, turn, precision, and stick release.
+  In autonomous, the routine must cancel. If nothing trips, check
+  `LocalizerConfig.watchdogEnabled` and the `pinpoint` hardware name. This tests
+  a reported sensor fault; an exception from the actual I2C read still follows
+  the framework's fail-fast hardware policy.
 - **Containment:** in a throwaway teleop, bind a button to a command whose
   `setExecute` throws. Pressing it should print `command faults` in Health
   while the drive keeps responding. If the op-mode dies, fault containment

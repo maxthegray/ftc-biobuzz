@@ -181,6 +181,18 @@ follower.pathBuilder()                   // returns a fresh PathBuilder
 
 Important: `Follower.update()` is heavy (runs localiser + PIDs + writes
 motors). Call it exactly once per tick, from `MecanumDriveSubsystem.writeHardware()`.
+Teleop startup supplies that update internally; the adapter then submits and
+flushes the staged input without a second update. During init,
+`LocalizerSubsystem.initPeriodic()` calls only `updatePose()` (no motor writes)
+and waits up to five seconds for Pinpoint READY. Autonomous must check
+`localizer.ready` before scheduling.
+
+A latched teleop localizer fault is the exception to the per-tick follower
+update: `TeleOpBase` schedules a highest-priority robot-centric fallback and
+makes it the drive default. It preempts the actual drive owner, blocks further
+assists, and uses the drivetrain mixer directly with robot-frame vectors and
+zero heading, without odometry reads or follower corrections. Field-centric
+drive and assists remain unavailable until the next op-mode run.
 
 ### PathBuilder
 
@@ -340,6 +352,8 @@ driver.trigger { driver.rightTrigger > 0.5 }.whileTrue(drive.slowMode())
    urge, write a command instead. The whole point of the scheduler's
    requirements system is to prevent two chunks of code from commanding
    the same hardware simultaneously.
+   Init ticks call `initPeriodic()` (defaults to `periodic()`); overrides
+   may read sensors but must not command actuators.
 
 3. **Don't call `Follower.update()` from anywhere other than
    `MecanumDriveSubsystem.writeHardware()`.** Calling it twice per tick
@@ -471,7 +485,7 @@ match to avoid an alliance partner's routine.
 `ExampleAuto` is the copyable skeleton: RED-coordinate poses mirrored by the
 DSL, routine built at start, sequenced with `autoRoutine`, final pose
 persisted automatically for teleop to restore. Its `onStart` aborts before
-scheduling when the localizer already faulted and treats a rejected schedule
+scheduling when the localizer is not ready (including a latched fault) and treats a rejected schedule
 as an auton abort; preserve both gates in season copies.
 
 Mid-path actions use progress markers instead of parallel/waitUntil
