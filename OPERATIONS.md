@@ -112,9 +112,11 @@ These check the safety behavior you'd otherwise only find out about mid-match:
 ## Logs and post-run diagnosis
 
 Every op-mode writes a WPILOG under `/sdcard/FIRST/logs`.
-Continuous channels are capped at 100 Hz; events and command transitions are
-immediate, and the analyzer uses per-window timing maxima so short spikes are
-not hidden by the cap.
+Continuous channels are capped at 100 Hz. `events` includes timestamped
+`COMMAND STARTED`, `FINISHED`, `INTERRUPTED`, and `FAULTED` records for scheduled
+commands, including those that finish within one loop. `commands/running`
+remains the sampled running set. The analyzer uses per-window timing maxima
+so short spikes are not hidden by the cap.
 
 ```sh
 make debug       # newest Auto + TeleOp, JSON diagnostic bundle

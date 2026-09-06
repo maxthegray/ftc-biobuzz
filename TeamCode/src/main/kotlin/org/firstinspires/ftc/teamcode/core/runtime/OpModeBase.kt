@@ -179,8 +179,8 @@ abstract class OpModeBase : LinearOpMode() {
             val trace = StringWriter().also { writer ->
                 t.printStackTrace(PrintWriter(writer))
             }.toString()
-            // "What was happening" beats "where it died": capture scheduler
-            // state and the recent event timeline before anything shuts down.
+            // Hardware is already stopped; command cleanup has not yet erased
+            // the running set or added teardown events to the timeline.
             val running = try {
                 robot.scheduler.runningCommandNames()
             } catch (_: Throwable) {
@@ -204,7 +204,6 @@ abstract class OpModeBase : LinearOpMode() {
                 append(trace)
             }
             robot.recordEvent(report)
-            robot.closeFlightRecorder()
             writeLastCrash(report)
             telemetry.addLine(message)
             telemetry.update()
@@ -386,9 +385,10 @@ abstract class OpModeBase : LinearOpMode() {
                 sleep(20)
             }
         } catch (t: Throwable) {
-            telemetry.addLine("INIT FAILED: ${t.javaClass.simpleName}: ${t.message}")
-            telemetry.update()
-            robot.stop()
+            robot.stop {
+                telemetry.addLine("INIT FAILED: ${t.javaClass.simpleName}: ${t.message}")
+                telemetry.update()
+            }
             throw t
         }
 
@@ -427,7 +427,7 @@ abstract class OpModeBase : LinearOpMode() {
                 )
             }
         } catch (t: Throwable) {
-            reportLoopCrash(t)
+            robot.stop { reportLoopCrash(t) }
             throw t
         } finally {
             robot.stop()

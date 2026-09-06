@@ -2,9 +2,7 @@ package org.firstinspires.ftc.teamcode.core.subsystems.drive
 
 import com.pedropathing.follower.Follower
 import com.pedropathing.ftc.drivetrains.Mecanum
-import com.pedropathing.geometry.BezierPoint
 import com.pedropathing.math.Vector
-import com.pedropathing.paths.HeadingInterpolator
 import com.pedropathing.paths.Path
 import com.pedropathing.paths.PathChain
 import com.qualcomm.robotcore.hardware.DcMotorEx
@@ -313,21 +311,36 @@ class MecanumDriveSubsystem(
     }
 
     /**
-     * Turn in place to an absolute heading: follow a zero-length path pinned at the
-     * current pose with constant-heading interpolation at the target, done
-     * when the follower stops being busy.
+     * Hold the current position while turning to a measured absolute heading.
+     * Pedro's point-path timeout is not a success condition: if the heading
+     * has not converged within [timeoutMs], fault instead of advancing a routine.
      */
-    fun turnToCommand(radians: Double): Command =
-        driveAction(
-            name = "turnTo %.0f°".format(Locale.US, Math.toDegrees(radians)),
-            running = Mode.FOLLOWING,
-            finished = Mode.IDLE,
-        ) {
-            val path = Path(BezierPoint(follower.pose))
-            path.setHeadingInterpolation(HeadingInterpolator.constant(radians))
-            path.setConstraints(follower.pathConstraints)
-            follower.followPath(path)
-        }
+    fun turnToCommand(radians: Double, timeoutMs: Double = 2_000.0): Command {
+        require(radians.isFinite()) { "turn heading must be finite" }
+        require(timeoutMs.isFinite() && timeoutMs >= 0.0) { "turn timeout must be finite and non-negative" }
+        var startNs = 0L
+        var updatesAtStart = 0L
+        return Command.build()
+            .setName("turnTo %.0f°".format(Locale.US, Math.toDegrees(radians)))
+            .requiring(this)
+            .setPriority(CommandPriorities.DRIVER_ACTION)
+            .setStart {
+                startNs = clock.nanos()
+                updatesAtStart = updateCount
+                holdPose(pose.withHeading(radians))
+            }
+            .setDone {
+                val heading = pose.heading
+                check(heading.isFinite()) { "turnTo lost its heading measurement" }
+                val error = abs(shortestAngleDelta(heading, radians))
+                val reached = updateCount > updatesAtStart && error < DriveConfig.safeHoldToleranceRadians
+                check(reached || (clock.nanos() - startNs) / 1e6 < timeoutMs) {
+                    "turnTo timed out after $timeoutMs ms; heading error ${Math.toDegrees(error)} deg"
+                }
+                reached
+            }
+            .setEnd { breakPath() }
+    }
 
     /**
      * A drive-claiming command at [CommandPriorities.DRIVER_ACTION]: [start]

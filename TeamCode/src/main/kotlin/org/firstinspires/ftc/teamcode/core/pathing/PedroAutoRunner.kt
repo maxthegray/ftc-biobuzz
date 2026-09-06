@@ -123,7 +123,7 @@ class PedroAutoRunner(
     fun holdPose(pose: Pose2d): PedroAutoRunner =
         append("holdPose", drive.holdCommand(pose))
 
-    /** Turn in place to an absolute heading in radians. */
+    /** Turn to a measured absolute heading; a two-second timeout faults the routine. */
     fun turnTo(radians: Double): PedroAutoRunner =
         append("turnTo %.0f deg".format(java.util.Locale.US, Math.toDegrees(radians)), drive.turnToCommand(radians))
 

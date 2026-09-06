@@ -7,6 +7,7 @@ import com.pedropathing.ftc.drivetrains.MecanumConstants
 import com.pedropathing.geometry.Pose
 import com.pedropathing.localization.Localizer
 import com.pedropathing.math.Vector
+import com.pedropathing.paths.PathConstraints
 import com.qualcomm.robotcore.hardware.DcMotorEx
 import com.qualcomm.robotcore.hardware.DcMotorSimple
 import com.qualcomm.robotcore.hardware.HardwareMap
@@ -15,7 +16,7 @@ import com.qualcomm.robotcore.hardware.configuration.typecontainers.MotorConfigu
 import java.lang.reflect.Proxy
 
 /** Real Pedro control and mecanum mixing; only devices and odometry are simulated. */
-internal class PedroDriveFixture {
+internal class PedroDriveFixture(pathConstraints: PathConstraints = PathConstraints.defaultConstraints) {
     // SDK tryGet checks the Android device type (and loads native RobotCore).
     // Keep device registration real; replace only that host-incompatible lookup.
     val hardwareMap = object : HardwareMap(null, null) {
@@ -45,7 +46,7 @@ internal class PedroDriveFixture {
             yVelocity = 40.0
             frontLeftVector = Vector(1.0, Math.PI / 4.0)
         }
-        follower = Follower(FollowerConstants(), localizer, Mecanum(hardwareMap, constants))
+        follower = Follower(FollowerConstants(), localizer, Mecanum(hardwareMap, constants), pathConstraints)
         drive = MecanumDriveSubsystem(follower)
     }
 

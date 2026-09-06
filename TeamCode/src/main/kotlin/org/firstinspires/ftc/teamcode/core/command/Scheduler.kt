@@ -28,6 +28,11 @@ package org.firstinspires.ftc.teamcode.core.command
  */
 class Scheduler {
 
+    enum class LifecycleEvent { STARTED, FINISHED, INTERRUPTED, FAULTED }
+
+    /** Observe scheduled commands, including runs shorter than one execute tick. No blocking I/O. */
+    var lifecycleListener: ((Command, LifecycleEvent) -> Unit)? = null
+
     private val running = LinkedHashSet<Command>()
     private val activeRequirements = HashMap<Any, Command>()
     private var lifecycleDepth = 0
@@ -69,6 +74,7 @@ class Scheduler {
         }
         running += command
         for (requirement in command.requirements()) activeRequirements[requirement] = command
+        notifyLifecycle(command, LifecycleEvent.STARTED)
         try {
             lifecycle { command.start() }
         } catch (reported: ReportedFault) {
@@ -170,21 +176,44 @@ class Scheduler {
 
     /** Run the end handler; a throwing end handler is itself a fault. */
     private fun endReported(command: Command, condition: EndCondition) {
+        var event = condition.lifecycleEvent()
         try {
             lifecycle { command.end(condition) }
         } catch (reported: ReportedFault) {
+            event = LifecycleEvent.FAULTED
             propagate(reported)
         } catch (t: Throwable) {
+            event = LifecycleEvent.FAULTED
             report(command, t)
+        } finally {
+            notifyLifecycle(command, event)
         }
     }
 
     private fun endSwallowed(command: Command, condition: EndCondition) {
+        var event = condition.lifecycleEvent()
         try {
             lifecycle { command.end(condition) }
         } catch (_: Throwable) {
+            event = LifecycleEvent.FAULTED
             // Best-effort: the command is already being torn down.
+        } finally {
+            notifyLifecycle(command, event)
         }
+    }
+
+    private fun notifyLifecycle(command: Command, event: LifecycleEvent) {
+        try {
+            lifecycleListener?.invoke(command, event)
+        } catch (_: Throwable) {
+            lifecycleListener = null // An observer must never fault a command.
+        }
+    }
+
+    private fun EndCondition.lifecycleEvent(): LifecycleEvent = when (this) {
+        EndCondition.NATURALLY -> LifecycleEvent.FINISHED
+        EndCondition.INTERRUPTED -> LifecycleEvent.INTERRUPTED
+        EndCondition.FAULTED -> LifecycleEvent.FAULTED
     }
 
     private fun report(command: Command, t: Throwable) {
