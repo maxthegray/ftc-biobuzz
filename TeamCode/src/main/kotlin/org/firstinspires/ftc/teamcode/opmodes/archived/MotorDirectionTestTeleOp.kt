@@ -1,6 +1,7 @@
-package org.firstinspires.ftc.teamcode.opmodes
+package org.firstinspires.ftc.teamcode.opmodes.archived
 
 import com.qualcomm.robotcore.hardware.DcMotorSimple
+import com.qualcomm.robotcore.eventloop.opmode.Disabled
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import com.qualcomm.robotcore.hardware.DcMotorEx
 import com.qualcomm.robotcore.hardware.HardwareMap
@@ -14,7 +15,11 @@ import java.util.Locale
 /**
  * On-blocks drivetrain mapping check. Dpad left/right selects one motor;
  * the triggers spin only that motor at up to 20% power.
+ *
+ * Archived: chassis mapping verified on the sensorbot; directions are locked
+ * in `pedroPathing/Constants.java`. Re-enable when bringing up a new chassis.
  */
+@Disabled
 @TeleOp(name = "Motor Direction Test", group = "Diagnostics")
 class MotorDirectionTestTeleOp : OpModeBase() {
 

@@ -1,5 +1,6 @@
-package org.firstinspires.ftc.teamcode.opmodes.diagnostics
+package org.firstinspires.ftc.teamcode.opmodes.archived
 
+import com.qualcomm.robotcore.eventloop.opmode.Disabled
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import org.firstinspires.ftc.teamcode.core.hardware.SRSHub
 import org.firstinspires.ftc.teamcode.core.hardware.SRSHubSubsystem
@@ -9,6 +10,11 @@ import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.runtime.Preflight
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 
+/**
+ * Archived: the sensorbot runs no SRSHub (Pinpoint is wired direct), so this
+ * Preflight-fails at init. Re-enable if an SRSHub goes on the robot.
+ */
+@Disabled
 @TeleOp(name = "SRS Loop Benchmark", group = "Diagnostics")
 class SrsLoopBenchmarkTeleOp : OpModeBase() {
 
