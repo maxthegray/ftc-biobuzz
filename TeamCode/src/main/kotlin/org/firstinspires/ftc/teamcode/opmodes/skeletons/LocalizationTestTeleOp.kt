@@ -1,6 +1,7 @@
-package org.firstinspires.ftc.teamcode.opmodes
+package org.firstinspires.ftc.teamcode.opmodes.skeletons
 
 import com.bylazar.configurables.annotations.Configurable
+import com.qualcomm.robotcore.eventloop.opmode.Disabled
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import kotlin.math.abs
 import org.firstinspires.ftc.teamcode.core.command.Command
@@ -8,11 +9,12 @@ import org.firstinspires.ftc.teamcode.core.command.Commands
 import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import org.firstinspires.ftc.teamcode.core.pathing.path
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
+import org.firstinspires.ftc.teamcode.opmodes.TeleOpBase
 
 /**
  * Teleop for testing localization consistency over time.
  *
- * Behaves like [DriveOnlyTeleOp] during normal driving (including the
+ * Behaves like Drive Only during normal driving (including the
  * Back+Y heading reset and Back+B field-centric chords from [TeleOpBase]),
  * with two extra buttons:
  *
@@ -28,7 +30,11 @@ import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
  * it ends up — that's the localization drift you're measuring.
  *
  * All destination coordinates are live-editable in Panels (see companion object).
+ *
+ * Disabled by default: re-enable when you need to measure localization drift
+ * (OPERATIONS.md step 6, or any time pods may have shifted).
  */
+@Disabled
 @TeleOp(name = "Localization Test", group = "Diagnostics")
 @Configurable
 class LocalizationTestTeleOp : TeleOpBase() {
