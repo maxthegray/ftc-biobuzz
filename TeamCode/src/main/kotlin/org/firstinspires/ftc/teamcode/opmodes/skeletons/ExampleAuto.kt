@@ -1,6 +1,7 @@
-package org.firstinspires.ftc.teamcode.opmodes
+package org.firstinspires.ftc.teamcode.opmodes.skeletons
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous
+import com.qualcomm.robotcore.eventloop.opmode.Disabled
 import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import org.firstinspires.ftc.teamcode.core.pathing.PedroAutoRunner
 import org.firstinspires.ftc.teamcode.core.pathing.autoRoutine
@@ -31,7 +32,11 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants
  *    final pose persists automatically for teleop to restore
  *
  * Copy this file as the skeleton for a real routine.
+ *
+ * Disabled: this is a template, not a runnable routine — it needs Pedro
+ * calibration and real poses before it means anything.
  */
+@Disabled
 @Autonomous(name = "Example Auto", group = "Match")
 class ExampleAuto : OpModeBase() {
 
