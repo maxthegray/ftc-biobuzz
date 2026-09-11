@@ -130,17 +130,17 @@ class BallAimController {
 @Configurable
 object BallAimConfig {
 
-    private const val DEFAULT_KP = 0.020
-    private const val DEFAULT_KD = 0.0
+    private const val DEFAULT_KP = 0.1
+    private const val DEFAULT_KD = 0.02
     private const val DEFAULT_MAX_TURN_POWER = 0.45
-    private const val DEFAULT_MIN_TURN_POWER = 0.06
-    private const val DEFAULT_DEADBAND_DEGREES = 1.5
-    private const val DEFAULT_MIN_AREA_PERCENT = 0.15
+    private const val DEFAULT_MIN_TURN_POWER = 0.01
+    private const val DEFAULT_DEADBAND_DEGREES = 10.0
+    private const val DEFAULT_MIN_AREA_PERCENT = 0.1
 
     /** Turn power per degree of horizontal target error. The main tuning knob. */
     @JvmField var kP: Double = DEFAULT_KP
 
-    /** Damping on the rate of change of tx. Leave at 0 until kP is tuned. */
+    /** Damping on the rate of change of tx. */
     @JvmField var kD: Double = DEFAULT_KD
 
     /** Hard cap on assist turn power, so a far-off target can't spin the robot flat out. */

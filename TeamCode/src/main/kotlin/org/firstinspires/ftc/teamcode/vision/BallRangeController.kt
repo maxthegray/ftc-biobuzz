@@ -90,8 +90,7 @@ class BallRangeController {
         val max = BallApproachConfig.safeMaxForwardPower
         var output = if (raw.isFinite()) raw.coerceIn(-max, max) else 0.0
 
-        // Friction floor, but only on an output the controller actually asked
-        // for: with kP left at its zero default the approach must stay still.
+        // Apply the friction floor only when the controller requests motion.
         val min = BallApproachConfig.safeMinForwardPower
         if (output != 0.0 && abs(output) < min) output = min * sign(output)
 
@@ -108,30 +107,22 @@ class BallRangeController {
  * accessors so a bad slider can't NaN the motors, and
  * [org.firstinspires.ftc.teamcode.core.runtime.ConfigStore] registration so
  * tuned values survive power cycles, installs, and hot reloads.
- *
- * **[kP] ships at zero on purpose.** Until a gain is typed in, the approach
- * binding behaves exactly like the plain aim assist — so this is safe to have
- * installed before anyone has decided the robot should drive itself at
- * anything.
  */
 @Configurable
 object BallApproachConfig {
 
-    private const val DEFAULT_KP = 0.0
-    private const val DEFAULT_KD = 0.0
-    private const val DEFAULT_TARGET_TY_DEGREES = 0.0
-    private const val DEFAULT_MAX_FORWARD_POWER = 0.30
-    private const val DEFAULT_MIN_FORWARD_POWER = 0.08
-    private const val DEFAULT_DEADBAND_DEGREES = 1.0
+    private const val DEFAULT_KP = 0.02
+    private const val DEFAULT_KD = 0.005
+    private const val DEFAULT_TARGET_TY_DEGREES = -10.0
+    private const val DEFAULT_MAX_FORWARD_POWER = 0.8
+    private const val DEFAULT_MIN_FORWARD_POWER = 0.01
+    private const val DEFAULT_DEADBAND_DEGREES = 5.0
     private const val DEFAULT_ALIGN_GATE_DEGREES = 25.0
 
-    /**
-     * Forward power per degree of range error. Zero by default, which makes the
-     * approach inert — raise it only after [targetTyDegrees] is measured.
-     */
+    /** Forward power per degree of range error. */
     @JvmField var kP: Double = DEFAULT_KP
 
-    /** Damping on the rate of change of ty. Leave at 0 until kP is tuned. */
+    /** Damping on the rate of change of ty. */
     @JvmField var kD: Double = DEFAULT_KD
 
     /**
@@ -140,11 +131,7 @@ object BallApproachConfig {
      */
     @JvmField var targetTyDegrees: Double = DEFAULT_TARGET_TY_DEGREES
 
-    /**
-     * Hard cap on approach power. Deliberately low: the vision loop carries
-     * 20–50 ms of latency, and a robot that outruns its own measurements
-     * oscillates around the ball instead of settling on it.
-     */
+    /** Hard cap on approach power. */
     @JvmField var maxForwardPower: Double = DEFAULT_MAX_FORWARD_POWER
 
     /** Static-friction floor, applied only outside the deadband. */

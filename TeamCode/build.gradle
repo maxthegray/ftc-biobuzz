@@ -72,8 +72,8 @@ dependencies {
     implementation 'com.pedropathing:ftc:2.1.1'
     implementation 'com.pedropathing:telemetry:1.0.0'
 
-    // FTControl Panels (dashboard + live tuning + telemetry)
-    implementation 'com.bylazar:fullpanels:1.0.12'
+    // Sloth-compatible Panels keeps live tuning bound to hot-reloaded classes.
+    implementation 'com.bylazar.sloth:fullpanels:0.2.4+1.0.12'
 
     // Sloth hot reload (pulls Sinister 2.2.0 transitively).
     // Live-tuned config values survive reloads via ConfigStore (persisted to

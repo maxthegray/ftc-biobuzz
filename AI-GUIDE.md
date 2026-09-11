@@ -40,14 +40,14 @@ Stack (exact versions; these are load-bearing):
 | Pedro Pathing core    | `com.pedropathing:core`                   | 2.1.1   |
 | Pedro Pathing FTC     | `com.pedropathing:ftc`                    | 2.1.1   |
 | Pedro Telemetry       | `com.pedropathing:telemetry`              | 1.0.0   |
-| Bylazar fullpanels    | `com.bylazar:fullpanels`                  | 1.0.12  |
+| Bylazar fullpanels (Sloth) | `com.bylazar.sloth:fullpanels`        | 0.2.4+1.0.12 |
 | Sloth (Sinister)      | `dev.frozenmilk.sinister:Sloth`           | 0.2.4   |
 
 Maven repositories (also load-bearing):
 - `mavenCentral()` — Pedro
 - `google()` — AndroidX + AGP
-- `https://mymaven.bylazar.com/releases` — fullpanels
-- `https://repo.dairy.foundation/releases` — Sloth + transitively Sinister
+- `https://mymaven.bylazar.com/releases` — upstream Bylazar artifacts
+- `https://repo.dairy.foundation/releases` — Sloth-compatible fullpanels, Sloth + transitively Sinister
 
 If you need to bump any version, **verify** the new version exists in the
 corresponding repo before editing `build.dependencies.gradle` /
@@ -397,6 +397,11 @@ driver.trigger { driver.rightTrigger > 0.5 }.whileTrue(drive.slowMode())
    `robot.stop { reportCrash() }` so it can still see the pre-cleanup command list.
 
 ## Config persistence (ConfigStore) + Sloth hot reload + Panels
+
+Use the Sloth-compatible `com.bylazar.sloth:fullpanels` dependency. Standard
+`com.bylazar:fullpanels` does not track Sloth's replacement classes, so Panels
+edits can target old statics while the running op-mode reads reloaded ones.
+Changing between these dependencies requires a full APK install.
 
 Panels live-tuning writes into `@Configurable` statics, which die with the
 process (and Sloth hot reloads re-run static initialisers). The framework
