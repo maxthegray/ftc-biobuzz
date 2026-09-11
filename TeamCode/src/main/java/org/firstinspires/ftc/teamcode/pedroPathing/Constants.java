@@ -62,15 +62,19 @@ public final class Constants {
 
     public static final PinpointConstants localizerConstants = new PinpointConstants()
             // Sensorbot: both pods sit on the lateral centreline, 72 mm
-            // (2.8346 in) either side of the robot centre. The forward pod is
-            // on the robot's right, so its lateral offset is negative (Y is
-            // positive left); the strafe pod has no fore/aft offset at all, so
-            // rotation induces no false strafe reading.
-            .forwardPodY(-2.8346)
+            // (2.8346 in) either side of the robot centre. Front/back was
+            // redefined to the opposite chassis end (nothing physically
+            // moved), which mirrors the whole local frame: the forward pod
+            // is now on the robot's left, so its lateral offset is positive
+            // (Y is positive left). forwardEncoderDirection is confirmed
+            // REVERSED on the real hardware. The strafe pod still has no
+            // fore/aft offset, so rotation still induces no false strafe
+            // reading.
+            .forwardPodY(2.8346)
             .strafePodX(0.0)
             .distanceUnit(DistanceUnit.INCH)
             .forwardEncoderDirection(GoBildaPinpointDriver.EncoderDirection.REVERSED)
-            .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.REVERSED)
+            .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD)
             .hardwareMapName(pinpointHardwareName)
             .encoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
 

@@ -104,9 +104,7 @@ class BallRangeControllerTest {
     }
 
     @Test
-    fun theShippedZeroGainDoesNotCreep() {
-        // The default kP is 0.0 precisely so the binding is inert until tuned;
-        // the friction floor must not resurrect an output the PID never asked for.
+    fun zeroGainsDoNotCreep() {
         BallApproachConfig.kP = 0.0
         BallApproachConfig.kD = 0.0
 

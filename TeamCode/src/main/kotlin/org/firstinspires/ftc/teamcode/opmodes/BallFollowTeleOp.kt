@@ -28,8 +28,7 @@ import org.firstinspires.ftc.teamcode.vision.BallRangeController
  *  - **right trigger** — precision mode while held
  *  - **right bumper** — aim at the yellow ball while held; the Limelight owns
  *    heading, the driver keeps translation
- *  - **left bumper** — aim *and* drive towards the ball while held. Inert until
- *    [BallApproachConfig.kP] is raised off zero in Panels.
+ *  - **left bumper** — aim *and* drive towards the ball while held
  *  - **Back + Y** — reset heading, **Back + B** — toggle field-centric
  */
 @TeleOp(name = "Ball Follow", group = "Match")
@@ -93,9 +92,6 @@ class BallFollowTeleOp : TeleOpBase() {
      * The same heading assist, plus forward power from the ball's `ty`. Forward
      * is the Limelight's; the driver keeps strafe (robot-relative for the
      * duration, since a vision-derived forward forces robot-centric drive).
-     *
-     * Ships inert: [BallApproachConfig.kP] is zero until tuned, which makes this
-     * binding behave exactly like the aim-only one.
      */
     private fun approachBallCommand(): Command = drive.teleopCommand(
         name = "approach ball",
