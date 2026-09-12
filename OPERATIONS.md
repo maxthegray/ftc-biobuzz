@@ -129,6 +129,26 @@ default analyzer target is normally the newer TeleOp log. `lastcrash.txt` on
 the hub contains the previous uncontained exception, running commands, recent
 events, loop count, and match time.
 
+### Watching the robot on AdvantageScope's 2D field
+
+Drag **`Field/Robot`** onto the 2D Field tab. It is the same pose as the
+`pose` channel, re-encoded as a WPILib `Pose2d` struct — AdvantageScope draws
+a robot only from a struct, and the `double[]` format `pose` uses is
+deprecated there and goes away in 2027. Pick an FTC field; its default
+coordinate system (**Center/Rotated**) is the one the channel is written for.
+
+`pose` stays in raw Pedro inches and is the one to graph — `Field/Robot` is in
+metres about the field centre, because that is the struct's unit contract, and
+those are the wrong numbers to compare against `Constants.java`.
+
+**Verify the axes once on a real field.** The encoding converts units and
+moves the origin from Pedro's corner to the field centre, but it does not
+rotate anything: whether Pedro's +X is the FTC frame's +X depends on where the
+field origin was set up, which is a team convention. Park the robot at a known
+spot, confirm the drawn robot is there, and drive one tile forward. If it comes
+out a quarter turn off, that is the axis convention and not the encoding — fix
+it in `WpiStruct` and say so there.
+
 ### Symptom triage
 
 | Symptom | First evidence to check |

@@ -86,6 +86,17 @@ class WpiLogWriter(
         }
     }
 
+    /**
+     * Writes [length] bytes of [value] verbatim — the payload of a `raw`,
+     * `structschema`, or `struct:*` entry. Callers own the encoding; see
+     * [WpiStruct].
+     */
+    fun appendRaw(entryId: Int, value: ByteArray, timestampUs: Long, length: Int = value.size) {
+        writeRecord(entryId, timestampUs, length) {
+            out.write(value, 0, length)
+        }
+    }
+
     override fun flush() {
         out.flush()
     }
