@@ -41,6 +41,18 @@ class WpiLog private constructor(
         it.timestampUs to String(it.payload, StandardCharsets.UTF_8)
     }
 
+    fun type(name: String): String? = entries.values.firstOrNull { it.name == name }?.type
+
+    fun raws(name: String): List<Pair<Long, ByteArray>> = records(name).map {
+        it.timestampUs to it.payload
+    }
+
+    /** Little-endian doubles out of a raw (struct) payload. */
+    fun structDoubles(name: String): List<Pair<Long, DoubleArray>> = raws(name).map { (ts, payload) ->
+        val count = payload.size / 8
+        ts to DoubleArray(count) { i -> Double.fromBits(readLittleLong(payload, i * 8)) }
+    }
+
     fun doubleArrays(name: String): List<Pair<Long, DoubleArray>> = records(name).map { record ->
         val count = record.payload.size / 8
         val values = DoubleArray(count) { i -> Double.fromBits(readLittleLong(record.payload, i * 8)) }

@@ -55,7 +55,23 @@ class FlightRecorder private constructor(
     private val poseValues = DoubleArray(3)
     private val velocityValues = DoubleArray(3)
     private val axesValues = DoubleArray(6)
+    private val fieldPoseBytes = ByteArray(WpiStruct.POSE2D_SIZE)
 
+    init {
+        // Ahead of any struct channel, so the decoder resolves Pose2d on the
+        // first record instead of queueing it. Initialisers run in textual
+        // order, so this block must stay above the entries below.
+        WpiStruct.declareSchemas(writer)
+    }
+
+    /**
+     * The same pose as [pose], re-encoded for AdvantageScope's 2D Field tab:
+     * a WPILib struct, in metres, about the field centre. [pose] stays in raw
+     * Pedro inches because that is what the line-graph tab, `analyze_wpilog.py`,
+     * and the poses in `Constants.java` are all in — reading a tuning number
+     * off a metric graph is its own bug.
+     */
+    private val fieldPose = writer.startEntry("Field/Robot", WpiStruct.POSE2D_TYPE)
     private val pose = writer.startEntry("pose", "double[]")
     private val velocity = writer.startEntry("velocity", "double[]")
     private val driveMode = writer.startEntry("driveMode", "string")
@@ -144,6 +160,8 @@ class FlightRecorder private constructor(
                 poseValues[1] = p.y
                 poseValues[2] = p.heading
                 writer.appendDoubleArray(pose, poseValues, ts)
+                WpiStruct.encodePose2d(fieldPoseBytes, p.x, p.y, p.heading)
+                writer.appendRaw(fieldPose, fieldPoseBytes, ts)
                 val v = drive.velocity
                 velocityValues[0] = v.x
                 velocityValues[1] = v.y
