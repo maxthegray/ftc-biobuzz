@@ -188,7 +188,7 @@ object ConfigStore {
                 (field.type.isPrimitive || field.type == String::class.java)
         }
 
-    private fun formatValue(value: Any?): String = when (value) {
+    internal fun formatValue(value: Any?): String = when (value) {
         is Double -> "%.17g".format(Locale.US, value)
         is Float -> "%.9g".format(Locale.US, value)
         else -> value.toString()

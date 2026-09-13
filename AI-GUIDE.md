@@ -463,6 +463,20 @@ for). Don't pin config objects.
   `getStartingPose()` exists). Use `follower.setStartingPose(p)`.
 - **Subsystem writes in `periodic`.** Don't. That's what commands +
   `writeHardware` are for.
+- **VisionPortal processors are single-use.** SDK 11.1.0 keeps a static list
+  of attached processors, so build a new processor every OpMode run. Never let
+  an exception leave `processFrame` — EasyOpenCV turns it into a robot E-stop.
+- **Panels values never reach camera threads directly.** Copy config statics
+  into an immutable snapshot on the robot loop and publish that (see
+  `BallCameraSubsystem`); USB camera controls block, so only
+  `CameraControlWorker` calls them.
+- **Vision timestamps are not interchangeable.** Limelight `staleness` is
+  Control Hub wall-clock receipt age, its `ts` is the device clock (frame
+  identity only), and VisionPortal's capture time is `System.nanoTime()`.
+  Limelight frame freshness advances from its first receipt on the robot's
+  monotonic clock; repeated polls must not renew it. Label which age a number is.
+- **A BIOBUZZ tag sighting is not HIVE state.** The HIVES pivot: no fixed tag
+  field poses, no scoring readiness from `BiobuzzAprilTags`.
 
 ## When the user asks you to add a subsystem
 
@@ -531,6 +545,11 @@ progress.
 
 ## Naming op-modes
 
+Currently enabled: Drive Only, Ball Tracking Test, Limelight AprilTag Test,
+and Pedro Tuning. The old Limelight Ball Follow and bring-up utilities live in
+`opmodes/archived/` with `@Disabled`; examples live in `opmodes/skeletons/`
+with `@Disabled`. Keep them disabled unless the user asks to use them.
+
 The Driver Station dropdown is the UI, and it is read under match pressure.
 
 - **No team or season prefix.** `"Ball Follow"`, not `"BioBuzz: Ball Follow"`.
@@ -548,7 +567,7 @@ The Driver Station dropdown is the UI, and it is read under match pressure.
 ```kotlin
 @TeleOp(name = "Ball Follow", group = "Match")
 @Autonomous(name = "Example Auto", group = "Match")
-@TeleOp(name = "Limelight Ball Test", group = "Diagnostics")
+@TeleOp(name = "Limelight AprilTag Test", group = "Diagnostics")
 ```
 
 Pedro's vendored `Tuning` op-mode keeps its own name and group — it is not ours.

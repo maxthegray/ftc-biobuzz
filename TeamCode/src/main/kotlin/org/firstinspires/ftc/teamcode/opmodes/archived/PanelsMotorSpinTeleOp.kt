@@ -1,6 +1,7 @@
-package org.firstinspires.ftc.teamcode.opmodes.diagnostics
+package org.firstinspires.ftc.teamcode.opmodes.archived
 
 import com.bylazar.configurables.annotations.Configurable
+import com.qualcomm.robotcore.eventloop.opmode.Disabled
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import com.qualcomm.robotcore.hardware.DcMotorEx
 import com.qualcomm.robotcore.hardware.HardwareMap
@@ -18,6 +19,8 @@ import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx
 
 /**
+ * Archived single-motor tuning rig; re-enable for a specific motor bring-up session.
+ *
  * Live-tuning sandbox: spins one motor at a power typed into Panels.
  *
  * Hold the right bumper to run; releasing it stops the motor. The power
@@ -31,6 +34,7 @@ import org.firstinspires.ftc.teamcode.core.util.GamepadEx
  * record the pair, repeat. The slope of power against steady-state
  * velocity is kV; the intercept is kS (+ kG on a vertical mechanism).
  */
+@Disabled
 @TeleOp(name = "Panels Motor Spin", group = "Diagnostics")
 class PanelsMotorSpinTeleOp : OpModeBase() {
 

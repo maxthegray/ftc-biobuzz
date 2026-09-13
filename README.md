@@ -29,14 +29,26 @@ On the robot:
 1. Name things `frontLeftMotor`, `frontRightMotor`, `backLeftMotor`,
    `backRightMotor`, and `pinpoint` in the Driver Station config.
 2. Do a full APK install the first time.
-3. Run `Framework Smoke Test`. It needs no configured hardware and
-   checks the Control Hub, lifecycle, gamepad, scheduler, telemetry, and
-   WPILOG pipeline in one go.
-4. Then work through [OPERATIONS.md](OPERATIONS.md) from the motor-direction
-   test to Pedro calibration. The Pedro numbers in here are placeholders until
-   you measure your own chassis — don't run auton before that.
+3. Work through [OPERATIONS.md](OPERATIONS.md) for hardware bring-up and
+   calibration; it explains which archived diagnostics to re-enable for those
+   checks. The Pedro numbers in here are placeholders until you measure your
+   own chassis — don't run auton before that.
 
 Panels is at `http://192.168.43.1:8001` while the robot is on.
+
+The enabled Driver Station OpModes are:
+
+| OpMode | Purpose |
+|---|---|
+| Drive Only | Manual driving and drivetrain checks |
+| Ball Tracking Test | USB ball camera tuning and diagnostics |
+| Limelight AprilTag Test | AprilTag diagnostics |
+| Tuning (Pedro Pathing) | Localization and follower calibration |
+
+`opmodes/archived/` holds disabled bring-up utilities and the old Limelight
+Ball Follow prototype. `opmodes/skeletons/` holds disabled examples. Remove
+`@Disabled` from a specific OpMode and rebuild when you need it; moving a file
+alone does not enable it. Powered USB-camera ball assists are still pass 2.
 
 ## Documentation
 
@@ -52,12 +64,13 @@ Panels is at `http://192.168.43.1:8001` while the robot is on.
 | Task | Start here |
 |---|---|
 | TeleOp | `opmodes/DriveOnlyTeleOp.kt`, then override `configureTeleop()` |
-| Autonomous | `opmodes/ExampleAuto.kt` |
+| Autonomous | `opmodes/skeletons/ExampleAuto.kt` |
 | Buttons and triggers | `core/util/GamepadEx.kt`, `Trigger.kt` |
 | Drive feel | `core/subsystems/drive/DriveConfig.kt` |
 | Localization and vision corrections | `core/subsystems/localization/` |
 | Hardware names, field size, config schema | `core/runtime/RobotConfig.kt` |
 | Pedro calibration | `pedroPathing/Constants.java` |
+| Vision diagnostics (Limelight tags, ball camera) | `opmodes/diagnostics/`, `vision/`, then `OPERATIONS.md` §8 |
 | Diagnose a run | `make debug`, then `OPERATIONS.md` |
 
 Paths are relative to
@@ -85,6 +98,7 @@ TeamCode/src/main/
     │   ├── subsystems/       mechanisms, drive, localization
     │   └── util/             gamepads, triggers, telemetry
     ├── subsystems/           season mechanisms (this year's game)
+    ├── vision/               season vision: tag catalog, ball camera, assists
     └── opmodes/              diagnostics, teleop, auton
 ```
 

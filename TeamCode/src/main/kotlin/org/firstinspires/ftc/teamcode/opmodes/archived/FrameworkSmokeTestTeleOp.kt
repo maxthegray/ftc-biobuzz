@@ -1,5 +1,6 @@
-package org.firstinspires.ftc.teamcode.opmodes.diagnostics
+package org.firstinspires.ftc.teamcode.opmodes.archived
 
+import com.qualcomm.robotcore.eventloop.opmode.Disabled
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import org.firstinspires.ftc.teamcode.core.command.Command
 import org.firstinspires.ftc.teamcode.core.command.Commands
@@ -13,7 +14,8 @@ import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
 import org.firstinspires.ftc.teamcode.core.util.Clock
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx.Button
 
-/** Chassis-free end-to-end check of the framework and Control Hub runtime. */
+/** Archived chassis-free runtime check; re-enable for framework or Control Hub bring-up. */
+@Disabled
 @TeleOp(name = "Framework Smoke Test", group = "Diagnostics")
 class FrameworkSmokeTestTeleOp : OpModeBase() {
 

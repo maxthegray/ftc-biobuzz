@@ -463,6 +463,8 @@ class Robot(
             }
         }
         try { closeFlightRecorder() } catch (_: Throwable) { /* best-effort */ }
+        // INIT tuning must survive cancellation too; pose handoff above still requires an active loop.
+        try { ConfigStore.persistIfDirty() } catch (_: Throwable) { /* preserve the original fault */ }
     }
 
     /** Average loop frequency in Hz over the most recent tick. */

@@ -431,12 +431,6 @@ abstract class OpModeBase : LinearOpMode() {
             throw t
         } finally {
             robot.stop()
-            // Catch any tuning edits made in the final second of the match.
-            try {
-                ConfigStore.persistIfDirty()
-            } catch (_: Throwable) {
-                // Persistence must never mask the real stop path.
-            }
         }
     }
 

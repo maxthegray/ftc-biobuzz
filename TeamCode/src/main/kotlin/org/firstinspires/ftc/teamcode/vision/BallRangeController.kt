@@ -127,7 +127,8 @@ object BallApproachConfig {
 
     /**
      * The `ty` the robot settles at — the standoff. Park the ball where the
-     * robot should stop, read `ty` off `Limelight Ball Test`, put it here.
+     * robot should stop, read `ty deg` in the archived Ball Follow's "Ball Approach"
+     * telemetry (published even with no assist held), put it here.
      */
     @JvmField var targetTyDegrees: Double = DEFAULT_TARGET_TY_DEGREES
 

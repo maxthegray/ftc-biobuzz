@@ -18,6 +18,9 @@ until the localization, dynamics, and control checks below are complete.
 
 ## 0. Chassis-free framework smoke test
 
+**Framework Smoke Test** is disabled in `opmodes/archived/`. Re-enable it
+for this check after a framework change or when bringing up a new Control Hub.
+
 Run **Framework Smoke Test** before hardware configuration. It needs
 no configured devices and verifies the Control Hub runtime, lifecycle ordering,
 gamepad input, command scheduling/preemption/containment, telemetry, Panels,
@@ -35,6 +38,8 @@ loudly at init (Preflight lists what's missing); a *swapped* name won't — it'l
 show up as step 2 failing instead.
 
 ## 2. Per-motor direction (on blocks)
+
+Re-enable `opmodes/archived/MotorDirectionTestTeleOp.kt` for this check.
 
 Run **Motor Direction Test**. Dpad left/right selects a configured
 motor; the right and left triggers command that motor forward and reverse at no
@@ -83,6 +88,7 @@ temporary.
 
 ## 6. First framework path (capped power)
 
+Re-enable `opmodes/skeletons/LocalizationTestTeleOp.kt` for this check.
 Run **Localization Test** from a clear origin. Y follows 24" forward
 and A returns to the origin; both paths are capped at 30% power by default.
 Press the active target button again or move a stick to cancel. Watch the field
@@ -108,6 +114,201 @@ These check the safety behavior you'd otherwise only find out about mid-match:
   `setExecute` throws. Pressing it should print `command faults` in Health
   while the drive keeps responding. If the op-mode dies, fault containment
   regressed — fix before competing.
+
+## 8. Vision diagnostics (stationary, no motors)
+
+Two Diagnostics OpModes bring up the season's cameras. Neither commands a
+motor, applies a pose correction, or decides anything about HIVE state. Both
+run their cameras during INIT; gamepad buttons work only after START.
+
+| OpMode | Camera | Purpose |
+|---|---|---|
+| **Limelight AprilTag Test** | Limelight 3A `limelight` | Every HIVE tag: ID, BIOBUZZ meaning, camera-relative measurements, freshness |
+| **Ball Tracking Test** | goBILDA 3122-0004-0001 `ballCamera` | Yellow POLLEN color/shape detection, Panels tuning, RC preview |
+
+### Hardware and configuration
+
+1. **Limelight 3A** → USB-C to the Control Hub **USB 3.0** port (Limelight's
+   instruction). Driver Station → Configure Robot → Scan → the new
+   **Ethernet Device** → rename `limelight`.
+2. **goBILDA Global Shutter USB Camera, SKU 3122-0004-0001** (Arducam OV9782)
+   → Control Hub **USB 2.0** port when the Limelight holds the 3.0 port (the
+   camera is a USB 2.0 device). Scan → **Webcam 1** → rename `ballCamera`.
+3. Save and activate the configuration. **Full APK install** — the lens
+   calibration lives in `res/xml/teamwebcamcalibrations.xml`, which a Sloth hot
+   reload does not deploy.
+4. Verify the calibration matched: Ball Tracking Test → *Ball Camera → lens
+   calibration* must read `exact 640x480 entry`. `none …` means the camera's
+   USB IDs differ from goBILDA's published `VID 0xC45, PID 0x366`; read the
+   real ones and fix the `<Camera vid pid>` entry:
+
+   ```sh
+   adb shell 'for d in /sys/bus/usb/devices/*; do [ -f $d/idVendor ] && echo "$(cat $d/idVendor):$(cat $d/idProduct) $(cat $d/product 2>/dev/null)"; done'
+   ```
+
+The calibration entry is goBILDA's user-guide table (May 14 2026), a
+manufacturer starting point rather than a calibration of our unit. goBILDA's
+downloadable calibration zip has a `480, 320` typo for the 320×240 entry; the
+comment in the XML records why the guide values are used. The ball processor
+receives these intrinsics only through `VisionProcessor.init` and uses them
+for the *ray angle* telemetry (principal point = 0°, +right, +down). They say
+nothing about where the camera sits on the robot.
+
+### Limelight pipeline (web interface)
+
+Configure over a laptop USB connection at `http://limelight.local:5801`
+(Limelight 3A quick-start). Reaching the web interface through the Control Hub
+has not been verified here. Keep **pipeline 0** as the archived Ball Follow's yellow color
+pipeline; use **pipeline 1** (`visionDiagnostics.limelightTagPipelineIndex`):
+
+| Tab | Setting | Value |
+|---|---|---|
+| Input | Pipeline Type | Fiducial Markers |
+| Input | Resolution | Record what you choose; Limelight suggests highest for 3D, 640×480 for 2D-only |
+| Input | Exposure / Black Level / Sensor Gain | Start low exposure (motion blur), black level 0, gain 15; tune while holding a tag |
+| Standard | Family | AprilTag Classic 36h11 |
+| Standard | Marker Size | **82.55 mm** (3.25 in black square, manual §9.9) |
+| Standard | ID Filter | Blank for the first session, so stray tags show as `NOT A BIOBUZZ TAG`; later `30,31,…,45` |
+| Standard | Detector Downscale | Start 1–2 and record it |
+| Advanced | Full 3D | **On** — required for camera-space pose |
+| Advanced | Camera pose in robot space / field map | Leave unset; this diagnostic reports camera-relative values only, and the HIVES pivot |
+
+Download the pipeline file from the web interface after tuning and commit it
+next to the lab record.
+
+Units reported: `tx`/`ty` degrees from the crosshair, as the Limelight reports
+them (tx positive right; Limelight's JSON spec says ty positive down — confirm
+by raising a tag); `ta` as the SDK reports it; camera-space pose in metres and
+degrees, Limelight camera space +X right, +Y down, +Z out of the lens.
+Timing: *receipt age* is Control Hub wall-clock time since the SDK parsed the
+latest poll; *frame age* retains the first receipt age for each Limelight `ts`
+and advances on the robot's monotonic clock. Duplicate polls cannot reset it:
+tags are cleared when frame age reaches `limelightMaxResultAgeMs`.
+*Est. capture age* adds the Limelight's capture and targeting latency to frame
+age and still excludes USB transport and the wait before the first poll.
+Without a device `ts`, identity falls back to receipt timestamps, so duplicates
+across polls cannot be distinguished.
+
+Tags identify a CELL. Seeing one does not show which CELL faces up or whether
+it can take a score; every CELL reads `readiness NOT_INFERRED`.
+
+### Panels and the camera preview
+
+- **Panels:** robot powered, laptop on the Control Hub Wi-Fi,
+  `http://192.168.43.1:8001`. Configurables `BallVisionConfig` and
+  `VisionDiagnosticsConfig`; the same telemetry sections as the Driver Station.
+  Panels does not stream camera images.
+- **Preview:** it appears on the **Robot Controller** screen while either
+  OpMode has the ball camera open (INIT or running). Plug an HDMI monitor into
+  the Control Hub, or `make connect` then `scrcpy`.
+- **Modes:** `ballVision.previewMode` 0 overlay, 1 original, 2 threshold mask;
+  after START, gamepad 1 **X** cycles modes and **B** toggles rendering
+  (`previewEnabled`). Overlay: white ROI, cyan accepted blobs, red rejected
+  blobs labelled with the failed filter, **thick magenta circle + cross +
+  `TARGET`** for the selected blob. Rendering off pauses the view and skips
+  mask/overlay work, for timing comparisons.
+
+### What applies live
+
+| Live (next robot loop) | Restart the OpMode |
+|---|---|
+| Color space, channel thresholds, ROI, blur/erode/dilate, contour mode, area/circularity/aspect/density filters, candidate count, max observation age, preview mode/rendering, exposure, gain, white balance, `resetToDefaults` | `resolutionWidth/Height`, `streamFormat`, everything in `visionDiagnostics` |
+
+A pending restart setting shows a **RESTART REQUIRED** section. Unsupported
+stream modes (anything outside goBILDA's table, e.g. 640×480 YUY2) stop INIT
+with a message instead of letting EasyOpenCV E-stop the robot.
+
+Panels writes statics on its socket thread. The robot loop copies them once per
+tick into an immutable snapshot; only snapshots reach the camera thread and the
+camera-control thread, which probes capabilities, clamps to the probed range,
+writes only changed controls, and reads back device values about once a
+second. Camera telemetry shows *requested → device* for each.
+
+**Tuning in the flight log.** Both OpModes write the `visionDiagnostics`
+values as an event at init. The ball camera writes every `ballVision` value
+at init, then an event naming only the fields that changed (at most one per
+second; slider drags are merged), tagged with the detection settings version
+that frames carry in `BallCamera/frame/settingsVersion`. An edit in the last
+second before stop can be missing from the log; the tuning file and lab
+record still have it.
+
+**Saved vs compiled defaults.** Each OpMode init resets `ballVision` and
+`visionDiagnostics` to their compiled defaults, then applies the keys saved in
+`/sdcard/FIRST/config/tuning.properties`. Saved keys win; missing or invalid
+keys fall back to defaults. Set `ballVision.resetToDefaults` true to reset the
+section live (it clears itself and saves), or delete the keys and restart.
+STOP saves dirty settings after hardware shutdown, including STOP during INIT;
+restart-only edits do not require pressing START to survive reinitialization.
+
+### Timing honesty
+
+Ball Camera telemetry separates the SDK's frame capture timestamp, processing
+start/finish, and the robot tick that first saw the frame. *Processed fps* is
+detector output from frame numbers; *received fps* is distinct frames the loop
+saw; *library fps* is EasyOpenCV's delivery rate; none is the camera's
+advertised 120 fps. Observations older than `maxObservationAgeMs` since capture
+are cleared (`CLEARED`), and a processing error never yields a target.
+
+### Lab procedure
+
+Robot stationary, on blocks. Save a lab record (gamepad 1 **A** after START)
+after each step that settles something.
+
+1. **Camera image.** OVERLAY mode, one POLLEN ball ~1 m away. Set
+   `exposureManual` true and lower `exposureMicros` until a rolled ball is not
+   smeared; set `whiteBalanceManual` and a fixed `whiteBalanceKelvin` for the
+   room. Touch `gain` only if *Camera Controls → gain* shows a range. Confirm
+   *requested → device* agree and note any clamp.
+2. **Color mask.** MASK mode. Adjust `channel*Min/Max` until the ball is solid
+   white and tiles, walls, and red/blue NECTAR stay black — near, far, in
+   shadow, under the brightest light. Add a POLLEN ball and a NECTAR ball.
+3. **Region and blob filters.** OVERLAY mode. Set the ROI to where POLLEN can
+   appear. Raise `minAreaPercent` just below the farthest useful ball's area,
+   then tighten `minCircularity`, `maxAspectRatio`, `minDensity` while testing
+   two touching balls, a half-hidden ball, and a ball at the frame edge. Read
+   rejection labels in the preview and *Ball Candidates*.
+4. **Moving and multiple balls.** Roll a ball across the frame: frame status
+   stays FRESH, age stays small, the target never lingers after the ball
+   leaves. With several balls, the target is the largest accepted blob.
+   Cover the lens: the target status must drop to NONE_ACCEPTED at once.
+5. **320×240 comparison.** Record the 640×480 numbers (processed fps,
+   processing ms, age, farthest detection). Set 320/240, halve the kernel
+   sizes, restart, repeat, save a record. Area filters are frame percentages and
+   carry over.
+6. **Both cameras.** `runBothCameras` true; restart **each** OpMode. Compare
+   *Timing Comparison*, processed fps, Limelight new-frame rate and ages against
+   the single-camera runs, then `make debug` for loop percentiles.
+7. **Save and restart.** Stop, power-cycle, reopen Ball Tracking Test: Panels
+   and telemetry show the tuned values and *settings v1*;
+   `adb shell grep ballVision /sdcard/FIRST/config/tuning.properties`
+   matches the last lab record's `[config]` lines.
+8. **Limelight tags.** Limelight AprilTag Test: hold each tag still; confirm ID
+   and meaning against its sticker, the signs of tx/ty, and |d| against a tape
+   measure; record whether the cluster's four tags appear together.
+
+Then `make pull-lab-records`, fill in the header, and commit the record.
+Adopt tuned values by editing the `DEFAULT_*` constants listed under
+**[adopt as compiled defaults]** and deleting those keys from the hub's
+tuning file.
+
+### Not measured yet — needed before powered ball assists
+
+- Camera mounting: height above the tiles, pitch/roll, and lateral/forward
+  offset from the robot centre, for both cameras.
+- A per-unit lens calibration at the chosen resolution, if the goBILDA table
+  disagrees with a checkerboard test.
+- Ball image size and ray angle against measured distance, to choose a
+  controller measurement and a stopping point. No approach setpoint exists.
+- The actual processed frame rate and capture-to-robot latency under match
+  load, with drive, Pinpoint, and telemetry running.
+- The OV9782 USB IDs and exposure/gain/white-balance ranges from the probe.
+
+Follow-up for powered assists: a USB-camera target source with the same
+validity gates as `LimelightSubsystem`; controller updates driven by
+`BallObservation.newFrame` with `dt` taken from successive capture timestamps
+and the output held between frames (the archived Ball Follow controllers still
+step every loop on loop time — REVIEW B18); an explicit lost-target timeout; a
+latency budget from the measurements above; and on-blocks tests before carpet.
 
 ## Logs and post-run diagnosis
 
@@ -165,6 +366,8 @@ it in `WpiStruct` and say so there.
 | Loop rate collapsed | Phase maxima: `writeHardware` usually Pinpoint, `telemetry` Panels, `periodic` season I/O |
 | Tuned config reverted | Registration, public primitive `@JvmField`, and config schema |
 | Pinpoint unhealthy | Init Health status, I²C cable, then stationary IMU recalibration |
+| Ball target flickers or lingers | `BallCamera/frame/ageMs`, `rate/processedFps`, `target/status`, `candidates/accepted` |
+| Tag diagnostic shows nothing | Limelight health (pipeline index/type), `Limelight/fiducial/count`, Full 3D and marker size in the web UI |
 
 Additional rules:
 

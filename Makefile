@@ -53,6 +53,10 @@ pull-logs: ## Pull flight-recorder .wpilog files into ./robot-logs
 	mkdir -p robot-logs
 	adb pull /sdcard/FIRST/logs robot-logs
 
+pull-lab-records: ## Pull vision lab records into ./lab-records for review
+	mkdir -p lab-records
+	adb pull /sdcard/FIRST/lab-records/. lab-records/
+
 analyze: pull-logs ## Pull logs and print a one-page summary of the newest match log
 	python3 tools/analyze_wpilog.py
 
@@ -63,4 +67,4 @@ debug: ## Pull only the newest match log(s) and emit a JSON diagnostic bundle
 	@tools/pull-latest-logs.sh $(HUB_IP) $(HUB_PORT)
 	@python3 tools/analyze_wpilog.py --json
 
-.PHONY: help build test clean install hot connect disconnect devices reset-adb logs logs-all pull-logs analyze analyze-last debug
+.PHONY: help build test clean install hot connect disconnect devices reset-adb logs logs-all pull-logs pull-lab-records analyze analyze-last debug
