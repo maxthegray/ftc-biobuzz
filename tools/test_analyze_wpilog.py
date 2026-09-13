@@ -102,6 +102,28 @@ class AnalyzeWpiLogTest(unittest.TestCase):
         self.assertEqual(200, report["loop"]["maxNs"])
         self.assertEqual(40, report["loop"]["phases"][0]["maxNs"])
 
+    def test_logs_without_command_history_say_so_instead_of_reporting_no_commands(self):
+        records = {
+            "events": [(1, "COMMAND FAULT: IllegalStateException: boom (commands cleared, subsystems halted)")],
+            "driveMode": [(1, "TELEOP"), (2, "ROBOT_CENTRIC_FALLBACK")],
+        }
+
+        report = analyze_wpilog.build_report(records, {}, "test.wpilog")
+        bundle = analyze_wpilog.to_json_dict(report)
+
+        self.assertFalse(bundle["commandHistoryRecorded"])
+        self.assertNotIn("commands", bundle)
+        self.assertEqual(1, len(bundle["faults"]))
+        self.assertIn("ROBOT_CENTRIC_FALLBACK", bundle["driveModeTimeSec"])
+
+    def test_pre_ivy_logs_keep_their_command_set_transitions(self):
+        records = {"commands/running": [(1, "teleop drive"), (2, "follow\nmarker")]}
+
+        bundle = analyze_wpilog.to_json_dict(analyze_wpilog.build_report(records, {}, "old.wpilog"))
+
+        self.assertTrue(bundle["commandHistoryRecorded"])
+        self.assertEqual(["follow", "marker"], bundle["commands"][1]["running"])
+
 
 if __name__ == "__main__":
     unittest.main()
