@@ -6,654 +6,380 @@ Read this entire file before changing code.
 Human documentation has three entry points:
 
 - `README.md` — setup and repository map
-- `DEVELOPMENT.md` — team coding patterns, auton, configuration, and sensors
-- `OPERATIONS.md` — hardware bring-up, tuning, logging, and diagnosis
+- `DEVELOPMENT.md` — student workflows: subsystems, buttons, autos, logging
+- `OPERATIONS.md` — hardware bring-up, AutoTune, logs, diagnosis, validation
 
 ## What this repo is
 
 BioBuzz's robot code for the current FTC season, forked from
 `maxthegray/ftc-starter` — itself built on an unmodified clone of
-`FIRST-Tech-Challenge/FtcRobotController` 11.1.0.
+`FIRST-Tech-Challenge/FtcRobotController` (now 11.2.1).
 
-Season code **does** belong here; that is what this repo is for. The
-boundary that matters is a directory one:
+Season code **does** belong here. The boundary that matters is a directory one:
 
 - `core/` is season- and chassis-agnostic framework. Fixes made here get
   cherry-picked back to `ftc-starter`, so keep it free of game logic,
   season constants, and this year's mechanism names.
-- Everything else — `opmodes/`, season subsystems, `RobotConfig`,
-  `pedroPathing/Constants.java` — is this season's and never flows upstream.
+- Everything else — `opmodes/`, `vision/`, season subsystems, `RobotConfig`,
+  `pedro/` — is this season's and never flows upstream.
 
 The code currently runs on a **sensorbot**: a temporary chassis to develop
 against while the competition robot is built. The competition robot replaces
-it in place — re-measure `pedroPathing/Constants.java`, update `RobotConfig`,
-bump `RobotConfig.CONFIG_SCHEMA`. There is no sensorbot branch and no robot
-profile switch: the swap is one commit on `main`, with the last sensorbot
-commit tagged `sensorbot-final`.
+it in place — re-run AutoTune into `pedro/Constants.java`, update
+`RobotConfig`, bump `RobotConfig.CONFIG_SCHEMA`. There is no sensorbot branch
+and no robot profile switch; the last sensorbot commit gets tagged
+`sensorbot-final`.
 
-Stack (exact versions; these are load-bearing):
+## Stack (exact versions; these are load-bearing)
 
-| Library               | Coordinate                                | Version |
-|-----------------------|-------------------------------------------|---------|
-| FTC SDK               | `org.firstinspires.ftc:*`                 | 11.1.0  |
-| Kotlin Android plugin | `org.jetbrains.kotlin:kotlin-gradle-plugin` | 2.0.21  |
-| Pedro Pathing core    | `com.pedropathing:core`                   | 2.1.1   |
-| Pedro Pathing FTC     | `com.pedropathing:ftc`                    | 2.1.1   |
-| Pedro Telemetry       | `com.pedropathing:telemetry`              | 1.0.0   |
-| Bylazar fullpanels (Sloth) | `com.bylazar.sloth:fullpanels`        | 0.2.4+1.0.12 |
-| Sloth (Sinister)      | `dev.frozenmilk.sinister:Sloth`           | 0.2.4   |
+| Library | Coordinate | Version |
+|---|---|---|
+| FTC SDK | `org.firstinspires.ftc:*` | 11.2.1 |
+| Android Gradle Plugin / Gradle | `com.android.tools.build:gradle` | 8.7.0 / 8.9 |
+| Kotlin Android plugin | `org.jetbrains.kotlin:kotlin-gradle-plugin` | 2.0.21 |
+| Pedro Pathing core (pulled by revhub) | `com.pedropathing:core` | 3.0.0 |
+| Pedro Pathing REV hub drivetrains/localizers | `com.pedropathing:revhub` | 3.0.0 |
+| Pedro AutoTune | `com.pedropathing:tuning` | 1.0.0 |
+| Ivy command scheduler | `com.pedropathing.ivy:core` | 1.1.1 |
+| Sloth-compatible Panels | `com.bylazar.sloth:fullpanels` | 0.2.4+1.0.12 |
+| Sloth / Load plugin | `dev.frozenmilk.sinister:Sloth`, `dev.frozenmilk:Load` | 0.2.4 |
 
-Maven repositories (also load-bearing):
-- `mavenCentral()` — Pedro
-- `google()` — AndroidX + AGP
-- `https://mymaven.bylazar.com/releases` — upstream Bylazar artifacts
-- `https://repo.dairy.foundation/releases` — Sloth-compatible fullpanels, Sloth + transitively Sinister
+`TeamCode/build.gradle` holds two strict constraints. Keep them unless the
+whole toolchain moves together:
 
-If you need to bump any version, **verify** the new version exists in the
-corresponding repo before editing `build.dependencies.gradle` /
-`TeamCode/build.gradle`. Don't guess.
+- **Sloth strictly 0.2.4.** `tuning:1.0.0` requests Sloth 0.3.0, which needs
+  Load 0.3.0 (AGP 8.13, Kotlin 2.4 stdlib) and has no published
+  Sloth-compatible Panels build. The Sinister API AutoTune calls
+  (`Scanner`, `NarrowSearch`, `SinisterRegisteredOpModes`, app hooks) exists
+  unchanged in Sinister 2.2.0.
+- **kotlin-stdlib strictly 2.1.20.** revhub/tuning declare stdlib 2.3.21 but
+  contain no Kotlin bytecode; the Kotlin 2.0.21 compiler cannot read 2.3
+  metadata.
+
+AutoTune needs SDK ≥ 11.2 (`OpModeMeta.Flavor.UTILITY`). Ivy's
+`com.pedropathing.ivy:pedro` helpers are deliberately not used (see
+**Drive commands**).
+
+Maven repositories: `mavenCentral()` (Pedro, Ivy), `google()`,
+`https://mymaven.bylazar.com/releases`, `https://repo.dairy.foundation/releases`.
+Pedro is **not** on `maven.pedropathing.com`. If you need to bump any version,
+verify the artifact exists in its real repository and check its POM/module
+dependencies first. Don't guess.
 
 ## Optimize for the best decision, not the cheapest
 
-This project has no constraints on time, budget, or engineering skill.
-When a decision forks between a pragmatic compromise and the genuinely
-better engineering answer, take the better one — "more work", "harder to
-implement", or "the quick way is fine for now" are not reasons to
-compromise here. State the optimal approach plainly; it will get built.
+When a decision forks between a pragmatic compromise and the genuinely better
+engineering answer, take the better one. This governs the *quality* of
+decisions, not the *quantity* of work: it is **not** licence to over-engineer
+or add speculative abstractions. Prefer the libraries' public APIs over
+custom infrastructure.
 
-This governs the *quality* of decisions, not the *quantity* of work. It is
-**not** licence to over-engineer, gold-plate, or add speculative
-abstractions — the "don't do this unless asked" rules below still hold,
-and the best engineers ship the right thing, not the most thing. Optimal
-means: at a real fork, choose what's better long-term over what's easier
-today.
+## Ivy (the only scheduler)
 
-## Critical API cheatsheet
-
-These are the framework / Pedro calls used throughout the codebase. They
-are stable as of the versions above and wrong in at least one piece of
-publicly-searchable documentation.
-
-### Command scheduler (`core/command/` — ours, not a library)
-
-The scheduler is **instance-scoped and owned by `Robot`** — there is no
-global scheduler. Access it as `robot.scheduler` (op-modes) or take it as a
-constructor parameter (framework components).
+Ivy's `Scheduler` is **static**. `Robot` resets it when constructed and at
+stop, and ticks it once per loop. Op-modes never call `Scheduler.execute()`.
 
 ```kotlin
-robot.scheduler.execute()        // one tick; Robot.loop() already calls this
-robot.scheduler.reset()          // interrupt everything (end handlers RUN)
-robot.scheduler.schedule(cmd)    // returns false if blocked or start faulted
-robot.scheduler.cancel(cmd)      // end handler runs with INTERRUPTED
-robot.scheduler.isScheduled(cmd)
-robot.scheduler.runningCommandNames()  // native introspection, no reflection
-```
+import com.pedropathing.ivy.Command
+import com.pedropathing.ivy.Scheduler
+import com.pedropathing.ivy.commands.Commands.*   // instant, waitMs, waitUntil, infinite, lazy, conditional
+import com.pedropathing.ivy.groups.Groups.*       // sequential, parallel, race, deadline, repeat, loop
 
-Semantics: a command is blocked only by a *strictly higher*-priority holder
-of one of its requirements; equal priority preempts. End handlers always run
-(natural end, cancel, reset, preemption, fault). A lifecycle exception ends
-only the faulting command (`EndCondition.FAULTED`) and is routed to
-`Robot.containCommandFaults` policy — teleop contains it surgically, auton
-rethrows.
-
-### Building a command
-
-```kotlin
 Command.build()
-    .setStart { ... }            // called once when scheduled
-    .setExecute { ... }          // called every tick while running
-    .setDone { returnBoolean }   // called every tick; true → end
-    .setEnd { endCondition -> ... }  // ALWAYS runs (NATURALLY/INTERRUPTED/FAULTED)
-    .requiring(driveSubsystem)   // vararg requirements
-    .setPriority(10)             // higher priority interrupts lower
-    .setName("score preload")    // shows up in flight-log commands/running
+    .requiring(subsystem)
+    .setPriority(CommandPriorities.DRIVER_ACTION)
+    .setStart { }             // once, immediately inside schedule()
+    .setExecute { }           // every tick
+    .setDone { false }        // checked after execute at top level
+    .setEnd { condition -> }  // NATURALLY or INTERRUPTED
+
+Scheduler.schedule(cmd); Scheduler.cancel(cmd); Scheduler.isScheduled(cmd)
 ```
 
-Or use the helpers:
+Semantics verified against the 1.1.1 artifact (`LibraryContractTest` pins them):
+
+- A command with a **strictly higher** priority holder is blocked (dropped by
+  default). Equal priority **overrides** by default; lower-priority holders
+  are interrupted.
+- `Scheduler.reset()` drops everything **without calling end handlers**.
+- `cancel` of a group ends its unfinished children with INTERRUPTED.
+- `deadline` ends an unfinished child twice (INTERRUPTED, then NATURALLY).
+  End handlers must be idempotent and must not treat NATURALLY as success.
+- A command preempted *from inside* `Scheduler.execute()` still executes once
+  more that tick. Schedule from bindings (input phase), `periodic()` (e.g.
+  fault policies) or `onLoop()`, not from another command's execute.
+- Groups take the union of child requirements and the max child priority;
+  nothing stops two drive commands in one `parallel`. Don't do that.
+- `waitMs` uses `System.currentTimeMillis()`.
+- There are no command names, no running-command registry and no lifecycle
+  hooks.
+
+Priority ladder (`CommandPriorities`): defaults `0` < auton routines and
+assists `10` < driver actions `20` < overrides `30`. Keep priorities ≥ 0.
+
+Default commands: `subsystem.defaultCommand = builder`. The setter sets
+`ConflictBehavior.CANCEL`, and `Robot` schedules it only when it is not
+already scheduled, so a default never preempts an explicit command of equal
+priority, while explicit commands at priority ≥ 0 still preempt the default.
+
+## Pedro Pathing 3 (geometry, paths, follower)
+
+Pedro's types are used directly everywhere: `com.pedropathing.math.Pose`
+(immutable; heading normalized to [0, 2π)), `Velocity` (field frame),
+`Vector2D`, `com.pedropathing.api.Paths`, `PoseFactory`,
+`com.pedropathing.paths.Path`. Units: inches, radians, CCW-positive.
 
 ```kotlin
-Commands.instant { action() }            // runs once and completes
-Commands.waitMs(500.0)                   // Double and Long overloads exist
-Commands.waitMs(500.0, robot.clock)      // inject the clock → simulable waits
-Commands.waitUntil { condition }
-Commands.infinite { action() }
-Commands.defer(drive) { buildCommand() } // construct at schedule time
+val p = alliance.poses()                      // PoseFactory in degrees, RED coords → this alliance
+val start = p.of(8.0, 56.0, 0.0)
+val out = p.of(32.0, 56.0, 0.0)
+Paths.line(start, out).constant(start)
+Paths.curve(a, control, b).linear(a, b)       // ≥ 3 points
+Paths.path(first, second)                     // compound
+path.with(Constants.foresightConfig.maxPathSpeed.at(0.5))
 ```
 
-And composition via `Groups`:
+Verified 3.0.0 behaviour to respect:
+
+- **`linear` heading runs backwards on `Paths.line` and on compound paths**
+  (t=0 gets the end heading). It is correct on a `Paths.curve` segment. Use
+  `constant`/`tangent`/`facingPoint` on lines, or a 3-point curve with a
+  collinear control point when a straight segment must rotate.
+- `Paths.curve` rejects fewer than three points (the docs show two).
+- `PoseFactory.mirrorX` maps heading to −h, which is not this repo's field
+  reflection (π−h). Use `Alliance.poses()` / `Alliance.mirror`.
+- The follower leaves FOLLOW mode at the **parametric end** of the path (then
+  HOLD with `holdEnd`, else IDLE). That is not arrival.
+- `isBusy` is only cleared by a converged or timed-out hold; with `holdEnd`
+  false it stays true. It is not a completion signal.
+- `Follower.stop()` changes mode only; motors are written on the next `update()`.
+- `Follower.update()` reads the localizer and writes motors. It runs exactly
+  once per tick, in `MecanumDriveSubsystem.writeHardware()`.
+
+Configuration lives in `pedro/Constants.java` in AutoTune's layout
+(`drivetrainConfig`, `localizerConfig`, `foresightConfig`, `create()`).
+`FORESIGHT_TUNED` is false until AutoTune's Foresight output is pasted; until
+then the follower has no algorithm, manual driving works, and path, hold and
+turn commands throw at start. AutoTune procedures in `pedro/procedures/` are
+copied unmodified from Pedro-Pathing/Quickstart b4312385; `pedro/Tuning.java`
+registers the Mecanum, Pinpoint, Foresight and Tests procedures.
+
+## Drive commands
+
+`MecanumDriveSubsystem` is the single drive owner. Every drive command
+requires it and stops the follower when interrupted. Ivy's
+`PedroCommands.follow` is not used: in 1.1.1 it has no requirement and no
+interruption cleanup (a cancelled path keeps driving), and `hold` reports
+nothing about arrival.
 
 ```kotlin
-Groups.sequential(a, b, c)
-Groups.parallel(a, b, c)
-Groups.race(a, b, c)
-Groups.deadline(deadlineCmd, a, b)
+drive.teleopCommand(priority = 0) { TeleopInput(fwd, strafe, turn, precision, turnPower, forwardPower) }
+drive.followCommand(path, holdEnd = false)       // ends when Pedro leaves FOLLOW (parametric end)
+drive.holdCommand(pose, timeoutMs = 2000.0)      // ends on measured arrival, or timeout (bounded wait)
+drive.turnToCommand(radians, timeoutMs = 2000.0) // ends on measured heading; timeout THROWS
+drive.robotCentricFallbackCommand { input }      // localizer-fault policy, priority Int.MAX_VALUE
+drive.pathProgress()                             // latched 0..1 over all segments, for markers
+drive.pose / drive.velocity / drive.atPose(target) / drive.toggleFieldCentric()
 ```
 
-Framework priority ladder (higher interrupts lower; gaps are for season levels):
+- Arrival uses `DriveConfig.holdToleranceInches/Radians`.
+- Teleop input is staged by the command and applied in `writeHardware()`.
+  Field-centric rotation uses the measured heading; a non-finite heading is
+  never used. `forwardPower` forces robot-centric for that tick.
+- A mid-path marker is plain Ivy: `deadline(drive.followCommand(path),
+  sequential(waitUntil { drive.pathProgress() >= 0.5 }, instant { … }))`.
+  It fires once, and is dropped if the path ends or is cancelled first.
+- A step timeout is `race(step, waitMs(ms))`; the loser is interrupted.
+- `halt()` (stop, command fault) writes zero power immediately.
 
-```kotlin
-CommandPriorities.DEFAULT         // 0:  subsystem default commands
-CommandPriorities.AUTON_ROUTINE   // 10: auton routines & teleop auto-assists
-CommandPriorities.DRIVER_ACTION   // 20: driver-triggered actions (beat assists)
-CommandPriorities.DRIVER_OVERRIDE // 30: panic / manual-override bindings
-```
+## Lifecycle rules (enforced by Robot/OpModeBase)
 
-### Geometry (`core/geometry/` — ours)
-
-Framework code speaks `Pose2d` / `Vector2d` (inches, radians, CCW-positive,
-Pedro field frame). Pedro's `Pose` appears **only** in the adapter layer:
-`core/pathing/PedroConversions.kt` (`toPedro()` / `toCore()`), `PathDSL`,
-`MecanumDriveSubsystem` internals, the Pedro `Localizer` implementations,
-and the vendored `pedroPathing/` files. Don't import
-`com.pedropathing.geometry` anywhere else.
-
-```kotlin
-Pose2d(x, y, heading)                  // data class; .withHeading, .lerp, .distanceTo
-pose.relativeTo(origin)                // this pose in origin's frame
-origin.transformBy(delta)              // inverse of relativeTo
-pose.mirror(symmetry, fieldLength)     // RED→BLUE; symmetry from RobotConfig.Field
-normalizeAngle(rad)                    // [0, 2π)
-shortestAngleDelta(from, to)           // (-π, π], half-turn resolves to +π
-```
-
-### Pedro Follower (adapter-layer use only)
-
-The follower is `internal` to `MecanumDriveSubsystem` — op-modes use the
-subsystem's `pose` / `velocity` / commands, the localizer's
-`applyCorrection`, and `DriveTelemetrySource` for logging. Inside the
-adapter layer:
-
-```kotlin
-follower.update()                        // MUST run every tick (in writeHardware)
-follower.pose                            // Pose getter
-follower.velocity                        // Pose getter
-follower.setPose(p)                      // hard snap — useful for field-pose correction
-follower.setStartingPose(p)              // treats p as the origin; prior movement shifts
-follower.startTeleopDrive(brakeMode)     // switch to manual driving mode
-follower.setTeleOpDrive(fwd, strafe, turn, isRobotCentric)
-follower.followPath(chain, holdEnd)      // auton
-follower.holdPoint(pose)                 // pin position
-follower.breakFollowing()                // cancel a path
-follower.isBusy                          // true while a path is running
-follower.atPose(pose, xTol, yTol, headingTol)
-follower.pathBuilder()                   // returns a fresh PathBuilder
-```
-
-Important: `Follower.update()` is heavy (runs localiser + PIDs + writes
-motors). Call it exactly once per tick, from `MecanumDriveSubsystem.writeHardware()`.
-Teleop startup supplies that update internally; the adapter then submits and
-flushes the staged input without a second update. During init,
-`LocalizerSubsystem.initPeriodic()` calls only `updatePose()` (no motor writes)
-and waits up to five seconds for Pinpoint READY. Autonomous must check
-`localizer.ready` before scheduling.
-
-A latched teleop localizer fault is the exception to the per-tick follower
-update: `TeleOpBase` schedules a highest-priority robot-centric fallback and
-makes it the drive default. It preempts the actual drive owner, blocks further
-assists, and uses the drivetrain mixer directly with robot-frame vectors and
-zero heading, without odometry reads or follower corrections. Field-centric
-drive and assists remain unavailable until the next op-mode run.
-
-### PathBuilder
-
-```kotlin
-follower.pathBuilder()
-    .addPath(BezierLine(Pose(0.0, 0.0), Pose(24.0, 0.0)))
-    .addPath(BezierCurve(listOf(p1, p2, p3)))
-    .curveThrough(0.5, p1, p2, p3)
-    .setLinearHeadingInterpolation(startRadians, endRadians)
-    .setConstantHeadingInterpolation(radians)
-    .setTangentHeadingInterpolation()
-    .setReversed()
-    .build()  // -> PathChain
-```
-
-The Kotlin `PathDSL` wraps these with cleaner names — prefer it.
-
-### Drive subsystem defaults
-
-Teleop should be a default command, not an imperative `onLoop()` call:
-
-```kotlin
-drive.defaultCommand = drive.teleopCommand {
-    MecanumDriveSubsystem.TeleopInput(
-        driver.leftStickY,
-        driver.leftStickX,
-        driver.rightStickX,
-        precision = driver.rightTrigger > 0.1,
-    )
-}
-```
-
-`driveRaw()` remains public for tuning/bring-up only. The old imperative
-drive/path helpers are internal; use `followCommand`, `holdCommand`,
-`turnToCommand`, `PedroAutoRunner`, and trigger bindings for real op-modes.
-
-`turnToCommand(radians, timeoutMs = 2000.0)` holds position until measured
-heading is within `DriveConfig.holdToleranceRadians`. Its timeout faults the
-command/routine; it never reports an unfinished turn as success. `turnTo(...)`
-in the auto DSL uses this same policy.
-
-Season teleops should extend `TeleOpBase` instead of wiring this by hand:
-it registers drive + localizer, installs the teleop default command,
-restores the persisted auton pose, and wires the standard driver chords —
-**Back+Y** heading reset and **Back+B** field-centric toggle (Back, not
-Start: Start+A/B are the Driver Station's gamepad re-bind chords). Wire
-season subsystems and bindings in `configureTeleop()`.
-
-Useful runtime hooks:
-
-```kotlin
-localizer.restorePersistedPose()                 // auton → teleop pose handoff
-                                                 // (survives RC process restart via
-                                                 //  /sdcard/FIRST/persisted-pose.txt)
-localizer.applyCorrection(measured, timestampNs) // latency-compensated vision seam;
-                                                 // returns CorrectionResult (APPLIED /
-                                                 // STALE / NO_HISTORY / REJECTED_JUMP),
-                                                 // gated + blended via LocalizerConfig;
-                                                 // translationWeight/headingWeight for
-                                                 // partial corrections; auto-scaled by
-                                                 // followingBlendScale while pathing
-val startDelay = StartDelay(telemetryBag)       // dpad left/right in the init loop
-robot.recordEvent("marker")                      // also writes to WPILOG
-autoRoutine(robot, drive, robot::recordEvent) { ... }  // optional event sink → labelled
-                                                 // per-step timeline in the WPILOG
-```
-
-### Mechanism control toolkit (`core/control/`)
-
-```kotlin
-val gains = PIDFGains(kP = 0.1, kV = 0.02, kG = 0.08)   // mutable; Panels-tunable
-```
-
-`PIDFController` + `PIDFGains` are live — the ball aim/range controllers use
-them. Gains are read every call, so Panels edits apply without a redeploy.
-
-There is deliberately **no generic mechanism subsystem.** A
-`ProfiledMotorSubsystem`, `ProfiledController`, `TrapezoidProfile`, and a
-WPILOG replay harness lived here through the 2026 offseason, were never wired
-to a real mechanism, and were deleted before kickoff. Do not reintroduce a
-generic version speculatively: build what the season's mechanism actually
-needs, against the real hardware. The old implementation is in git history if
-it turns out to fit.
-
-Hardware goes through the `MotorIO` seam (`core/io/`): real op-modes resolve a
-`RealMotorIO`; host tests inject `SimMotorIO(clock, …)` so subsystem logic
-runs headless.
-
-Two packages sound alike and are not interchangeable. `core/io/` is the
-**abstraction seam** — interfaces plus their real implementations, so
-subsystem code can run against hardware or a fake. `core/hardware/` is
-**concrete device drivers** (`SRSHubSubsystem`) that only
-work on a real robot. Every test double lives in `core/sim/` under the test
-source root — `SimFollower`, `SimHarness`, `SimMotorIO`, `FakeClock`,
-`FakeSink` — so nothing fake ever ships in the APK. Doubles used by a single
-test stay nested in that test.
-
-Subsystems log tuning channels by overriding
-`logState(log: StateLog)` — the flight recorder prefixes them with
-`<subsystem name>/` (e.g. `Drive/fieldCentric`,
-`Drive/motors/frontLeft/power`) for AdvantageScope.
-
-### Panels telemetry
-
-```kotlin
-val tm = PanelsTelemetry.telemetry   // TelemetryManager
-tm.addLine("hello")
-tm.addData("key", value)
-tm.update()                                    // flush to dashboard
-tm.wrapper                                     // an FTC Telemetry facade
-JoinedTelemetry(telemetry, tm.wrapper)         // wrap both DS + Panels as one Telemetry
-```
-
-### Observe-only failure policy
-
-Telemetry and logging must never kill the robot. `TelemetryBag` isolates the
-Driver Station and Panels sinks, permanently disables a sink that throws, and
-clears its buffers in `finally`. `FlightRecorder` disables only the throwing
-subsystem's `logState` channels for non-I/O season-code faults; recorder I/O or
-other recorder-phase faults close the recorder while the op-mode continues.
-Keep framework I/O paths fail-fast inside the recorder so those faults reach
-this containment boundary.
-
-### Gamepad triggers
-
-`GamepadEx` binds buttons (and any boolean condition) to commands on the
-robot's scheduler. Wire bindings once in `configure()` — don't poll
-`*Pressed` flags in `onLoop()` and call `robot.scheduler.schedule` by hand.
-
-```kotlin
-driver.button(GamepadEx.Button.A).onTrue(intake.grab())
-driver.button(GamepadEx.Button.LEFT_BUMPER).whileTrue(intake.eject())
-driver.button(GamepadEx.Button.X).toggleOnTrue(lift.raise())
-driver.trigger { driver.rightTrigger > 0.5 }.whileTrue(drive.slowMode())
-(driver.button(GamepadEx.Button.START) and driver.button(GamepadEx.Button.A))
-    .onTrue(resetHeading())
-```
-
-- `button(...)` is cached per button; `trigger { }` and `and`/`or`/`!`
-  each make a fresh one. All are polled in `GamepadEx.update()`, which
-  `OpModeBase` already calls every tick before the scheduler runs. Each base
-  condition is sampled once; composed triggers reuse those samples.
-- `onTrue` / `whileTrue` skip scheduling if the command is already
-  scheduled; `whileTrue`'s falling-edge cancel is safe on a command that
-  already finished.
-- A throwing condition or binding quarantines only that trigger and later
-  triggers still poll. Quarantining an active `whileTrue` trigger cancels
-  its command so a dead sensor cannot strand an actuator action.
-- The raw `driver.aPressed` / `driver.a` flags still exist — use them for
-  continuous reads (drive sticks), use triggers for command scheduling.
-
-## Lifecycle rules (enforced by OpModeBase)
-
-1. **Bulk reads are MANUAL.** Every Lynx module is in
-   `BulkCachingMode.MANUAL` at init. The main loop clears caches once
-   per tick at the top. Do **not** read motor/encoder values outside of
-   the main tick window; if you ever must (e.g. from a background poller),
-   use the raw Lynx APIs and accept stale data.
-
-2. **`periodic()` reads. Commands write. `writeHardware()` flushes.**
-   A subsystem's `periodic` must not set motor power — if you feel the
-   urge, write a command instead. The whole point of the scheduler's
-   requirements system is to prevent two chunks of code from commanding
-   the same hardware simultaneously.
-   Init ticks call `initPeriodic()` (defaults to `periodic()`); overrides
-   may read sensors but must not command actuators.
-
-3. **Don't call `Follower.update()` from anywhere other than
-   `MecanumDriveSubsystem.writeHardware()`.** Calling it twice per tick
-   will double the PID step and gives you weird oscillation.
-
-4. **Teleop mode starts from the default command.** TeleOp op-modes set
-   `drive.defaultCommand = drive.teleopCommand { ... }` in `configure()`.
-   Do not call `drive.drive(...)` from `onLoop()`; command requirements
-   are what let teleop resume cleanly after a path or driver action.
-
-5. **Bindings are init-only.** Wire `GamepadEx` triggers in `configure()`.
-   The init loop updates gamepad edges with trigger polling disabled, and
-   `OpModeBase` locks bindings at start so per-loop binding creation throws.
-
-6. **Register the drive before the localizer.** `LocalizerSubsystem`
-   samples its pose history in `writeHardware()`, which must run right
-   after the drive's `writeHardware()` (where `Follower.update()` measures
-   the pose). Registering them the other way round re-introduces a
-   one-loop-period timestamp skew into every vision correction.
-
-7. **Teleop contains command faults; auton does not.** `TeleOpBase` sets
-   `Robot.containCommandFaults = true`: a lifecycle exception ends only the
-   faulting command, calls `onCommandFault()` on its required subsystems, and
-   lets freed defaults resume next tick. Auton rethrows command faults.
-   Trigger condition/binding faults are separately quarantined per trigger in
-   every mode. `periodic()`, `writeHardware()`, and `onLoop()` always fail
-   fast.
-
-8. **Shutdown hardware before diagnostics or persistence.** `Robot.stop()`
-   calls every subsystem's `stop()` first, then optional crash reporting,
-   command end handlers, persistence, and recorder close. It runs once even
-   when reached through both a catch and finally. Subsystem `stop()` must zero
-   actuators before resource cleanup and avoid storage/logging; keep cached
-   pose/state available for `persistState()`. Command end handlers must not
-   re-energize stopped hardware. Crash reporting goes through
-   `robot.stop { reportCrash() }` so it can still see the pre-cleanup command list.
+1. **Bulk reads are MANUAL.** Caches clear once per tick at the top.
+2. **`periodic()` reads. Commands decide. `writeHardware()` flushes.**
+   `initPeriodic()` (defaults to `periodic()`) runs in init; no commands run
+   and nothing is written before start.
+3. **Loop order:** clear caches → `periodic()` → gamepad input and trigger
+   bindings → `onLoop()` → default commands + `Scheduler.execute()` →
+   `writeHardware()` → telemetry → flight recorder.
+4. **Bindings are init-only.** Wire `GamepadEx` triggers in `configure()`;
+   they lock at start. A button held through init does not fire at start.
+5. **Register the drive before the localizer** (`registerAfter` enforces it):
+   the localizer samples pose history after `Follower.update()`.
+6. **Fault policy.** An exception from bindings or command execution clears
+   Ivy (no end handlers run), calls `onCommandFault()` on **every** subsystem,
+   records `COMMAND FAULT: …` in the WPILOG, and the loop continues with
+   defaults. An autonomous routine is then no longer scheduled and the
+   op-mode stops itself. Exceptions from `periodic()`, `onLoop()` and
+   `writeHardware()` end the op-mode (hardware stopped first, stack trace
+   recorded). Telemetry and recorder failures are contained.
+7. **Localizer faults.** `LocalizerSubsystem.periodic()` trips on a non-finite
+   pose, a pose frozen while following, or a bad Pinpoint status, and calls
+   `onFault` once. Teleop (`TeleOpBase`) schedules the robot-centric fallback
+   and makes it the default: no follower update, no odometry read, no
+   field-centric rotation, and paths/holds/turns refuse. Auton cancels the
+   routine and stays put.
+8. **Shutdown.** `Robot.stop()` stops every subsystem first, then runs the
+   crash-report callback, clears Ivy without end handlers (so cleanup cannot
+   re-energize hardware), persists handoff state (only if a loop ran), closes
+   the recorder, and saves dirty config. `stop()` must zero actuators and
+   avoid storage I/O.
 
 ## Config persistence (ConfigStore) + Sloth hot reload + Panels
 
-Use the Sloth-compatible `com.bylazar.sloth:fullpanels` dependency. Standard
-`com.bylazar:fullpanels` does not track Sloth's replacement classes, so Panels
-edits can target old statics while the running op-mode reads reloaded ones.
-Changing between these dependencies requires a full APK install.
+Use the Sloth-compatible `com.bylazar.sloth:fullpanels` artifact; plain
+`com.bylazar:fullpanels` does not track Sloth's replacement classes.
 
-Panels live-tuning writes into `@Configurable` statics, which die with the
-process (and Sloth hot reloads re-run static initialisers). The framework
-answer is **`ConfigStore`** (`core/runtime/`): registered config objects
-are persisted to `/sdcard/FIRST/config/tuning.properties` (~1 Hz when
-dirty, atomically) and reloaded into the statics at every op-mode init.
-Tuned values therefore survive power cycles, full installs, *and* hot
-reloads — and config objects no longer need `@Pinned`, so their code
-hot-reloads normally.
+Panels writes `@Configurable` statics, which die with the process and are
+re-initialised by Sloth reloads. `ConfigStore` (`core/runtime/`) persists
+registered objects to `/sdcard/FIRST/config/tuning.properties` (~1 Hz when
+dirty, atomically) and reloads them at every op-mode init.
 
-`OpModeBase` registers `DriveConfig` and `LocalizerConfig` itself. Season
-forks register their own objects in `configure()`:
+`OpModeBase` registers `DriveConfig` and `LocalizerConfig`. Season code
+registers its own in `configure()`:
 
 ```kotlin
 ConfigStore.register("lift", LiftConfig, LiftConfig::resetDefaults)
 ```
 
-Only public `@JvmField` mutable primitive/String fields are persisted,
-keyed `<section>.<field>`. Each config supplies `resetDefaults()`, restoring
-all its tunable fields from compiled constants; never capture live values
-as defaults, since Panels can edit them before registration. Every load
-resets registered objects before applying overrides, so deleting the file
-or omitting/rejecting a key restores defaults even between warm op-mode runs.
-Dirty saves merge with matching-schema disk keys, preserving sections and
-fields this op-mode has not registered. A failed replacement leaves the old
-file intact and the values dirty for retry.
-Bump `RobotConfig.CONFIG_SCHEMA` whenever the tuned values stop
-applying — a new season fork, and the sensorbot → competition-robot swap,
-since the Control Hub usually moves between chassis and carries its tuning
-file with it. Files recorded under a different schema are ignored. Tunables on `@Configurable` *op-modes* (the Pedro `Tuning`
-op-mode, `LocalizationTestTeleOp`) are deliberately not persisted — move
-anything that must persist into a registered config object.
+Only public `@JvmField` mutable primitive/String fields persist, keyed
+`<section>.<field>`. Each config supplies `resetDefaults()` from compiled
+constants; never capture live values. Every load resets before applying
+overrides. Bump `RobotConfig.CONFIG_SCHEMA` when tuned values stop applying.
+`DriveConfig.brakeOnTeleop` is copied into Pedro's `manualBrakeMode` when the
+follower is created (next init).
 
-The only `@Pinned` class left is `PersistedPose` (it carries live state
-across op-modes in the same process, which is exactly what pinning is
-for). Don't pin config objects.
+The only `@Pinned` class is `PersistedPose`. Don't pin config objects. Ivy's
+static scheduler is reset by every `Robot`, so commands created before a
+reload never run.
+
+## Flight recorder (WPILOG for AdvantageScope)
+
+`FlightRecorder` writes `/sdcard/FIRST/logs/<OpMode>-<timestamp>-<n>.wpilog`
+(30 files kept). Channels (sampled at ≤ 100 Hz unless noted):
+
+| Channel | Type | Meaning |
+|---|---|---|
+| `Field/Robot` | `struct:Pose2d` | Pose in metres about the field centre (AdvantageScope 2D field) |
+| `pose` | `double[]` | `[x in, y in, heading rad]`, raw Pedro frame |
+| `velocity` | `double[]` | `[vx in/s, vy in/s, omega rad/s]`, field frame |
+| `driveMode` | string | `IDLE`, `TELEOP`, `FOLLOWING`, `HOLDING`, `ROBOT_CENTRIC_FALLBACK` |
+| `follow/translationalErrorIn`, `follow/headingErrorRad` | double | Foresight errors, only while following/holding |
+| `gamepad1/axes`, `gamepad2/axes` | `double[]` | `[lx, ly(+up), rx, ry(+up), lt, rt]` after deadband |
+| `gamepad1/buttons`, `gamepad2/buttons` | int64 | bits: A B X Y LB RB up down left right start back LS RS |
+| `battery` | double | volts |
+| `loop/totalNanos`, `loop/<phase>Nanos`, `loop/windowMax…` | int64 | loop timing and per-window peaks |
+| `<Subsystem>/…` | any | `SubsystemBase.logState` channels |
+| `events` | string | explicit events with their own timestamps (not sampled) |
+
+Log values with `logState(log)` (`log.put("name", value)`) and events with
+`robot.recordEvent("text")`. Nothing records command starts or ends: there is
+**no complete command history**. Do not describe sampled channels as one.
+
+Failure isolation: an I/O failure disables the recorder for the run; a
+non-I/O exception in one subsystem's `logState` disables that subsystem's
+channels and records why; anything else escaping the recorder closes it. The
+loop keeps running.
+
+Retired with the migration (don't reintroduce): `commands/running`,
+`COMMAND STARTED/FINISHED/INTERRUPTED/FAULTED` events, blocked-schedule and
+first-default-resume events, `TRIGGER FAULT` quarantine, the recent-events
+ring, `lastcrash.txt`.
 
 ## Things AI assistants get wrong often
 
-- **The scheduler is not global.** It lives on `Robot`
-  (`robot.scheduler`); there is no static `Scheduler` and no Ivy dependency
-  anymore. The tick method is `execute()`, never `run()`.
-- **`Commands.waitMs` overloads.** Double and Long overloads both exist —
-  keep both. Pass `robot.clock` as the second argument anywhere a routine
-  might run in the sim (PedroAutoRunner's `wait()` already does).
-- **Pedro maven repository.** Pedro is on **Maven Central**, not
-  `maven.pedropathing.com`. That domain returns a 302 to a 404 and
-  breaks the build. Do not "fix" `build.dependencies.gradle` to use it.
-- **Pedro calibration values are placeholders.** The numeric values in
-  `pedroPathing/Constants.java` must be measured for the physical chassis
-  before autonomous paths run; follow `OPERATIONS.md` in order.
-- **Pose coordinates for mirrored paths.** Mirroring runs through
-  `Alliance.mirror` / `Pose2d.mirror` with the field length from
-  `RobotConfig.Field.LENGTH_INCHES` (**141.5 inches**, not 144) and the
-  season's `FieldSymmetry` (MIRROR vs ROTATE — check the game manual).
-  Don't change either unless the user explicitly asks.
-- **Kotlin property access on Java getters.** `follower.pose` works
-  (maps to `getPose()`) but `follower.startingPose = p` does **not** (no
-  `getStartingPose()` exists). Use `follower.setStartingPose(p)`.
-- **Subsystem writes in `periodic`.** Don't. That's what commands +
-  `writeHardware` are for.
-- **VisionPortal processors are single-use.** SDK 11.1.0 keeps a static list
-  of attached processors, so build a new processor every OpMode run. Never let
-  an exception leave `processFrame` — EasyOpenCV turns it into a robot E-stop.
-- **Panels values never reach camera threads directly.** Copy config statics
-  into an immutable snapshot on the robot loop and publish that (see
-  `BallCameraSubsystem`); USB camera controls block, so only
-  `CameraControlWorker` calls them.
+- **There is one scheduler and it is Ivy's static `Scheduler`.** There is no
+  `robot.scheduler`, no `core/command`, no command names.
+- **Don't use Ivy's `PedroCommands`** for driving; use the drive's commands.
+- **Parametric end ≠ arrival.** Use `holdCommand` or `atPose` when arrival matters.
+- **`linear` on `Paths.line` is backwards in Pedro 3.0.0.**
+- **Mirroring:** `Alliance.poses()` / `Alliance.mirror`, field length
+  `RobotConfig.Field.LENGTH_INCHES` (**141.5**), symmetry
+  `RobotConfig.Field.SYMMETRY`. Never `PoseFactory.mirrorX`.
+- **Foresight constants are not tuned.** Never invent values; run AutoTune.
+  The Pedro docs' example ForesightConfig numbers are another robot's.
+- **Pinpoint offsets map as** Pedro 2 `forwardPodY → xPodOffset`,
+  `strafePodX → yPodOffset` (same `setOffsets(x, y)` call).
+- **Subsystem writes in `periodic`.** Don't.
+- **VisionPortal processors are single-use.** Build a new processor every
+  run. Never let an exception leave `processFrame`.
+- **Panels values never reach camera threads directly.** Copy into an
+  immutable snapshot on the robot loop (see `BallCameraSubsystem`); only
+  `CameraControlWorker` calls blocking USB camera controls.
 - **Vision timestamps are not interchangeable.** Limelight `staleness` is
-  Control Hub wall-clock receipt age, its `ts` is the device clock (frame
-  identity only), and VisionPortal's capture time is `System.nanoTime()`.
-  Limelight frame freshness advances from its first receipt on the robot's
-  monotonic clock; repeated polls must not renew it. Label which age a number is.
-- **A BIOBUZZ tag sighting is not HIVE state.** The HIVES pivot: no fixed tag
-  field poses, no scoring readiness from `BiobuzzAprilTags`.
+  receipt age, `ts` is device clock (identity only), VisionPortal capture
+  time is `System.nanoTime()`. Label which age a number is.
+- **A BIOBUZZ tag sighting is not HIVE state.**
 
 ## When the user asks you to add a subsystem
 
-(`DEVELOPMENT.md` has the full worked example with the same contract.)
-
-There is no generic profiled-motor base class — see the mechanism note
-above. Build the mechanism the season needs, following this contract:
-
-1. Extend `SubsystemBase(name = "…")`.
-2. Resolve hardware in `init(hardwareMap)` using `DeviceReaders.motor`
-   etc. so a missing device surfaces as `HardwareConfigError` with the
-   name baked in.
-3. Read in `periodic()`, write targets in `writeHardware()`.
-4. Expose a clean API. Commands that touch this subsystem declare
-   `requiring(this@MySubsystem)`.
-5. Register it on the `Robot` from the op-mode's `configure()` hook —
-   not from anywhere else.
+Follow `DEVELOPMENT.md` → *Add a subsystem*: extend `SubsystemBase`, resolve
+hardware in `init` through `DeviceReaders`, read in `periodic()`, flush in
+`writeHardware()`, expose Ivy command factories that `requiring(this)`, zero
+actuators in `stop()` and `onCommandFault()`, log in `logState`, register in
+`configure()`. Season mechanisms go under `teamcode/subsystems/`, not `core/`.
+There is deliberately no generic mechanism base class.
 
 ## When the user asks you to add an I²C sensor (or touch SRSHub)
 
-**Read the sensor section in `DEVELOPMENT.md` first.** Pinpoint stays direct;
-all other I²C goes on one SRSHub read **inline** in `periodic()`. Do not
-background the SRSHub by default: it shares the Control Hub's Lynx serial link
-with motor writes, the same trap that was tried and reverted for Pinpoint
-(postmortem in `pedroPathing/Constants.java`). The development guide contains
-the hazards, integration rules, and measurement sequence for any SRSHub
-threading decision.
+Read the sensor section in `DEVELOPMENT.md` first. Pinpoint stays direct; all
+other I²C goes on one SRSHub read **inline** in `periodic()`. Do not
+background the SRSHub by default.
 
 ## When the user asks you to add a path or auton routine
 
-Prefer the `PathDSL` / `PedroAutoRunner` DSLs in `core/pathing/`. They
-already handle the Pedro API correctly and add alliance mirroring and
-parallel/race groups on top. Don't drop back to raw `PathBuilder` unless
-you have a reason — and if you do, remember `Alliance.mirror(heading)`
-for the heading-interpolation arguments; pose mirroring alone doesn't
-cover them.
-
-There is no init-loop auton menu. Every alliance/routine combination is its
-own `@Autonomous` class, so the Driver Station dropdown is the selector —
-the chosen name is displayed in large text and there is nothing to confirm.
-A BLUE variant is a copy of the RED op-mode that overrides `initialAlliance`
-and changes nothing else. Only the start delay is chosen at init, via
-`StartDelay` on dpad left/right, because it is picked minutes before the
-match to avoid an alliance partner's routine.
-
-`ExampleAuto` is the copyable skeleton: RED-coordinate poses mirrored by the
-DSL, routine built at start, sequenced with `autoRoutine`, final pose
-persisted automatically for teleop to restore. Its `onStart` aborts before
-scheduling when the localizer is not ready (including a latched fault) and treats a rejected schedule
-as an auton abort; preserve both gates in season copies.
-
-Mid-path actions use progress markers instead of parallel/waitUntil
-contortions:
-
-```kotlin
-follow(toScore) {
-    at(0.3) { lift.setGoal(HIGH) }          // fires once at 30% of the chain
-    at(0.85, "deploy") { intake.deploy() }  // label shows in the flight log
-}
-```
-
-Markers ride `drive.pathProgress()` (0..1 across the whole chain), fire
-through completion, and are dropped if the path never reaches them
-(deadline semantics). They work in the sim — `SimFollower` emulates
-progress.
+Copy `opmodes/skeletons/ExampleAuto.kt`: RED poses through `alliance.poses()`,
+paths from `Paths`, the routine as Ivy groups of drive commands, `race`
+timeouts, `deadline` markers, start gates (`FORESIGHT_TUNED`,
+`localizer.ready`, schedule accepted), stop when the routine is no longer
+scheduled. One `@Autonomous` class per alliance and routine; the BLUE copy
+overrides `initialAlliance` only. Start delay via `StartDelay` on dpad in init.
 
 ## Naming op-modes
 
-Currently enabled: Drive Only, Ball Tracking Test, Limelight AprilTag Test,
-and Pedro Tuning. The old Limelight Ball Follow and bring-up utilities live in
-`opmodes/archived/` with `@Disabled`; examples live in `opmodes/skeletons/`
-with `@Disabled`. Keep them disabled unless the user asks to use them.
+Currently enabled: Drive Only, Ball Tracking Test, Limelight AprilTag Test.
+AutoTune is a web page, not a Driver Station op-mode. `opmodes/archived/` and
+`opmodes/skeletons/` hold `@Disabled` op-modes; keep them disabled unless the
+user asks.
 
-The Driver Station dropdown is the UI, and it is read under match pressure.
-
-- **No team or season prefix.** `"Ball Follow"`, not `"BioBuzz: Ball Follow"`.
-  Every op-mode here is BioBuzz's, for this season; the prefix costs the same
-  characters on every row and distinguishes nothing.
-- **Two groups, by purpose.** `"Match"` for anything run in a match,
-  `"Diagnostics"` for bench work. The Driver Station already splits Auto from
-  TeleOp, so a group named after the op-mode kind is redundant.
-- **Title Case, no punctuation, no `TeleOp`/`Auto` suffix** in the name — the
-  dropdown section already says which it is.
-- **Alliance variants end in the alliance:** `"Far Side RED"` / `"Far Side BLUE"`.
-- **Class names keep their suffix** (`BallFollowTeleOp`, `ExampleAuto`). That is
-  a Kotlin identifier, not a driver-facing string.
-
-```kotlin
-@TeleOp(name = "Ball Follow", group = "Match")
-@Autonomous(name = "Example Auto", group = "Match")
-@TeleOp(name = "Limelight AprilTag Test", group = "Diagnostics")
-```
-
-Pedro's vendored `Tuning` op-mode keeps its own name and group — it is not ours.
+No team or season prefix. `"Match"` or `"Diagnostics"` groups. Title Case, no
+`TeleOp`/`Auto` suffix. Alliance variants end in the alliance
+(`"Far Side RED"`). Class names keep their suffix.
 
 ## Things not to do unless explicitly asked
 
-- Don't rename hardware-map strings (`frontLeftMotor`, `pinpoint`,
-  etc.). Those match the user's actual robot config.
+- Don't rename hardware-map strings (`frontLeftMotor`, `pinpoint`, …).
 - Don't move files between `java/` and `kotlin/` source roots.
-- Don't bump FTC SDK, Pedro, Kotlin, or AGP versions.
-- Don't remove or rewrite `pedroPathing/Constants.java` — Pedro reads
-  from that exact package path.
-- Don't add Kalman filters, PID overhauls, or "cleaner architecture"
-  refactors.
-- Don't invent game-specific mechanisms nobody asked for. Season subsystems
-  belong in this repo now, but build the one requested — not a speculative
-  intake/shooter/lift set alongside it.
-- Don't put season code in `core/`. That directory is what gets cherry-picked
-  back to `ftc-starter`; game logic in it makes the merge manual forever.
+- Don't bump FTC SDK, Pedro, Ivy, Kotlin, AGP, Sloth or Panels versions.
+- Don't edit the copied AutoTune procedures; re-copy them from the Quickstart.
+- Don't add wrappers, DSLs or aliases over Ivy or Pedro APIs.
+- Don't invent game-specific mechanisms or put season code in `core/`.
+- Don't enable disabled op-modes, change field dimensions or symmetry, or
+  rewrite vision algorithms.
 
 ## Workflow
 
-Code is written in this repo, then deployed to the robot one
-of two ways:
+- **Full install** (`make install`): first deploy of a session, and after
+  changing `@Pinned` classes, dependencies, the manifest, `res/`, or anything
+  outside TeamCode.
+- **Hot reload** (`make hot`, `./gradlew deploySloth`): ordinary TeamCode
+  iteration, including `pedro/Constants.java`.
 
-- **Full install** — Android Studio's normal Run / install (`installDebug`).
-  A full APK build + install. Use this for the first deploy of a session,
-  and after changing anything Sloth can't hot-reload: `@Pinned` classes
-  (`PersistedPose`), non-teamcode code, dependencies, or the manifest.
-- **Hot reload** — `./gradlew deploySloth` (or a Gradle run configuration
-  in Android Studio pointed at it). Pushes only teamcode, ~1s. Use this for
-  ordinary iteration on subsystems, op-modes, and command logic.
-
-The Load plugin (`dev.frozenmilk.sinister.sloth.load`, applied in
-`TeamCode/build.gradle`) auto-wires `removeSlothRemote` into `installDebug`/
-`installRelease`, so a normal Android Studio install always clears any
-staged hot-reload jar first — the two paths don't fight each other.
-
-Because hot reload is live, `@Pinned` and ConfigStore matter — see the
-**Config persistence** section above.
-
-Logs live on the robot at `/sdcard/FIRST/logs`. Use `make pull-logs` and
-open `.wpilog` files in AdvantageScope, or `make analyze` for a quick
-post-match summary (loop percentiles, phase maxima, battery, follower
-error, events). `OPERATIONS.md` maps competition symptoms to log channels.
-Continuous channels are capped at 100 Hz independently of the control-loop
-rate. Scheduler STARTED/FINISHED/INTERRUPTED/FAULTED transitions are timestamped
-when they occur and buffered into `events`, including commands shorter than a
-loop; `commands/running` is the set sampled after each loop. Group children
-are not separately scheduled; autonomous step events provide their timeline.
-Per-window timing maxima preserve spikes between samples.
+Logs: `make debug` (newest Auto + TeleOp, JSON bundle), `make pull-logs`,
+`make analyze`. `tools/analyze_wpilog.py` reports `commandHistoryRecorded:
+false` for current logs. When a log doesn't determine the cause, give ranked
+hypotheses and the one channel or reproduction that decides it.
 
 ### Post-match debugging (the AI runs this)
 
-When the user reports a match problem and is connected to the hub ("I'm
-plugged in", "figure out what went wrong this match", "the lift didn't lift
-this match") — run **`make debug`**. It reaches the hub over USB (wifi
-fallback), pulls only the newest match's log(s) — Auto + TeleOp, not all 30 —
-and prints a JSON diagnostic bundle (loop timing, battery, follower error,
-drive-mode time, full command-set transitions, full event/fault timeline,
-pose-correction tally, and a channel manifest). Anchor on the stated symptom,
-then drill into specific channels with:
-
-```
-python3 tools/analyze_wpilog.py --json --channel <name,name> robot-logs/<file>
-```
-
-The auton run is the second pulled file; `make debug`'s JSON defaults to the
-newest (TeleOp), so point at `robot-logs/Auto-*.wpilog` for auton symptoms.
-Don't fall back to `make pull-logs` here — it drags all 30 logs over the link.
-
-When a log doesn't uniquely determine the cause, don't assert one. Give the
-ranked hypotheses with what each predicts in the data, and name the one
-channel to pull or the one reproduction that decides it — then ask for it.
-
-Auton routines can run headless before touching the robot: see
-`core/sim/SimAutonRoutineTest` (test sources) — `SimHarness` + `SimFollower`
-execute full `PedroAutoRunner` routines against real path geometry in
-JUnit — including `wait()` steps and `timeout()`s, which run on the
-harness's virtual clock.
+When the user is plugged into the hub and reports a match problem, run
+**`make debug`**, anchor on the stated symptom, and drill into channels with
+`python3 tools/analyze_wpilog.py --json --channel <name,name> robot-logs/<file>`.
+The auton run is usually the second pulled file.
 
 ## Running the project
-
-Run the host unit tests and Android debug assemble with JDK 17:
 
 ```
 JAVA_HOME="/Users/maximilianreich/Library/Java/JavaVirtualMachines/corretto-17.0.13/Contents/Home" \
   ./gradlew :TeamCode:testDebugUnitTest :TeamCode:assembleDebug
+python3 -m unittest tools/test_analyze_wpilog.py
 ```

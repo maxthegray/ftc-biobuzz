@@ -1,119 +1,103 @@
 # Robot Operations
 
-Physical bring-up, Pedro calibration, and post-run diagnosis for this robot.
+Physical bring-up, Pedro calibration with AutoTune, logs, and diagnosis for
+this robot. Host tests prove the code agrees with itself and with the Ivy and
+Pedro artifacts; none of it proves the robot drives. The **physical validation
+checklist** at the end lists what still has to be checked on hardware.
 
 ## Bring-up checklist
 
-Run this after a fresh fork or a hardware rebuild, before you trust the robot.
+Run this after a fresh fork, a hardware rebuild, or a framework change. Do the
+steps in order, **robot on blocks until step 4.**
 
-The host tests only prove the code agrees with itself — stick mapping, Pinpoint
-directions, mirror math. None of that is real until you check it on the actual
-robot, and a few of these will throw the robot across the room if they're
-backwards. So do them in order, **robot on blocks until step 4.** (Diagnostics
-are below; mechanism gains are covered in `DEVELOPMENT.md`.)
+`pedro/Constants.java` carries measured Pinpoint offsets and directions, the
+existing motor names and directions, and **no Foresight tuning**
+(`FORESIGHT_TUNED = false`). Until AutoTune's Foresight output is pasted in,
+manual driving works and every path, hold and turn command refuses to start.
 
-The numeric Pedro values in `pedroPathing/Constants.java` are placeholders,
-not a calibration for the new chassis. Do not run `Example Auto`
-until the localization, dynamics, and control checks below are complete.
+A **full APK install** is required the first time after this migration: the
+dependencies, SDK version and `@Pinned` `PersistedPose` signature changed.
 
 ## 0. Chassis-free framework smoke test
 
-**Framework Smoke Test** is disabled in `opmodes/archived/`. Re-enable it
-for this check after a framework change or when bringing up a new Control Hub.
-
-Run **Framework Smoke Test** before hardware configuration. It needs
-no configured devices and verifies the Control Hub runtime, lifecycle ordering,
-gamepad input, command scheduling/preemption/containment, telemetry, Panels,
-ConfigStore visibility, loop profiling, and WPILOG output. During init,
-`periodic ticks` must advance while `write ticks` stays at zero; after start,
-both must advance. The op-mode displays its controls and every action is
-software-only. Its main loop is intentionally paced to roughly 50 Hz so the
-absence of hardware I/O cannot create oversized flight logs.
+**Framework Smoke Test** is disabled in `opmodes/archived/`. Re-enable it for
+this check after a framework change or on a new Control Hub. It needs no
+configured devices and exercises lifecycle ordering, gamepad input, Ivy
+scheduling and preemption, the command-fault policy, telemetry, Panels,
+ConfigStore and WPILOG output. During init `periodic ticks` must advance while
+`write ticks` stays at zero; after start both advance. **Y** throws from a
+command: Health must show `command faults`, the default command must resume,
+and the op-mode must keep running. Its loop is paced to ~50 Hz.
 
 ## 1. Configuration names
 
-Confirm the Driver Station config names: `frontLeftMotor`, `frontRightMotor`,
-`backLeftMotor`, `backRightMotor`, and Pinpoint `pinpoint`. A wrong name fails
-loudly at init (Preflight lists what's missing); a *swapped* name won't — it'll
-show up as step 2 failing instead.
+Driver Station config names: `frontLeftMotor`, `frontRightMotor`,
+`backLeftMotor`, `backRightMotor`, Pinpoint `pinpoint`. A wrong name fails at
+init (Preflight lists what's missing); a *swapped* name shows up in step 2.
 
-## 2. Per-motor direction (on blocks)
+## 2. Motor directions (on blocks)
 
-Re-enable `opmodes/archived/MotorDirectionTestTeleOp.kt` for this check.
+Either AutoTune's **Mecanum Tuner** (below) or the archived **Motor Direction
+Test** (dpad selects a motor, triggers spin it at ≤ 20%). Positive power must
+turn each wheel robot-forward. Fix directions in `pedro/Constants.java`
+(`drivetrainConfig`), not by re-wiring.
 
-Run **Motor Direction Test**. Dpad left/right selects a configured
-motor; the right and left triggers command that motor forward and reverse at no
-more than 20% power. Verify the displayed name matches the wheel that moves and
-that positive power turns each wheel in the robot-forward direction. Fix
-directions in `pedroPathing/Constants.java` (`*MotorDirection`), not by
-re-wiring.
+## 3. Pinpoint axes and heading (on blocks, then by hand)
 
-## 3. Pinpoint axes and heading sign (on blocks, then by hand)
-
-- Init a drive op-mode; confirm **Pinpoint status** reads `READY` in the
-  Health section first. Initialization refreshes odometry without driving
-  motors and allows five seconds for calibration. `Example Auto` refuses to
-  start while readiness is pending or faulted.
-- Push the robot by hand, watch the Panels field view: +x forward, +y left.
-  Rotate CCW by hand: heading must increase. Fix signs via the encoder
-  directions in `pedroPathing/Constants.java`, then re-verify.
-- Run Pedro `Tuning` for localizer checks and pod-offset verification.
+- Init **Drive Only** with the robot still: the Pinpoint IMU recalibrates when
+  the follower is created, and Health must reach `Localizer: ok` (it shows
+  `waiting for Pinpoint READY (status …)` meanwhile, five-second limit).
+- Push the robot by hand and watch the Panels field: forward is +x, left is
+  +y, counter-clockwise rotation increases heading. AutoTune → **Tests →
+  Localization / Pose** shows the same.
+- If signs or distances are wrong, run AutoTune's **Pinpoint Tuner** and copy
+  its output into `localizerConfig`.
 
 ## 4. Teleop signs and field-centric (on carpet, slow)
 
-In `Drive Only` at low stick input, check forward/back, strafe
-left/right, and turn sign — these are framework defaults
-(`MecanumDriveSubsystem.applyTeleopDrive`), not yet verified on your chassis.
-Toggle field-centric (Back+B), rotate the robot, confirm translation stays
-field-true; reset heading (Back+Y) and confirm "away from driver" is +x.
+In **Drive Only** at low stick: forward/back, strafe left/right, turn
+direction. Toggle field-centric (Back+B), rotate the robot, confirm
+translation stays field-true; reset heading (Back+Y) and confirm "away from
+the driver" is +x.
 
-## 5. Pedro calibration (clear carpet, full battery)
+## 5. AutoTune (clear carpet, full battery)
 
-Use the **Pedro Pathing: Tuning** menu and save every accepted result back into
-`pedroPathing/Constants.java`; changes made only in the tuning op-mode are
-temporary.
+With the robot connected, open **http://192.168.43.1:10158**. Procedures
+(registered in `pedro/Tuning.java`):
 
-1. **Localization first.** Verify the configured pod model and encoder
-   directions. Set both pod offsets to zero before **Offsets Tuner**, then
-   enter the measured offsets and verify forward, lateral, and full-turn
-   distances by hand.
-2. **Drivetrain measurements.** Enter the measured robot mass, then run the
-   forward/lateral velocity and zero-power-acceleration tuners with enough
-   stopping room.
-3. **Control.** Tune translational, heading, and drive control before
-   centripetal or predictive-braking behavior.
-4. **Validate.** The Line test should work before Triangle, and Triangle
-   before Circle. Re-run localization checks if the field pose is wrong even
-   when follower error is small.
+1. **Mecanum Tuner** — motor names and directions → `drivetrainConfig`.
+2. **Pinpoint Tuner** — pod type, directions, offsets → `localizerConfig`.
+3. **Foresight Tuner** — max velocities, natural deceleration, braking and
+   heading coefficients, translational/coast/brake gains. Needs room to drive
+   forward and left. Paste the **Java** tab into `foresightConfig`, then set
+   `FORESIGHT_TUNED = true`.
+4. **Tests** — Hold, Line, Curve and Interpolation tests against the tuned
+   follower. Line before Curve.
 
-## 6. First framework path (capped power)
+Only values pasted into `pedro/Constants.java` persist. Record the date and
+chassis in a comment next to pasted values. Pedro 3 has no voltage
+compensation; tune on a full battery.
 
-Re-enable `opmodes/skeletons/LocalizationTestTeleOp.kt` for this check.
-Run **Localization Test** from a clear origin. Y follows 24" forward
-and A returns to the origin; both paths are capped at 30% power by default.
-Press the active target button again or move a stick to cancel. Watch the field
-view, then drive a slow lap and compare the final pose against the field.
-Endpoint drift with low follower error is localization (check pods); high error
-is following or battery.
+## 6. First framework path (capped speed)
+
+Re-enable `opmodes/skeletons/LocalizationTestTeleOp.kt`. From a clear origin:
+Y follows 24" forward, A returns; speed is capped at 30% of max velocity
+(`pathSpeedFraction`). Press the button again or move a stick to cancel.
+Endpoint drift with low `follow/translationalErrorIn` is localization; high
+error is following or battery.
 
 ## 7. Fault drills (on blocks)
 
-These check the safety behavior you'd otherwise only find out about mid-match:
-
-- **Watchdog:** with a path running, unplug an odometry pod. The device-status
-  check runs about once per second. Health must show `Localizer: FAULT` and
-  the log must carry a `LOCALIZER FAULT` event. In teleop, the active drive
-  command must end and sticks must work robot-centric; field-centric drive
-  and assists stay disabled until a new op-mode run. Repeat while holding a
-  ball assist, and verify forward, strafe, turn, precision, and stick release.
-  In autonomous, the routine must cancel. If nothing trips, check
-  `LocalizerConfig.watchdogEnabled` and the `pinpoint` hardware name. This tests
-  a reported sensor fault; an exception from the actual I2C read still follows
-  the framework's fail-fast hardware policy.
-- **Containment:** in a throwaway teleop, bind a button to a command whose
-  `setExecute` throws. Pressing it should print `command faults` in Health
-  while the drive keeps responding. If the op-mode dies, fault containment
-  regressed — fix before competing.
+- **Localizer watchdog:** with a path running, unplug an odometry pod. Health
+  must show `Localizer: FAULT`, the log must carry `LOCALIZER FAULT`, the path
+  must stop, and sticks must drive robot-centric (`driveMode`
+  `ROBOT_CENTRIC_FALLBACK`) with forward, strafe, turn, precision and release
+  all correct. Paths and field-centric stay unavailable until a new run. In
+  autonomous the routine must cancel and the robot stay put. An exception
+  from the I²C read itself ends the op-mode (hardware stopped first).
+- **Command fault:** in a throwaway teleop, bind a button to a command whose
+  `setExecute` throws. Health shows `command faults`, every mechanism stops
+  for a tick, the drive default resumes, and the log carries `COMMAND FAULT`.
 
 ## 8. Vision diagnostics (stationary, no motors)
 
@@ -312,12 +296,9 @@ latency budget from the measurements above; and on-blocks tests before carpet.
 
 ## Logs and post-run diagnosis
 
-Every op-mode writes a WPILOG under `/sdcard/FIRST/logs`.
-Continuous channels are capped at 100 Hz. `events` includes timestamped
-`COMMAND STARTED`, `FINISHED`, `INTERRUPTED`, and `FAULTED` records for scheduled
-commands, including those that finish within one loop. `commands/running`
-remains the sampled running set. The analyzer uses per-window timing maxima
-so short spikes are not hidden by the cap.
+Every op-mode writes a WPILOG under `/sdcard/FIRST/logs` (newest 30 kept).
+Continuous channels are sampled at ≤ 100 Hz; `events` keeps each event's own
+timestamp; per-window loop maxima keep spikes between samples.
 
 ```sh
 make debug       # newest Auto + TeleOp, JSON diagnostic bundle
@@ -325,57 +306,107 @@ make pull-logs   # copy all logs for AdvantageScope
 make analyze     # pull logs and summarize the newest one
 ```
 
-For an auton problem, explicitly inspect `robot-logs/Auto-*.wpilog`; the
-default analyzer target is normally the newer TeleOp log. `lastcrash.txt` on
-the hub contains the previous uncontained exception, running commands, recent
-events, loop count, and match time.
+For an auton problem inspect `robot-logs/Auto-*.wpilog` explicitly; the
+default target is usually the newer TeleOp log.
+
+**There is no command history.** Ivy has no lifecycle hooks, so logs from the
+current code have no `commands/running` channel and no per-command
+STARTED/FINISHED/INTERRUPTED/FAULTED events (the analyzer prints
+`command history: not recorded`). What commands did is visible through
+`driveMode`, subsystem channels, and events code records explicitly
+(`AUTO: …`, `COMMAND FAULT: …`, `LOCALIZER FAULT: …`, `LOOP CRASHED: …`).
+Logs recorded before September 2026 still show their command sets.
+`lastcrash.txt` is no longer written; a loop crash's stack trace is in `events`.
 
 ### Watching the robot on AdvantageScope's 2D field
 
-Drag **`Field/Robot`** onto the 2D Field tab. It is the same pose as the
-`pose` channel, re-encoded as a WPILib `Pose2d` struct — AdvantageScope draws
-a robot only from a struct, and the `double[]` format `pose` uses is
-deprecated there and goes away in 2027. Pick an FTC field; its default
+Drag **`Field/Robot`** onto the 2D Field tab and pick an FTC field; its default
 coordinate system (**Center/Rotated**) is the one the channel is written for.
-
-`pose` stays in raw Pedro inches and is the one to graph — `Field/Robot` is in
-metres about the field centre, because that is the struct's unit contract, and
-those are the wrong numbers to compare against `Constants.java`.
+`Field/Robot` is a WPILib `Pose2d` struct in metres about the field centre;
+graph `pose` (raw Pedro inches) when comparing against `Constants.java`.
 
 **Verify the axes once on a real field.** The encoding converts units and
-moves the origin from Pedro's corner to the field centre, but it does not
-rotate anything: whether Pedro's +X is the FTC frame's +X depends on where the
-field origin was set up, which is a team convention. Park the robot at a known
-spot, confirm the drawn robot is there, and drive one tile forward. If it comes
-out a quarter turn off, that is the axis convention and not the encoding — fix
-it in `WpiStruct` and say so there.
+moves the origin from Pedro's corner to the field centre, but does not rotate
+anything. Park at a known spot, confirm the drawn robot is there, drive one
+tile forward. A quarter-turn error is the axis convention, not the encoding —
+fix it in `WpiStruct` and say so there.
 
 ### Symptom triage
 
 | Symptom | First evidence to check |
 |---|---|
-| Op-mode stopped | Driver Station exception, `lastcrash.txt`, loop phase maxima, and minimum battery |
-| One mechanism stopped | Health `command faults` and the `COMMAND FAULT` event |
-| One binding stopped | `TRIGGER FAULT`; the bad trigger is quarantined while later triggers continue |
-| Auton wrong immediately | Starting pose and selector's `WILL RUN` routine/alliance |
-| Auton wrong only when mirrored | Bare headings missing `Alliance.mirror(heading)` |
+| Op-mode stopped | Driver Station exception, `LOOP CRASHED` event, loop phase maxima, minimum battery |
+| All mechanisms twitched off / auto stopped mid-routine | `COMMAND FAULT` event and Health `command faults` |
+| Path "finished" short of the target | `follow/translationalErrorIn` at the end; follow ends at the parametric end, add `holdCommand` |
+| Robot rotated the wrong way along a line | `.linear(...)` on `Paths.line` (Pedro 3.0.0); use a 3-point curve |
+| Auton wrong only when mirrored | Headings not through `Alliance.mirror`, or `PoseFactory.mirrorX` used |
+| Paths refuse to start | `FORESIGHT_TUNED` false, or `ROBOT_CENTRIC_FALLBACK` after a localizer fault |
 | Auton drifted | `follow/translationalErrorIn`: small error means localization; large means following |
-| Sudden pose jump | `pose correction applied` events and vision correction gates |
-| Field-centric wrong | Back+Y heading reset; after auton, check `PERSISTED POSE RESTORE` |
-| Mechanism hit a stop | Goal vs position channels, homing state, and configured soft limits |
+| Sudden pose jump | `pose correction applied` events and correction gates |
+| Field-centric wrong | Back+Y heading reset; after auton, `PERSISTED POSE RESTORE` |
+| Driving robot-centric unexpectedly | `LOCALIZER FAULT` event, `Drive/odometryFallback` |
 | Loop rate collapsed | Phase maxima: `writeHardware` usually Pinpoint, `telemetry` Panels, `periodic` season I/O |
-| Tuned config reverted | Registration, public primitive `@JvmField`, and config schema |
-| Pinpoint unhealthy | Init Health status, I²C cable, then stationary IMU recalibration |
+| Tuned config reverted | Registration, public primitive `@JvmField`, config schema |
+| Pinpoint unhealthy | Init Health status, I²C cable, robot still during init (IMU recalibration) |
 | Ball target flickers or lingers | `BallCamera/frame/ageMs`, `rate/processedFps`, `target/status`, `candidates/accepted` |
-| Tag diagnostic shows nothing | Limelight health (pipeline index/type), `Limelight/fiducial/count`, Full 3D and marker size in the web UI |
+| Tag diagnostic shows nothing | Limelight health (pipeline index/type), `Limelight/fiducial/count`, Full 3D and marker size |
 
-Additional rules:
+- Repeated `LOOP OVERRUN` events matter; one at init/stop is usually warm-up.
+- Swap a battery below 12.0 V resting. Normal operation should not sag below ~10 V.
 
-- A homing timeout is a command fault. It leaves the mechanism FAULTED with
-  zero output and never declares a false zero.
-- Pedro's `Tuning` op-mode is not persisted by ConfigStore. Copy accepted
-  values into `pedroPathing/Constants.java`.
-- Repeated `LOOP OVERRUN` events matter; a single init/stop overrun is usually
-  runtime warm-up.
-- Swap a battery below 12.0 V resting. Normal operation should not sag below
-  roughly 10 V.
+## Physical validation checklist
+
+Everything below is unverified on hardware after the Ivy / Pedro 3 migration.
+Record results in `PROGRESS.md`.
+
+**Install and reload**
+- [ ] Full APK install succeeds; Driver Station shows Drive Only, Ball Tracking
+      Test, Limelight AprilTag Test (no Pedro Tuning op-mode).
+- [ ] AutoTune page loads at `http://192.168.43.1:10158` and lists Mecanum
+      Tuner, Pinpoint Tuner, Foresight Tuner and Tests (Sloth 0.2.4 runtime).
+- [ ] Panels loads at `:8001`; a `DriveConfig` edit applies live and survives
+      an op-mode restart and a power cycle.
+- [ ] `make hot` after a small TeamCode edit: change takes effect, Panels still
+      edits the reloaded values, AutoTune still lists procedures.
+- [ ] Run Drive Only, stop, run it again three times, then an autonomous and a
+      teleop back to back: no stale command runs at start, no crash.
+
+**AutoTune and Pedro**
+- [ ] Mecanum Tuner confirms the four motor directions.
+- [ ] Pinpoint Tuner offsets/directions match `localizerConfig`
+      (xPodOffset 2.8346 in, yPodOffset 0, X REVERSED, Y FORWARD).
+- [ ] Foresight Tuner completes; output pasted; `FORESIGHT_TUNED = true`.
+- [ ] Tests → Hold resists pushing; Line and Curve repeat without drift.
+- [ ] A `Paths.line(...).linear(...)` path is avoided; a 3-point curve with
+      linear heading rotates the right way.
+
+**Driving and turning**
+- [ ] Stick signs, precision trigger, squared input curve, diagonal speed.
+- [ ] Field-centric stays field-true through a full rotation; Back+Y resets heading.
+- [ ] Brake mode on stick release matches `DriveConfig.brakeOnTeleop`.
+- [ ] `turnToCommand(90°)` reaches heading within 2°; a blocked turn times out
+      and the routine aborts with `COMMAND FAULT: … turnTo timed out`.
+- [ ] `holdCommand` settles within 1 in / 2°.
+
+**Cancellation and takeover**
+- [ ] Localization Test: moving a stick mid-path stops the path immediately
+      and hands control to the sticks; pressing the target button again cancels.
+- [ ] A race timeout stops the drive and the routine continues.
+- [ ] Stopping the op-mode mid-path stops all four motors at once.
+
+**Faults**
+- [ ] Localizer fault drill (step 7) in teleop and in autonomous.
+- [ ] Command fault drill (step 7).
+- [ ] Unplugged Pinpoint at init: Health reports it, auto refuses to start.
+
+**Recording and field view**
+- [ ] A 2-minute teleop log opens in AdvantageScope; `Field/Robot` draws the
+      robot in the right place and orientation on the FTC field (axis check above).
+- [ ] `pose`, `velocity`, `driveMode`, `follow/*`, `battery`, `gamepad1/*`,
+      `loop/*`, `Drive/*`, `Localizer/*` and season subsystem channels plot
+      with sensible values; events line up with what happened.
+- [ ] `make debug` summarises the newest Auto + TeleOp logs.
+- [ ] Log size stays bounded (a host test run wrote ~24 kB/s at 50 Hz) and the file is intact
+      after stopping normally and after a battery pull.
+- [ ] Autonomous final pose restores in the following teleop
+      (`PERSISTED POSE RESTORE: APPLIED`).
