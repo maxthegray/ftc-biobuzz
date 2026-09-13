@@ -6,9 +6,15 @@ Usage:
     python3 tools/analyze_wpilog.py --json [--channel battery,Lift/outputPower] [file ...]
 
 --json emits a compact machine-readable diagnostic bundle (the same metrics as
-the text one-pager, plus a channel manifest, command-set transitions, and the
-full event timeline) for programmatic post-match debugging. --channel adds the
-full [tSec, value] series for the named channels.
+the text one-pager, plus a channel manifest and the full event timeline) for
+programmatic post-match debugging. --channel adds the full [tSec, value]
+series for the named channels.
+
+Logs recorded before the Ivy migration also carry `commands/running` (the
+sampled command set); those transitions are reported when present. Newer logs
+have no command history: Ivy exposes no command registry or lifecycle hooks,
+so `commandHistoryRecorded` is false and only explicit events describe what
+commands did.
 
 With no arguments, analyzes the newest .wpilog under ./robot-logs (where
 `make pull-logs` drops them). Ten minutes between matches is the real
@@ -211,7 +217,8 @@ def build_report(records, channel_types, path, truncated=False):
             time_in[mode] = time_in.get(mode, 0) + (seg_end - ts)
         report["driveModeTimeSec"] = {m: time_in[m] / 1e6 for m in sorted(time_in)}
 
-    # --- commands ----------------------------------------------------------
+    # --- commands (pre-Ivy logs only) ------------------------------------
+    report["commandHistoryRecorded"] = "commands/running" in records
     running = records.get("commands/running", [])
     report["commandChanges"] = len(running)
     report["commands"] = [
@@ -288,8 +295,10 @@ def print_text_report(report):
         parts = ", ".join(f"{m} {t:.1f}s" for m, t in drive_mode.items())
         print(f"\ndrive mode time: {parts}")
 
-    if report["commandChanges"]:
+    if report["commandHistoryRecorded"]:
         print(f"\ncommand-set changes: {report['commandChanges']}")
+    else:
+        print("\ncommand history: not recorded (see explicit events)")
 
     if report["faults"]:
         print(f"\n!! {len(report['faults'])} fault/crash event(s):")
@@ -349,8 +358,10 @@ def to_json_dict(report):
     if "driveModeTimeSec" in report:
         out["driveModeTimeSec"] = {m: round(t, 1) for m, t in report["driveModeTimeSec"].items()}
 
-    out["commands"] = [{"tSec": round(c["tSec"], 3), "running": c["running"]}
-                       for c in report["commands"]]
+    out["commandHistoryRecorded"] = report["commandHistoryRecorded"]
+    if report["commandHistoryRecorded"]:
+        out["commands"] = [{"tSec": round(c["tSec"], 3), "running": c["running"]}
+                           for c in report["commands"]]
     out["events"] = [{"tSec": round(e["tSec"], 3), "text": e["text"]}
                      for e in report["events"]]
     out["faults"] = [{"tSec": round(f["tSec"], 3), "text": f["text"]}
