@@ -2,7 +2,8 @@
 
 TeamCode is where the robot-specific code lives. In this repo, most code is
 under `src/main/kotlin/org/firstinspires/ftc/teamcode`; the Java package is
-kept for FTC/Pedro compatibility files such as `pedroPathing/Constants.java`.
+holds the Pedro Pathing files copied from its Quickstart: `pedro/Constants.java`,
+`pedro/Tuning.java` (AutoTune) and `pedro/procedures/`.
 
 Start at the repo root:
 

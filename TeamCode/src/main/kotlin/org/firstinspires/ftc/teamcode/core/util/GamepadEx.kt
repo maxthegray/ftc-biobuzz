@@ -4,26 +4,18 @@ import com.qualcomm.robotcore.hardware.Gamepad
 import java.util.function.BooleanSupplier
 import kotlin.math.abs
 import kotlin.math.withSign
-import org.firstinspires.ftc.teamcode.core.command.Scheduler
 
 /**
- * Thin wrapper around [Gamepad] that adds edge detection, deadbanded axes,
- * and [Trigger] bindings scheduled on [scheduler] (the owning robot's
- * command scheduler). Built for one-line use in op-modes:
+ * Thin wrapper around [Gamepad] that adds edge detection, deadbanded axes
+ * (sticks read +up/+right), and [Trigger] bindings that schedule Ivy
+ * commands. Ivy itself has no gamepad bindings; this is the input helper.
  *
  * ```kotlin
- * val driver = GamepadEx(gamepad1, robot.scheduler)
- * // inside loop:
- * driver.update()
- * if (driver.aPressed) intake.togglePressed()
- * drive.arcade(driver.leftStickY, driver.leftStickX, driver.rightStickX)
+ * driver.button(GamepadEx.Button.A).onTrue(intake.grab())
+ * val forward = driver.leftStickY
  * ```
  */
-class GamepadEx(
-    val raw: Gamepad,
-    internal val scheduler: Scheduler,
-    private val triggerFaultHandler: (Throwable) -> Unit = {},
-) {
+class GamepadEx(val raw: Gamepad) {
 
     var leftStickDeadband: Double = 0.05
     var rightStickDeadband: Double = 0.05
@@ -42,7 +34,6 @@ class GamepadEx(
     }
 
     private val triggers = mutableListOf<Trigger>()
-    private val quarantinedTriggers = HashSet<Trigger>()
     private val buttonTriggers = HashMap<Button, Trigger>()
 
     /**
@@ -59,15 +50,7 @@ class GamepadEx(
         // Triggers are not polled during init, so lastState is stale false.
         // Prime from the current condition so a button held across start
         // doesn't fire its binding as a phantom rising edge on the first poll.
-        for (t in triggers) {
-            if (t !in quarantinedTriggers) {
-                try {
-                    t.prime()
-                } catch (fault: Throwable) {
-                    quarantine(t, fault)
-                }
-            }
-        }
+        for (t in triggers) t.prime()
     }
 
     internal fun requireBindingsUnlocked() {
@@ -81,21 +64,15 @@ class GamepadEx(
      * Also samples every registered [Trigger] (unless [pollTriggers] is
      * false — the init loop disables it so bindings can't start commands
      * before the match), so trigger-bound commands are scheduled or
-     * cancelled here — before the command scheduler ticks.
+     * cancelled here, outside `Scheduler.execute()`. A throwing condition or
+     * binding propagates to [org.firstinspires.ftc.teamcode.core.runtime.Robot],
+     * which aborts all commands and halts the subsystems.
      */
     fun update(pollTriggers: Boolean = true) {
         prev.copyFrom(curr)
         curr.read(raw)
         if (pollTriggers) {
-            for (t in triggers) {
-                if (t !in quarantinedTriggers) {
-                    try {
-                        t.poll()
-                    } catch (fault: Throwable) {
-                        quarantine(t, fault)
-                    }
-                }
-            }
+            for (t in triggers) t.poll()
         }
     }
 
@@ -163,20 +140,6 @@ class GamepadEx(
     fun trigger(condition: BooleanSupplier): Trigger {
         requireBindingsUnlocked()
         return Trigger(this, condition).also { triggers += it }
-    }
-
-    private fun quarantine(trigger: Trigger, fault: Throwable) {
-        quarantinedTriggers += trigger
-        try {
-            trigger.quarantine()
-        } catch (cleanupFault: Throwable) {
-            fault.addSuppressed(cleanupFault)
-        }
-        try {
-            triggerFaultHandler(fault)
-        } catch (_: Throwable) {
-            // Fault reporting must not starve later triggers.
-        }
     }
 
     private fun stateOf(button: Button): Boolean = when (button) {

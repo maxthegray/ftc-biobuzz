@@ -1,29 +1,34 @@
 package org.firstinspires.ftc.teamcode.core.runtime
 
+import com.pedropathing.ivy.CommandBuilder
+import com.pedropathing.ivy.behaviors.ConflictBehavior
 import com.qualcomm.robotcore.hardware.HardwareMap
-import org.firstinspires.ftc.teamcode.core.command.Command
+import org.firstinspires.ftc.teamcode.core.logging.StateLog
 
 /**
  * Base class every subsystem extends.
  *
  * A subsystem owns a slice of the robot (drive, intake, shooter, lift…) and
- * presents a safe, high-level API. The main loop is single-threaded: the
- * OpMode calls [periodic] on every subsystem once per tick, after the Lynx
- * bulk read but before the command scheduler tick.
+ * presents a safe, high-level API. The main loop is single-threaded: [Robot]
+ * calls [periodic] on every subsystem once per tick, after the Lynx bulk read
+ * but before Ivy's scheduler runs.
  *
- * Subsystems double as command "requirements" — pass `this` to
- * `CommandBuilder.requiring(...)` and the scheduler will automatically
- * resolve conflicts between commands that touch the same hardware.
+ * Subsystems double as Ivy command requirements — pass `this` to
+ * `CommandBuilder.requiring(...)` and the scheduler resolves conflicts between
+ * commands that touch the same hardware.
  */
 abstract class SubsystemBase(val name: String) {
 
     /**
-     * Command the robot should keep scheduled whenever this subsystem is free.
-     * Scheduled passively: [Robot] only schedules it when no running command
-     * holds this subsystem, so a default never preempts explicit work — even
-     * explicit commands at the same [CommandPriorities.DEFAULT] priority.
+     * Ivy command [Robot] schedules whenever this subsystem is free. Assigning
+     * one sets its [ConflictBehavior] to CANCEL, so a default never preempts an
+     * explicit command of equal priority; explicit commands at
+     * [CommandPriorities.DEFAULT] or above still preempt the default.
      */
-    var defaultCommand: Command? = null
+    var defaultCommand: CommandBuilder? = null
+        set(value) {
+            field = value?.setConflictBehavior(ConflictBehavior.CANCEL)
+        }
 
     /**
      * Subsystem type that must already be registered before this one.
@@ -33,29 +38,16 @@ abstract class SubsystemBase(val name: String) {
      */
     open val registerAfter: Class<out SubsystemBase>? get() = null
 
-    /**
-     * Called exactly once when the OpMode initialises. Resolve hardware,
-     * zero encoders, apply motor directions. Failures should throw — the
-     * [Robot] catches them and reports via telemetry.
-     */
+    /** Called once when the op-mode initialises. Resolve hardware here; failures should throw. */
     open fun init(hardwareMap: HardwareMap) {}
 
-    /**
-     * Called every main-loop tick, after the bulk read completes and before
-     * the scheduler executes commands. Use this for pure reads / state
-     * updates — not for commanding actuators. Command hardware from commands
-     * so the scheduler can arbitrate conflicts.
-     */
+    /** Every tick, before commands run. Read sensors and update state; never command actuators. */
     open fun periodic() {}
 
     /** Init-loop reads, without commands or actuator writes. Defaults to [periodic]. */
     open fun initPeriodic() = periodic()
 
-    /**
-     * Called every main-loop tick after [periodic] and the scheduler tick.
-     * Useful for writing the final motor power / servo position decided by
-     * whichever command is currently running.
-     */
+    /** Every tick after commands run. Flush the targets the running command decided. */
     open fun writeHardware() {}
 
     /**
@@ -66,34 +58,26 @@ abstract class SubsystemBase(val name: String) {
      */
     open fun persistState() {}
 
-    /**
-     * Short health string for Driver Station / Panels telemetry, or null if
-     * the subsystem has nothing useful to report this tick.
-     */
+    /** Short health string for Driver Station / Panels telemetry, or null. */
     open fun health(): String? = null
 
     /**
-     * Write this subsystem's state channels into the flight log. Called once
-     * per tick by the flight recorder (when one is running); channel names
-     * are automatically prefixed with `<name>/`. Log what tuning and
-     * post-match triage need — goals, setpoints, measurements, outputs.
+     * Write this subsystem's flight-log channels. Called at most 100 times a
+     * second by the flight recorder; channel names are prefixed with `<name>/`.
      */
-    open fun logState(log: org.firstinspires.ftc.teamcode.core.logging.StateLog) {}
+    open fun logState(log: StateLog) {}
 
     /**
-     * Called after [Robot] contains a fault from a command that *required
-     * this subsystem* (teleop only). The faulting command has already been
-     * ended (its end handler ran, best-effort) — this is the safety net for
-     * when that end handler is itself the buggy code: put actuators in a
-     * safe state here — break a path follow, hold a lift in place. The
-     * subsystem's default command resumes on the next tick. Never throw.
+     * A command threw. [Robot] has already cleared Ivy's scheduler (no end
+     * handlers run) and calls this on every subsystem: put actuators in a safe
+     * state. Default commands resume on the next tick. Never throw.
      */
     open fun onCommandFault() {}
 
     /**
-     * Called once at the end of the OpMode, before command end handlers,
-     * diagnostics, and persistence. Zero actuators first; avoid logging or
-     * storage I/O here. Preserve cached state needed by [persistState]. Never throw.
+     * Called once at the end of the op-mode, before diagnostics and persistence.
+     * Zero actuators first; avoid logging or storage I/O here. Preserve cached
+     * state needed by [persistState]. Never throw.
      */
     open fun stop() {}
 

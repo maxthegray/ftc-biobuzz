@@ -1,11 +1,10 @@
 package org.firstinspires.ftc.teamcode.core.estimation
 
+import com.pedropathing.math.Pose
 import kotlin.math.abs
 import kotlin.random.Random
-import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
-import org.firstinspires.ftc.teamcode.core.geometry.normalizeAngleSigned
-import org.firstinspires.ftc.teamcode.core.geometry.shortestAngleDelta
 import org.firstinspires.ftc.teamcode.core.sim.FakeClock
+import org.firstinspires.ftc.teamcode.core.subsystems.localization.shortestAngleDelta
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -13,7 +12,7 @@ import org.junit.Test
 /** Randomized invariants for the correction pipeline. */
 class CorrectionPropertyTest {
 
-    private fun randomPose(random: Random): Pose2d = Pose2d(
+    private fun randomPose(random: Random): Pose = Pose(
         random.nextDouble(0.0, 141.5),
         random.nextDouble(0.0, 141.5),
         random.nextDouble(-2.0 * Math.PI, 2.0 * Math.PI),
@@ -21,14 +20,14 @@ class CorrectionPropertyTest {
 
     private class Rig {
         val clock = FakeClock(start = 0L)
-        var pose = Pose2d.ZERO
+        var pose = Pose.zero()
         val estimator = PoseEstimator(
             currentPose = { pose },
             applyPose = { pose = it },
             clock = clock,
         )
 
-        fun seed(p: Pose2d) {
+        fun seed(p: Pose) {
             pose = p
             estimator.sample(clock.now, p)
         }
@@ -87,11 +86,11 @@ class CorrectionPropertyTest {
 
             val applied = rig.pose
             // Each translation axis interpolates exactly.
-            assertEquals(current.x + (measured.x - current.x) * blend, applied.x, 1e-9)
-            assertEquals(current.y + (measured.y - current.y) * blend, applied.y, 1e-9)
+            assertEquals(current.x() + (measured.x() - current.x()) * blend, applied.x(), 1e-9)
+            assertEquals(current.y() + (measured.y() - current.y()) * blend, applied.y(), 1e-9)
             // Heading moves along the shortest arc, by the blended fraction.
-            val fullDelta = shortestAngleDelta(current.heading, measured.heading)
-            val appliedDelta = normalizeAngleSigned(applied.heading - current.heading)
+            val fullDelta = shortestAngleDelta(current.heading(), measured.heading())
+            val appliedDelta = shortestAngleDelta(current.heading(), applied.heading())
             assertEquals(fullDelta * blend, appliedDelta, 1e-9)
             // Never overshoots the measurement.
             assertTrue(abs(appliedDelta) <= abs(fullDelta) + 1e-9)
@@ -118,20 +117,20 @@ class CorrectionPropertyTest {
                 )
             }
 
-            assertTrue(rig.pose.distanceTo(truth) < 0.01)
-            assertTrue(abs(shortestAngleDelta(rig.pose.heading, truth.heading)) < 0.01)
+            assertTrue(rig.pose.distance(truth) < 0.01)
+            assertTrue(abs(shortestAngleDelta(rig.pose.heading(), truth.heading())) < 0.01)
         }
     }
 
     @Test
     fun nonFiniteMeasurementsAreRejectedBeforeTheyCanPoisonThePose() {
         val rig = Rig()
-        rig.seed(Pose2d(10.0, 20.0, 1.0))
+        rig.seed(Pose(10.0, 20.0, 1.0))
 
         for (bad in listOf(
-            Pose2d(Double.NaN, 0.0, 0.0),
-            Pose2d(0.0, Double.POSITIVE_INFINITY, 0.0),
-            Pose2d(0.0, 0.0, Double.NaN),
+            Pose(Double.NaN, 0.0, 0.0),
+            Pose(0.0, Double.POSITIVE_INFINITY, 0.0),
+            Pose(0.0, 0.0, Double.NaN),
         )) {
             val result = rig.estimator.applyCorrection(
                 bad,
@@ -142,7 +141,7 @@ class CorrectionPropertyTest {
             )
             assertEquals(CorrectionResult.REJECTED_JUMP, result)
         }
-        assertEquals(10.0, rig.pose.x, 0.0)
-        assertEquals(1.0, rig.pose.heading, 0.0)
+        assertEquals(10.0, rig.pose.x(), 0.0)
+        assertEquals(1.0, rig.pose.heading(), 0.0)
     }
 }

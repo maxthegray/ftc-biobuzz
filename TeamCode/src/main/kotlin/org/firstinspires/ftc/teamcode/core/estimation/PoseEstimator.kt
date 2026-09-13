@@ -1,12 +1,11 @@
 package org.firstinspires.ftc.teamcode.core.estimation
 
+import com.pedropathing.math.Pose
 import java.util.Locale
 import kotlin.math.abs
-import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
-import org.firstinspires.ftc.teamcode.core.geometry.normalizeAngle
-import org.firstinspires.ftc.teamcode.core.geometry.shortestAngleDelta
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerConfig
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.PoseHistory
+import org.firstinspires.ftc.teamcode.core.subsystems.localization.shortestAngleDelta
 import org.firstinspires.ftc.teamcode.core.util.Clock
 
 /** Outcome of a [PoseEstimator.applyCorrection] attempt. Rejections are logged via the event sink. */
@@ -49,8 +48,8 @@ enum class CorrectionResult {
  * corrections are fed in gently and convergence finishes after the path.
  */
 class PoseEstimator(
-    private val currentPose: () -> Pose2d,
-    private val applyPose: (Pose2d) -> Unit,
+    private val currentPose: () -> Pose,
+    private val applyPose: (Pose) -> Unit,
     private val clock: Clock = Clock.SYSTEM,
     private val onEvent: (String) -> Unit = {},
     private val isFollowing: () -> Boolean = { false },
@@ -58,12 +57,12 @@ class PoseEstimator(
     private val history = PoseHistory()
 
     /** Record the pose measured this tick. Call once per tick, timestamped at measurement time. */
-    fun sample(timestampNanos: Long, pose: Pose2d) {
+    fun sample(timestampNanos: Long, pose: Pose) {
         history.add(timestampNanos, pose)
     }
 
     /** The historical pose at [timestampNanos], if it is inside the retained window. */
-    fun poseAt(timestampNanos: Long): Pose2d? = history.lookup(timestampNanos)
+    fun poseAt(timestampNanos: Long): Pose? = history.lookup(timestampNanos)
 
     /**
      * Apply a delayed field-pose measurement while preserving motion since
@@ -75,7 +74,7 @@ class PoseEstimator(
      * didn't take.
      */
     fun applyCorrection(
-        measured: Pose2d,
+        measured: Pose,
         timestampNanos: Long,
         maxAgeNanos: Long = 500_000_000,
         blend: Double = LocalizerConfig.safeCorrectionBlend,
@@ -87,7 +86,7 @@ class PoseEstimator(
         // Guard before the jump gate: NaN compares false against any limit,
         // so a non-finite measurement would otherwise sail through the gate
         // and poison the pose.
-        if (!measured.x.isFinite() || !measured.y.isFinite() || !measured.heading.isFinite()) {
+        if (!measured.isFinite()) {
             onEvent("pose correction rejected: non-finite measurement $measured")
             return CorrectionResult.REJECTED_JUMP
         }
@@ -111,13 +110,13 @@ class PoseEstimator(
             return CorrectionResult.NO_HISTORY
         }
         val current = currentPose()
-        val motionSinceMeasurement = current.relativeTo(historical)
-        val corrected = measured.transformBy(motionSinceMeasurement)
+        // Motion since the measurement, in the historical pose's frame, re-applied on top of it.
+        val corrected = measured.compose(historical.invert().compose(current))
 
         val wTranslation = translationWeight.coerceIn(0.0, 1.0)
         val wHeading = headingWeight.coerceIn(0.0, 1.0)
-        val jumpInches = corrected.distanceTo(current)
-        val headingDelta = shortestAngleDelta(current.heading, corrected.heading)
+        val jumpInches = corrected.distance(current)
+        val headingDelta = shortestAngleDelta(current.heading(), corrected.heading())
         val translationRejected =
             wTranslation > 0.0 && (!maxJumpInches.isFinite() || jumpInches > maxJumpInches)
         val headingRejected =
@@ -135,12 +134,12 @@ class PoseEstimator(
         val b = blend.coerceIn(0.0, 1.0) * followScale
         val bTranslation = b * wTranslation
         val bHeading = b * wHeading
-        val composed = Pose2d(
-            current.x + (corrected.x - current.x) * bTranslation,
-            current.y + (corrected.y - current.y) * bTranslation,
-            normalizeAngle(current.heading + headingDelta * bHeading),
+        val composed = Pose(
+            current.x() + (corrected.x() - current.x()) * bTranslation,
+            current.y() + (corrected.y() - current.y()) * bTranslation,
+            current.heading() + headingDelta * bHeading,
         )
-        if (!composed.x.isFinite() || !composed.y.isFinite() || !composed.heading.isFinite()) {
+        if (!composed.isFinite()) {
             onEvent("pose correction rejected: non-finite composed pose $composed")
             return CorrectionResult.REJECTED_JUMP
         }
@@ -159,3 +158,5 @@ class PoseEstimator(
         return CorrectionResult.APPLIED
     }
 }
+
+internal fun Pose.isFinite(): Boolean = x().isFinite() && y().isFinite() && heading().isFinite()

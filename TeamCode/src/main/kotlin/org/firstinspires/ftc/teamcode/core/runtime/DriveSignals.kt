@@ -1,49 +1,33 @@
 package org.firstinspires.ftc.teamcode.core.runtime
 
-import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
-import org.firstinspires.ftc.teamcode.core.geometry.Vector2d
+import com.pedropathing.math.Pose
+import com.pedropathing.math.Vector2D
+import com.pedropathing.math.Velocity
 
 /**
- * Anything that knows where the robot is. Implemented by the drive and
- * localizer subsystems; consumed by logging and any season code that wants a
- * pose without coupling to a concrete subsystem class.
+ * The drive state the flight recorder and the Panels field view consume, so
+ * observability code and its tests don't need a real follower. Members must
+ * be cheap and exception-free: they run on the hot loop.
  */
-interface PoseProvider {
-    /** Field pose, inches + radians. */
-    val pose: Pose2d
+interface DriveTelemetrySource {
+    /** Field pose: inches, radians, CCW-positive heading, Pedro field frame. */
+    val pose: Pose
 
-    /** Field-frame velocity in inches/second. */
-    val velocity: Vector2d
-}
+    /** Field-frame velocity: inches/second and radians/second. */
+    val velocity: Velocity
 
-/**
- * The drive-state surface the flight recorder and the Panels field view
- * consume. Lets observability code work against an interface instead of
- * reaching into `MecanumDriveSubsystem` (and through it into Pedro).
- *
- * Implementations must keep every member cheap and exception-free — these
- * are called on the hot loop's telemetry path.
- */
-interface DriveTelemetrySource : PoseProvider {
-    /** Short mode label, e.g. "TELEOP" / "FOLLOWING" / "HOLDING". */
+    /** "IDLE", "TELEOP", "FOLLOWING", "HOLDING" or "ROBOT_CENTRIC_FALLBACK". */
     val driveModeName: String
 
     /** True while following a path or holding a pose (follow errors are live). */
     val isPathing: Boolean
 
-    /** Angular velocity in rad/s; NaN if unavailable. */
-    val angularVelocityRadPerSec: Double
-
-    /** Translational follow error magnitude in inches; NaN when not pathing. */
+    /** Distance from the closest path point (or hold target) in inches; NaN when unavailable. */
     val followTranslationalErrorInches: Double
 
-    /** Heading follow error in radians; NaN when not pathing. */
+    /** Signed heading error in radians; NaN when unavailable. */
     val followHeadingErrorRad: Double
 
-    /**
-     * The active path(s) sampled for drawing: one list of poses per path
-     * segment, [samplesPerPath]+1 poses each. Empty when nothing is being
-     * followed.
-     */
-    fun currentPathPoses(samplesPerPath: Int): List<List<Pose2d>>
+    /** Points along the path being followed, for drawing; empty when not following. */
+    fun currentPathPoints(samples: Int): List<Vector2D>
 }

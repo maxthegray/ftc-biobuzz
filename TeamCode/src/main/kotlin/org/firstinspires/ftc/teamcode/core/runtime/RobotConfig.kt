@@ -5,8 +5,8 @@ package org.firstinspires.ftc.teamcode.core.runtime
  *
  * This file holds the names the robot's active "Configuration" on the
  * Driver Station must use. Everything in [org.firstinspires.ftc.teamcode
- * .pedroPathing.Constants] is physical (mass, zero-power accel, pod
- * offsets); everything here is identity (what's this device called in the
+ * .pedro.Constants] is physical (motor directions, pod offsets, Foresight
+ * tuning); everything here is identity (what's this device called in the
  * config xml).
  *
  * Changing a name here must be matched on the Robot Controller's
@@ -51,6 +51,6 @@ object RobotConfig {
          * rotation. Check the game manual's field drawings when the game
          * launches; getting this wrong silently breaks every BLUE auton path.
          */
-        val SYMMETRY = org.firstinspires.ftc.teamcode.core.geometry.FieldSymmetry.MIRROR
+        val SYMMETRY = org.firstinspires.ftc.teamcode.core.util.FieldSymmetry.MIRROR
     }
 }

@@ -1,23 +1,24 @@
 package org.firstinspires.ftc.teamcode.opmodes.archived
 
-import com.qualcomm.robotcore.hardware.DcMotorSimple
+import com.pedropathing.ivy.Command
+import com.pedropathing.ivy.CommandBuilder
 import com.qualcomm.robotcore.eventloop.opmode.Disabled
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import com.qualcomm.robotcore.hardware.DcMotorEx
+import com.qualcomm.robotcore.hardware.DcMotorSimple
 import com.qualcomm.robotcore.hardware.HardwareMap
-import org.firstinspires.ftc.teamcode.core.command.Command
+import java.util.Locale
 import org.firstinspires.ftc.teamcode.core.runtime.DeviceReaders
 import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
-import org.firstinspires.ftc.teamcode.pedroPathing.Constants
-import java.util.Locale
+import org.firstinspires.ftc.teamcode.pedro.Constants
 
 /**
  * On-blocks drivetrain mapping check. Dpad left/right selects one motor;
  * the triggers spin only that motor at up to 20% power.
  *
  * Archived: chassis mapping verified on the sensorbot; directions are locked
- * in `pedroPathing/Constants.java`. Re-enable when bringing up a new chassis.
+ * in `pedro/Constants.java`. Re-enable when bringing up a new chassis.
  */
 @Disabled
 @TeleOp(name = "Motor Direction Test", group = "Diagnostics")
@@ -64,12 +65,12 @@ private class DriveMotorTestSubsystem : SubsystemBase("Drive Motor Test") {
         val direction: DcMotorSimple.Direction,
     )
 
-    private val specs = with(Constants.driveConstants) {
+    private val specs = with(Constants.drivetrainConfig) {
         listOf(
-            MotorSpec(leftFrontMotorName, leftFrontMotorDirection),
-            MotorSpec(leftRearMotorName, leftRearMotorDirection),
-            MotorSpec(rightFrontMotorName, rightFrontMotorDirection),
-            MotorSpec(rightRearMotorName, rightRearMotorDirection),
+            MotorSpec(frontLeftName.get(), frontLeftDirection.get()),
+            MotorSpec(backLeftName.get(), backLeftDirection.get()),
+            MotorSpec(frontRightName.get(), frontRightDirection.get()),
+            MotorSpec(backRightName.get(), backRightDirection.get()),
         )
     }
 
@@ -90,8 +91,7 @@ private class DriveMotorTestSubsystem : SubsystemBase("Drive Motor Test") {
     fun testCommand(
         selectionDelta: () -> Int,
         requestedPower: () -> Double,
-    ): Command = Command.build()
-        .setName("single motor test")
+    ): CommandBuilder = Command.build()
         .requiring(this)
         .setExecute {
             val delta = selectionDelta()

@@ -3,20 +3,16 @@ package org.firstinspires.ftc.teamcode.core.subsystems.drive
 import com.bylazar.configurables.annotations.Configurable
 
 /**
- * Runtime drive tuning knobs.
+ * Runtime drive tuning knobs: driver feel, teleop scaling, brake behaviour and
+ * the arrival tolerances drive commands measure against.
  *
- * Physical constants (mass, forward/lateral zero-power acceleration, motor
- * names, Pinpoint pod offsets, etc.) live in
- * [org.firstinspires.ftc.teamcode.pedroPathing.Constants] — that is the file
- * Pedro reads when it builds the Follower. DriveConfig holds the other
- * things: driver feel, teleop scaling, and default brake behavior.
+ * Physical and Pedro constants (motor names and directions, Pinpoint offsets,
+ * Foresight tuning) live in [org.firstinspires.ftc.teamcode.pedro.Constants].
  *
- * These are `var`s so Panels can mutate them live during tuning sessions.
- * Tuned values are persisted by
- * [org.firstinspires.ftc.teamcode.core.runtime.ConfigStore] and restored at
- * every op-mode init — they survive power cycles, full installs, and Sloth
- * hot reloads (so this object no longer needs `@Pinned`, and edits to this
- * file hot-reload normally).
+ * These are `var`s so Panels can mutate them live. Tuned values are persisted
+ * by [org.firstinspires.ftc.teamcode.core.runtime.ConfigStore] and restored at
+ * every op-mode init, so they survive power cycles, full installs, and Sloth
+ * hot reloads without `@Pinned`.
  */
 @Configurable
 object DriveConfig {
@@ -46,9 +42,9 @@ object DriveConfig {
     @JvmField var fieldCentricDefault: Boolean = true
 
     /**
-     * When true the follower enters teleop with brake mode engaged: motors
-     * actively hold when commanded zero. Set false if you want zero-power
-     * coasting for smoother driver feel.
+     * When true, manual driving uses brake mode: motors actively hold when
+     * commanded zero. Applied to Pedro's `MecanumConfig.manualBrakeMode` when
+     * the follower is created, so a change takes effect at the next op-mode init.
      */
     @JvmField var brakeOnTeleop: Boolean = true
 

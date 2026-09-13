@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode.core.runtime
 
 import com.qualcomm.robotcore.hardware.Gamepad
-import com.qualcomm.robotcore.hardware.HardwareMap
 import org.firstinspires.ftc.teamcode.core.sim.FakeClock
 import org.firstinspires.ftc.teamcode.core.sim.FakeSink
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx
@@ -12,9 +11,8 @@ import org.junit.Test
 class StartDelayTest {
 
     private val clock = FakeClock()
-    private val robot = Robot(HardwareMap(null, null), clock)
     private val raw = Gamepad()
-    private val driver = GamepadEx(raw, robot.scheduler)
+    private val driver = GamepadEx(raw)
     private val sink = FakeSink()
     private val bag = TelemetryBag(listOf(sink), transmitIntervalMs = 0.0, clock = clock)
 

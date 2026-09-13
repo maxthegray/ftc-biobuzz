@@ -3,10 +3,11 @@ package org.firstinspires.ftc.teamcode.core.logging
 import com.bylazar.field.FieldManager
 import com.bylazar.field.PanelsField
 import com.bylazar.field.Style
+import com.pedropathing.math.Pose
+import com.pedropathing.math.Vector2D
 import com.qualcomm.robotcore.util.RobotLog
 import kotlin.math.cos
 import kotlin.math.sin
-import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import org.firstinspires.ftc.teamcode.core.runtime.DriveTelemetrySource
 import org.firstinspires.ftc.teamcode.core.util.Clock
 
@@ -48,9 +49,7 @@ class FieldView(
                 it.setOffsets(PanelsField.presets.PEDRO_PATHING)
                 field = it
             }
-            for (path in drive.currentPathPoses(PATH_SAMPLES)) {
-                drawPath(manager, path)
-            }
+            drawPath(manager, drive.currentPathPoints(PATH_SAMPLES))
             drawRobot(manager, drive.pose)
             manager.update()
         } catch (t: Throwable) {
@@ -64,33 +63,36 @@ class FieldView(
         }
     }
 
-    private fun drawPath(manager: FieldManager, poses: List<Pose2d>) {
+    private fun drawPath(manager: FieldManager, points: List<Vector2D>) {
         // FieldManager.line() draws from the cursor but does not advance it,
         // so each segment re-anchors the cursor at the previous sample.
         manager.setStyle(pathStyle)
-        var prev: Pose2d? = null
-        for (pose in poses) {
-            if (pose.x.isNaN() || pose.y.isNaN()) continue
+        var prev: Vector2D? = null
+        for (point in points) {
+            if (point.x().isNaN() || point.y().isNaN()) continue
             prev?.let {
-                manager.moveCursor(it.x, it.y)
-                manager.line(pose.x, pose.y)
+                manager.moveCursor(it.x(), it.y())
+                manager.line(point.x(), point.y())
             }
-            prev = pose
+            prev = point
         }
     }
 
-    private fun drawRobot(manager: FieldManager, pose: Pose2d) {
-        if (pose.x.isNaN() || pose.y.isNaN() || pose.heading.isNaN()) return
+    private fun drawRobot(manager: FieldManager, pose: Pose) {
+        val x = pose.x()
+        val y = pose.y()
+        val heading = pose.heading()
+        if (x.isNaN() || y.isNaN() || heading.isNaN()) return
 
         manager.setStyle(robotStyle)
-        manager.moveCursor(pose.x, pose.y)
+        manager.moveCursor(x, y)
         manager.circle(ROBOT_RADIUS)
 
-        val hx = cos(pose.heading) * ROBOT_RADIUS
-        val hy = sin(pose.heading) * ROBOT_RADIUS
+        val hx = cos(heading) * ROBOT_RADIUS
+        val hy = sin(heading) * ROBOT_RADIUS
         manager.setStyle(robotStyle)
-        manager.moveCursor(pose.x + hx / 2.0, pose.y + hy / 2.0)
-        manager.line(pose.x + hx, pose.y + hy)
+        manager.moveCursor(x + hx / 2.0, y + hy / 2.0)
+        manager.line(x + hx, y + hy)
     }
 
     private companion object {

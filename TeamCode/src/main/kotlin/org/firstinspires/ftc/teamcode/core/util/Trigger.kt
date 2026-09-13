@@ -1,44 +1,30 @@
 package org.firstinspires.ftc.teamcode.core.util
 
+import com.pedropathing.ivy.Command
+import com.pedropathing.ivy.Scheduler
 import java.util.function.BooleanSupplier
-import org.firstinspires.ftc.teamcode.core.command.Command
 
 /**
  * A boolean condition — a gamepad button, an analog trigger past a threshold,
- * a sensor state — bound to [Command]s on the host gamepad's scheduler.
- *
- * Triggers replace the imperative `if (driver.aPressed) Scheduler.schedule(cmd)`
- * pattern with declarative bindings wired once at configure-time:
+ * a sensor state — bound to Ivy [Command]s. Wire bindings once in
+ * `configure()`:
  *
  * ```kotlin
- * override fun configure() {
- *     val intake = robot.register(IntakeSubsystem(...))
- *     driver.button(GamepadEx.Button.A).onTrue(intake.grab())
- *     driver.button(GamepadEx.Button.LEFT_BUMPER).whileTrue(intake.eject())
- *     driver.trigger { driver.rightTrigger > 0.5 }.whileTrue(drive.slowMode())
- *     (driver.button(GamepadEx.Button.START) and driver.button(GamepadEx.Button.A))
- *         .onTrue(resetHeading())
- * }
+ * driver.button(GamepadEx.Button.A).onTrue(intake.grab())
+ * driver.button(GamepadEx.Button.LEFT_BUMPER).whileTrue(intake.eject())
+ * driver.trigger { driver.rightTrigger > 0.5 }.whileTrue(drive.slowMode())
+ * (driver.button(GamepadEx.Button.BACK) and driver.button(GamepadEx.Button.Y))
+ *     .onTrue(resetHeading())
  * ```
  *
  * Create one through [GamepadEx.button] / [GamepadEx.trigger], or by composing
- * existing triggers with [and] / [or] / [not] — never construct directly. The
- * owning [GamepadEx] samples every trigger once per loop from
- * [GamepadEx.update], which runs before the command scheduler ticks. Composed
- * triggers reuse their operands' samples rather than evaluating conditions
- * again.
+ * existing triggers with [and] / [or] / [not]. The owning [GamepadEx] samples
+ * every trigger once per loop in [GamepadEx.update], before Ivy's scheduler
+ * runs. Composed triggers reuse their operands' samples.
  *
- * Edge semantics: the condition is sampled once per loop. A "rising edge" is a
- * loop where it read false last tick and true this tick; a "falling edge" is
- * the reverse.
- *
- * Composition caveat: compose triggers from the same [GamepadEx] host. A
- * cross-gamepad composition is polled by the left-hand trigger's host, so the
- * other gamepad may still be on its previous loop sample.
- *
- * A throwing condition or binding quarantines this trigger only. Later
- * triggers continue polling; quarantine also interrupts a command held by an
- * active [whileTrue] binding.
+ * Compose triggers from the same [GamepadEx] host: a cross-gamepad
+ * composition is polled by the left-hand trigger's host, so the other gamepad
+ * may still be on its previous loop sample.
  */
 class Trigger internal constructor(
     private val host: GamepadEx,
@@ -46,110 +32,65 @@ class Trigger internal constructor(
 ) {
     private var lastState = false
     private val bindings = mutableListOf<(prev: Boolean, curr: Boolean) -> Unit>()
-    private val quarantineActions = mutableListOf<() -> Unit>()
 
-    /** Schedule [command] once on each rising edge (skipped if it is already scheduled). */
-    fun onTrue(command: Command): Trigger {
-        host.requireBindingsUnlocked()
-        bindings += { prev, curr ->
-            if (!prev && curr) host.scheduler.schedule(command)
-        }
-        return this
+    /** Schedule [command] on each rising edge. */
+    fun onTrue(command: Command): Trigger = bind { prev, curr ->
+        if (!prev && curr) Scheduler.schedule(command)
     }
 
-    /** Schedule [command] once on each falling edge (skipped if it is already scheduled). */
-    fun onFalse(command: Command): Trigger {
-        host.requireBindingsUnlocked()
-        bindings += { prev, curr ->
-            if (prev && !curr) host.scheduler.schedule(command)
-        }
-        return this
+    /** Schedule [command] on each falling edge. */
+    fun onFalse(command: Command): Trigger = bind { prev, curr ->
+        if (prev && !curr) Scheduler.schedule(command)
     }
 
-    /**
-     * Schedule [command] on the rising edge and cancel it on the falling edge.
-     * If the command ends on its own first, the falling-edge cancel is a no-op
-     * — the scheduler's cancel is safe on an unscheduled command.
-     */
-    fun whileTrue(command: Command): Trigger {
-        host.requireBindingsUnlocked()
-        bindings += { prev, curr ->
-            if (!prev && curr) {
-                host.scheduler.schedule(command)
-            } else if (prev && !curr) {
-                host.scheduler.cancel(command)
-            }
+    /** Schedule [command] on the rising edge and cancel it on the falling edge. */
+    fun whileTrue(command: Command): Trigger = bind { prev, curr ->
+        if (!prev && curr) {
+            Scheduler.schedule(command)
+        } else if (prev && !curr) {
+            Scheduler.cancel(command)
         }
-        // If a sensor-backed condition dies while true, there will never be a
-        // falling edge. Quarantine must still release the command this trigger
-        // was keeping alive.
-        quarantineActions += {
-            if (lastState) host.scheduler.cancel(command)
-        }
-        return this
     }
 
-    /**
-     * On each rising edge, toggle [command]: schedule it if it is not running,
-     * cancel it if it is.
-     */
-    fun toggleOnTrue(command: Command): Trigger {
-        host.requireBindingsUnlocked()
-        bindings += { prev, curr ->
-            if (!prev && curr) {
-                if (host.scheduler.isScheduled(command)) host.scheduler.cancel(command)
-                else host.scheduler.schedule(command)
-            }
+    /** On each rising edge, cancel [command] if it is scheduled, otherwise schedule it. */
+    fun toggleOnTrue(command: Command): Trigger = bind { prev, curr ->
+        if (!prev && curr) {
+            if (Scheduler.isScheduled(command)) Scheduler.cancel(command) else Scheduler.schedule(command)
         }
-        return this
     }
 
-    /** Active only while both this and [other] are active. Prefer same-host composition. */
+    /** Active only while both this and [other] are active. */
     infix fun and(other: Trigger): Trigger = host.trigger { read() && other.read() }
 
-    /** Active while either this or [other] is active. Prefer same-host composition. */
+    /** Active while either this or [other] is active. */
     infix fun or(other: Trigger): Trigger = host.trigger { read() || other.read() }
 
     /** Active exactly when this trigger is not. Also usable as `!trigger`. */
     operator fun not(): Trigger = host.trigger { !read() }
 
-    /**
-     * Read this trigger's sample for the current host tick. Operand triggers
-     * are registered before composed triggers, so `and` / `or` / `not` reuse
-     * their samples instead of polling sensor conditions a second time.
-     */
+    private fun bind(binding: (prev: Boolean, curr: Boolean) -> Unit): Trigger {
+        host.requireBindingsUnlocked()
+        bindings += binding
+        return this
+    }
+
+    /** This trigger's sample for the current host tick. */
     internal fun read(): Boolean = lastState
 
     /**
-     * Sample the condition without firing bindings. [GamepadEx.lockBindings]
-     * primes every trigger at start so a button held through init doesn't
-     * read as a rising edge on the first real poll.
+     * Sample without firing bindings. [GamepadEx.lockBindings] primes every
+     * trigger at start so a button held through init doesn't fire as a
+     * rising edge on the first real poll.
      */
     internal fun prime() {
         lastState = condition.asBoolean
     }
 
-    /** Sample the condition and fire any binding whose edge matched. Called once per loop by [host]. */
+    /** Sample the condition and fire any binding whose edge matched. */
     internal fun poll() {
-        var curr = lastState
-        try {
-            curr = condition.asBoolean
-            for (b in bindings) b(lastState, curr)
-        } finally {
-            lastState = curr
-        }
-    }
-
-    internal fun quarantine() {
-        var firstFault: Throwable? = null
-        for (action in quarantineActions) {
-            try {
-                action()
-            } catch (t: Throwable) {
-                if (firstFault == null) firstFault = t
-            }
-        }
-        lastState = false
-        firstFault?.let { throw it }
+        val curr = condition.asBoolean
+        val prev = lastState
+        lastState = curr
+        for (b in bindings) b(prev, curr)
     }
 }

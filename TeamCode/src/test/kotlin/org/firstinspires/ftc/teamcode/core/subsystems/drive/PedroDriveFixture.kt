@@ -1,22 +1,31 @@
 package org.firstinspires.ftc.teamcode.core.subsystems.drive
 
+import com.pedropathing.algorithm.Foresight
+import com.pedropathing.algorithm.ForesightConfig
+import com.pedropathing.controllers.Controller
 import com.pedropathing.follower.Follower
-import com.pedropathing.follower.FollowerConstants
-import com.pedropathing.ftc.drivetrains.Mecanum
-import com.pedropathing.ftc.drivetrains.MecanumConstants
-import com.pedropathing.geometry.Pose
 import com.pedropathing.localization.Localizer
-import com.pedropathing.math.Vector
-import com.pedropathing.paths.PathConstraints
+import com.pedropathing.localization.MotionState
+import com.pedropathing.math.Matrix
+import com.pedropathing.math.Pose
+import com.pedropathing.math.Vector2D
+import com.pedropathing.math.Velocity
+import com.pedropathing.revhub.drivetrains.Mecanum
+import com.qualcomm.robotcore.hardware.DcMotor
 import com.qualcomm.robotcore.hardware.DcMotorEx
 import com.qualcomm.robotcore.hardware.DcMotorSimple
 import com.qualcomm.robotcore.hardware.HardwareMap
-import com.qualcomm.robotcore.hardware.VoltageSensor
-import com.qualcomm.robotcore.hardware.configuration.typecontainers.MotorConfigurationType
 import java.lang.reflect.Proxy
+import org.firstinspires.ftc.teamcode.core.runtime.RobotConfig
+import org.firstinspires.ftc.teamcode.core.sim.FakeClock
+import org.firstinspires.ftc.teamcode.pedro.Constants
 
-/** Real Pedro control and mecanum mixing; only devices and odometry are simulated. */
-internal class PedroDriveFixture(pathConstraints: PathConstraints = PathConstraints.defaultConstraints) {
+/**
+ * Real Pedro 3 [Follower], Foresight and revhub [Mecanum] mixing on the host.
+ * Only the motors and odometry are simulated: motor probes record every power
+ * write, and [OdometryProbe] reports whatever pose the test places.
+ */
+internal class PedroDriveFixture(tuned: Boolean = true) {
     // SDK tryGet checks the Android device type (and loads native RobotCore).
     // Keep device registration real; replace only that host-incompatible lookup.
     val hardwareMap = object : HardwareMap(null, null) {
@@ -24,30 +33,30 @@ internal class PedroDriveFixture(pathConstraints: PathConstraints = PathConstrai
             requireNotNull(tryGet(type, name)) { "Missing device $name" }
 
         override fun <T> tryGet(type: Class<out T>, name: String): T? =
-            allDevicesMap[name]?.firstOrNull { type.isInstance(it) }
-                ?.let(type::cast)
+            allDevicesMap[name]?.firstOrNull { type.isInstance(it) }?.let(type::cast)
     }
+
+    /** In mixer order: front left, front right, back left, back right. */
     val motors = List(4) { MotorProbe() }
     val localizer = OdometryProbe()
+    val clock = FakeClock()
     val follower: Follower
     val drive: MecanumDriveSubsystem
 
     init {
-        listOf("leftFront", "leftRear", "rightFront", "rightRear").forEachIndexed { i, name ->
-            hardwareMap.put(name, motors[i].device)
-        }
-        // Mecanum resolves its sensor through hardwareMap.voltageSensor, which
-        // the untyped put() does not populate.
-        hardwareMap.voltageSensor.put("voltage", deviceProxy(VoltageSensor::class.java) { name, _ ->
-            if (name == "getVoltage") 12.0 else null
-        })
-        val constants = MecanumConstants().apply {
-            xVelocity = 40.0
-            yVelocity = 40.0
-            frontLeftVector = Vector(1.0, Math.PI / 4.0)
-        }
-        follower = Follower(FollowerConstants(), localizer, Mecanum(hardwareMap, constants), pathConstraints)
-        drive = MecanumDriveSubsystem(follower)
+        listOf(
+            RobotConfig.Drive.FRONT_LEFT_MOTOR,
+            RobotConfig.Drive.FRONT_RIGHT_MOTOR,
+            RobotConfig.Drive.BACK_LEFT_MOTOR,
+            RobotConfig.Drive.BACK_RIGHT_MOTOR,
+        ).forEachIndexed { i, name -> hardwareMap.put(name, motors[i].device) }
+        follower = Follower(
+            localizer,
+            Mecanum(hardwareMap, Constants.drivetrainConfig),
+            if (tuned) Foresight(testForesightConfig()) else null,
+        )
+        drive = MecanumDriveSubsystem(follower, clock)
+        drive.init(hardwareMap)
     }
 
     fun clearWrites() = motors.forEach { it.writes.clear() }
@@ -56,12 +65,10 @@ internal class PedroDriveFixture(pathConstraints: PathConstraints = PathConstrai
     class MotorProbe {
         var power = 0.0
         var direction = DcMotorSimple.Direction.FORWARD
+        var zeroPowerBehavior = DcMotor.ZeroPowerBehavior.UNKNOWN
         val writes = mutableListOf<Double>()
-        private var motorType = MotorConfigurationType()
         val device = deviceProxy(DcMotorEx::class.java) { name, args ->
             when (name) {
-                "getMotorType" -> motorType
-                "setMotorType" -> { motorType = args[0] as MotorConfigurationType; null }
                 "getPower" -> power
                 "setPower" -> {
                     power = args[0] as Double
@@ -71,6 +78,7 @@ internal class PedroDriveFixture(pathConstraints: PathConstraints = PathConstrai
                 }
                 "getDirection" -> direction
                 "setDirection" -> { direction = args[0] as DcMotorSimple.Direction; null }
+                "setZeroPowerBehavior" -> { zeroPowerBehavior = args[0] as DcMotor.ZeroPowerBehavior; null }
                 "getCurrent" -> 0.0
                 else -> null
             }
@@ -78,23 +86,31 @@ internal class PedroDriveFixture(pathConstraints: PathConstraints = PathConstrai
     }
 
     class OdometryProbe : Localizer {
-        var measuredPose = Pose()
+        var measuredPose: Pose = Pose.zero()
+        var measuredVelocity: Velocity = Velocity.zero()
         var reads = 0
         var onRead: () -> Unit = {}
-        override fun getPose(): Pose = measuredPose
-        override fun getVelocity(): Pose = Pose()
-        override fun getVelocityVector(): Vector = Vector()
-        override fun setStartPose(pose: Pose) { measuredPose = pose }
         override fun setPose(pose: Pose) { measuredPose = pose }
+        override fun state(): MotionState = MotionState.ofVelocity(measuredPose, measuredVelocity)
         override fun update() { reads++; onRead() }
-        override fun getTotalHeading(): Double = measuredPose.heading
-        override fun getForwardMultiplier(): Double = 1.0
-        override fun getLateralMultiplier(): Double = 1.0
-        override fun getTurningMultiplier(): Double = 1.0
-        override fun resetIMU() {}
-        override fun getIMUHeading(): Double = measuredPose.heading
-        override fun isNAN(): Boolean = !measuredPose.heading.isFinite()
+        override fun reset() {}
     }
+}
+
+/** Arbitrary Foresight gains for host tests only. Never used on a robot. */
+internal fun testForesightConfig(): ForesightConfig = ForesightConfig { c ->
+    c.forwardTranslational.set(Controller.proportional(0.1))
+    c.strafeTranslational.set(Controller.proportional(0.1))
+    c.coast.set(Controller.proportionalFeedforward(0.01))
+    c.brake.set(Controller.proportionalFeedforward(0.01))
+    c.headingFeedback.set(Controller.proportional(1.0))
+    c.headingBrakeCoefficients.set(Vector2D.cartesian(0.05, 0.005))
+    c.linearBrakeCoefficients.set(Matrix.diag(0.1, 0.1))
+    c.quadraticBrakeCoefficients.set(Matrix.diag(0.001, 0.001))
+    c.maxAchievableForwardVelocity.set(60.0)
+    c.maxAchievableStrafeVelocity.set(50.0)
+    c.naturalForwardDeceleration.set(80.0)
+    c.naturalStrafeDeceleration.set(90.0)
 }
 
 internal fun <T : Any> deviceProxy(type: Class<T>, call: (String, Array<out Any?>) -> Any?): T =

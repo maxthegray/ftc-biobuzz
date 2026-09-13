@@ -17,12 +17,14 @@ import org.firstinspires.ftc.teamcode.core.util.Clock
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx
 
 /**
- * Per-op-mode binary flight recorder.
+ * Per-op-mode WPILOG flight recorder for AdvantageScope.
  *
- * Continuous channels are sampled at no more than 100 Hz while events and
- * scheduled command lifecycle events retain their original timestamps.
- * commands/running is the set sampled after each loop; short commands appear
- * in events even when absent from that set. Timing-window maxima preserve spikes.
+ * Continuous channels (pose, velocity, drive mode, follow errors, gamepads,
+ * loop timing, battery, subsystem [StateLog] channels) are *sampled* at no
+ * more than 100 Hz. `events` keeps each explicit [event]'s own timestamp.
+ * Nothing here is a complete command history: Ivy exposes no lifecycle hooks,
+ * so command starts and ends are not logged unless code records an event.
+ * Timing-window maxima preserve loop spikes between samples.
  *
  * I/O failures permanently disable the recorder for this op-mode. A non-I/O
  * exception from one subsystem's [SubsystemBase.logState] disables only that
@@ -33,19 +35,15 @@ class FlightRecorder private constructor(
     private val gamepad1: () -> GamepadEx?,
     private val gamepad2: () -> GamepadEx?,
     private val batteryVoltage: () -> Double?,
-    private val runningCommandNames: () -> List<String>,
     private val clock: Clock,
 ) : AutoCloseable {
     private val startNs = clock.nanos()
     private var enabled = true
-    private var lastRunningCommands = ""
     private var lastFlushNs = startNs
     private var nextSampleNs = Long.MIN_VALUE
     private var sampledThisLoop = false
     private var sampleTimestampUs = 0L
     private var windowMaxTotalNanos = 0L
-    private data class CommandEvent(val timestampUs: Long, val message: String)
-    private val commandEvents = ArrayDeque<CommandEvent>()
     private val windowMaxPhaseNanos = LongArray(LoopPhase.entries.size)
 
     // Resolved once and reused: record() runs every tick, so no per-tick
@@ -88,7 +86,6 @@ class FlightRecorder private constructor(
         writer.startEntry("loop/windowMax/${LoopPhase.entries[i].label}Nanos", "int64")
     }
     private val battery = writer.startEntry("battery", "double")
-    private val runningCommands = writer.startEntry("commands/running", "string")
     private val events = writer.startEntry("events", "string")
     private val followTranslationalError = writer.startEntry("follow/translationalErrorIn", "double")
     private val followHeadingError = writer.startEntry("follow/headingErrorRad", "double")
@@ -134,10 +131,8 @@ class FlightRecorder private constructor(
         if (!enabled) return
         guard {
             sampledThisLoop = false
-            writeCommandEvents()
             val now = clock.nanos()
             val ts = timestampUs(now)
-            recordCommandTransition(ts)
             accumulateTiming(robot)
             maybeFlush(now)
             if (!continuousSampleDue(now)) return@guard
@@ -156,17 +151,16 @@ class FlightRecorder private constructor(
             val drive = driveSource
             if (drive != null) {
                 val p = drive.pose
-                poseValues[0] = p.x
-                poseValues[1] = p.y
-                poseValues[2] = p.heading
+                poseValues[0] = p.x()
+                poseValues[1] = p.y()
+                poseValues[2] = p.heading()
                 writer.appendDoubleArray(pose, poseValues, ts)
-                WpiStruct.encodePose2d(fieldPoseBytes, p.x, p.y, p.heading)
+                WpiStruct.encodePose2d(fieldPoseBytes, p.x(), p.y(), p.heading())
                 writer.appendRaw(fieldPose, fieldPoseBytes, ts)
                 val v = drive.velocity
-                velocityValues[0] = v.x
-                velocityValues[1] = v.y
-                val angular = drive.angularVelocityRadPerSec
-                velocityValues[2] = if (angular.isFinite()) angular else 0.0
+                velocityValues[0] = v.vx
+                velocityValues[1] = v.vy
+                velocityValues[2] = if (v.omega.isFinite()) v.omega else 0.0
                 writer.appendDoubleArray(velocity, velocityValues, ts)
                 writer.appendString(driveMode, drive.driveModeName, ts)
                 if (drive.isPathing) {
@@ -245,27 +239,13 @@ class FlightRecorder private constructor(
     fun event(message: String) {
         if (!enabled) return
         guard {
-            writeCommandEvents()
             writer.appendString(events, message, timestampUs())
-        }
-    }
-
-    /** Called inside scheduler lifecycles; buffer only, so observing cannot block cleanup. */
-    fun commandEvent(message: String) {
-        if (enabled) commandEvents.addLast(CommandEvent(timestampUs(), message))
-    }
-
-    private fun writeCommandEvents() {
-        while (commandEvents.isNotEmpty()) {
-            val event = commandEvents.removeFirst()
-            writer.appendString(events, event.message, event.timestampUs)
         }
     }
 
     override fun close() {
         if (!enabled) return
         guard {
-            writeCommandEvents()
             writer.flush()
             writer.close()
         }
@@ -304,13 +284,6 @@ class FlightRecorder private constructor(
         bit(12, pad.leftStickButton)
         bit(13, pad.rightStickButton)
         return mask
-    }
-
-    private fun recordCommandTransition(timestampUs: Long) {
-        val running = runningCommandNames().joinToString("\n")
-        if (running == lastRunningCommands) return
-        writer.appendString(runningCommands, running, timestampUs)
-        lastRunningCommands = running
     }
 
     private fun accumulateTiming(robot: Robot) {
@@ -363,7 +336,6 @@ class FlightRecorder private constructor(
 
     private fun disable(t: Throwable) {
         enabled = false
-        commandEvents.clear()
         try {
             RobotLog.ee("FlightRecorder", t, "Flight recorder disabled")
         } catch (_: Throwable) {
@@ -385,7 +357,6 @@ class FlightRecorder private constructor(
             gamepad1: () -> GamepadEx?,
             gamepad2: () -> GamepadEx?,
             batteryVoltage: () -> Double?,
-            runningCommandNames: () -> List<String>,
             clock: Clock = Clock.SYSTEM,
             directory: File = File("/sdcard/FIRST/logs"),
         ): FlightRecorder? = try {
@@ -398,7 +369,6 @@ class FlightRecorder private constructor(
                 gamepad1,
                 gamepad2,
                 batteryVoltage,
-                runningCommandNames,
                 clock,
             ).also { it.event("init $opModeClassName") }
         } catch (t: Throwable) {

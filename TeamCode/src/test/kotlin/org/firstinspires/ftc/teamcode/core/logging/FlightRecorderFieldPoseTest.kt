@@ -1,9 +1,10 @@
 package org.firstinspires.ftc.teamcode.core.logging
 
+import com.pedropathing.math.Pose
+import com.pedropathing.math.Vector2D
+import com.pedropathing.math.Velocity
 import com.qualcomm.robotcore.hardware.HardwareMap
 import java.io.File
-import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
-import org.firstinspires.ftc.teamcode.core.geometry.Vector2d
 import org.firstinspires.ftc.teamcode.core.runtime.DriveTelemetrySource
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
@@ -21,21 +22,20 @@ import org.junit.Test
  */
 class FlightRecorderFieldPoseTest {
 
-    private class FakeDrive(override var pose: Pose2d) : SubsystemBase("Drive"), DriveTelemetrySource {
-        override val velocity: Vector2d = Vector2d(0.0, 0.0)
+    private class FakeDrive(override var pose: Pose) : SubsystemBase("Drive"), DriveTelemetrySource {
+        override val velocity: Velocity = Velocity.zero()
         override val driveModeName: String = "TELEOP"
         override val isPathing: Boolean = false
-        override val angularVelocityRadPerSec: Double = 0.0
         override val followTranslationalErrorInches: Double = Double.NaN
         override val followHeadingErrorRad: Double = Double.NaN
-        override fun currentPathPoses(samplesPerPath: Int): List<List<Pose2d>> = emptyList()
+        override fun currentPathPoints(samples: Int): List<Vector2D> = emptyList()
     }
 
     @Test
     fun fieldRobotChannelIsAStructTrackingTheDrivePose() = withLogDir { logDir ->
         val clock = FakeClock()
         val robot = Robot(HardwareMap(null, null), clock)
-        val drive = FakeDrive(Pose2d(8.0, 56.0, 0.0))
+        val drive = FakeDrive(Pose(8.0, 56.0, 0.0))
         robot.register(drive)
         robot.enableFlightRecorder(
             "FieldPoseTest",
@@ -48,7 +48,7 @@ class FlightRecorderFieldPoseTest {
         robot.start()
         robot.loop()
         clock.advanceMs(20.0)
-        drive.pose = Pose2d(72.0, 72.0, Math.PI / 2)
+        drive.pose = Pose(72.0, 72.0, Math.PI / 2)
         robot.loop()
         robot.stop()
 
@@ -84,7 +84,7 @@ class FlightRecorderFieldPoseTest {
     fun everyStructPayloadIsExactlyOnePose() = withLogDir { logDir ->
         val clock = FakeClock()
         val robot = Robot(HardwareMap(null, null), clock)
-        robot.register(FakeDrive(Pose2d(24.0, 24.0, 0.0)))
+        robot.register(FakeDrive(Pose(24.0, 24.0, 0.0)))
         robot.enableFlightRecorder(
             "FieldPoseSizeTest",
             driver = { null },

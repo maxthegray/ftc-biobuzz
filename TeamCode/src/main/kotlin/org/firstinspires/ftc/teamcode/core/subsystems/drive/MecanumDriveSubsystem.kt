@@ -1,56 +1,55 @@
 package org.firstinspires.ftc.teamcode.core.subsystems.drive
 
+import com.pedropathing.algorithm.Foresight
+import com.pedropathing.drivetrain.DrivePowers
 import com.pedropathing.follower.Follower
-import com.pedropathing.ftc.drivetrains.Mecanum
-import com.pedropathing.math.Vector
+import com.pedropathing.follower.ManualDrive
+import com.pedropathing.ivy.Command
+import com.pedropathing.ivy.CommandBuilder
+import com.pedropathing.ivy.behaviors.EndCondition
+import com.pedropathing.math.Pose
+import com.pedropathing.math.Vector2D
+import com.pedropathing.math.Velocity
 import com.pedropathing.paths.Path
-import com.pedropathing.paths.PathChain
 import com.qualcomm.robotcore.hardware.DcMotorEx
 import com.qualcomm.robotcore.hardware.HardwareMap
-import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.hypot
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit
-import org.firstinspires.ftc.teamcode.core.command.Command
-import org.firstinspires.ftc.teamcode.core.command.CommandBuilder
-import org.firstinspires.ftc.teamcode.core.command.EndCondition
-import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
-import org.firstinspires.ftc.teamcode.core.geometry.Vector2d
-import org.firstinspires.ftc.teamcode.core.geometry.shortestAngleDelta
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
-import org.firstinspires.ftc.teamcode.core.pathing.toCore
-import org.firstinspires.ftc.teamcode.core.pathing.toPedro
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.DriveTelemetrySource
 import org.firstinspires.ftc.teamcode.core.runtime.PersistedPose
+import org.firstinspires.ftc.teamcode.core.runtime.RobotConfig
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
+import org.firstinspires.ftc.teamcode.core.subsystems.localization.shortestAngleDelta
 import org.firstinspires.ftc.teamcode.core.util.Clock
-import kotlin.math.abs
 
 /**
- * The one subsystem that owns the mecanum drivetrain. It is a thin façade
- * over the Pedro [Follower] — Pedro already handles motor wiring, field-
- * centric projection, the P/I/D/F loops, and path following. This class
- * exists to:
+ * The one owner of the drivetrain. Every drive command below is a normal Ivy
+ * command that requires this subsystem, so the scheduler lets exactly one
+ * drive the robot, and every one stops the follower when interrupted.
  *
- *  - Slot into [org.firstinspires.ftc.teamcode.core.runtime.Robot]'s
- *    subsystem lifecycle so [Follower.update] runs at the right moment in
- *    every tick — specifically in [writeHardware], after commands have
- *    decided what the follower should be doing.
- *  - Provide ergonomic `drive(fwd, strafe, turn)` / [followPath] /
- *    [holdPose] methods so op-modes don't have to know about follower
- *    mode toggling.
- *  - Honour [DriveConfig] for teleop scaling, precision mode, and field-
- *    centric selection without a sea of duplicated code in op-modes.
+ * Why not Ivy's `PedroCommands`: in Ivy 1.1.1 `follow` has no requirement and
+ * no interruption cleanup (a cancelled path keeps driving), and `hold` is an
+ * instant command that reports nothing about arrival.
  *
- * Every commanding method is safe to call from inside a command.
- * Conflicting callers should declare `requiring(driveSubsystem)` on their
- * command so the scheduler arbitrates.
+ * [Follower.update] runs exactly once per tick, in [writeHardware], after
+ * commands have decided what the follower should do. Teleop input is staged
+ * by [teleopCommand] and applied there.
+ *
+ * Completion semantics:
+ *  - [followCommand] ends when Pedro leaves FOLLOW mode: the parametric end of
+ *    the path. That is not arrival; Pedro then holds or idles.
+ *  - [holdCommand] ends on measured arrival within [DriveConfig] tolerances,
+ *    or after its timeout (a bounded wait, not a failure).
+ *  - [turnToCommand] ends on measured heading within tolerance; its timeout
+ *    throws, which aborts the routine.
  */
 class MecanumDriveSubsystem(
-    internal val follower: Follower,
+    val follower: Follower,
     private val clock: Clock = Clock.SYSTEM,
 ) : SubsystemBase("Drive"), DriveTelemetrySource {
-
-    enum class Mode { IDLE, TELEOP, FOLLOWING, HOLDING }
 
     data class TeleopInput(
         val forward: Double,
@@ -60,277 +59,173 @@ class MecanumDriveSubsystem(
         /**
          * When non-null, replaces the curved-and-scaled stick [turn] with a
          * direct motor power, CCW-positive (Pedro's convention, unlike [turn]
-         * which is stick-convention +right/CW).
-         *
-         * For heading assists whose controller output is already a power: the
-         * stick input curve squashes small values towards zero, which is
-         * exactly where a settling controller lives.
+         * which is stick-convention +right/CW). For heading assists whose
+         * controller output is already a power.
          */
         val turnPower: Double? = null,
         /**
          * When non-null, replaces the curved-and-scaled stick [forward] with a
          * direct motor power (+forward) **and forces robot-centric drive for
-         * that tick**.
-         *
-         * For vision approach assists: a camera-derived forward power means
-         * "towards what the camera sees", which is robot-relative by
-         * construction. Sending it through the field-centric projection would
-         * rotate it into whatever direction the robot happens to be facing.
-         * [turnPower] needs no such treatment — turn is frame-independent.
+         * that tick**: a camera-derived forward means "towards what the camera
+         * sees", which is robot-relative by construction.
          */
         val forwardPower: Double? = null,
     )
-
-    var mode: Mode = Mode.IDLE
-        private set
 
     /** Per-op-mode driver state, seeded from the persisted tuning default. */
     var fieldCentric: Boolean = DriveConfig.fieldCentricDefault
         private set
 
-    private var modeAfterFollow: Mode = Mode.IDLE
-    private var latchedPathProgress = 0.0
-
-    /** Brake-mode argument of a teleop enable deferred to [writeHardware], or null. */
-    private var pendingTeleopBrakeMode: Boolean? = null
-    private var teleopForward = 0.0
-    private var teleopStrafe = 0.0
-    private var teleopTurn = 0.0
-    private var teleopRobotCentric = true
-
-    /** Latched for this opmode: manual drive bypasses all odometry and follower control. */
+    /**
+     * Latched for this op-mode after a localizer fault: manual driving goes
+     * straight to the mecanum mixer in the robot frame. No follower update, no
+     * odometry read, no field-centric rotation, no path control.
+     */
     var odometryFallback: Boolean = false
         private set
 
-    /** Ticks of [writeHardware] so far — commands use it to detect "an update has run". */
+    /** Robot-frame powers staged by the teleop command this tick, or null. */
+    private var stagedManual: DrivePowers? = null
+
     private var updateCount = 0L
+    private var pathSegments = 1
+    private var latchedPathProgress = 0.0
 
     override fun init(hardwareMap: HardwareMap) {
-        // Follower is constructed in configure() from pedroPathing/Constants;
-        // reuse the motors Pedro already resolved for the log channels. A
-        // non-Mecanum drivetrain (the sim) just logs nothing.
-        loggedMotors = (follower.drivetrain as? Mecanum)?.motors ?: emptyList()
+        loggedMotors = MOTOR_NAMES.map { (label, name) ->
+            label to try {
+                hardwareMap.tryGet(DcMotorEx::class.java, name)
+            } catch (_: Throwable) {
+                null
+            }
+        }.filter { it.second != null }.map { it.first to it.second!! }
     }
 
     /**
-     * Switch the follower into teleop drive mode. Called by [teleopCommand].
-     *
-     * The actual [Follower.startTeleOpDrive] call is deferred to
-     * [writeHardware]: Pedro 2.1.1 runs a full [Follower.update] inside it,
-     * so calling it here (command start) *and* updating again in
-     * [writeHardware] would double the localizer read and PID step in one
-     * tick. Deferred, it substitutes for that tick's update instead.
-     */
-    internal fun enableTeleop(brakeMode: Boolean = DriveConfig.brakeOnTeleop) {
-        zero()
-        pendingTeleopBrakeMode = brakeMode
-        modeAfterFollow = Mode.IDLE
-        mode = Mode.TELEOP
-    }
-
-    /**
-     * Default teleop command. It starts Pedro's teleop drive mode whenever the
-     * drive requirement becomes free, then applies [DriveConfig] scaling and
-     * field-centric selection every tick.
-     *
-     * [name] and [priority] exist so a driver assist can reuse this exact path
-     * — same input curve, power scale, precision handling, field-centric
-     * selection — while overriding individual channels via
-     * [TeleopInput.turnPower] / [TeleopInput.forwardPower] and outranking the
-     * default command. [onStart] / [onEnd] hang assist-side
-     * bookkeeping off the command's lifecycle.
+     * Stick-driven manual drive: [DriveConfig] curve, scaling, precision and
+     * field-centric selection. Assists reuse it with a higher [priority] and
+     * the [TeleopInput.turnPower]/[TeleopInput.forwardPower] overrides.
      */
     fun teleopCommand(
-        name: String = "teleop drive",
         priority: Int = CommandPriorities.DEFAULT,
         onStart: () -> Unit = {},
         onEnd: (EndCondition) -> Unit = {},
         input: () -> TeleopInput,
-    ): Command = Command.build()
-        .setName(name)
+    ): CommandBuilder = Command.build()
         .requiring(this)
         .setPriority(priority)
-        // onStart composes with the teleop enable rather than replacing it:
-        // an assist built on this command must still put the follower into
-        // manual-drive mode when it preempts a path.
-        .setStart {
-            enableTeleop()
-            onStart()
-        }
-        .setExecute {
-            val i = input()
-            applyTeleopDrive(
-                i.forward,
-                i.strafe,
-                i.turn,
-                i.precision,
-                i.turnPower,
-                i.forwardPower,
-            )
-        }
+        .setStart(onStart)
+        .setExecute { stageTeleop(input()) }
         .setDone { false }
-        .setEnd(onEnd)
-
-    /**
-     * Fault recovery owns drive for the rest of the run, preempting even a
-     * held assist or a grouped path command. Use raw driver sticks here.
-     * Scheduling only stages state; the write phase stops Pedro and switches
-     * the drivetrain to a sensor-independent, robot-relative mixer.
-     */
-    fun robotCentricFallbackCommand(input: () -> TeleopInput): Command =
-        teleopCommand(
-            name = "localizer fault: robot-centric sticks",
-            priority = Int.MAX_VALUE,
-            onStart = { odometryFallback = true },
-            onEnd = { zero(); mode = Mode.IDLE },
-            input = input,
-        )
-
-    private fun applyTeleopDrive(
-        forward: Double,
-        strafe: Double,
-        turn: Double,
-        precision: Boolean,
-        turnPower: Double? = null,
-        forwardPower: Double? = null,
-    ) {
-        val scale = DriveConfig.safeTeleopPowerScale *
-            (if (precision) DriveConfig.safePrecisionPowerScale else 1.0)
-        val exp = DriveConfig.safeInputExponent
-        // The override channels are already motor powers, so they skip the
-        // curve — and turnPower skips the stick-convention negation too, being
-        // CCW-positive already.
-        val fwd = forwardPower?.asDirectPower() ?: (forward.curve(exp) * scale)
-        // FTC sticks use +x right/CW turn; Pedro uses +lateral left/CCW-positive heading.
-        val strafeScaled = -strafe.curve(exp) * scale
-        val turnScaled = turnPower?.asDirectPower() ?: (-turn.curve(exp) * scale)
-        val robotCentric = forwardPower != null || !fieldCentric || odometryFallback
-        driveRaw(fwd, strafeScaled, turnScaled, robotCentric)
-    }
-
-    /**
-     * Raw, unscaled drive command for tuning and drivetrain bring-up only.
-     *
-     * Normal op-modes should use [teleopCommand], which applies driver-feel
-     * scaling and participates in the scheduler's requirement arbitration.
-     */
-    fun driveRaw(forward: Double, strafe: Double, turn: Double, robotCentric: Boolean) {
-        teleopForward = forward.asDirectPower()
-        teleopStrafe = strafe.asDirectPower()
-        teleopTurn = turn.asDirectPower()
-        teleopRobotCentric = robotCentric
-    }
-
-    /** Zero the teleop movement vectors — robot coasts/brakes per [DriveConfig.brakeOnTeleop]. */
-    internal fun zero() {
-        driveRaw(0.0, 0.0, 0.0, true)
-    }
-
-    /** Start following a pre-built path chain. */
-    internal fun followPath(chain: PathChain, holdEnd: Boolean = true) {
-        latchedPathProgress = 0.0
-        follower.followPath(chain, holdEnd)
-        modeAfterFollow = if (holdEnd) Mode.HOLDING else Mode.IDLE
-        mode = Mode.FOLLOWING
-    }
-
-    /** Start following a path chain with a custom max-power cap. */
-    internal fun followPath(chain: PathChain, maxPower: Double, holdEnd: Boolean = true) {
-        latchedPathProgress = 0.0
-        follower.followPath(chain, maxPower, holdEnd)
-        modeAfterFollow = if (holdEnd) Mode.HOLDING else Mode.IDLE
-        mode = Mode.FOLLOWING
-    }
-
-    /** Cancel whatever path is running and drift to idle. */
-    internal fun breakPath() {
-        follower.breakFollowing()
-        latchedPathProgress = 0.0
-        modeAfterFollow = Mode.IDLE
-        mode = Mode.IDLE
-    }
-
-    /** Pin the follower to hold a field pose, typically called at the end of an auton leg. */
-    internal fun holdPose(pose: Pose2d) {
-        latchedPathProgress = 0.0
-        follower.holdPoint(pose.toPedro())
-        modeAfterFollow = Mode.HOLDING
-        mode = Mode.HOLDING
-    }
-
-    fun followCommand(chain: PathChain, holdEnd: Boolean = false): Command =
-        driveAction(
-            name = "follow",
-            running = Mode.FOLLOWING,
-            finished = if (holdEnd) Mode.HOLDING else Mode.IDLE,
-        ) { follower.followPath(chain, holdEnd) }
-
-    fun followCommand(chain: PathChain, maxPower: Double, holdEnd: Boolean = false): Command =
-        driveAction(
-            name = "follow (maxPower=$maxPower)",
-            running = Mode.FOLLOWING,
-            finished = if (holdEnd) Mode.HOLDING else Mode.IDLE,
-        ) { follower.followPath(chain, maxPower, holdEnd) }
-
-    /**
-     * Command that holds [pose] — position *and* heading — via
-     * [Follower.holdPoint], so both [holdPose] and this command agree. Done
-     * once the follower is within its configured path constraints or
-     * [timeoutMs] expires. Either way the subsystem remains in HOLDING mode;
-     * the timeout only bounds how long a routine waits for convergence.
-     */
-    fun holdCommand(pose: Pose2d, timeoutMs: Double = DEFAULT_HOLD_TIMEOUT_MS): Command {
-        require(timeoutMs.isFinite() && timeoutMs >= 0.0) {
-            "hold timeout must be finite and non-negative"
+        .setEnd { endCondition ->
+            stagedManual = null
+            follower.stop()
+            onEnd(endCondition)
         }
+
+    /**
+     * Localizer fault recovery: owns drive for the rest of the run at the
+     * highest priority, preempting any path or assist, with raw driver sticks
+     * in the robot frame. Make it the default command too so nothing reclaims
+     * the drive.
+     */
+    fun robotCentricFallbackCommand(input: () -> TeleopInput): CommandBuilder =
+        teleopCommand(priority = Int.MAX_VALUE, onStart = { odometryFallback = true }, input = input)
+
+    private fun stageTeleop(i: TeleopInput) {
+        val scale = DriveConfig.safeTeleopPowerScale *
+            (if (i.precision) DriveConfig.safePrecisionPowerScale else 1.0)
+        val exp = DriveConfig.safeInputExponent
+        val forward = i.forwardPower?.asDirectPower() ?: (i.forward.curve(exp) * scale)
+        // FTC sticks use +x right/CW turn; Pedro uses +lateral left/CCW-positive heading.
+        var strafe = -i.strafe.curve(exp) * scale
+        var fwd = forward
+        // Pedro 2 capped the translation vector at magnitude 1; keep the same driver feel.
+        val magnitude = hypot(fwd, strafe)
+        if (magnitude > 1.0) {
+            fwd /= magnitude
+            strafe /= magnitude
+        }
+        val turn = i.turnPower?.asDirectPower() ?: (-i.turn.curve(exp) * scale)
+        val robotCentric = i.forwardPower != null || !fieldCentric || odometryFallback
+        // An invalid heading must never rotate the sticks: NaN powers are
+        // dropped by Pedro's motor cache, which would leave the last power applied.
+        val heading = if (robotCentric) Double.NaN else follower.pose().heading()
+        stagedManual = if (robotCentric || !heading.isFinite()) {
+            DrivePowers(fwd, strafe, turn)
+        } else {
+            ManualDrive.fieldCentric(fwd, strafe, turn, heading)
+        }
+    }
+
+    /**
+     * Follow [path] to its parametric end. With [holdEnd] Pedro then holds the
+     * end pose; otherwise it idles. Interruption stops the follower.
+     *
+     * Pedro 3.0.0 runs `linear(...)` heading interpolation backwards on
+     * `Paths.line` and compound paths; use it only on `Paths.curve` segments.
+     */
+    fun followCommand(path: Path, holdEnd: Boolean = false): CommandBuilder = Command.build()
+        .requiring(this)
+        .setPriority(CommandPriorities.DRIVER_ACTION)
+        .setStart {
+            requirePathControl("follow")
+            pathSegments = path.segments.size.coerceAtLeast(1)
+            latchedPathProgress = 0.0
+            follower.holdEnd.set(holdEnd)
+            follower.follow(path)
+        }
+        .setDone { !follower.following() }
+        .setEnd { if (it != EndCondition.NATURALLY) halt() }
+
+    /**
+     * Hold [pose] (position and heading) until the measured pose is within
+     * [DriveConfig.holdToleranceInches]/[DriveConfig.holdToleranceRadians],
+     * or [timeoutMs] passes. Either way the follower keeps holding afterwards;
+     * the timeout only bounds how long a routine waits.
+     */
+    fun holdCommand(pose: Pose, timeoutMs: Double = DEFAULT_HOLD_TIMEOUT_MS): CommandBuilder {
+        require(timeoutMs.isFinite() && timeoutMs >= 0.0) { "hold timeout must be finite and non-negative" }
         var updatesAtStart = 0L
         var startNs = 0L
-        return trackDriveMode(
-            Command.build()
-                .setName("hold (%.1f, %.1f)".format(Locale.US, pose.x, pose.y))
-                .setStart {
-                    updatesAtStart = updateCount
-                    startNs = clock.nanos()
-                    follower.holdPoint(pose.toPedro())
-                }
-                .setDone {
-                    // Pedro recomputes its cached errors only inside
-                    // Follower.update(); on the tick holdPoint() is issued they
-                    // are stale (previous motion's near-zero error would end
-                    // this command instantly) or, on a first-ever hold, null
-                    // inside Pedro. Wait for one update before evaluating.
-                    val reached = updateCount > updatesAtStart &&
-                        follower.translationalError.magnitude < follower.constraints.translationalConstraint &&
-                        abs(follower.headingError) < follower.constraints.headingConstraint
-                    reached || (clock.nanos() - startNs) / 1e6 >= timeoutMs
-                }
-                .asDriveAction(),
-            running = Mode.HOLDING,
-            finished = Mode.HOLDING,
-        )
+        return Command.build()
+            .requiring(this)
+            .setPriority(CommandPriorities.DRIVER_ACTION)
+            .setStart {
+                requirePathControl("hold")
+                updatesAtStart = updateCount
+                startNs = clock.nanos()
+                follower.hold(pose)
+            }
+            .setDone {
+                // Wait for one follower update so the measurement postdates the command.
+                (updateCount > updatesAtStart && atPose(pose)) || (clock.nanos() - startNs) / 1e6 >= timeoutMs
+            }
+            .setEnd { if (it != EndCondition.NATURALLY) halt() }
     }
 
     /**
-     * Hold the current position while turning to a measured absolute heading.
-     * Pedro's point-path timeout is not a success condition: if the heading
-     * has not converged within [timeoutMs], fault instead of advancing a routine.
+     * Hold the current position while turning to an absolute heading. Done
+     * when the measured heading is within [DriveConfig.holdToleranceRadians].
+     * If it has not converged within [timeoutMs] it throws: a timed-out turn is
+     * never reported as success. Always stops the follower when it ends.
      */
-    fun turnToCommand(radians: Double, timeoutMs: Double = 2_000.0): Command {
+    fun turnToCommand(radians: Double, timeoutMs: Double = 2_000.0): CommandBuilder {
         require(radians.isFinite()) { "turn heading must be finite" }
         require(timeoutMs.isFinite() && timeoutMs >= 0.0) { "turn timeout must be finite and non-negative" }
         var startNs = 0L
         var updatesAtStart = 0L
         return Command.build()
-            .setName("turnTo %.0f°".format(Locale.US, Math.toDegrees(radians)))
             .requiring(this)
             .setPriority(CommandPriorities.DRIVER_ACTION)
             .setStart {
+                requirePathControl("turnTo")
                 startNs = clock.nanos()
                 updatesAtStart = updateCount
-                holdPose(pose.withHeading(radians))
+                follower.hold(follower.pose().withHeading(radians))
             }
             .setDone {
-                val heading = pose.heading
+                val heading = pose.heading()
                 check(heading.isFinite()) { "turnTo lost its heading measurement" }
                 val error = abs(shortestAngleDelta(heading, radians))
                 val reached = updateCount > updatesAtStart && error < DriveConfig.safeHoldToleranceRadians
@@ -339,168 +234,106 @@ class MecanumDriveSubsystem(
                 }
                 reached
             }
-            .setEnd { breakPath() }
+            .setEnd { halt() }
     }
 
-    /**
-     * A drive-claiming command at [CommandPriorities.DRIVER_ACTION]: [start]
-     * kicks the follower into a motion, done when the follower goes idle.
-     * Interruption (or a fault) breaks the follow so the unconditional
-     * `Follower.update()` in [writeHardware] doesn't keep driving the
-     * abandoned motion.
-     */
-    private fun driveAction(
-        name: String,
-        running: Mode,
-        finished: Mode,
-        start: () -> Unit,
-    ): Command = Command.build()
-        .setName(name)
-        .requiring(this)
-        .setPriority(CommandPriorities.DRIVER_ACTION)
-        .setStart {
-            modeAfterFollow = finished
-            mode = running
-            if (running == Mode.FOLLOWING) latchedPathProgress = 0.0
-            start()
+    private fun requirePathControl(action: String) {
+        check(follower.algorithm() != null) {
+            "$action needs Foresight: tune it with AutoTune and set Constants.FORESIGHT_TUNED"
         }
-        .setDone { !follower.isBusy }
-        .setEnd { endCondition ->
-            if (endCondition == EndCondition.NATURALLY) {
-                mode = finished
-            } else {
-                follower.breakFollowing()
-                mode = Mode.IDLE
-                modeAfterFollow = Mode.IDLE
-            }
-        }
+        check(!odometryFallback) { "$action refused: localizer fault, robot-centric sticks only" }
+    }
 
-    override val pose: Pose2d get() = follower.pose.toCore()
-    override val velocity: Vector2d get() = follower.velocity.toCore()
+    override val pose: Pose get() = follower.pose()
+    override val velocity: Velocity get() = follower.velocity()
 
-    /** True while Pedro is actively following a path. */
-    val isFollowing: Boolean get() = follower.isBusy
+    /** True while Pedro is following a path. */
+    val isFollowing: Boolean get() = follower.following()
 
-    /** True if the robot is actually moving faster than [DriveConfig.stoppedVelocityThreshold]. */
+    /** True if the robot is moving faster than [DriveConfig.stoppedVelocityThreshold]. */
     val isMoving: Boolean
-        get() = velocity.magnitude >= DriveConfig.safeStoppedVelocityThreshold
+        get() = hypot(velocity.vx, velocity.vy) >= DriveConfig.safeStoppedVelocityThreshold
 
-    /** Checks whether the robot is within the configured hold tolerance of a target pose. */
-    fun atPose(target: Pose2d): Boolean {
+    /** Whether the measured pose is within the configured hold tolerance of [target]. */
+    fun atPose(target: Pose): Boolean {
         val current = pose
-        return abs(target.x - current.x) < DriveConfig.safeHoldToleranceInches &&
-            abs(target.y - current.y) < DriveConfig.safeHoldToleranceInches &&
-            abs(shortestAngleDelta(current.heading, target.heading)) <
-                DriveConfig.safeHoldToleranceRadians
+        return abs(target.x() - current.x()) < DriveConfig.safeHoldToleranceInches &&
+            abs(target.y() - current.y()) < DriveConfig.safeHoldToleranceInches &&
+            abs(shortestAngleDelta(current.heading(), target.heading())) < DriveConfig.safeHoldToleranceRadians
     }
 
     fun toggleFieldCentric() {
         fieldCentric = !fieldCentric
     }
 
+    /**
+     * Progress through the path being followed, 0..1 across all of its
+     * segments, latched so it never moves backwards. Sampled after each
+     * follower update. Reads 0 when nothing is being followed; it reaches 1
+     * only when Pedro completes the last segment.
+     */
+    fun pathProgress(): Double = latchedPathProgress
+
     // ------------------------------------------------- DriveTelemetrySource
 
-    override val driveModeName: String get() = mode.name
+    override val driveModeName: String
+        get() = when {
+            odometryFallback -> "ROBOT_CENTRIC_FALLBACK"
+            else -> when (follower.mode()) {
+                Follower.Mode.FOLLOW -> "FOLLOWING"
+                Follower.Mode.HOLD -> "HOLDING"
+                Follower.Mode.MANUAL -> "TELEOP"
+                else -> "IDLE"
+            }
+        }
 
     override val isPathing: Boolean
-        get() = mode == Mode.FOLLOWING || mode == Mode.HOLDING
-
-    override val angularVelocityRadPerSec: Double
-        get() = try {
-            follower.angularVelocity
-        } catch (_: Throwable) {
-            Double.NaN
-        }
+        get() = !odometryFallback && (follower.following() || follower.holding())
 
     override val followTranslationalErrorInches: Double
-        get() = if (!isPathing) Double.NaN else try {
-            follower.translationalError.magnitude
-        } catch (_: Throwable) {
-            Double.NaN
-        }
+        get() = if (!isPathing) Double.NaN else (follower.algorithm() as? Foresight)?.translationalError() ?: Double.NaN
 
     override val followHeadingErrorRad: Double
-        get() = if (!isPathing) Double.NaN else try {
-            follower.headingError
-        } catch (_: Throwable) {
-            Double.NaN
-        }
+        get() = if (!isPathing) Double.NaN else (follower.algorithm() as? Foresight)?.headingError() ?: Double.NaN
 
-    /**
-     * Progress through the path chain currently being followed, 0..1 across
-     * the whole chain (a 3-path chain at the middle of path 2 reads ~0.5).
-     * Latches monotonically from Pedro's actual path/t values. Completion
-     * never synthesizes 1.0: if Pedro ends a path early, unreached markers
-     * remain unfired. Idle/teleop and cancellation read 0.0.
-     */
-    fun pathProgress(): Double {
-        when (mode) {
-            Mode.FOLLOWING, Mode.HOLDING -> {}
-            else -> return 0.0
-        }
-        val sampled = try {
-            val size = follower.currentPathChain?.size() ?: 1
-            (follower.currentPathNumber + follower.currentTValue) / size
-        } catch (_: Throwable) {
-            Double.NaN
-        }
-        if (sampled.isFinite()) {
-            latchedPathProgress = maxOf(latchedPathProgress, sampled.coerceIn(0.0, 1.0))
-        }
-        return latchedPathProgress
-    }
-
-    override fun currentPathPoses(samplesPerPath: Int): List<List<Pose2d>> {
-        if (mode != Mode.FOLLOWING) return emptyList()
+    override fun currentPathPoints(samples: Int): List<Vector2D> {
+        if (!follower.following()) return emptyList()
         return try {
-            val chain = follower.currentPathChain
-            val paths: List<Path> = if (chain != null) {
-                (0 until chain.size()).map { chain.getPath(it) }
-            } else {
-                listOfNotNull(follower.currentPath)
-            }
-            paths.map { path ->
-                (0..samplesPerPath).map { i ->
-                    path.getPose(i.toDouble() / samplesPerPath).toCore()
-                }
-            }
+            val curve = follower.currentPath()?.curve ?: return emptyList()
+            (0..samples).map { curve.get(it.toDouble() / samples) }
         } catch (_: Throwable) {
             emptyList()
         }
     }
 
-    override fun periodic() {
-        if (mode == Mode.FOLLOWING && !follower.isBusy) mode = modeAfterFollow
-        sampleNextMotor()
-    }
-
     // ------------------------------------------------------- motor channels
 
-    private var loggedMotors: List<DcMotorEx> = emptyList()
+    private var loggedMotors: List<Pair<String, DcMotorEx>> = emptyList()
     private var motorSampleIndex = 0
     private var lastMotorSampleNs = Long.MIN_VALUE
     private var sampledMotorIndex = -1
     private var sampledPower = 0.0
     private var sampledCurrentAmps = 0.0
 
+    override fun periodic() {
+        sampleNextMotor()
+    }
+
     /**
-     * getPower()/getCurrent() are real Lynx transactions — not bulk-cache
-     * backed — so reading all four motors every tick would cost milliseconds.
-     * Instead one motor is sampled per [MOTOR_SAMPLE_INTERVAL_NS] round-robin
-     * (each motor refreshes every ~200 ms), spreading the cost evenly.
+     * getPower()/getCurrent() are real Lynx transactions, not bulk-cache
+     * backed, so one motor is sampled every [MOTOR_SAMPLE_INTERVAL_NS]
+     * round-robin (each motor refreshes about every 200 ms).
      */
     private fun sampleNextMotor() {
         sampledMotorIndex = -1
         if (loggedMotors.isEmpty()) return
         val now = clock.nanos()
-        if (lastMotorSampleNs != Long.MIN_VALUE && now - lastMotorSampleNs < MOTOR_SAMPLE_INTERVAL_NS) {
-            return
-        }
+        if (lastMotorSampleNs != Long.MIN_VALUE && now - lastMotorSampleNs < MOTOR_SAMPLE_INTERVAL_NS) return
         lastMotorSampleNs = now
         val index = motorSampleIndex
         motorSampleIndex = (motorSampleIndex + 1) % loggedMotors.size
         try {
-            val motor = loggedMotors[index]
+            val motor = loggedMotors[index].second
             sampledPower = motor.power
             sampledCurrentAmps = motor.getCurrent(CurrentUnit.AMPS)
             sampledMotorIndex = index
@@ -514,61 +347,27 @@ class MecanumDriveSubsystem(
         log.put("odometryFallback", odometryFallback)
         val index = sampledMotorIndex
         if (index < 0) return
-        val label = MOTOR_LABELS.getOrElse(index) { "motor$index" }
+        val label = loggedMotors[index].first
         log.put("motors/$label/power", sampledPower)
         log.put("motors/$label/currentAmps", sampledCurrentAmps)
     }
 
     override fun writeHardware() {
-        val pendingBrakeMode = pendingTeleopBrakeMode
-        pendingTeleopBrakeMode = null
+        val staged = stagedManual
+        stagedManual = null
         if (odometryFallback) {
-            if (pendingBrakeMode != null) {
-                follower.breakFollowing()
-                follower.drivetrain.updateConstants()
-                follower.drivetrain.startTeleopDrive(pendingBrakeMode)
-            }
-            writeRobotCentricFallback()
+            follower.drivetrain.drive(staged ?: DrivePowers.zero(), true)
             return
         }
-        if (pendingBrakeMode != null && mode == Mode.TELEOP) {
-            // Startup clears inputs and runs the one sensor/controller update
-            // for this tick. Only then is Pedro's vector calculator initialized.
-            follower.startTeleOpDrive(pendingBrakeMode)
-            submitTeleopInput()
-            // Flush the new vectors without another odometry read or PID step,
-            // so the very first stick sample reaches the wheels this tick.
-            follower.drivetrain.runDrive(
-                follower.centripetalForceCorrection,
-                follower.teleopHeadingVector,
-                follower.teleopDriveVector,
-                follower.pose.heading,
-                follower.velocity,
-            )
-        } else {
-            if (mode == Mode.TELEOP) submitTeleopInput()
-            follower.update()
-        }
+        if (staged != null) follower.manual(staged)
+        follower.update()
         updateCount++
-    }
-
-    private fun submitTeleopInput() {
-        follower.setTeleOpDrive(teleopForward, teleopStrafe, teleopTurn, teleopRobotCentric)
-    }
-
-    private fun writeRobotCentricFallback() {
-        if (mode != Mode.TELEOP) zero()
-        val translation = Vector().apply {
-            setOrthogonalComponents(teleopForward, teleopStrafe)
-            magnitude = magnitude.coerceAtMost(1.0)
+        if (follower.following()) {
+            val sampled = (follower.pathIndex() + follower.parametricCompletion()) / pathSegments
+            if (sampled.isFinite()) latchedPathProgress = maxOf(latchedPathProgress, sampled.coerceIn(0.0, 1.0))
+        } else if (!follower.holding()) {
+            latchedPathProgress = 0.0
         }
-        // Express both inputs and wheel geometry in the robot frame. No pose,
-        // velocity, centripetal correction, or Pinpoint read enters this path.
-        val powers = follower.drivetrain.calculateDrive(
-            Vector(), Vector(teleopTurn, 0.0), translation, 0.0,
-        )
-        for (i in powers.indices) powers[i] = powers[i].asDirectPower()
-        follower.drivetrain.runDrive(powers)
     }
 
     override fun persistState() {
@@ -576,69 +375,33 @@ class MecanumDriveSubsystem(
     }
 
     override fun health(): String =
-        if (odometryFallback) "mode=$mode LOCALIZER FAULT: robot-centric sticks only" else "mode=$mode"
+        if (odometryFallback) "mode=$driveModeName LOCALIZER FAULT: robot-centric sticks only" else "mode=$driveModeName"
 
     override fun onCommandFault() = halt()
 
     override fun stop() = halt()
 
+    /** Stop following and write zero power now, without waiting for the next update. */
     private fun halt() {
-        zero()
-        follower.breakFollowing()
-        pendingTeleopBrakeMode = null
-        modeAfterFollow = Mode.IDLE
-        mode = Mode.IDLE
+        stagedManual = null
         latchedPathProgress = 0.0
+        follower.stop()
+        follower.drivetrain.stop()
     }
 
-    /**
-     * Wrap an arbitrary drive-touching [command] with this subsystem's
-     * requirement and [Mode] bookkeeping. Use it when season code builds its
-     * own follower motion; the framework's own commands are built on
-     * [driveAction] directly.
-     */
-    internal fun trackDriveMode(command: Command, running: Mode, finished: Mode): Command =
-        Command.build()
-            .setName(command.toString())
-            .requiring(*(setOf(this) + command.requirements()).toTypedArray())
-            .setPriority(command.priority())
-            .setStart {
-                modeAfterFollow = finished
-                mode = running
-                if (running == Mode.FOLLOWING) latchedPathProgress = 0.0
-                command.start()
-            }
-            .setExecute(command::execute)
-            .setDone(command::done)
-            .setEnd { endCondition ->
-                command.end(endCondition)
-                if (endCondition == EndCondition.NATURALLY) {
-                    mode = finished
-                } else {
-                    // The wrapped command may not break the follow itself —
-                    // and update() runs unconditionally in writeHardware, so
-                    // an abandoned motion would keep driving.
-                    follower.breakFollowing()
-                    mode = Mode.IDLE
-                    modeAfterFollow = Mode.IDLE
-                }
-            }
-
     private companion object {
-        /** Pedro's Mecanum.getMotors() order. */
-        val MOTOR_LABELS = listOf("leftFront", "leftRear", "rightFront", "rightRear")
+        val MOTOR_NAMES = listOf(
+            "leftFront" to RobotConfig.Drive.FRONT_LEFT_MOTOR,
+            "leftRear" to RobotConfig.Drive.BACK_LEFT_MOTOR,
+            "rightFront" to RobotConfig.Drive.FRONT_RIGHT_MOTOR,
+            "rightRear" to RobotConfig.Drive.BACK_RIGHT_MOTOR,
+        )
         const val MOTOR_SAMPLE_INTERVAL_NS = 50_000_000L
         const val DEFAULT_HOLD_TIMEOUT_MS = 2_000.0
     }
 }
 
-private fun CommandBuilder.asDriveAction(): CommandBuilder =
-    setPriority(CommandPriorities.DRIVER_ACTION)
-
-/**
- * A controller output consumed directly as a motor power. A dead controller
- * must not NaN the motor powers any more than a dead localizer may.
- */
+/** A controller output consumed directly as a motor power. A dead controller must not NaN the motors. */
 private fun Double.asDirectPower(): Double = if (isFinite()) coerceIn(-1.0, 1.0) else 0.0
 
 /** Applies a signed power curve: preserves sign, scales magnitude by x^exponent. */

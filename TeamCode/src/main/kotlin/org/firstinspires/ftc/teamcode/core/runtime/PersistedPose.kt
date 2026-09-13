@@ -40,12 +40,12 @@ object PersistedPose {
      * time): the previous record is kept — still age-gated on restore —
      * rather than poisoning the next op-mode's starting pose.
      */
-    fun record(pose: org.firstinspires.ftc.teamcode.core.geometry.Pose2d) {
-        if (!pose.x.isFinite() || !pose.y.isFinite() || !pose.heading.isFinite()) return
+    fun record(pose: com.pedropathing.math.Pose) {
+        if (!pose.x().isFinite() || !pose.y().isFinite() || !pose.heading().isFinite()) return
         valid = true
-        x = pose.x
-        y = pose.y
-        headingRad = pose.heading
+        x = pose.x()
+        y = pose.y()
+        headingRad = pose.heading()
         wallTimeMs = System.currentTimeMillis()
         writeToDisk()
     }

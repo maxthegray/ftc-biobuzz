@@ -1,7 +1,7 @@
 package org.firstinspires.ftc.teamcode.opmodes.diagnostics
 
+import com.pedropathing.ivy.commands.Commands.instant
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
-import org.firstinspires.ftc.teamcode.core.command.Commands
 import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.runtime.Preflight
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSubsystem
@@ -46,9 +46,9 @@ class LimelightAprilTagTestTeleOp : OpModeBase() {
         }
         recorder = robot.register(VisionLabRecorder("Limelight AprilTag Test"))
         driver.button(Button.A).onTrue(
-            Commands.instant {
+            instant {
                 recorder.save(VisionDiagnostics.measurements(robot, timing, startup, limelight, sightings, ballCamera))
-            }.setName("save vision lab record"),
+            },
         )
     }
 

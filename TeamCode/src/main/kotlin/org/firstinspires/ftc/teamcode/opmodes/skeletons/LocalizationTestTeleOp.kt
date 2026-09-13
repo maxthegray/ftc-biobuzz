@@ -1,38 +1,35 @@
 package org.firstinspires.ftc.teamcode.opmodes.skeletons
 
 import com.bylazar.configurables.annotations.Configurable
+import com.pedropathing.api.Paths
+import com.pedropathing.ivy.Command
+import com.pedropathing.ivy.Scheduler
+import com.pedropathing.ivy.commands.Commands.lazy
+import com.pedropathing.math.Pose
 import com.qualcomm.robotcore.eventloop.opmode.Disabled
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import kotlin.math.abs
-import org.firstinspires.ftc.teamcode.core.command.Command
-import org.firstinspires.ftc.teamcode.core.command.Commands
-import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
-import org.firstinspires.ftc.teamcode.core.pathing.path
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
+import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem.TeleopInput
 import org.firstinspires.ftc.teamcode.opmodes.TeleOpBase
+import org.firstinspires.ftc.teamcode.pedro.Constants
 
 /**
  * Teleop for testing localization consistency over time.
  *
- * Behaves like Drive Only during normal driving (including the
- * Back+Y heading reset and Back+B field-centric chords from [TeleOpBase]),
- * with two extra buttons:
+ * Behaves like Drive Only during normal driving (including the Back+Y
+ * heading reset and Back+B field-centric chords from [TeleOpBase]), with two
+ * extra buttons:
  *
- *  - **Triangle (Y)** — Pedro-follows 24" forward to waypoint A by default.
- *  - **Cross (A)** — Pedro-follows back to the test origin by default.
+ *  - **Triangle (Y)** — Pedro-follows to waypoint A (24" forward by default).
+ *  - **Cross (A)** — Pedro-follows back to the test origin.
  *
- * Destinations and the path power cap are configurable in Panels. Press the
- * active target's button again or move a stick to cancel mid-path; pressing
- * the other target button switches paths.
+ * Destinations and the path speed cap are configurable in Panels. Press the
+ * active target's button again, or move a stick, to cancel mid-path.
+ * Afterwards control returns to manual teleop. Drive around, press again, and
+ * compare where the robot thinks it ends up: that's localization drift.
  *
- * After each path (completed or interrupted) control returns to manual teleop
- * automatically. Drive around, press again, and compare where the robot thinks
- * it ends up — that's the localization drift you're measuring.
- *
- * All destination coordinates are live-editable in Panels (see companion object).
- *
- * Disabled by default: re-enable when you need to measure localization drift
- * (OPERATIONS.md step 6, or any time pods may have shifted).
+ * Disabled by default; needs Foresight tuning for the path buttons.
  */
 @Disabled
 @TeleOp(name = "Localization Test", group = "Diagnostics")
@@ -40,9 +37,9 @@ import org.firstinspires.ftc.teamcode.opmodes.TeleOpBase
 class LocalizationTestTeleOp : TeleOpBase() {
 
     companion object {
-        /** X coordinate of waypoint A (inches). Adjust for your field. */
+        /** X coordinate of waypoint A (inches). */
         @JvmField var waypointAX: Double = 24.0
-        /** Y coordinate of waypoint A (inches). Adjust for your field. */
+        /** Y coordinate of waypoint A (inches). */
         @JvmField var waypointAY: Double = 0.0
 
         /** X coordinate of the return target (inches). */
@@ -50,13 +47,13 @@ class LocalizationTestTeleOp : TeleOpBase() {
         /** Y coordinate of the return target (inches). */
         @JvmField var returnY: Double = 0.0
 
-        /** Maximum follower power during localization test paths. */
-        @JvmField var pathMaxPower: Double = 0.3
+        /** Path speed cap as a fraction of the robot's max achievable velocity (Foresight maxPathSpeed). */
+        @JvmField var pathSpeedFraction: Double = 0.3
 
         /** Stick axis magnitude above which a path is considered interrupted by the driver. */
         @JvmField var stickInterruptThreshold: Double = 0.1
 
-        private const val DEFAULT_PATH_MAX_POWER = 0.3
+        private const val DEFAULT_PATH_SPEED_FRACTION = 0.3
     }
 
     private var activeFollow: Command? = null
@@ -68,31 +65,23 @@ class LocalizationTestTeleOp : TeleOpBase() {
         // Y only when it isn't the Back+Y heading-reset chord; A only when
         // it isn't the Driver Station's Start+A gamepad re-bind chord.
         driver.trigger { driver.y && !driver.back }.toggleOnTrue(
-            followTo(
-                label = { "(%.1f, %.1f)".format(waypointAX, waypointAY) },
-                target = { Pose2d(waypointAX, waypointAY, 0.0) },
-            ),
+            followTo(label = { "(%.1f, %.1f)".format(waypointAX, waypointAY) }) { Pose(waypointAX, waypointAY) },
         )
         driver.trigger { driver.a && !driver.start }.toggleOnTrue(
-            followTo(
-                label = { "(%.1f, %.1f)".format(returnX, returnY) },
-                target = { Pose2d(returnX, returnY, 0.0) },
-            ),
+            followTo(label = { "(%.1f, %.1f)".format(returnX, returnY) }) { Pose(returnX, returnY) },
         )
+        // Moving a stick takes the drive back at driver-action priority, which
+        // interrupts the path through Ivy's requirements.
         driver.trigger { stickMoved() }.whileTrue(
-            Commands.infinite {
-                activeFollow?.let {
-                    robot.scheduler.cancel(it)
-                    activeFollow = null
-                    targetLabel = "-"
-                }
-            }.setName("stick interrupt").setPriority(CommandPriorities.DRIVER_ACTION),
+            drive.teleopCommand(priority = CommandPriorities.DRIVER_ACTION) {
+                TeleopInput(driver.leftStickY, driver.leftStickX, driver.rightStickX, driver.rightTrigger > 0.1)
+            },
         )
     }
 
     override fun onLoop() {
         activeFollow?.let {
-            if (!robot.scheduler.isScheduled(it)) {
+            if (!Scheduler.isScheduled(it)) {
                 activeFollow = null
                 targetLabel = "-"
             }
@@ -100,29 +89,19 @@ class LocalizationTestTeleOp : TeleOpBase() {
         emitTelemetry()
     }
 
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
-
-    /**
-     * The path can only be built once the command actually runs (it starts at
-     * the *current* pose), so this defers construction to schedule time. The
-     * deferred follow handles its own interruption (breaks the follow);
-     * [onLoop] clears the label once the command leaves the scheduler.
-     */
-    private fun followTo(label: () -> String, target: () -> Pose2d): Command {
+    /** The path starts at the *current* pose, so it is built when the command starts. */
+    private fun followTo(label: () -> String, target: () -> Pose): Command {
         lateinit var outer: Command
-        outer = Commands.defer(drive) {
+        outer = lazy {
             val start = drive.pose
-            val chain = drive.path(startPose = start, alliance = alliance) {
-                lineTo(target())
-                constantHeading(start.heading)
-            }
+            val path = Paths.line(start, target())
+                .constant(start)
+                .with(Constants.foresightConfig.maxPathSpeed.at(safePathSpeedFraction()))
             activeFollow = outer
             targetLabel = label()
-            drive.followCommand(chain, maxPower = safePathMaxPower(), holdEnd = false)
+            drive.followCommand(path)
         }
-            .setName("followTo")
+            .requiring(drive)
             .setPriority(CommandPriorities.DRIVER_ACTION)
         return outer
     }
@@ -132,20 +111,19 @@ class LocalizationTestTeleOp : TeleOpBase() {
             abs(driver.leftStickX) > stickInterruptThreshold ||
             abs(driver.rightStickX) > stickInterruptThreshold
 
-    private fun safePathMaxPower(): Double =
-        if (pathMaxPower.isFinite()) pathMaxPower.coerceIn(0.0, 1.0) else DEFAULT_PATH_MAX_POWER
+    private fun safePathSpeedFraction(): Double =
+        if (pathSpeedFraction.isFinite() && pathSpeedFraction > 0.0) pathSpeedFraction.coerceAtMost(1.0) else DEFAULT_PATH_SPEED_FRACTION
 
     private fun emitTelemetry() {
-        val state = if (activeFollow == null) "TELEOP" else "PATH"
         telemetryBag.section("Localization Test") {
-            put("state", state)
+            put("state", if (activeFollow == null) "TELEOP" else "PATH")
             put("target", targetLabel)
             put("fieldCentric", drive.fieldCentric)
         }
         telemetryBag.section("Drive") {
             put("pose", drive.pose)
             put("velocity", drive.velocity)
-            put("mode", drive.mode.name)
+            put("mode", drive.driveModeName)
         }
     }
 }

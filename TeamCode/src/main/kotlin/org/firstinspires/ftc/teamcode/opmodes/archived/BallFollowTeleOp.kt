@@ -1,10 +1,10 @@
 package org.firstinspires.ftc.teamcode.opmodes.archived
 
+import com.pedropathing.ivy.Command
+import com.pedropathing.ivy.behaviors.EndCondition
 import com.qualcomm.hardware.limelightvision.Limelight3A
 import com.qualcomm.robotcore.eventloop.opmode.Disabled
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
-import org.firstinspires.ftc.teamcode.core.command.Command
-import org.firstinspires.ftc.teamcode.core.command.EndCondition
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.ConfigStore
 import org.firstinspires.ftc.teamcode.core.runtime.Preflight
@@ -73,7 +73,6 @@ class BallFollowTeleOp : TeleOpBase() {
      * driver actions like the Back+Y heading reset.
      */
     private fun aimAtBallCommand(): Command = drive.teleopCommand(
-        name = "aim at ball",
         priority = CommandPriorities.AUTON_ROUTINE,
         onStart = {
             ballAim.reset()
@@ -100,7 +99,6 @@ class BallFollowTeleOp : TeleOpBase() {
      * duration, since a vision-derived forward forces robot-centric drive).
      */
     private fun approachBallCommand(): Command = drive.teleopCommand(
-        name = "approach ball",
         priority = CommandPriorities.AUTON_ROUTINE,
         onStart = {
             ballAim.reset()
@@ -147,7 +145,7 @@ class BallFollowTeleOp : TeleOpBase() {
     override fun onLoop() {
         telemetryBag.section("Drive") {
             put("pose", drive.pose)
-            put("mode", drive.mode.name)
+            put("mode", drive.driveModeName)
             put("fieldCentric", drive.fieldCentric)
         }
         telemetryBag.section("Ball Aim") {
