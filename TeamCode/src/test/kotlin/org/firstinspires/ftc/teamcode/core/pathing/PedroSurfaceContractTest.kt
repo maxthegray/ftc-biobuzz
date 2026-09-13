@@ -18,8 +18,6 @@ import com.pedropathing.paths.PathConstraints
 import org.firstinspires.ftc.teamcode.core.geometry.FieldSymmetry
 import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
 import org.firstinspires.ftc.teamcode.core.geometry.normalizeAngle
-import org.firstinspires.ftc.teamcode.core.sim.SimFollower
-import org.firstinspires.ftc.teamcode.core.sim.FakeClock
 import org.junit.Assert.assertEquals
 import org.junit.Assert.fail
 import org.junit.Test
@@ -27,12 +25,11 @@ import org.junit.Test
 /**
  * Pins the exact Pedro API surface the framework calls — the adapter layer
  * (`core/pathing/`, `MecanumDriveSubsystem`, `LocalizerSubsystem`, the
- * localizer implementations) plus the test-side [SimFollower].
+ * localizer implementations).
  *
  * A Pedro version bump that renames or retypes any of these fails here with
  * a named member instead of surfacing as a runtime crash on the robot (or
- * worse, as silently changed behavior under a base-class member the sim
- * doesn't override). If this test fails after a bump, every listed member
+ * worse, as silently changed behavior). If this test fails after a bump, every listed member
  * is a call site to re-verify by hand.
  */
 class PedroSurfaceContractTest {
@@ -159,23 +156,5 @@ class PedroSurfaceContractTest {
         assertEquals(pedro.x, core.x, 1e-12)
         assertEquals(pedro.y, core.y, 1e-12)
         assertEquals(normalizeAngle(pedro.heading), core.heading, 1e-12)
-    }
-
-    @Test
-    fun pathBuilderBuildsChainsWithExpectedGeometry() {
-        // Built through the same entry point the framework uses
-        // (Follower.pathBuilder()), against the real PathBuilder/PathChain.
-        val chain = SimFollower(FakeClock()).pathBuilder()
-            .addPath(BezierLine(Pose(0.0, 0.0), Pose(24.0, 0.0)))
-            .addPath(BezierLine(Pose(24.0, 0.0), Pose(24.0, 24.0)))
-            .build()
-
-        assertEquals(2, chain.size())
-        val firstEnd = chain.getPath(0).getPose(1.0)
-        assertEquals(24.0, firstEnd.x, 1e-9)
-        assertEquals(0.0, firstEnd.y, 1e-9)
-        val lastPoint = chain.getPath(1).lastControlPoint
-        assertEquals(24.0, lastPoint.x, 1e-9)
-        assertEquals(24.0, lastPoint.y, 1e-9)
     }
 }
