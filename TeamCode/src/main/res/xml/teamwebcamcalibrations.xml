@@ -158,4 +158,54 @@
 
     <!-- ======================================================================================= -->
 
+    <!-- goBILDA Global Shutter USB Camera, SKU 3122-0004-0001 (Arducam OV9782 module).
+         Values from goBILDA's user guide "Camera Calibration Characteristics" table
+         (dated May 14th, 2026; calibrated with 3DF Zephyr), a manufacturer starting point,
+         not a calibration of our unit.
+         VID/PID are as goBILDA publishes them ("VID: 0xC45, PID: 0x366"); confirm on the
+         robot: Ball Tracking Test must show "lens calibration: exact 640x480 entry".
+         goBILDA's downloadable 3122-0004-0001_calibrations.zip differs from the guide in two
+         places and is NOT what is used here: it lists the last entry as size "480, 320" (its
+         intrinsics, cx≈173 cy≈120 and fx≈half the 640x480 value, fit 320x240, which the guide
+         states), and gives 1280x720 fx/fy 908.785 where the guide says 908.683.
+         Lens intrinsics only; camera mounting on the robot is measured separately. -->
+    <Camera vid="0xC45" pid="0x366">
+        <Calibration
+            size="1280 800"
+            focalLength="908.758f, 908.758f"
+            principalPoint="696.345f, 376.979f"
+            distortionCoefficients="0.0374901, -0.0506747, 0, 0, -0.00229137, 0, 0, 0"
+            />
+
+        <Calibration
+            size="1280 720"
+            focalLength="908.683f, 908.683f"
+            principalPoint="706.785f, 337.571f"
+            distortionCoefficients="0.0357156, -0.0435922, 0, 0, -0.00930544, 0, 0, 0"
+            />
+
+        <Calibration
+            size="800 600"
+            focalLength="684.509f, 684.509f"
+            principalPoint="444.832f, 283.680f"
+            distortionCoefficients="0.034551, -0.0516021, 0, 0, 0.00228923, 0, 0, 0"
+            />
+
+        <Calibration
+            size="640 480"
+            focalLength="545.584f, 545.584f"
+            principalPoint="350.588f, 223.150f"
+            distortionCoefficients="0.0290195, -0.0238128, 0, 0, -0.0378927, 0, 0, 0"
+            />
+
+        <Calibration
+            size="320 240"
+            focalLength="270.260f, 270.260f"
+            principalPoint="173.207f, 120.382f"
+            distortionCoefficients="-0.0249932, 0.147249, 0, 0, -0.24925, 0, 0, 0"
+            />
+    </Camera>
+
+    <!-- ======================================================================================= -->
+
 </Calibrations>

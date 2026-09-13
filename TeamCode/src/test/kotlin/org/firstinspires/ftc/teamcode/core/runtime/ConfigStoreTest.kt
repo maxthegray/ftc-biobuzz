@@ -1,14 +1,17 @@
 package org.firstinspires.ftc.teamcode.core.runtime
 
 import com.bylazar.configurables.annotations.Configurable
+import com.qualcomm.robotcore.hardware.HardwareMap
 import java.io.File
 import java.lang.reflect.Modifier
 import org.firstinspires.ftc.teamcode.core.control.PIDFGains
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerConfig
-import org.firstinspires.ftc.teamcode.opmodes.diagnostics.MotorTestConfig
+import org.firstinspires.ftc.teamcode.opmodes.archived.MotorTestConfig
 import org.firstinspires.ftc.teamcode.vision.BallAimConfig
 import org.firstinspires.ftc.teamcode.vision.BallApproachConfig
+import org.firstinspires.ftc.teamcode.vision.BallVisionConfig
+import org.firstinspires.ftc.teamcode.vision.VisionDiagnosticsConfig
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -85,6 +88,80 @@ class ConfigStoreTest {
         ConfigStore.file = originalFile
         tempFile.deleteRecursively()
         File(tempFile.path + ".tmp").deleteRecursively()
+    }
+
+    @Test
+    fun initStopSavesVisionTuningAfterHardwareStopsWithoutPersistingPoseState() {
+        val configs = listOf(BallVisionConfig, VisionDiagnosticsConfig)
+        val originals = configs.flatMap { config ->
+            config.javaClass.declaredFields
+                .filter { Modifier.isPublic(it.modifiers) && !Modifier.isFinal(it.modifiers) }
+                .map { field -> Triple(config, field, field.get(config)) }
+        }
+        try {
+            ConfigStore.register("ballVision", BallVisionConfig, BallVisionConfig::resetDefaults)
+            ConfigStore.register("visionDiagnostics", VisionDiagnosticsConfig, VisionDiagnosticsConfig::resetDefaults)
+            ConfigStore.loadFromDisk()
+            BallVisionConfig.minCircularity = 0.6
+            assertTrue(ConfigStore.persistIfDirty())
+            val beforeInit = tempFile.readText()
+            val robot = Robot(HardwareMap(null, null))
+            var stopped = false
+            var statePersisted = false
+            var diskAtStop: String? = null
+            robot.register(object : SubsystemBase("camera") {
+                override fun stop() {
+                    diskAtStop = tempFile.readText()
+                    stopped = true
+                }
+                override fun persistState() { statePersisted = true }
+            })
+            robot.initTick()
+            BallVisionConfig.resolutionWidth = 320
+            BallVisionConfig.resolutionHeight = 240
+            BallVisionConfig.minCircularity = 0.8
+            VisionDiagnosticsConfig.runBothCameras = true
+
+            robot.stop()
+
+            assertTrue(stopped)
+            assertEquals(beforeInit, diskAtStop)
+            assertFalse("INIT cancellation must not overwrite pose handoff state", statePersisted)
+            ConfigStore.loadFromDisk()
+            assertEquals(320, BallVisionConfig.resolutionWidth)
+            assertEquals(240, BallVisionConfig.resolutionHeight)
+            assertEquals(0.8, BallVisionConfig.minCircularity, 0.0)
+            assertTrue(VisionDiagnosticsConfig.runBothCameras)
+        } finally {
+            for ((config, field, value) in originals) field.set(config, value)
+        }
+    }
+
+    @Test
+    fun shutdownSaveFailurePreservesDiskAndDoesNotPreventHardwareStop() {
+        ConfigStore.register("test", TestTuning, TestTuning::resetDefaults)
+        ConfigStore.loadFromDisk()
+        TestTuning.gain = 0.75
+        assertTrue(ConfigStore.persistIfDirty())
+        val previous = tempFile.readText()
+        val blockedTemp = File(tempFile.path + ".tmp")
+        assertTrue(blockedTemp.mkdir())
+        File(blockedTemp, "keep").writeText("occupied")
+        TestTuning.gain = 0.9
+        val robot = Robot(HardwareMap(null, null))
+        var stopped = false
+        robot.register(object : SubsystemBase("camera") {
+            override fun stop() { stopped = true }
+        })
+
+        robot.stop()
+
+        assertTrue(stopped)
+        assertEquals(previous, tempFile.readText())
+        assertTrue(blockedTemp.deleteRecursively())
+        assertTrue(ConfigStore.persistIfDirty())
+        ConfigStore.loadFromDisk()
+        assertEquals(0.9, TestTuning.gain, 0.0)
     }
 
     @Test
@@ -367,7 +444,10 @@ class ConfigStoreTest {
 
     @Test
     fun everyProductionTunableIsResetOnWarmInit() {
-        val configs = listOf(DriveConfig, LocalizerConfig, BallAimConfig, BallApproachConfig, MotorTestConfig)
+        val configs = listOf(
+            DriveConfig, LocalizerConfig, BallAimConfig, BallApproachConfig, MotorTestConfig,
+            BallVisionConfig, VisionDiagnosticsConfig,
+        )
         val originals = configs.flatMap { config ->
             config.javaClass.declaredFields
                 .filter { Modifier.isPublic(it.modifiers) && !Modifier.isFinal(it.modifiers) }
@@ -378,6 +458,8 @@ class ConfigStoreTest {
         ConfigStore.register("ballAim", BallAimConfig, BallAimConfig::resetDefaults)
         ConfigStore.register("ballApproach", BallApproachConfig, BallApproachConfig::resetDefaults)
         ConfigStore.register("motorTest", MotorTestConfig, MotorTestConfig::resetDefaults)
+        ConfigStore.register("ballVision", BallVisionConfig, BallVisionConfig::resetDefaults)
+        ConfigStore.register("visionDiagnostics", VisionDiagnosticsConfig, VisionDiagnosticsConfig::resetDefaults)
         try {
             ConfigStore.loadFromDisk()
             val defaults = ConfigStore.snapshot()

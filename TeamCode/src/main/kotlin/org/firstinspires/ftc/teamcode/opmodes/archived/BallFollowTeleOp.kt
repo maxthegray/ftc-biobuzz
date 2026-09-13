@@ -1,6 +1,7 @@
-package org.firstinspires.ftc.teamcode.opmodes
+package org.firstinspires.ftc.teamcode.opmodes.archived
 
 import com.qualcomm.hardware.limelightvision.Limelight3A
+import com.qualcomm.robotcore.eventloop.opmode.Disabled
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import org.firstinspires.ftc.teamcode.core.command.Command
 import org.firstinspires.ftc.teamcode.core.command.EndCondition
@@ -11,6 +12,7 @@ import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsyste
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightColorTarget
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSubsystem
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx.Button
+import org.firstinspires.ftc.teamcode.opmodes.TeleOpBase
 import org.firstinspires.ftc.teamcode.vision.BallAimConfig
 import org.firstinspires.ftc.teamcode.vision.BallAimController
 import org.firstinspires.ftc.teamcode.vision.BallApproachConfig
@@ -18,6 +20,9 @@ import org.firstinspires.ftc.teamcode.vision.BallAssistSubsystem
 import org.firstinspires.ftc.teamcode.vision.BallRangeController
 
 /**
+ * Archived Limelight color-pipeline prototype. Current ball detection uses the
+ * USB camera; powered USB-camera assists are deferred to vision pass 2.
+ *
  * Drive plus two Limelight ball assists — an ordinary [TeleOpBase] teleop,
  * built the way a season teleop should be: subsystems and trigger bindings in
  * [configureTeleop], telemetry in [onLoop], nothing imperative in the loop.
@@ -31,6 +36,7 @@ import org.firstinspires.ftc.teamcode.vision.BallRangeController
  *  - **left bumper** — aim *and* drive towards the ball while held
  *  - **Back + Y** — reset heading, **Back + B** — toggle field-centric
  */
+@Disabled
 @TeleOp(name = "Ball Follow", group = "Match")
 class BallFollowTeleOp : TeleOpBase() {
 

@@ -8,7 +8,18 @@ import org.firstinspires.ftc.teamcode.core.runtime.HardwareConfigError
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.util.Clock
 
-/** Read-only Limelight color-target state for commands, telemetry, and logging. */
+/**
+ * Read-only Limelight state for commands, telemetry, and logging: color
+ * targets for color pipelines, fiducials for AprilTag pipelines.
+ *
+ * Timing keeps clock domains separate: [resultAgeMs] is Control
+ * Hub wall-clock time since the SDK received and parsed the result, and
+ * [limelightTimestampMs] is the device's own clock, used only to tell frames
+ * apart. [frameAgeMs] retains the first receipt age and advances on the robot's
+ * monotonic clock, so repeated polls cannot renew a frame's freshness.
+ * [estimatedCaptureAgeMs] adds capture and targeting latencies to that age;
+ * it excludes HTTP transport and the wait before the first poll.
+ */
 class LimelightSubsystem(
     val hardwareName: String = DEFAULT_HARDWARE_NAME,
     val pipelineIndex: Int = DEFAULT_PIPELINE_INDEX,
@@ -27,6 +38,9 @@ class LimelightSubsystem(
     private var injectedSource: LimelightSource? = source
     private lateinit var source: LimelightSource
     private var lastReceiptTimestampMs = Long.MIN_VALUE
+    private var lastLimelightTimestampMs = Double.NaN
+    private var frameFirstSeenNs: Long? = null
+    private var frameInitialAgeMs = 0.0
     private var rateWindowStartNs = Long.MIN_VALUE
     private var framesInRateWindow = 0L
 
@@ -42,6 +56,9 @@ class LimelightSubsystem(
         private set
     var resultAgeMs = Long.MAX_VALUE
         private set
+    /** Age since the first receipt of this frame; duplicate polls never reset it. */
+    var frameAgeMs = Double.POSITIVE_INFINITY
+        private set
     var resultFresh = false
         private set
     var targetVisible = false
@@ -49,6 +66,12 @@ class LimelightSubsystem(
     var primaryTarget: LimelightColorTarget? = null
         private set
     var colorTargets: List<LimelightColorTarget> = emptyList()
+        private set
+    var fiducials: List<LimelightFiducial> = emptyList()
+        private set
+    var limelightTimestampMs = 0.0
+        private set
+    var newFrameThisTick = false
         private set
     var captureLatencyMs = 0.0
         private set
@@ -66,6 +89,8 @@ class LimelightSubsystem(
     val targetCount: Int get() = colorTargets.size
     val pipelineMatches: Boolean get() = activePipelineIndex == pipelineIndex
     val totalLatencyMs: Double get() = captureLatencyMs + targetingLatencyMs + parseLatencyMs
+    val estimatedCaptureAgeMs: Double
+        get() = frameAgeMs + captureLatencyMs + targetingLatencyMs
 
     override fun init(hardwareMap: HardwareMap) {
         source = injectedSource ?: run {
@@ -92,10 +117,11 @@ class LimelightSubsystem(
         captureLatencyMs = reading.captureLatencyMs
         targetingLatencyMs = reading.targetingLatencyMs
         parseLatencyMs = reading.parseLatencyMs
+        limelightTimestampMs = reading.limelightTimestampMs
 
-        updateResultRate(reading.receiptTimestampMs)
+        updateResultRate(reading)
 
-        resultFresh = isConnected && resultAgeMs >= 0 && resultAgeMs < maxResultAgeMs
+        resultFresh = isConnected && resultAgeMs >= 0 && frameAgeMs < maxResultAgeMs
         if (isConnected && !resultFresh) staleTickCount++
 
         targetVisible = resultFresh && pipelineMatches && reading.valid
@@ -106,9 +132,11 @@ class LimelightSubsystem(
                 areaPercent = reading.areaPercent,
             )
             colorTargets = reading.colorTargets
+            fiducials = reading.fiducials
         } else {
             primaryTarget = null
             colorTargets = emptyList()
+            fiducials = emptyList()
         }
     }
 
@@ -118,7 +146,8 @@ class LimelightSubsystem(
         !pipelineMatches && !pipelineSwitchAccepted ->
             "pipeline switch failed; $activePipelineIndex active, expected $pipelineIndex"
         !pipelineMatches -> "pipeline $activePipelineIndex active; expected $pipelineIndex"
-        !resultFresh -> "stale result (${resultAgeMs} ms)"
+        !resultFresh -> "stale frame ($frameAgeMs ms; receipt $resultAgeMs ms)"
+        targetVisible && fiducials.isNotEmpty() -> "tracking ${fiducials.size} tag(s)"
         targetVisible -> "tracking $targetCount target(s)"
         else -> "ready; no target"
     }
@@ -132,9 +161,12 @@ class LimelightSubsystem(
         log.put("pipeline/type", pipelineType)
         log.put("result/fresh", resultFresh)
         log.put("result/ageMs", resultAgeMs)
+        log.put("result/frameAgeMs", frameAgeMs)
         log.put("result/rateHz", resultRateHz)
         log.put("result/receivedFrames", receivedFrameCount)
         log.put("result/staleTicks", staleTickCount)
+        log.put("result/limelightTimestampMs", limelightTimestampMs)
+        log.put("result/estimatedCaptureAgeMs", estimatedCaptureAgeMs)
         log.put("latency/captureMs", captureLatencyMs)
         log.put("latency/targetingMs", targetingLatencyMs)
         log.put("latency/parseMs", parseLatencyMs)
@@ -144,6 +176,8 @@ class LimelightSubsystem(
         log.put("target/txDegrees", target?.txDegrees ?: 0.0)
         log.put("target/tyDegrees", target?.tyDegrees ?: 0.0)
         log.put("target/areaPercent", target?.areaPercent ?: 0.0)
+        log.put("fiducial/count", fiducials.size.toLong())
+        log.put("fiducial/ids", fiducials.joinToString(",") { it.id.toString() })
     }
 
     override fun stop() {
@@ -157,15 +191,32 @@ class LimelightSubsystem(
         }
     }
 
-    private fun updateResultRate(receiptTimestampMs: Long) {
+    /**
+     * A poll can return the same device frame twice, so frames are identified by
+     * the Limelight's own timestamp when it reports one, else by receipt time.
+     */
+    private fun updateResultRate(reading: LimelightReading) {
         val now = clock.nanos()
         if (rateWindowStartNs == Long.MIN_VALUE) rateWindowStartNs = now
 
-        if (isConnected && receiptTimestampMs != lastReceiptTimestampMs) {
-            lastReceiptTimestampMs = receiptTimestampMs
+        val deviceTs = reading.limelightTimestampMs
+        val isNewFrame = if (deviceTs.isFinite() && deviceTs > 0.0) {
+            deviceTs != lastLimelightTimestampMs
+        } else {
+            reading.receiptTimestampMs != lastReceiptTimestampMs
+        }
+        newFrameThisTick = isConnected && isNewFrame
+        if (newFrameThisTick) {
+            lastLimelightTimestampMs = deviceTs
+            lastReceiptTimestampMs = reading.receiptTimestampMs
+            frameFirstSeenNs = now
+            frameInitialAgeMs = reading.ageMs.coerceAtLeast(0).toDouble()
             receivedFrameCount++
             framesInRateWindow++
         }
+        frameAgeMs = frameFirstSeenNs?.let {
+            maxOf(frameInitialAgeMs + (now - it) / 1e6, reading.ageMs.toDouble())
+        } ?: Double.POSITIVE_INFINITY
 
         val elapsedNs = now - rateWindowStartNs
         if (elapsedNs >= RATE_WINDOW_NS) {
