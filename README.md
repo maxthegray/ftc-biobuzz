@@ -1,23 +1,18 @@
 # ftc-biobuzz
 
 Robot code for BioBuzz's FTC season — a mecanum robot with goBILDA Pinpoint
-localization, Pedro Pathing, Panels telemetry, WPILOG flight recording, and
-Sloth hot reload.
+localization, [Pedro Pathing 3](https://pedropathing.com/docs/pathing) with
+AutoTune, the [Ivy](https://pedropathing.com/docs/ivy) command scheduler,
+Panels telemetry, WPILOG flight recording for AdvantageScope, and Sloth hot
+reload.
 
 Built on [`ftc-starter`](https://github.com/maxthegray/ftc-starter), a
 season-agnostic base that gets re-forked every year. That repo stays clean;
 this one is where the actual season happens.
 
-Mostly I keep this tidy for my own sake, but if you wandered in from a search:
-the reusable half is `core/`. There's a command scheduler with a real
-requirements system, a trapezoidal-profile + PIDF mechanism toolkit, WPILOG
-logging you can open in AdvantageScope, and a Pedro Pathing wrapper that keeps
-Pedro's API behind an adapter layer. Most of it runs headless in JUnit, so you
-can poke at it without a robot on the desk.
-
 ## Start here
 
-On your machine:
+On your machine (JDK 17):
 
 ```sh
 make test
@@ -28,33 +23,35 @@ On the robot:
 
 1. Name things `frontLeftMotor`, `frontRightMotor`, `backLeftMotor`,
    `backRightMotor`, and `pinpoint` in the Driver Station config.
-2. Do a full APK install the first time.
-3. Work through [OPERATIONS.md](OPERATIONS.md) for hardware bring-up and
-   calibration; it explains which archived diagnostics to re-enable for those
-   checks. The Pedro numbers in here are placeholders until you measure your
-   own chassis — don't run auton before that.
+2. Do a full APK install the first time (`make install`).
+3. Work through [OPERATIONS.md](OPERATIONS.md) for bring-up and AutoTune.
+   Foresight (Pedro's path follower) is **not tuned yet**: driving works, but
+   paths refuse to run until AutoTune's output is in `pedro/Constants.java`.
 
-Panels is at `http://192.168.43.1:8001` while the robot is on.
+While the robot is on: Panels at `http://192.168.43.1:8001`, AutoTune at
+`http://192.168.43.1:10158`.
 
-The enabled Driver Station OpModes are:
+Enabled Driver Station op-modes:
 
 | OpMode | Purpose |
 |---|---|
 | Drive Only | Manual driving and drivetrain checks |
 | Ball Tracking Test | USB ball camera tuning and diagnostics |
 | Limelight AprilTag Test | AprilTag diagnostics |
-| Tuning (Pedro Pathing) | Localization and follower calibration |
 
-`opmodes/archived/` holds disabled bring-up utilities and the old Limelight
-Ball Follow prototype. `opmodes/skeletons/` holds disabled examples. Remove
-`@Disabled` from a specific OpMode and rebuild when you need it; moving a file
-alone does not enable it. Powered USB-camera ball assists are still pass 2.
+`opmodes/archived/` holds disabled bring-up utilities (Framework Smoke Test,
+Motor Direction Test, Panels Motor Spin, SRS Loop Benchmark) and the old
+Limelight Ball Follow prototype. `opmodes/skeletons/` holds the disabled
+Example Auto and Localization Test. Remove `@Disabled` from a specific op-mode
+and rebuild when you need it.
 
 ## Documentation
 
-- [DEVELOPMENT.md](DEVELOPMENT.md) — subsystems, commands, config, auton, sensors
-- [OPERATIONS.md](OPERATIONS.md) — bring-up, Pedro tuning, logs, diagnosing symptoms
-- [PROGRESS.md](PROGRESS.md) — notes from actual lab testing, with numbers
+- [DEVELOPMENT.md](DEVELOPMENT.md) — add a subsystem, bind a button, write an
+  auto, log a value, open a log in AdvantageScope
+- [OPERATIONS.md](OPERATIONS.md) — bring-up, AutoTune, logs, symptoms, and the
+  physical validation checklist
+- [PROGRESS.md](PROGRESS.md) — notes from lab testing, with numbers
 - [AI-GUIDE.md](AI-GUIDE.md) — the full framework contract, written for AI assistants
 
 `AGENTS.md` and `CLAUDE.md` just point at the AI guide.
@@ -63,92 +60,69 @@ alone does not enable it. Powered USB-camera ball assists are still pass 2.
 
 | Task | Start here |
 |---|---|
-| TeleOp | `opmodes/DriveOnlyTeleOp.kt`, then override `configureTeleop()` |
+| TeleOp | `opmodes/DriveOnlyTeleOp.kt`, `opmodes/TeleOpBase.kt` (`configureTeleop()`) |
 | Autonomous | `opmodes/skeletons/ExampleAuto.kt` |
-| Buttons and triggers | `core/util/GamepadEx.kt`, `Trigger.kt` |
-| Drive feel | `core/subsystems/drive/DriveConfig.kt` |
+| Buttons | `core/util/GamepadEx.kt`, `Trigger.kt` |
+| Drive and drive commands | `core/subsystems/drive/MecanumDriveSubsystem.kt`, `DriveConfig.kt` |
 | Localization and vision corrections | `core/subsystems/localization/` |
 | Hardware names, field size, config schema | `core/runtime/RobotConfig.kt` |
-| Pedro calibration | `pedroPathing/Constants.java` |
-| Vision diagnostics (Limelight tags, ball camera) | `opmodes/diagnostics/`, `vision/`, then `OPERATIONS.md` §8 |
+| Pedro constants and AutoTune | `pedro/Constants.java`, `pedro/Tuning.java` |
+| Flight recorder | `core/logging/FlightRecorder.kt` |
+| Vision diagnostics | `opmodes/diagnostics/`, `vision/`, then `OPERATIONS.md` §8 |
 | Diagnose a run | `make debug`, then `OPERATIONS.md` |
 
-Paths are relative to
-`TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/`, except
-`pedroPathing/Constants.java` which lives under the Java source root.
+Paths are relative to `TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/`,
+except `pedro/`, which lives under the Java source root
+(`TeamCode/src/main/java/org/firstinspires/ftc/teamcode/`).
 
 ## Repository map
 
 ```text
 TeamCode/src/main/
-├── java/org/firstinspires/ftc/teamcode/pedroPathing/
-│   ├── Constants.java
-│   └── Tuning.java
+├── java/org/firstinspires/ftc/teamcode/pedro/
+│   ├── Constants.java        Pedro 3 drivetrain, Pinpoint and Foresight config
+│   ├── Tuning.java           AutoTune procedure registration
+│   └── procedures/           AutoTune procedures (copied from the Pedro Quickstart)
 └── kotlin/org/firstinspires/ftc/teamcode/
     ├── core/
-    │   ├── command/          scheduler, commands, groups
-    │   ├── control/          profiles and PIDF
-    │   ├── estimation/       pose correction
-    │   ├── geometry/         framework pose/vector types
-    │   ├── hardware/         SRSHub and optional I²C thread
-    │   ├── io/               real motor abstraction seam
-    │   ├── logging/          WPILOG and field view
-    │   ├── pathing/          path DSL and auton runner
-    │   ├── runtime/          robot lifecycle and config
-    │   ├── subsystems/       mechanisms, drive, localization
-    │   └── util/             gamepads, triggers, telemetry
-    ├── subsystems/           season mechanisms (this year's game)
+    │   ├── control/          PIDF
+    │   ├── estimation/       latency-compensated pose correction
+    │   ├── hardware/         SRSHub
+    │   ├── io/               motor abstraction seam
+    │   ├── logging/          WPILOG writer, flight recorder, Panels field view
+    │   ├── runtime/          Robot, OpModeBase, SubsystemBase, config
+    │   ├── subsystems/       drive, localization, Limelight
+    │   └── util/             gamepads, triggers, alliance, telemetry
     ├── vision/               season vision: tag catalog, ball camera, assists
-    └── opmodes/              diagnostics, teleop, auton
+    └── opmodes/              teleop, diagnostics, skeletons, archived
 ```
 
 `core/` is season- and chassis-agnostic, and it's what gets cherry-picked back
-to `ftc-starter`. Everything outside it belongs to this season. Season
-mechanisms go in `subsystems/`, not `core/subsystems/` — that split is the only
-thing keeping the upstream merges from becoming manual work.
+to `ftc-starter`. Season mechanisms go in `subsystems/`, not
+`core/subsystems/`.
 
 ## How I work in here
 
-It's just me, so there isn't much process. Small things go straight to
-`master`. I branch when something's going to take a while and would leave the
-robot un-drivable in the meantime.
-
-The one habit worth keeping is tagging at every competition:
+Small things go straight to `master`; branch when something would leave the
+robot undrivable for a while. Tag at every competition:
 
 ```sh
 git tag -a quals-2026-11-14 -m "what ran at quals"
 ```
 
-At 11pm before a meet the only question that matters is "what exactly was on
-the robot last time it worked," and a tag answers it for free.
-
 ### The sensorbot
 
-Right now this runs on a **sensorbot** — a throwaway test chassis I code
-against while the real robot gets built. It's temporary and I'm not going back
-to it, so there's no sensorbot branch and no robot-profile switching. The real
-robot just replaces it.
+Right now this runs on a **sensorbot**, a temporary chassis. The real robot
+replaces it in one commit:
 
-When it does, in one commit:
-
-1. Re-run Pedro's tuners and replace every number in `pedroPathing/Constants.java`.
+1. Re-run AutoTune and replace the values in `pedro/Constants.java`.
 2. Fix the hardware names in `core/runtime/RobotConfig.kt`.
-3. Bump `RobotConfig.CONFIG_SCHEMA`.
+3. Bump `RobotConfig.CONFIG_SCHEMA`, so the sensorbot's tuning file on the
+   Control Hub is ignored instead of silently loading onto a heavier robot.
 
-Step 3 is the easy one to forget and the miserable one to debug. The Control
-Hub usually moves to the new robot and brings
-`/sdcard/FIRST/config/tuning.properties` along with it, so the sensorbot's
-drive tuning would quietly load onto a robot several times heavier — plausible
-numbers, no error, just bad. Bumping the schema makes `ConfigStore` ignore the
-stale file and fall back to compiled defaults.
-
-I tag `sensorbot-final` before the swap so the old calibration stays
-recoverable without keeping a branch alive for it.
+Tag `sensorbot-final` before the swap.
 
 ### Sending fixes back to ftc-starter
-
-`ftc-starter` shares history with this repo, so commits cherry-pick cleanly in
-both directions:
 
 ```sh
 git remote add upstream https://github.com/maxthegray/ftc-starter.git
@@ -156,7 +130,7 @@ git fetch upstream
 git cherry-pick <sha>
 ```
 
-Only `core/` changes make the trip. Season code stays here.
+Only `core/` changes make the trip.
 
 ## Daily commands
 
@@ -168,11 +142,12 @@ make hot        # TeamCode-only Sloth reload
 make debug      # newest match logs + JSON diagnosis
 ```
 
-Hot reload is fine for ordinary iteration on subsystems and op-modes. Do a full
-install after touching dependencies, the manifest, `@Pinned` classes, or
-anything outside TeamCode — Sloth won't pick those up, and it fails silently
-rather than telling you.
+Do a full install after touching dependencies, the manifest, `res/`,
+`@Pinned` classes, or anything outside TeamCode — Sloth won't pick those up,
+and it fails silently.
 
-Versions are pinned on purpose: FTC SDK 11.1.0, Kotlin 2.0.21, Pedro 2.1.1,
-Panels 1.0.12, Sloth 0.2.4. Check the artifact actually exists in its real
-repository before bumping any of them.
+Versions are pinned on purpose: FTC SDK 11.2.1, Kotlin 2.0.21, Pedro Pathing
+3.0.0 (+ AutoTune 1.0.0), Ivy 1.1.1, Panels 0.2.4+1.0.12, Sloth 0.2.4.
+`AI-GUIDE.md` explains the constraints that hold Sloth and the Kotlin stdlib in
+place. Check the artifact exists in its real repository before bumping any of
+them.

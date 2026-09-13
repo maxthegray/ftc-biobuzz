@@ -1,44 +1,43 @@
 # Development Guide
 
-How to add subsystems, commands, configuration, autonomous routines, and
-sensors — the framework contracts and the patterns worth copying, without
-repeating all of `AI-GUIDE.md`.
+Short workflows for the things you do most, then the rules behind them.
+Robot code uses [Ivy](https://pedropathing.com/docs/ivy) for commands and
+[Pedro Pathing 3](https://pedropathing.com/docs/pathing) for poses, paths and
+the drivetrain, directly. `AI-GUIDE.md` has the full contract.
 
-## A season subsystem, end to end
+Paths below are relative to `TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/`.
+
+## Add a subsystem
+
+Create `subsystems/<area>/IntakeSubsystem.kt` (season code never goes in `core/`):
 
 ```kotlin
 class IntakeSubsystem : SubsystemBase("Intake") {
     private lateinit var roller: MotorIO
-    private lateinit var gate: Servo
+    private var rollerPower = 0.0
     private var ballSeen = false
 
     override fun init(hardwareMap: HardwareMap) {
-        roller = RealMotorIO(DeviceReaders.motor(hardwareMap, "intakeRoller",
-            DcMotorSimple.Direction.REVERSE))
-        gate = DeviceReaders.servo(hardwareMap, "intakeGate")
+        roller = RealMotorIO(DeviceReaders.motor(hardwareMap, "intakeRoller", DcMotorSimple.Direction.REVERSE))
     }
 
     override fun periodic() {
-        // READS ONLY. Bulk cache is fresh; never command actuators here.
-        ballSeen = /* sensor read */ false
+        ballSeen = false // read sensors here; never command motors here
     }
 
-    private var rollerPower = 0.0
     override fun writeHardware() {
-        // The single flush point. Whatever commands decided this tick.
-        roller.setPower(rollerPower)
+        roller.setPower(rollerPower) // the one place motor power is written
     }
 
     fun grab(): Command = Command.build()
-        .setName("intake grab")
         .requiring(this)
         .setPriority(CommandPriorities.DRIVER_ACTION)
         .setStart { rollerPower = 1.0 }
         .setDone { ballSeen }
-        .setEnd { rollerPower = 0.0 }   // ALWAYS runs — cancel, fault, natural
+        .setEnd { rollerPower = 0.0 } // natural end or interruption
 
-    override fun onCommandFault() { rollerPower = 0.0 }  // safety net; never throw
-    override fun health(): String? = if (ballSeen) "holding" else null
+    override fun onCommandFault() { rollerPower = 0.0 }
+    override fun stop() { rollerPower = 0.0; roller.setPower(0.0) }
 
     override fun logState(log: StateLog) {
         log.put("rollerPower", rollerPower)
@@ -47,200 +46,221 @@ class IntakeSubsystem : SubsystemBase("Intake") {
 }
 ```
 
-The contract, compressed:
+Register it in your op-mode's `configure()` (or `configureTeleop()`):
+`val intake = robot.register(IntakeSubsystem())`.
 
-- **`init` resolves hardware** via `DeviceReaders` (missing devices throw
-  `HardwareConfigError` with the name baked in). Add op-mode-level names to
-  `requiredDevices` for the preflight listing.
-- **`periodic()` reads. Commands decide. `writeHardware()` flushes.** The
-  scheduler's requirements system only protects you if actuator state is
-  written once, in `writeHardware`, from fields that commands set.
-- **End handlers always run.** Cleanup belongs in `setEnd`;
-  `onCommandFault()` is only the net for when the end handler itself is the
-  buggy code.
-- **`logState` is your tuning view** — channels land in the .wpilog as
-  `Intake/rollerPower` etc. Log goals, setpoints, measurements, outputs.
-- **Register in `configure()`** (`robot.register(IntakeSubsystem())`), wire
-  bindings there too (they lock at start). TeleOps extend `TeleOpBase` and
-  use `configureTeleop()`.
+Rules:
 
-Bench op-modes: the default `requiredDevices` is `Preflight.standard`
-(drive motors + Pinpoint), so a mechanism-only test rig refuses to init.
-Override it with just what the rig has:
+- `periodic()` reads, commands decide, `writeHardware()` writes.
+- Every command that touches the subsystem says `requiring(this)`, so Ivy
+  lets only one of them run. Reset per-run state in `setStart`; use
+  `Commands.lazy { … }` when the command depends on state known only when it
+  starts.
+- End handlers run on natural end and on interruption, **not** when the
+  op-mode stops or a command faults. `stop()` and `onCommandFault()` are what
+  make the mechanism safe then.
+- Bench rigs without the drivetrain override `requiredDevices`:
+  `get() = listOf(Preflight.Requirement("liftMotor", DcMotorEx::class.java))`.
+
+## Bind a button
+
+In `configure()` / `configureTeleop()`, using Ivy commands:
 
 ```kotlin
-override val requiredDevices: List<Preflight.Requirement>
-    get() = listOf(Preflight.Requirement("liftMotor", DcMotorEx::class.java))
+driver.button(Button.A).onTrue(intake.grab())                 // schedule on press
+driver.button(Button.LEFT_BUMPER).whileTrue(intake.eject())   // cancel on release
+driver.button(Button.X).toggleOnTrue(lift.raise())
+driver.trigger { driver.rightTrigger > 0.5 }.whileTrue(shooter.spinUp())
+(driver.button(Button.BACK) and driver.button(Button.Y)).onTrue(instant { … })
 ```
 
-## Single-motor mechanisms
+Bindings lock at start. Read sticks directly (`driver.leftStickY` is +up).
+`TeleOpBase` already binds Back+Y (heading reset), Back+B (field-centric) and
+installs stick driving as the drive's default command.
 
-There is no generic mechanism base class in this repo, on purpose. A
-`ProfiledMotorSubsystem` (profile + PIDF + soft limits + stall homing) and a
-`TrapezoidProfile` were written during the 2026 offseason, never got wired to
-a real mechanism, and were deleted before kickoff rather than carried as
-untested surface. Code review kept generating findings against them that no
-match could ever hit.
+## Compose an autonomous
 
-When this season has an actual lift/arm/turret: build it as a plain
-`SubsystemBase`, against the real hardware, with `PIDFController` +
-`PIDFGains` from `core/control/` and the `MotorIO` seam from `core/io/`
-(inject `SimMotorIO(clock, …)` to host-test it). Homing, soft limits, and
-motion profiling are worth adding only once you can validate each on the
-mechanism itself. `git log --diff-filter=D` will surface the old
-implementation if it turns out to fit.
+Copy `opmodes/skeletons/ExampleAuto.kt`. The shape:
 
-The live-holder config pattern below is still the right shape for tunables:
-primitive `@JvmField` fields are what Panels discovers and `ConfigStore`
-persists; non-primitive holders get synced from them in `periodic()`.
-`ConfigStoreTest.primitiveMechanismConfigRoundTripsIntoLiveHolders` locks
-that down.
+```kotlin
+private val poses get() = alliance.poses()          // degrees, RED coordinates
+private val start get() = poses.of(8.0, 56.0, 0.0)
+private val score get() = poses.of(32.0, 56.0, 0.0)
 
-## Commands and priorities
+private fun toScore(): Path = Paths.line(start, score).constant(start)
 
-- Build with `Command.build()` or the `Commands` helpers; compose with
-  `Groups`. Always `setName(...)` — it's what the flight log shows.
-- The ladder: defaults `0` < auton/assists `10` < driver actions `20` <
-  panic overrides `30`. Blocked only by *strictly higher*; equal preempts.
-- Command instances are reusable but **`setStart` must fully reset per-run
-  state**. If the command depends on state known only at run time (a path
-  from the current pose), use `Commands.defer(requirements) { build() }`.
-- Waits: `Commands.waitMs(ms, robot.clock)` — inject the clock and the
-  routine simulates. `PedroAutoRunner.wait()` already does.
+private fun routine(): Command = race(
+    sequential(
+        waitMs(startDelay.millis.toDouble()),
+        race(drive.followCommand(toScore()), waitMs(4_000.0)),   // step timeout
+        drive.holdCommand(score),                                 // wait for arrival
+        instant { robot.recordEvent("AUTO: scored") },
+        drive.turnToCommand(alliance.mirror(Math.toRadians(90.0))),
+    ),
+    waitMs(29_000.0),                                             // whole-routine timeout
+)
+```
+
+In `onStart`: refuse to run if `!Constants.FORESIGHT_TUNED` or
+`!localizer.ready`, call `localizer.setPose(start)`, `Scheduler.schedule(...)`
+and check `Scheduler.isScheduled(...)`. In `onLoop`, stop the op-mode once the
+routine is no longer scheduled.
+
+- **Markers** (do something part-way along a path, once):
+  `deadline(drive.followCommand(path), sequential(waitUntil { drive.pathProgress() >= 0.5 }, instant { lift.up() }))`.
+  If the path ends or is cancelled first, the marker is dropped.
+- **Completion:** `followCommand` ends at Pedro's *parametric end*, which is
+  not arrival. Follow it with `holdCommand(pose)` when arrival matters.
+  `turnToCommand` throws on timeout, which aborts the whole routine.
+- **Headings on straight lines:** in Pedro 3.0.0, `.linear(...)` on
+  `Paths.line` rotates backwards. Use `.constant(...)`, or a three-point
+  `Paths.curve(a, midpoint, b).linear(a, b)` (see `backPath()` in the example).
+- **Alliances:** one `@Autonomous` class per alliance/routine; the BLUE copy
+  overrides `initialAlliance` only. Never use `PoseFactory.mirrorX`.
+- **Relocalization:** `localizer.applyCorrection(measured, timestampNanos, …)`
+  with the camera frame's capture time. It is gated, blended and scaled down
+  while following.
+
+## Log a value
+
+Anything a subsystem knows goes in `logState`; it becomes `<Subsystem>/<name>`
+in the WPILOG (at most 100 samples a second):
+
+```kotlin
+override fun logState(log: StateLog) {
+    log.put("goalTicks", goal)        // double, long, boolean or string
+    log.put("state", state.name)      // strings are only written when they change
+}
+```
+
+For a one-off moment, record an event with its exact time:
+`robot.recordEvent("AUTO: preload scored")`. Commands are not logged
+automatically — record an event when a command's start or end matters.
+
+## Download a WPILOG and open it in AdvantageScope
+
+1. Connect to the Control Hub (USB, or its Wi-Fi then `make connect`).
+2. `make debug` pulls the newest match's logs into `robot-logs/` and prints a
+   summary; `make pull-logs` copies all of them.
+3. Open the `.wpilog` in AdvantageScope (File → Open Log).
+4. **2D field:** drag `Field/Robot` onto a 2D Field tab with an FTC field
+   (default *Center/Rotated* coordinates). **Graphs:** use `pose` (inches),
+   `velocity`, `driveMode`, `follow/translationalErrorIn`, `battery`,
+   `loop/totalNanos`, and your subsystem channels. `events` is the timeline.
+
+## Commands, priorities and faults
+
+- Ladder: defaults `0` < autos and assists `10` < driver actions `20` <
+  overrides `30`. A command is blocked by a strictly higher priority holder;
+  equal priority takes over.
+- A default command never takes over from an explicit command of equal
+  priority; it resumes when the subsystem is free.
+- **If a command throws**, the robot clears every command, halts every
+  subsystem (`onCommandFault()`), records `COMMAND FAULT` in the log, and
+  keeps looping with defaults. In auto that means the routine is gone and the
+  op-mode stops. Health telemetry shows the count.
+- **If the localizer fails** in teleop, the driver keeps robot-centric sticks
+  for the rest of the run; paths, holds and turns refuse to start.
+
+## What the custom code is for
+
+Everything else is Ivy or Pedro. Each remaining helper has one job:
+
+| Helper | Why it exists |
+|---|---|
+| `core/runtime/Robot`, `OpModeBase` | Loop order (bulk reads → reads → input → commands → writes → telemetry → log), init lockout, Ivy reset, fault policy, shutdown order |
+| `SubsystemBase` | The read/write/stop/log lifecycle and passive default commands |
+| `MecanumDriveSubsystem` | The one drive owner: stick shaping, field-centric, drive commands with requirements, interruption cleanup and measured completion |
+| `LocalizerSubsystem`, `PoseEstimator`, `PoseHistory` | Pinpoint readiness/fault watchdog, pose handoff, latency-compensated vision corrections |
+| `GamepadEx`, `Trigger` | Deadbanded sticks, edges, and button bindings that schedule Ivy commands (Ivy has none) |
+| `Alliance` | RED→BLUE transform with the season's symmetry (Pedro's `mirrorX` uses a different heading convention) |
+| `FlightRecorder`, `WpiLogWriter`, `WpiStruct`, `StateLog` | WPILOG files for AdvantageScope |
+| `FieldView`, `TelemetryBag` | Panels field drawing and throttled DS/Panels telemetry |
+| `ConfigStore`, `PersistedPose` | Tuning that survives restarts and hot reloads; auto→teleop pose handoff |
+| `DeviceReaders`, `Preflight`, `BulkReadManager`, `MotorIO`, `LoopProfile`, `StartDelay`, `MatchTimer`, `PIDFController` | Named hardware errors, missing-device listing, manual bulk caching, testable motors, loop timing, start delay, endgame rumble, gains |
+| `pedro/Constants.java`, `pedro/Tuning.java` | Pedro's configuration and AutoTune registration, in the Quickstart layout |
 
 ## Config objects
 
 Live-tunable values go in an `@Configurable` object with `@JvmField` vars,
-registered with the store in `configure()`:
+registered in `configure()`:
 
 ```kotlin
 @Configurable
 object ShooterConfig {
     private const val DEFAULT_TARGET_RPM = 3200.0
     @JvmField var targetRpm: Double = DEFAULT_TARGET_RPM
-
     fun resetDefaults() { targetRpm = DEFAULT_TARGET_RPM }
 }
-// in configure():
 ConfigStore.register("shooter", ShooterConfig, ShooterConfig::resetDefaults)
 ```
 
-Tuned values persist to `/sdcard/FIRST/config/tuning.properties` and restore
-at every init — power cycles, installs, and hot reloads included. Do **not**
-`@Pinned` config objects. Add `safe*` clamping getters for values where a
-fat-fingered Panels edit could hurt (see `DriveConfig` for the pattern).
-Keep `resetDefaults()` in sync with all persisted fields. It runs before
-each load so missing or invalid settings cannot retain a previous run's tuning.
+Values persist to `/sdcard/FIRST/config/tuning.properties` and survive power
+cycles, installs and hot reloads. Don't `@Pinned` config objects. Keep
+`resetDefaults()` covering every field. Add `safe*` clamping getters where a
+bad Panels edit could hurt (see `DriveConfig`).
 
-## Auton
+## Mechanisms
 
-`ExampleAuto` is the copyable skeleton. The pieces:
-
-- **Poses in RED coordinates**, as `Pose2d`. The `path` DSL and
-  `Alliance.mirror` transform for BLUE — including heading interpolation
-  args and `turnTo` targets, which pose mirroring alone misses. Set
-  `RobotConfig.Field.SYMMETRY` (MIRROR vs ROTATE) when the game launches.
-- **Sequence with `autoRoutine(robot, drive, robot::recordEvent) { … }`** —
-  follows, holds, turns, waits, parallel/race/deadline groups, and
-  mid-path **markers**:
-
-  ```kotlin
-  follow(toScore) {
-      at(0.3) { lift.setGoal(HIGH) }
-      at(0.85, "deploy") { intake.deploy() }
-  }
-  ```
-
-- **Alliance and routine**: one `@Autonomous` op-mode each — no init-loop
-  menu. The Driver Station dropdown already shows the selection in large text
-  with nothing to confirm, which beats a telemetry line plus a lock button
-  under match pressure. A BLUE variant copies the RED op-mode and overrides
-  `initialAlliance`; everything else mirrors automatically.
-- **Start delay**: `StartDelay(telemetryBag)` on dpad left/right in
-  `onInitLoop`, 0–10 s. The one choice that can't be a separate op-mode —
-  it's decided in the alliance meeting to dodge a partner's auto.
-- **Start gate**: before setting the starting pose or scheduling, abort loudly
-  if `localizer.fault` is already latched. Also check
-  `PedroAutoRunner.schedule()`; false means the routine never started.
-- **Relocalization**: feed vision through
-  `localizer.applyCorrection(measured, timestampNanos, …)` — gated,
-  blended, axis-weighted, scaled down automatically mid-path. Use the camera
-  frame-acquisition timestamp, not the time processing finished.
-
-## Sim before carpet
-
-Every routine deserves a `SimAutonRoutineTest`-style test: real path
-geometry, real scheduling, real waits in virtual time, RED/BLUE mirror
-symmetry, marker timing, pose handoff. A routine that's wrong in sim is
-wrong on carpet; the reverse isn't guaranteed (sim doesn't model Pedro's
-control quality), but it catches the whole class of sequencing/mirroring
-bugs for free.
+There is no generic mechanism base class. Build each lift/arm/turret as a
+plain `SubsystemBase` against the real hardware, with `PIDFController` +
+`PIDFGains` and the `MotorIO` seam (host tests can inject
+`SimMotorIO(clock, …)`). Add homing, soft limits or profiles only once you can
+validate them on the mechanism.
 
 ## Sensors and I²C
 
-The default wiring policy is deliberate:
+1. Keep Pinpoint direct on its own Control Hub I²C port. Pedro reads it inside
+   `Follower.update()`.
+2. Put auxiliary I²C sensors on one SRSHub and read it inline from
+   `SRSHubSubsystem.periodic()`:
+   `val srs = robot.register(SRSHubSubsystem()); val color = srs.color(bus = 1)`.
+3. Don't background the SRSHub unless measurements prove the inline read is
+   the loop-time problem. A background thread still shares the Lynx serial
+   link with motor writes; that was tried and reverted for Pinpoint.
 
-1. Keep Pinpoint direct on its own Control Hub I²C port. Pedro reads it inline
-   inside `Follower.update()`.
-2. Put auxiliary I²C sensors on one SRSHub and read the hub inline from
-   `SRSHubSubsystem.periodic()`.
-3. Do not background the SRSHub unless measurements prove the inline read is
-   the loop-time problem.
-
-The SRSHub helps because downstream sensor retries happen on the hub and the
-Control Hub performs one bounded register read. A background thread does not
-remove that read from the Control Hub's Lynx serial link; it can instead
-contend with motor writes and leave the follower using stale data. That exact
-failure mode was tried and reverted for Pinpoint.
-
-Integration rules:
-
-- Register the drive before the localizer so pose history is sampled after
-  `Follower.update()`.
-- Pinpoint through the SRSHub is not supported. The direct connection preserves
-  the raw device-status watchdog and keeps Pedro's tuning op-modes identical to
-  the competition localizer.
-- If threading auxiliary sensors is ever justified, publish one immutable
-  snapshot and poll near the main-loop rate. Never share the SRSHub's in-place
-  decoded objects across threads.
-
-Measure in this order before changing the policy:
-
-1. Baseline direct Pinpoint from a full battery down to roughly 11 V. Compare
-   loop time against voltage.
-2. Add the SRSHub with auxiliary sensors only, still inline. Log
-   `hub.update()` duration and CRC mismatches.
-3. Only if the inline SRSHub read itself stretches the loop, evaluate moving
-   it to a bounded background worker — and verify that motor-write timing
-   does not regress. (An unused `I2CBusThread` was deleted before kickoff;
-   write the smallest thing the measurement justifies.)
-
-Typical auxiliary-sensor setup:
-
-```kotlin
-val srs = robot.register(SRSHubSubsystem())
-val intakeColor = srs.color(bus = 1)
-val frontDistance = srs.distance(bus = 2)
-```
-
-Register SRSHub devices before robot initialization, then consume their latest
-values from the owning subsystem's `periodic()`.
+Before changing the policy: baseline direct Pinpoint loop time from a full
+battery down to ~11 V; add the SRSHub inline and log `hub.update()` duration
+and CRC mismatches; only then consider a bounded worker, and check motor-write
+timing does not regress. Never share the SRSHub's in-place decoded objects
+across threads.
 
 ## Season rollover
 
-- Keep game-specific subsystems, paths, and op-modes in the season fork.
-- Set `RobotConfig.Field.SYMMETRY` from the game manual and verify the field
-  length before writing paths.
-- Change `RobotConfig.CONFIG_SCHEMA` so stale tuning files from the previous
-  season are ignored.
-- Recalibrate every placeholder in `pedroPathing/Constants.java` when the
-  chassis, weight, wheel setup, or odometry geometry changes.
-- Keep config objects unpinned and registered with `ConfigStore`.
+- Keep game-specific subsystems, paths and op-modes in the season fork.
+- Set `RobotConfig.Field.SYMMETRY` from the game manual and verify the field length.
+- Change `RobotConfig.CONFIG_SCHEMA`.
+- Re-run AutoTune when the chassis, weight, wheels or odometry change.
 
-## Deploy + diagnose
+## Migration notes (Ivy 1.1.1 + Pedro 3.0.0, September 2026)
 
-- `make hot` for iteration; full install after dependency/manifest/@Pinned
-  changes.
-- `make analyze` after every surprising run; `OPERATIONS.md` maps symptoms to
-  channels. Watch the `Health` telemetry section during driver practice —
-  contained faults show up there before they become match failures.
+Replaced: the repo's own scheduler/commands/groups (now Ivy), `PathDSL` and
+`PedroAutoRunner` (now Pedro `Paths` + Ivy groups + drive commands),
+`Pose2d`/`Vector2d` (now Pedro `Pose`/`Vector2D`/`Velocity`), Pedro 2
+constants and the Panels tuning op-mode (now `pedro/Constants.java` and the
+AutoTune web page), FTC SDK 11.1.0 (now 11.2.1, required by AutoTune).
+
+Removed features:
+
+- Flight log: `commands/running`; per-command `COMMAND STARTED/FINISHED/
+  INTERRUPTED/FAULTED` events; `schedule blocked` and `schedule default`
+  events. Ivy has no names, registry or lifecycle hooks.
+- `lastcrash.txt` and the recent-events ring (loop crashes still write their
+  stack trace to `events`).
+- Per-trigger fault quarantine (`TRIGGER FAULT`).
+- Virtual-time autonomous simulation (`SimFollower`, `SimHarness`).
+- Pedro 2 voltage compensation (no Pedro 3 equivalent).
+- The command `maxPower` follow overload (use Foresight `maxPathSpeed`).
+
+Changed behaviour:
+
+- **Fault policy:** teleop used to end only the faulting command; auton used
+  to crash the op-mode. Both now clear all commands, halt every subsystem,
+  record the reason and continue (auton then stops because its routine is gone).
+- **Shutdown:** command end handlers no longer run at op-mode stop.
+- **Hold arrival** is measured against `DriveConfig` tolerances instead of
+  Pedro 2 path constraints.
+- **Paths refuse to run** until Foresight is tuned (`FORESIGHT_TUNED`).
+- **Pinpoint IMU recalibrates at every follower creation** (Pedro 3 default);
+  keep the robot still during init.
+- Drive mode values and all other WPILOG channel names and types are unchanged.

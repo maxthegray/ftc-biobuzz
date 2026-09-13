@@ -15,11 +15,13 @@ This is load-bearing. Each artifact resolves from exactly one repo:
 
 | Coordinate | Repository |
 |------------|------------|
-| `com.pedropathing:core` / `:ftc` / `:telemetry` | Maven Central |
+| `com.pedropathing:core` / `:revhub` / `:tuning` | Maven Central |
+| `com.pedropathing.ivy:core` / `:pedro` | Maven Central |
 | `org.jetbrains.kotlin:*` (stdlib, gradle plugin) | Maven Central |
-| `org.firstinspires.ftc:*` (RobotCore, Hardware, Vision, …) | Google |
+| `org.firstinspires.ftc:*` (RobotCore, Hardware, Vision, …) | Maven Central |
 | `androidx.*`, `com.android.tools.build:gradle` (AGP) | Google |
 | `com.bylazar:fullpanels` | `https://mymaven.bylazar.com/releases` |
+| `com.bylazar.sloth:fullpanels` (Sloth-compatible Panels, used here) | `https://repo.dairy.foundation/releases` |
 | `dev.frozenmilk.sinister:Sloth`, `dev.frozenmilk:Load` | `https://repo.dairy.foundation/releases` |
 
 ## How to check (fetch maven-metadata.xml)
@@ -54,8 +56,13 @@ returns 200 and contains a `.pom`).
 
 ## Guardrails (from this repo's AGENTS.md — restate if relevant)
 
-- **Pedro is on Maven Central, NOT `maven.pedropathing.com`.** That domain
-  302s to a 404 and breaks the build. Never suggest "fixing" the repo to it.
-- Do not propose bumping FTC SDK, Pedro, Kotlin, or AGP versions on your own —
+- **Pedro (`com.pedropathing:*`) and Ivy (`com.pedropathing.ivy:*`) are on
+  Maven Central, NOT `maven.pedropathing.com`.** That domain 302s to a 404
+  and breaks the build. Never suggest "fixing" the repo to it.
+- Check the candidate's `.module`/`.pom` dependencies too: `tuning:1.0.0`
+  requests Sloth 0.3.0 and revhub/tuning request kotlin-stdlib 2.3.21, which
+  `TeamCode/build.gradle` deliberately holds at Sloth 0.2.4 and stdlib 2.1.20
+  (see `AI-GUIDE.md`). Report any new transitive requirement.
+- Do not propose bumping FTC SDK, Pedro, Ivy, Kotlin, AGP, Sloth or Panels versions on your own —
   only verify what the user asked about.
 - Verification only: never edit the gradle files yourself."""
