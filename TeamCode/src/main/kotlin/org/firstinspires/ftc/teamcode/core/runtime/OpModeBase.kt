@@ -2,40 +2,31 @@ package org.firstinspires.ftc.teamcode.core.runtime
 
 import com.bylazar.telemetry.JoinedTelemetry
 import com.bylazar.telemetry.PanelsTelemetry
-import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode
 import com.qualcomm.robotcore.hardware.VoltageSensor
 import com.qualcomm.robotcore.util.RobotLog
-import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
-import java.util.Locale
 import org.firstinspires.ftc.robotcore.external.Telemetry
 import org.firstinspires.ftc.teamcode.core.logging.FieldView
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerConfig
-import org.firstinspires.ftc.teamcode.core.subsystems.localization.PinpointDirect
 import org.firstinspires.ftc.teamcode.core.util.Alliance
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx
 import org.firstinspires.ftc.teamcode.core.util.MatchTimer
 import org.firstinspires.ftc.teamcode.core.util.TelemetryBag
 
 /**
- * Base for every op-mode in this codebase. A concrete op-mode fills in four
- * lifecycle hooks:
+ * Base for every op-mode in this codebase. A concrete op-mode fills in:
  *
- *  - [configure]   — register subsystems on [robot] and wire trigger bindings
- *  - [onInitLoop]  — optional, runs repeatedly between init and start. Use it
- *                    for auton/alliance selection, vision warm-up, and
- *                    pre-start health display. Subsystem `periodic()` runs
- *                    each init tick; commands and hardware writes do not.
- *  - [onStart]     — optional, runs the instant the start button is pressed
- *  - [onLoop]      — runs every tick after subsystem reads and input polling
- *                    but before commands and hardware writes
+ *  - [configure]   — register subsystems on [robot], set default commands,
+ *                    and bind gamepad triggers to Ivy commands
+ *  - [onInitLoop]  — optional, runs repeatedly between init and start.
+ *                    Subsystem reads run; commands and hardware writes do not.
+ *  - [onStart]     — optional, runs the instant start is pressed
+ *  - [onLoop]      — every tick after reads and input, before commands and writes
  *
- * Telemetry is doubled up: the Driver Station's built-in [Telemetry] and
- * Panels's dashboard telemetry are both driven from the same [TelemetryBag]
- * so nothing has to be logged twice.
+ * Telemetry goes to the Driver Station and Panels through one [TelemetryBag].
  */
 abstract class OpModeBase : LinearOpMode() {
 
@@ -57,26 +48,20 @@ abstract class OpModeBase : LinearOpMode() {
 
     private val logTag = "OpModeBase"
 
-    /** Override to pick the default side before an init-loop selector changes it. */
+    /** Override to pick the side this op-mode runs on. */
     protected open val initialAlliance: Alliance get() = Alliance.RED
 
-    /** Runtime alliance source of truth. Init-loop selectors update [robot]. */
+    /** Runtime alliance source of truth. */
     val alliance: Alliance get() = if (::robot.isInitialized) robot.alliance else initialAlliance
 
     /** Hardware devices this op-mode expects before [configure] resolves them. */
     protected open val requiredDevices: List<Preflight.Requirement>
         get() = Preflight.standard
 
-    /** Register subsystems on [robot] and set up default commands. */
+    /** Register subsystems on [robot], set default commands, and bind triggers. */
     protected abstract fun configure()
 
-    /**
-     * Called repeatedly while the op-mode sits in init (after [configure] /
-     * [Robot.init], before start). Gamepad edges work ([driver] / [operator]
-     * are updated each init tick), trigger bindings do not fire, and nothing
-     * is written to hardware. Buffer telemetry via [telemetryBag]; it is
-     * flushed automatically.
-     */
+    /** Called repeatedly while the op-mode sits in init. Gamepad edges work; bindings do not fire. */
     protected open fun onInitLoop() {}
 
     /** Called once on the first tick after start. */
@@ -85,12 +70,7 @@ abstract class OpModeBase : LinearOpMode() {
     /** Called every tick during the main loop. */
     protected open fun onLoop() {}
 
-    /**
-     * Set to false to suppress the auto-published "Loop" telemetry section.
-     * Defaults on — the data is already collected by [Robot.profile] each
-     * tick, so surfacing it costs only the telemetry put calls (which are
-     * throttled by [TelemetryBag]).
-     */
+    /** Set false to suppress the auto-published "Loop" telemetry section. */
     protected open val publishLoopTelemetry: Boolean get() = true
 
     /** Set false for op-modes that want to own all health telemetry themselves. */
@@ -102,30 +82,21 @@ abstract class OpModeBase : LinearOpMode() {
     /** Rumble both gamepads once when the match reaches endgame. */
     protected open val endgameRumble: Boolean get() = true
 
-    /**
-     * When true, command-layer exceptions are contained instead of killing
-     * the op-mode — see [Robot.containCommandFaults]. [org.firstinspires.ftc.teamcode.opmodes.TeleOpBase]
-     * turns this on; auton op-modes keep the fail-fast default.
-     */
-    protected open val containCommandFaults: Boolean get() = false
-
     private var voltageSensor: VoltageSensor? = null
     private var cachedVoltage = Double.NaN
     private var lastVoltageReadNs = Long.MIN_VALUE
     private var lastConfigPersistNs = Long.MIN_VALUE
     private val fieldView = FieldView()
     private var fieldViewDrive: DriveTelemetrySource? = null
-    private val logDir = File("/sdcard/FIRST/logs")
-    private val lastCrashFile = File(logDir, "lastcrash.txt")
     protected val matchTimer = MatchTimer()
     private var endgameRumbled = false
+    private var telemetryFailures = 0
 
     private fun publishLoopProfile() {
         if (!publishLoopTelemetry) return
         val p = robot.profile
         telemetryBag.section("Loop") {
-            // total/hz lag one tick: this runs inside the telemetry phase,
-            // before the current tick's total is computed.
+            // total/hz lag one tick: this runs before the tick's total is known.
             put("hz", robot.loopHz, decimals = 1)
             put("count", robot.loopCount)
             put("total ms", p.totalNanos / 1e6, decimals = 2)
@@ -139,100 +110,35 @@ abstract class OpModeBase : LinearOpMode() {
         }
     }
 
-    private var telemetryFailures = 0
-
-    /**
-     * Telemetry must never be able to stop the robot: a Panels websocket
-     * hiccup or a bad format string in a put gets logged and swallowed
-     * instead of killing the op-mode mid-match.
-     */
+    /** Telemetry must never stop the robot: a Panels hiccup is logged and swallowed. */
     private fun safeFlush(): Boolean = try {
         telemetryBag.flush()
     } catch (t: Throwable) {
         telemetryFailures++
-        if (telemetryFailures <= 5) {
-            RobotLog.ee(logTag, t, "Telemetry flush failed ($telemetryFailures)")
-        }
+        if (telemetryFailures <= 5) RobotLog.ee(logTag, t, "Telemetry flush failed ($telemetryFailures)")
         false
     }
 
-    /**
-     * Same policy for the init loop, which doesn't go through [Robot.loop]'s
-     * telemetry containment: a flaky voltage read or health string must not
-     * abort an otherwise healthy init. Real init failures (Preflight,
-     * configure, subsystem init) stay fail-loud.
-     */
     private inline fun safeTelemetry(block: () -> Unit) {
         try {
             block()
         } catch (t: Throwable) {
             telemetryFailures++
-            if (telemetryFailures <= 5) {
-                RobotLog.ee(logTag, t, "Init telemetry failed ($telemetryFailures)")
-            }
+            if (telemetryFailures <= 5) RobotLog.ee(logTag, t, "Init telemetry failed ($telemetryFailures)")
         }
     }
 
+    /** Hardware is already stopped when this runs. The stack trace goes into the WPILOG `events` channel. */
     private fun reportLoopCrash(t: Throwable) {
         try {
             val message = "LOOP CRASHED: ${t.javaClass.simpleName}: ${t.message}"
-            val trace = StringWriter().also { writer ->
-                t.printStackTrace(PrintWriter(writer))
-            }.toString()
-            // Hardware is already stopped; command cleanup has not yet erased
-            // the running set or added teardown events to the timeline.
-            val running = try {
-                robot.scheduler.runningCommandNames()
-            } catch (_: Throwable) {
-                emptyList()
-            }
-            val report = buildString {
-                appendLine(message)
-                appendLine(
-                    "loop ${robot.loopCount}, ${"%.1f".format(Locale.US, matchTimer.elapsedSec)} s into the match, " +
-                        "${robot.commandFaultCount} contained fault(s)",
-                )
-                if (running.isNotEmpty()) {
-                    appendLine("running commands:")
-                    for (name in running) appendLine("  $name")
-                }
-                val events = robot.recentEvents()
-                if (events.isNotEmpty()) {
-                    appendLine("recent events:")
-                    for (event in events) appendLine("  $event")
-                }
-                append(trace)
-            }
-            robot.recordEvent(report)
-            writeLastCrash(report)
+            val trace = StringWriter().also { t.printStackTrace(PrintWriter(it)) }.toString()
+            robot.recordEvent("$message\n$trace")
             telemetry.addLine(message)
             telemetry.update()
             RobotLog.ee(logTag, t, message)
         } catch (_: Throwable) {
             // Preserve the original loop exception even if diagnostics fail.
-        }
-    }
-
-    private fun surfacePreviousCrash() {
-        try {
-            if (!lastCrashFile.exists()) return
-            val firstLine = lastCrashFile.useLines { lines -> lines.firstOrNull() }
-            if (!firstLine.isNullOrBlank()) {
-                telemetry.addLine("previous run crashed: $firstLine")
-                telemetry.update()
-            }
-            lastCrashFile.delete()
-        } catch (t: Throwable) {
-            RobotLog.ee(logTag, t, "Failed to surface previous crash")
-        }
-    }
-
-    private fun writeLastCrash(contents: String) {
-        try {
-            logDir.mkdirs()
-            lastCrashFile.writeText(contents)
-        } catch (t: Throwable) {
-            RobotLog.ee(logTag, t, "Failed to write lastcrash.txt")
         }
     }
 
@@ -243,19 +149,11 @@ abstract class OpModeBase : LinearOpMode() {
         null
     }
 
-    /**
-     * Refresh the cached battery voltage, throttled to one hardware read per
-     * 250 ms. Runs every tick regardless of [publishHealthTelemetry] so the
-     * flight recorder's battery channel never silently depends on a
-     * telemetry flag.
-     */
+    /** Battery voltage, throttled to one read per 250 ms; runs regardless of telemetry flags. */
     private fun refreshVoltage() {
         val sensor = voltageSensor ?: return
         val now = System.nanoTime()
-        if (!cachedVoltage.isNaN() &&
-            lastVoltageReadNs != Long.MIN_VALUE &&
-            now - lastVoltageReadNs < 250_000_000L
-        ) {
+        if (!cachedVoltage.isNaN() && lastVoltageReadNs != Long.MIN_VALUE && now - lastVoltageReadNs < 250_000_000L) {
             return
         }
         cachedVoltage = sensor.voltage
@@ -268,51 +166,16 @@ abstract class OpModeBase : LinearOpMode() {
             if (!cachedVoltage.isNaN()) put("battery V", cachedVoltage, decimals = 2)
             if (robot.commandFaultCount > 0) {
                 val last = robot.lastCommandFault
-                put(
-                    "command faults",
-                    "${robot.commandFaultCount} (last: ${last?.javaClass?.simpleName}: ${last?.message})",
-                )
+                put("command faults", "${robot.commandFaultCount} (last: ${last?.javaClass?.simpleName}: ${last?.message})")
             }
             for (subsystem in robot.subsystems()) {
                 val health = subsystem.health()
                 if (health != null) put(subsystem.name, health)
             }
-            if (includeInitOnly) {
-                if (requiresRawPinpoint()) put("Pinpoint status", pinpointStatusThrottled())
-                if (!cachedVoltage.isNaN() && cachedVoltage < LOW_BATTERY_WARN_VOLTS) {
-                    put("battery WARNING", "LOW — swap before the match")
-                }
+            if (includeInitOnly && !cachedVoltage.isNaN() && cachedVoltage < LOW_BATTERY_WARN_VOLTS) {
+                put("battery WARNING", "LOW — swap before the match")
             }
         }
-    }
-
-    private fun requiresRawPinpoint(): Boolean = requiredDevices.any {
-        it.name == RobotConfig.Localization.PINPOINT &&
-            GoBildaPinpointDriver::class.java.isAssignableFrom(it.type)
-    }
-
-    private var cachedPinpointStatus = ""
-    private var lastPinpointStatusNs = Long.MIN_VALUE
-
-    /**
-     * Pinpoint device status for the init Health section, throttled to one
-     * read per second — each read is a real I2C transaction and the init
-     * loop ticks every ~20 ms.
-     */
-    private fun pinpointStatusThrottled(): String {
-        val now = System.nanoTime()
-        if (lastPinpointStatusNs != Long.MIN_VALUE &&
-            now - lastPinpointStatusNs < PINPOINT_STATUS_INTERVAL_NS
-        ) {
-            return cachedPinpointStatus
-        }
-        lastPinpointStatusNs = now
-        cachedPinpointStatus = try {
-            PinpointDirect.status(hardwareMap).toString()
-        } catch (t: Throwable) {
-            "${t.javaClass.simpleName}: ${t.message}"
-        }
-        return cachedPinpointStatus
     }
 
     private fun updateEndgameRumble() {
@@ -325,16 +188,9 @@ abstract class OpModeBase : LinearOpMode() {
     }
 
     final override fun runOpMode() {
-        robot = Robot(hardwareMap).also {
-            it.alliance = initialAlliance
-            it.containCommandFaults = containCommandFaults
-        }
-        driver = GamepadEx(gamepad1, robot.scheduler) {
-            robot.recordTriggerFault("driver", it)
-        }
-        operator = GamepadEx(gamepad2, robot.scheduler) {
-            robot.recordTriggerFault("operator", it)
-        }
+        robot = Robot(hardwareMap).also { it.alliance = initialAlliance }
+        driver = GamepadEx(gamepad1)
+        operator = GamepadEx(gamepad2)
 
         // Restore live-tuned values before configure() reads any of them.
         ConfigStore.register("drive", DriveConfig, DriveConfig::resetDefaults)
@@ -343,9 +199,8 @@ abstract class OpModeBase : LinearOpMode() {
 
         val panels = PanelsTelemetry.telemetry
         joinedTelemetry = JoinedTelemetry(telemetry, panels.wrapper)
-        // The bag fans out to DS + Panels itself — handing it joinedTelemetry
-        // (which also forwards to Panels via the wrapper) would double-log
-        // every line on the dashboard.
+        // The bag fans out to DS + Panels itself; handing it joinedTelemetry
+        // would double-log every line on the dashboard.
         telemetryBag = TelemetryBag(telemetry, panels)
         robot.enableFlightRecorder(
             javaClass.simpleName,
@@ -353,26 +208,22 @@ abstract class OpModeBase : LinearOpMode() {
             operator = { operator },
             batteryVoltage = { if (cachedVoltage.isNaN()) null else cachedVoltage },
         )
-        surfacePreviousCrash()
 
         try {
             Preflight.check(hardwareMap, requiredDevices)
             configure()
-            // Second (idempotent) load: configure() may have registered
-            // season config objects; restore their tuned values too.
+            // configure() may have registered season config objects; restore them too.
             ConfigStore.loadFromDisk()
             robot.init()
             voltageSensor = firstVoltageSensor()
-            fieldViewDrive =
-                robot.subsystems().firstOrNull { it is DriveTelemetrySource } as? DriveTelemetrySource
+            fieldViewDrive = robot.subsystems().firstOrNull { it is DriveTelemetrySource } as? DriveTelemetrySource
 
             telemetry.addLine("Init complete — ${robot.subsystems().size} subsystems")
             telemetry.update()
 
             while (opModeInInit()) {
                 robot.initTick()
-                // Edges work for selectors; trigger bindings must not fire
-                // before start (Scheduler.schedule starts commands immediately).
+                // Edges work for selectors; bindings must not start commands before start.
                 driver.update(pollTriggers = false)
                 operator.update(pollTriggers = false)
                 onInitLoop()
@@ -434,16 +285,10 @@ abstract class OpModeBase : LinearOpMode() {
         }
     }
 
-    /**
-     * Persist Panels-tuned config values at most once per second. Runs in
-     * the telemetry phase so disk writes are profiled like everything else;
-     * a clean snapshot costs a handful of reflective reads.
-     */
+    /** Persist Panels-tuned config values at most once per second. */
     private fun persistConfigThrottled() {
         val now = System.nanoTime()
-        if (lastConfigPersistNs != Long.MIN_VALUE && now - lastConfigPersistNs < CONFIG_PERSIST_INTERVAL_NS) {
-            return
-        }
+        if (lastConfigPersistNs != Long.MIN_VALUE && now - lastConfigPersistNs < CONFIG_PERSIST_INTERVAL_NS) return
         lastConfigPersistNs = now
         try {
             ConfigStore.persistIfDirty()
@@ -456,6 +301,5 @@ abstract class OpModeBase : LinearOpMode() {
         /** Resting voltage below which the init screen warns to swap the battery. */
         const val LOW_BATTERY_WARN_VOLTS = 12.0
         const val CONFIG_PERSIST_INTERVAL_NS = 1_000_000_000L
-        const val PINPOINT_STATUS_INTERVAL_NS = 1_000_000_000L
     }
 }

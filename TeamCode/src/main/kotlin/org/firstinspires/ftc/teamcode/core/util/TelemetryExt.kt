@@ -1,11 +1,12 @@
 package org.firstinspires.ftc.teamcode.core.util
 
 import com.bylazar.telemetry.TelemetryManager
+import com.pedropathing.math.Pose
+import com.pedropathing.math.Vector2D
+import com.pedropathing.math.Velocity
 import com.qualcomm.robotcore.util.RobotLog
 import java.util.Locale
 import org.firstinspires.ftc.robotcore.external.Telemetry
-import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
-import org.firstinspires.ftc.teamcode.core.geometry.Vector2d
 
 /**
  * Owns the per-tick telemetry buffer. One [TelemetryBag] is shared between
@@ -195,13 +196,14 @@ class TelemetryBag internal constructor(
         internal fun formatValue(value: Any?): String = when (value) {
             null -> "null"
             is FormattedDouble -> "%.${value.decimals}f".format(Locale.US, value.value)
-            is Pose2d -> "(%.2f, %.2f, %.1f°)".format(
+            is Pose -> "(%.2f, %.2f, %.1f°)".format(
                 Locale.US,
-                value.x,
-                value.y,
-                Math.toDegrees(value.heading),
+                value.x(),
+                value.y(),
+                Math.toDegrees(value.heading()),
             )
-            is Vector2d -> "(%.2f, %.2f)".format(Locale.US, value.x, value.y)
+            is Velocity -> "(%.2f, %.2f, %.1f°/s)".format(Locale.US, value.vx, value.vy, Math.toDegrees(value.omega))
+            is Vector2D -> "(%.2f, %.2f)".format(Locale.US, value.x(), value.y())
             is Double -> "%.3f".format(Locale.US, value)
             is Float -> "%.3f".format(Locale.US, value)
             else -> value.toString()

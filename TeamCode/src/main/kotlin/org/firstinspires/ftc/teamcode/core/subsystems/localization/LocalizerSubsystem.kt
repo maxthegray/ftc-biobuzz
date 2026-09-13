@@ -1,29 +1,27 @@
 package org.firstinspires.ftc.teamcode.core.subsystems.localization
 
 import com.pedropathing.follower.Follower
+import com.pedropathing.math.Pose
+import com.pedropathing.math.Velocity
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver.DeviceStatus
 import com.qualcomm.robotcore.hardware.HardwareMap
 import org.firstinspires.ftc.teamcode.core.estimation.CorrectionResult
 import org.firstinspires.ftc.teamcode.core.estimation.PoseEstimator
-import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
-import org.firstinspires.ftc.teamcode.core.geometry.Vector2d
+import org.firstinspires.ftc.teamcode.core.estimation.isFinite
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
-import org.firstinspires.ftc.teamcode.core.pathing.toCore
-import org.firstinspires.ftc.teamcode.core.pathing.toPedro
 import org.firstinspires.ftc.teamcode.core.runtime.DeviceReaders
 import org.firstinspires.ftc.teamcode.core.runtime.PersistedPose
-import org.firstinspires.ftc.teamcode.core.runtime.PoseProvider
 import org.firstinspires.ftc.teamcode.core.runtime.RobotConfig
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.util.Clock
 
 /**
- * Read-only façade over the [Follower]'s internal localizer, plus the
+ * Read-only façade over the [Follower]'s localizer, plus the
  * external-correction seam (vision, wall snaps) via [PoseEstimator].
  *
- * Pedro's Follower already owns the real localizer (Pinpoint, OTOS, or three
- * wheels — configured in [org.firstinspires.ftc.teamcode.pedroPathing.Constants]).
+ * Pedro's Follower owns the real localizer (the Pinpoint, configured in
+ * [org.firstinspires.ftc.teamcode.pedro.Constants]).
  * This subsystem exists so higher-level code can query pose/velocity and
  * inject corrections without reaching into follower internals — and so that
  * scheduler commands can declare a localisation requirement.
@@ -59,7 +57,7 @@ class LocalizerSubsystem(
     private val onEvent: (String) -> Unit = {},
     private val isFollowing: () -> Boolean = { false },
     private val onFault: () -> Unit = {},
-) : SubsystemBase("Localizer"), PoseProvider {
+) : SubsystemBase("Localizer") {
 
     val estimator = PoseEstimator(
         currentPose = { pose },
@@ -80,10 +78,11 @@ class LocalizerSubsystem(
     private var rawPinpoint: GoBildaPinpointDriver? = null
     private var pinpointReady = false
     private var initStartedNs = 0L
+    private var lastStatus: DeviceStatus? = null
 
     private var lastStatusNs = Long.MIN_VALUE
     private var frozenTicks = 0
-    private var lastPose = Pose2d.ZERO
+    private var lastPose = Pose.zero()
     private var hasLastPose = false
 
     /** A real status sample must report READY before autonomous may start. */
@@ -108,8 +107,8 @@ class LocalizerSubsystem(
     override fun initPeriodic() {
         if (fault != null) return
         try {
-            // updatePose reads odometry only; Follower.update would also drive motors.
-            follower.updatePose()
+            // Reads odometry only; Follower.update would also drive motors.
+            follower.localizer.update()
         } catch (t: Exception) {
             trip("odometry init read failed: ${t.message}")
             return
@@ -126,7 +125,7 @@ class LocalizerSubsystem(
 
     private fun checkPose() {
         val p = pose
-        if (!p.x.isFinite() || !p.y.isFinite() || !p.heading.isFinite()) {
+        if (!p.isFinite()) {
             trip("non-finite pose $p")
             return
         }
@@ -135,7 +134,7 @@ class LocalizerSubsystem(
         // the sensor stopped talking. Gated on following so a parked robot
         // can't false-positive.
         if (isFollowing() && hasLastPose &&
-            p.x == lastPose.x && p.y == lastPose.y && p.heading == lastPose.heading
+            p.x() == lastPose.x() && p.y() == lastPose.y() && p.heading() == lastPose.heading()
         ) {
             frozenTicks++
             if (frozenTicks >= LocalizerConfig.safeFrozenPoseTicks) {
@@ -162,6 +161,7 @@ class LocalizerSubsystem(
             trip("Pinpoint status read failed: ${t.message}")
             return
         }
+        lastStatus = status
         when {
             status == DeviceStatus.READY -> pinpointReady = true
             initializing && !pinpointReady &&
@@ -188,7 +188,7 @@ class LocalizerSubsystem(
     private var lastPoseRestoreSucceeded: Boolean? = null
 
     override fun health(): String {
-        val base = fault?.let { "FAULT: $it" } ?: if (ready) "ok" else "waiting for Pinpoint READY"
+        val base = fault?.let { "FAULT: $it" } ?: if (ready) "ok" else "waiting for Pinpoint READY (status ${lastStatus ?: "unread"})"
         val restored = lastPoseRestoreSucceeded ?: return base
         return "$base poseRestore=${if (restored) "applied" else "not applied"}"
     }
@@ -205,15 +205,15 @@ class LocalizerSubsystem(
         estimator.sample(clock.nanos(), pose)
     }
 
-    override val pose: Pose2d get() = follower.pose.toCore()
-    override val velocity: Vector2d get() = follower.velocity.toCore()
+    /** Field pose: inches, radians. */
+    val pose: Pose get() = follower.pose()
 
-    fun setPose(p: Pose2d) {
-        follower.pose = p.toPedro()
-    }
+    /** Field-frame velocity: inches/second, radians/second. */
+    val velocity: Velocity get() = follower.velocity()
 
-    fun setStartingPose(p: Pose2d) {
-        follower.setStartingPose(p.toPedro())
+    /** Hard-set the field pose (start pose, relocalization, pose handoff). */
+    fun setPose(p: Pose) {
+        follower.setPose(p)
     }
 
     /**
@@ -229,10 +229,10 @@ class LocalizerSubsystem(
         if (!PersistedPose.valid) return false
         val ageMs = System.currentTimeMillis() - PersistedPose.wallTimeMs
         if (ageMs < 0 || ageMs > maxAgeMs) return false
-        val p = Pose2d(PersistedPose.x, PersistedPose.y, PersistedPose.headingRad)
+        val p = Pose(PersistedPose.x, PersistedPose.y, PersistedPose.headingRad)
         // record() rejects non-finite poses, but this is the last gate before
         // the follower — a poisoned pose here corrupts the whole op-mode.
-        if (!p.x.isFinite() || !p.y.isFinite() || !p.heading.isFinite()) return false
+        if (!p.isFinite()) return false
         setPose(p)
         lastPoseRestoreSucceeded = true
         return true
@@ -244,7 +244,7 @@ class LocalizerSubsystem(
      * blending, axis weights, and the during-follow policy.
      */
     fun applyCorrection(
-        measured: Pose2d,
+        measured: Pose,
         timestampNanos: Long,
         maxAgeNanos: Long = 500_000_000,
         blend: Double = LocalizerConfig.safeCorrectionBlend,

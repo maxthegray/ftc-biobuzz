@@ -1,7 +1,7 @@
 package org.firstinspires.ftc.teamcode.opmodes.diagnostics
 
+import com.pedropathing.ivy.commands.Commands.instant
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
-import org.firstinspires.ftc.teamcode.core.command.Commands
 import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.runtime.Preflight
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSubsystem
@@ -46,12 +46,12 @@ class BallTrackingTestTeleOp : OpModeBase() {
         }
         recorder = robot.register(VisionLabRecorder("Ball Tracking Test"))
         driver.button(Button.A).onTrue(
-            Commands.instant {
+            instant {
                 recorder.save(VisionDiagnostics.measurements(robot, timing, startup, limelight, sightings, ballCamera))
-            }.setName("save vision lab record"),
+            },
         )
-        driver.button(Button.X).onTrue(Commands.instant(VisionDiagnostics::cyclePreviewMode).setName("cycle preview mode"))
-        driver.button(Button.B).onTrue(Commands.instant(VisionDiagnostics::togglePreview).setName("toggle preview"))
+        driver.button(Button.X).onTrue(instant(VisionDiagnostics::cyclePreviewMode))
+        driver.button(Button.B).onTrue(instant(VisionDiagnostics::togglePreview))
     }
 
     override fun onStart() {

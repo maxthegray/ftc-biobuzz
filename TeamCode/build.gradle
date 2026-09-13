@@ -1,7 +1,7 @@
 //
 // build.gradle in TeamCode
 //
-// BioBuzz season robot code: FTC SDK 11.1 + Kotlin + Pedro Pathing +
+// BioBuzz season robot code: FTC SDK 11.2.1 + Kotlin + Pedro Pathing 3 + Ivy +
 // FTControl Panels + Sloth hot reload.
 //
 
@@ -66,11 +66,14 @@ dependencies {
     // Kotlin
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
 
-    // Pedro Pathing 2.1.1 + telemetry adapter. The command scheduler is our
-    // own (core/command) — the Ivy dependency was replaced by it.
-    implementation 'com.pedropathing:core:2.1.1'
-    implementation 'com.pedropathing:ftc:2.1.1'
-    implementation 'com.pedropathing:telemetry:1.0.0'
+    // Pedro Pathing 3: follower, paths and Foresight (core), REV hub
+    // Mecanum/Pinpoint implementations (revhub), and the AutoTune web tuner
+    // (tuning, served at http://192.168.43.1:10158).
+    implementation 'com.pedropathing:revhub:3.0.0'
+    implementation 'com.pedropathing:tuning:1.0.0'
+
+    // Ivy: Pedro Pathing's command scheduler. The only scheduler in this repo.
+    implementation 'com.pedropathing.ivy:core:1.1.1'
 
     // Sloth-compatible Panels keeps live tuning bound to hot-reloaded classes.
     implementation 'com.bylazar.sloth:fullpanels:0.2.4+1.0.12'
@@ -80,6 +83,22 @@ dependencies {
     // disk, reloaded at op-mode init) — see AI-GUIDE.md. Only classes carrying
     // live in-process state (PersistedPose) still need @Pinned.
     implementation 'dev.frozenmilk.sinister:Sloth:0.2.4'
+
+    constraints {
+        // tuning:1.0.0 asks for Sloth 0.3.0, which needs Load 0.3.0/AGP 8.13
+        // and has no published Sloth-compatible Panels build. The Sinister
+        // API AutoTune calls is binary-compatible with Sinister 2.2.0.
+        implementation('dev.frozenmilk.sinister:Sloth') {
+            version { strictly '0.2.4' }
+            because 'Sloth runtime must stay in lockstep with the Load 0.2.4 plugin and Sloth Panels 0.2.4'
+        }
+        // revhub/tuning declare kotlin-stdlib 2.3.21 but contain no Kotlin
+        // bytecode; the Kotlin 2.0.21 compiler cannot read 2.3 metadata.
+        implementation('org.jetbrains.kotlin:kotlin-stdlib') {
+            version { strictly '2.1.20' }
+            because 'Kotlin 2.0.21 compiler; Pedro 3 artifacts do not use the Kotlin stdlib'
+        }
+    }
 
     // JVM unit tests (run on the host via :TeamCode:testDebugUnitTest).
     testImplementation 'junit:junit:4.13.2'

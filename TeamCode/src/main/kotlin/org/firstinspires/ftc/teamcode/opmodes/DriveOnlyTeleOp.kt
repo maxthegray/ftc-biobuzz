@@ -14,7 +14,7 @@ class DriveOnlyTeleOp : TeleOpBase() {
         telemetryBag.section("Drive") {
             put("pose", drive.pose)
             put("velocity", drive.velocity)
-            put("mode", drive.mode.name)
+            put("mode", drive.driveModeName)
             put("fieldCentric", drive.fieldCentric)
             put("inputExponent", DriveConfig.inputExponent)
             put("precision", precision)

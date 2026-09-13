@@ -1,12 +1,12 @@
 package org.firstinspires.ftc.teamcode.opmodes.archived
 
 import com.bylazar.configurables.annotations.Configurable
+import com.pedropathing.ivy.Command
 import com.qualcomm.robotcore.eventloop.opmode.Disabled
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import com.qualcomm.robotcore.hardware.DcMotorEx
 import com.qualcomm.robotcore.hardware.HardwareMap
 import java.util.Locale
-import org.firstinspires.ftc.teamcode.core.command.Command
 import org.firstinspires.ftc.teamcode.core.io.MotorIO
 import org.firstinspires.ftc.teamcode.core.io.RealMotorIO
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
@@ -131,7 +131,6 @@ private class MotorSpinSubsystem(private val motorName: String) : SubsystemBase(
     }
 
     fun spinCommand(): Command = Command.build()
-        .setName("panels motor spin")
         .requiring(this)
         .setStart { running = true }
         .setExecute { appliedPower = MotorTestConfig.safePower }

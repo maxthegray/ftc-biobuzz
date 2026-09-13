@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.core.runtime
 
-import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
+import com.pedropathing.math.Pose
 import java.io.File
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -31,7 +31,7 @@ class PersistedPoseTest {
 
     @Test
     fun recordSurvivesAProcessRestart() {
-        PersistedPose.record(Pose2d(12.5, -3.25, 1.5))
+        PersistedPose.record(Pose(12.5, -3.25, 1.5))
         PersistedPose.forgetInMemoryForTest()
         assertFalse(PersistedPose.valid)
 
@@ -46,7 +46,7 @@ class PersistedPoseTest {
 
     @Test
     fun restoreDoesNotClobberALivePose2d() {
-        PersistedPose.record(Pose2d(1.0, 2.0, 3.0))
+        PersistedPose.record(Pose(1.0, 2.0, 3.0))
         tempFile.writeText("pose-v1 9.0 9.0 9.0 1")
 
         PersistedPose.restoreFromDiskIfNeeded()
@@ -56,7 +56,7 @@ class PersistedPoseTest {
 
     @Test
     fun clearRemovesTheDiskCopy() {
-        PersistedPose.record(Pose2d(1.0, 2.0, 3.0))
+        PersistedPose.record(Pose(1.0, 2.0, 3.0))
         assertTrue(tempFile.exists())
 
         PersistedPose.clear()
@@ -89,13 +89,13 @@ class PersistedPoseTest {
 
     @Test
     fun nonFiniteRecordFailsClosed() {
-        PersistedPose.record(Pose2d(Double.NaN, 2.0, 3.0))
+        PersistedPose.record(Pose(Double.NaN, 2.0, 3.0))
         assertFalse(PersistedPose.valid)
 
         // A later non-finite record (localizer died mid-match) keeps the
         // previous good pose instead of poisoning the next op-mode.
-        PersistedPose.record(Pose2d(1.0, 2.0, 3.0))
-        PersistedPose.record(Pose2d(4.0, Double.POSITIVE_INFINITY, 3.0))
+        PersistedPose.record(Pose(1.0, 2.0, 3.0))
+        PersistedPose.record(Pose(4.0, Double.POSITIVE_INFINITY, 3.0))
 
         assertTrue(PersistedPose.valid)
         assertEquals(1.0, PersistedPose.x, 1e-12)

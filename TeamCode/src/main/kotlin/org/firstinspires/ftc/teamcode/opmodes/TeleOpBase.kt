@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.opmodes
 
-import org.firstinspires.ftc.teamcode.core.command.Commands
+import com.pedropathing.ivy.Scheduler
+import com.pedropathing.ivy.commands.Commands.instant
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
@@ -8,12 +9,12 @@ import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsyste
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem.TeleopInput
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerSubsystem
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx.Button
-import org.firstinspires.ftc.teamcode.pedroPathing.Constants
+import org.firstinspires.ftc.teamcode.pedro.Constants
 
 /**
  * Base for teleop op-modes. Registers the drive + localizer subsystems,
- * installs the stick-driven teleop default command, and wires the standard
- * driver chords — so season op-modes start from mechanisms, not boilerplate.
+ * installs the stick-driven default command, and wires the standard driver
+ * chords, so season op-modes start from mechanisms, not boilerplate.
  *
  * Standard controls:
  *  - left stick translate, right stick turn (per [DriveConfig] scaling)
@@ -22,9 +23,12 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants
  *    the Driver Station's gamepad re-bind chords)
  *  - **Back + B** — toggle field-centric / robot-centric
  *
+ * On a localizer fault the drive switches, for the rest of the run, to
+ * robot-centric sticks that bypass odometry; paths, holds and turns refuse.
+ *
  * Subclass contract: register season subsystems and trigger bindings in
- * [configureTeleop]. The drive default command resumes automatically after
- * any higher-priority action ends; there is nothing to call from [onLoop].
+ * [configureTeleop]. The drive default resumes after any higher-priority
+ * drive command ends; there is nothing to call from [onLoop].
  */
 abstract class TeleOpBase : OpModeBase() {
 
@@ -37,15 +41,8 @@ abstract class TeleOpBase : OpModeBase() {
     /** Override to false for teleops that must not inherit auton's field pose. */
     protected open val restorePoseFromAuton: Boolean get() = true
 
-    /**
-     * Teleop contains command faults: a buggy mechanism command goes limp
-     * (and shows in Health telemetry) instead of killing the whole robot for
-     * the rest of the match. See [org.firstinspires.ftc.teamcode.core.runtime.Robot.containCommandFaults].
-     */
-    override val containCommandFaults: Boolean get() = true
-
     final override fun configure() {
-        val follower = Constants.createFollower(hardwareMap)
+        val follower = Constants.create(hardwareMap)
         // Drive first, localizer second: the localizer samples pose history
         // right after the drive's writeHardware() runs Follower.update().
         drive = robot.register(MecanumDriveSubsystem(follower))
@@ -65,29 +62,23 @@ abstract class TeleOpBase : OpModeBase() {
                 onEvent = robot::recordEvent,
                 isFollowing = drive::isFollowing,
                 onFault = {
-                    // Preempt the actual drive owner and prevent assists from
-                    // reclaiming it while localization remains faulted.
+                    // Runs in periodic(), outside Scheduler.execute(): preempt the
+                    // current drive owner now and keep assists from reclaiming it.
                     drive.defaultCommand = faultFallback
-                    robot.scheduler.schedule(faultFallback)
+                    Scheduler.schedule(faultFallback)
                 },
             ),
         )
-        (driver.button(Button.BACK) and driver.button(Button.Y))
-            .onTrue(
-                Commands.instant { localizer.setPose(drive.pose.withHeading(0.0)) }
-                    .setName("reset heading")
-                    // Claiming the drive preempts an equal-priority path or
-                    // assist: hard-snapping the pose under a live path
-                    // controller would command a large corrective jerk.
-                    .requiring(drive)
-                    .setPriority(CommandPriorities.DRIVER_ACTION),
-            )
-        (driver.button(Button.BACK) and driver.button(Button.B))
-            .onTrue(
-                Commands.instant { drive.toggleFieldCentric() }
-                    .setName("toggle field-centric")
-                    .setPriority(CommandPriorities.DRIVER_ACTION),
-            )
+        (driver.button(Button.BACK) and driver.button(Button.Y)).onTrue(
+            // Claiming the drive preempts a path or assist: hard-snapping the
+            // pose under a live path controller would command a large jerk.
+            instant { localizer.setPose(drive.pose.withHeading(0.0)) }
+                .requiring(drive)
+                .setPriority(CommandPriorities.DRIVER_ACTION),
+        )
+        (driver.button(Button.BACK) and driver.button(Button.B)).onTrue(
+            instant { drive.toggleFieldCentric() },
+        )
         configureTeleop()
     }
 
@@ -98,9 +89,7 @@ abstract class TeleOpBase : OpModeBase() {
     override fun onStart() {
         if (restorePoseFromAuton && localizer.ready) {
             val restored = localizer.restorePersistedPose()
-            robot.recordEvent(
-                "PERSISTED POSE RESTORE: ${if (restored) "APPLIED" else "NOT APPLIED"}",
-            )
+            robot.recordEvent("PERSISTED POSE RESTORE: ${if (restored) "APPLIED" else "NOT APPLIED"}")
         }
     }
 }

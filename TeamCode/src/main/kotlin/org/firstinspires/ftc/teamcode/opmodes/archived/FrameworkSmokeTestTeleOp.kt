@@ -1,10 +1,12 @@
 package org.firstinspires.ftc.teamcode.opmodes.archived
 
+import com.pedropathing.ivy.Command
+import com.pedropathing.ivy.CommandBuilder
+import com.pedropathing.ivy.commands.Commands.instant
+import com.pedropathing.ivy.commands.Commands.waitMs
+import com.pedropathing.ivy.groups.Groups.sequential
 import com.qualcomm.robotcore.eventloop.opmode.Disabled
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
-import org.firstinspires.ftc.teamcode.core.command.Command
-import org.firstinspires.ftc.teamcode.core.command.Commands
-import org.firstinspires.ftc.teamcode.core.command.Groups
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
@@ -24,25 +26,22 @@ class FrameworkSmokeTestTeleOp : OpModeBase() {
     override val requiredDevices: List<Preflight.Requirement> get() = emptyList()
     override val publishFieldView: Boolean get() = false
     override val endgameRumble: Boolean get() = false
-    override val containCommandFaults: Boolean get() = true
 
     override fun configure() {
         smoke = robot.register(FrameworkSmokeSubsystem(robot.clock, robot::recordEvent))
         smoke.defaultCommand = smoke.idleCommand()
 
-        driver.button(Button.A).onTrue(
-            Commands.instant(smoke::recordMarker).setName("smoke marker"),
-        )
+        driver.button(Button.A).onTrue(instant(smoke::recordMarker))
         driver.button(Button.B).onTrue(smoke.timedWorkCommand())
         driver.button(Button.X).onTrue(smoke.overrideCommand())
         driver.button(Button.Y).onTrue(smoke.faultCommand())
         driver.button(Button.LEFT_BUMPER).whileTrue(smoke.heldCommand())
         driver.button(Button.DPAD_UP).onTrue(
-            Groups.sequential(
-                Commands.instant { robot.recordEvent("smoke sequence start") },
-                Commands.waitMs(500.0, robot.clock),
-                Commands.instant(smoke::completeSequence),
-            ).setName("smoke sequence"),
+            sequential(
+                instant { robot.recordEvent("smoke sequence start") },
+                waitMs(500.0),
+                instant(smoke::completeSequence),
+            ),
         )
     }
 
@@ -75,7 +74,7 @@ class FrameworkSmokeTestTeleOp : OpModeBase() {
             put("A", "record WPILOG marker")
             put("B", "run 2-second command")
             put("X", "preempt active subsystem command")
-            put("Y", "intentional contained command fault")
+            put("Y", "intentional command fault (aborts all commands)")
             put("hold LB", "run; release to interrupt")
             put("dpad up", "instant + wait + instant sequence")
         }
@@ -123,8 +122,7 @@ private class FrameworkSmokeSubsystem(
         writeTicks++
     }
 
-    fun idleCommand(): Command = Command.build()
-        .setName("smoke default")
+    fun idleCommand(): CommandBuilder = Command.build()
         .requiring(this)
         .setStart { state = "DEFAULT" }
         .setExecute { defaultTicks++ }
@@ -134,7 +132,6 @@ private class FrameworkSmokeSubsystem(
     fun timedWorkCommand(): Command {
         var startedNs = 0L
         return Command.build()
-            .setName("smoke timed work")
             .requiring(this)
             .setPriority(CommandPriorities.DRIVER_ACTION)
             .setStart {
@@ -151,16 +148,14 @@ private class FrameworkSmokeSubsystem(
             }
     }
 
-    fun overrideCommand(): Command = Commands.instant {
+    fun overrideCommand(): Command = instant {
         state = "OVERRIDE"
         event("smoke override")
     }
-        .setName("smoke override")
         .requiring(this)
         .setPriority(CommandPriorities.DRIVER_OVERRIDE)
 
     fun heldCommand(): Command = Command.build()
-        .setName("smoke held command")
         .requiring(this)
         .setPriority(CommandPriorities.DRIVER_ACTION)
         .setStart {
@@ -175,7 +170,6 @@ private class FrameworkSmokeSubsystem(
         }
 
     fun faultCommand(): Command = Command.build()
-        .setName("intentional smoke fault")
         .requiring(this)
         .setPriority(CommandPriorities.DRIVER_OVERRIDE)
         .setStart {

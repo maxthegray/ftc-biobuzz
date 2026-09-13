@@ -1,7 +1,7 @@
 package org.firstinspires.ftc.teamcode.core.util
 
-import org.firstinspires.ftc.teamcode.core.geometry.Pose2d
-import org.firstinspires.ftc.teamcode.core.geometry.Vector2d
+import com.pedropathing.math.Pose
+import com.pedropathing.math.Vector2D
 import org.firstinspires.ftc.teamcode.core.sim.FakeClock
 import org.firstinspires.ftc.teamcode.core.sim.FakeSink
 import org.junit.Assert.assertEquals
@@ -96,8 +96,8 @@ class TelemetryBagTest {
         assertEquals("null", TelemetryBag.formatValue(null))
         assertEquals("0.500", TelemetryBag.formatValue(0.5))
         assertEquals("0.250", TelemetryBag.formatValue(0.25f))
-        assertEquals("(1.00, 2.00, 90.0°)", TelemetryBag.formatValue(Pose2d(1.0, 2.0, Math.PI / 2)))
-        assertEquals("(1.00, 2.00)", TelemetryBag.formatValue(Vector2d(1.0, 2.0)))
+        assertEquals("(1.00, 2.00, 90.0°)", TelemetryBag.formatValue(Pose(1.0, 2.0, Math.PI / 2)))
+        assertEquals("(1.00, 2.00)", TelemetryBag.formatValue(Vector2D.cartesian(1.0, 2.0)))
         assertEquals("text", TelemetryBag.formatValue("text"))
         assertEquals("true", TelemetryBag.formatValue(true))
     }

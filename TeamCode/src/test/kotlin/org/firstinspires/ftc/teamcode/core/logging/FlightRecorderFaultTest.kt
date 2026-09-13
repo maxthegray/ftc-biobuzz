@@ -101,7 +101,9 @@ class FlightRecorderFaultTest {
 
         assertEquals(2L, robot.loopCount)
         assertEquals(1, robot.recorderFaultCount)
-        assertTrue(robot.recentEvents().any { "RECORDER FAULT" in it })
+        // The file closed when the recorder faulted and stays a readable log.
+        val log = WpiLog.read(logDir.listFiles()!!.single())
+        assertTrue(log.strings("events").any { it.second == "init TeleOp" })
     }
 
     private fun openRecorder(name: String): FlightRecorder =
@@ -111,7 +113,6 @@ class FlightRecorderFaultTest {
                 gamepad1 = { null },
                 gamepad2 = { null },
                 batteryVoltage = { null },
-                runningCommandNames = { emptyList() },
                 directory = logDir,
             ),
         )
