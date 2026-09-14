@@ -11,7 +11,6 @@ import org.firstinspires.ftc.teamcode.core.estimation.PoseEstimator
 import org.firstinspires.ftc.teamcode.core.estimation.isFinite
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.runtime.DeviceReaders
-import org.firstinspires.ftc.teamcode.core.runtime.PersistedPose
 import org.firstinspires.ftc.teamcode.core.runtime.RobotConfig
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.util.Clock
@@ -38,6 +37,15 @@ import org.firstinspires.ftc.teamcode.core.util.Clock
  * corrections are scaled by [LocalizerConfig.followingBlendScale] while a
  * path is running — see [PoseEstimator] for why.
  *
+ * **Fresh localization every run.** [init] writes [startingPose] (zero unless
+ * the op-mode configures a field start pose) to the Pinpoint, so nothing the
+ * device still holds from a previous op-mode survives. A read that disagrees
+ * with the start pose before one has confirmed it (the device can report a
+ * pre-reset sample) re-writes it; [ready] stays false until a read confirms it,
+ * and the start pose is abandoned as a fault after five seconds. The pose is
+ * only written, never recalibrated: the IMU keeps its power-up calibration.
+ * There is no pose carryover between op-modes.
+ *
  * A runtime **watchdog** ([periodic]) catches the localizer dying mid-match
  * — the failure everything downstream silently trusts not to happen. It trips
  * on a non-finite pose, on a pose frozen bit-identical for
@@ -57,6 +65,8 @@ class LocalizerSubsystem(
     private val onEvent: (String) -> Unit = {},
     private val isFollowing: () -> Boolean = { false },
     private val onFault: () -> Unit = {},
+    /** Pose written at every init. Autonomous passes its field start pose. */
+    val startingPose: Pose = Pose.zero(),
 ) : SubsystemBase("Localizer") {
 
     val estimator = PoseEstimator(
@@ -79,14 +89,15 @@ class LocalizerSubsystem(
     private var pinpointReady = false
     private var initStartedNs = 0L
     private var lastStatus: DeviceStatus? = null
+    private var startPoseConfirmed = false
 
     private var lastStatusNs = Long.MIN_VALUE
     private var frozenTicks = 0
     private var lastPose = Pose.zero()
     private var hasLastPose = false
 
-    /** A real status sample must report READY before autonomous may start. */
-    val ready: Boolean get() = fault == null && (rawPinpoint == null || pinpointReady)
+    /** The start pose is confirmed by a read and a real status sample reports READY. */
+    val ready: Boolean get() = fault == null && startPoseConfirmed && (rawPinpoint == null || pinpointReady)
 
     override fun init(hardwareMap: HardwareMap) {
         initStartedNs = clock.nanos()
@@ -102,6 +113,8 @@ class LocalizerSubsystem(
         } catch (_: Throwable) {
             null
         }
+        startPoseConfirmed = false
+        follower.setPose(startingPose)
     }
 
     override fun initPeriodic() {
@@ -114,13 +127,39 @@ class LocalizerSubsystem(
             return
         }
         checkPinpointStatus(initializing = true)
+        if (fault == null) confirmStartPose()
         if (ready) checkPose()
     }
 
     override fun periodic() {
+        if (fault != null) return
+        // Started before a read confirmed the start pose (START pressed right after INIT).
+        if (!startPoseConfirmed) confirmStartPose()
         if (fault != null || !LocalizerConfig.watchdogEnabled) return
         checkPinpointStatus(initializing = false)
         if (fault == null) checkPose()
+    }
+
+    private fun confirmStartPose() {
+        val p = pose
+        if (!p.isFinite()) {
+            // A broken sensor, not a stale sample: never paper over it with a write.
+            trip("non-finite pose $p")
+            return
+        }
+        val offBy = p.distance(startingPose)
+        if (offBy <= START_POSE_TOLERANCE_INCHES &&
+            kotlin.math.abs(shortestAngleDelta(p.heading(), startingPose.heading())) <= START_POSE_TOLERANCE_RADIANS
+        ) {
+            startPoseConfirmed = true
+            return
+        }
+        if (clock.nanos() - initStartedNs >= STARTUP_TIMEOUT_NS) {
+            trip("start pose not confirmed: Pinpoint still reports $p")
+            return
+        }
+        // A sample from before the reset: write the start pose again.
+        follower.setPose(startingPose)
     }
 
     private fun checkPose() {
@@ -185,16 +224,15 @@ class LocalizerSubsystem(
         }
     }
 
-    private var lastPoseRestoreSucceeded: Boolean? = null
-
-    override fun health(): String {
-        val base = fault?.let { "FAULT: $it" } ?: if (ready) "ok" else "waiting for Pinpoint READY (status ${lastStatus ?: "unread"})"
-        val restored = lastPoseRestoreSucceeded ?: return base
-        return "$base poseRestore=${if (restored) "applied" else "not applied"}"
+    override fun health(): String = fault?.let { "FAULT: $it" } ?: when {
+        ready -> "ok"
+        !startPoseConfirmed -> "waiting for start pose ${startingPose} (status ${lastStatus ?: "unread"})"
+        else -> "waiting for Pinpoint READY (status ${lastStatus ?: "unread"})"
     }
 
     override fun logState(log: StateLog) {
         log.put("faulted", fault != null)
+        log.put("startPoseConfirmed", startPoseConfirmed)
         fault?.let { log.put("fault", it) }
     }
 
@@ -211,31 +249,9 @@ class LocalizerSubsystem(
     /** Field-frame velocity: inches/second, radians/second. */
     val velocity: Velocity get() = follower.velocity()
 
-    /** Hard-set the field pose (start pose, relocalization, pose handoff). */
+    /** Hard-set the field pose (relocalization, e.g. a wall snap). */
     fun setPose(p: Pose) {
         follower.setPose(p)
-    }
-
-    /**
-     * Restore a recently persisted field pose, usually from auton into teleop.
-     * Falls back to the on-disk copy when the Robot Controller process
-     * restarted between op-modes.
-     *
-     * @return true if a valid, fresh pose was applied to the follower.
-     */
-    fun restorePersistedPose(maxAgeMs: Long = 120_000): Boolean {
-        lastPoseRestoreSucceeded = false
-        PersistedPose.restoreFromDiskIfNeeded()
-        if (!PersistedPose.valid) return false
-        val ageMs = System.currentTimeMillis() - PersistedPose.wallTimeMs
-        if (ageMs < 0 || ageMs > maxAgeMs) return false
-        val p = Pose(PersistedPose.x, PersistedPose.y, PersistedPose.headingRad)
-        // record() rejects non-finite poses, but this is the last gate before
-        // the follower — a poisoned pose here corrupts the whole op-mode.
-        if (!p.isFinite()) return false
-        setPose(p)
-        lastPoseRestoreSucceeded = true
-        return true
     }
 
     /**
@@ -266,5 +282,11 @@ class LocalizerSubsystem(
     private companion object {
         const val STATUS_INTERVAL_NS = 1_000_000_000L
         const val STARTUP_TIMEOUT_NS = 5_000_000_000L
+
+        /** How far (inches) a read may be from the start pose and still confirm it. */
+        const val START_POSE_TOLERANCE_INCHES = 0.5
+
+        /** How far (radians, 1°) a read's heading may be from the start pose's and still confirm it. */
+        val START_POSE_TOLERANCE_RADIANS = Math.toRadians(1.0)
     }
 }

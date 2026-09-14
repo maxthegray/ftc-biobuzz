@@ -15,29 +15,6 @@ import org.junit.Test
 
 class RobotShutdownTest {
     @Test
-    fun blockedPersistenceCannotDelayActuatorShutdown() {
-        val entered = CountDownLatch(1)
-        val release = CountDownLatch(1)
-        val powered = AtomicBoolean(true)
-        val robot = Robot(HardwareMap(null, null))
-        robot.register(object : SubsystemBase("motor") {
-            override fun stop() { powered.set(false) }
-            override fun persistState() { entered.countDown(); release.await() }
-        })
-        robot.start()
-        robot.loop()
-        val worker = thread { robot.stop() }
-        try {
-            assertTrue("persistence did not run", entered.await(1, TimeUnit.SECONDS))
-            assertFalse("motor still powered while storage is blocked", powered.get())
-        } finally {
-            release.countDown()
-            worker.join(1000)
-        }
-        assertFalse(worker.isAlive)
-    }
-
-    @Test
     fun blockedCrashReportingSeesStoppedHardware() {
         val entered = CountDownLatch(1)
         val release = CountDownLatch(1)
@@ -70,11 +47,9 @@ class RobotShutdownTest {
         val robot = Robot(HardwareMap(null, null))
         robot.register(object : SubsystemBase("first") {
             override fun stop() { power = 0.0; events += "stop first"; error("device failed") }
-            override fun persistState() { events += "persist first"; error("disk failed") }
         })
         robot.register(object : SubsystemBase("second") {
             override fun stop() { events += "stop second" }
-            override fun persistState() { events += "persist second" }
         })
         val running = infinite { power = 1.0 }.setEnd { power = 1.0; events += "end" }
         Scheduler.schedule(running)
@@ -85,7 +60,7 @@ class RobotShutdownTest {
         robot.stop { events += "report"; error("telemetry failed") }
         robot.stop { events += "second report" }
 
-        assertEquals(listOf("stop first", "stop second", "report", "persist first", "persist second"), events)
+        assertEquals(listOf("stop first", "stop second", "report"), events)
         assertEquals(0.0, power, 0.0)
         assertFalse(Scheduler.isScheduled(running))
         assertThrows(IllegalStateException::class.java) { robot.loop() }

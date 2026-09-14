@@ -25,7 +25,11 @@ import org.firstinspires.ftc.teamcode.pedro.Constants
  * Only the motors and odometry are simulated: motor probes record every power
  * write, and [OdometryProbe] reports whatever pose the test places.
  */
-internal class PedroDriveFixture(tuned: Boolean = true) {
+internal class PedroDriveFixture(
+    tuned: Boolean = true,
+    /** Pass the previous run's probe to model the same Pinpoint across op-modes. */
+    val localizer: OdometryProbe = OdometryProbe(),
+) {
     // SDK tryGet checks the Android device type (and loads native RobotCore).
     // Keep device registration real; replace only that host-incompatible lookup.
     val hardwareMap = object : HardwareMap(null, null) {
@@ -38,7 +42,6 @@ internal class PedroDriveFixture(tuned: Boolean = true) {
 
     /** In mixer order: front left, front right, back left, back right. */
     val motors = List(4) { MotorProbe() }
-    val localizer = OdometryProbe()
     val clock = FakeClock()
     val follower: Follower
     val drive: MecanumDriveSubsystem
@@ -85,14 +88,62 @@ internal class PedroDriveFixture(tuned: Boolean = true) {
         }
     }
 
+    /**
+     * A Pinpoint as Pedro's PinpointLocalizer sees it: the device keeps its
+     * pose between op-modes, [setPose] writes the device and the cached state,
+     * and [update] replaces the cache with what the device reports. With
+     * [staleReadsAfterSetPose] > 0 the device reports its old pose for that many
+     * reads after a write, like a sample taken before the write landed;
+     * [Int.MAX_VALUE] models a device that never accepts the write.
+     */
     class OdometryProbe : Localizer {
-        var measuredPose: Pose = Pose.zero()
+        /** What the hardware holds. */
+        var devicePose: Pose = Pose.zero()
+        private var cachedPose: Pose = Pose.zero()
+
+        /** The robot is physically here: sets the device and the cached state. */
+        var measuredPose: Pose
+            get() = cachedPose
+            set(value) {
+                devicePose = value
+                cachedPose = value
+            }
         var measuredVelocity: Velocity = Velocity.zero()
         var reads = 0
         var onRead: () -> Unit = {}
-        override fun setPose(pose: Pose) { measuredPose = pose }
-        override fun state(): MotionState = MotionState.ofVelocity(measuredPose, measuredVelocity)
-        override fun update() { reads++; onRead() }
+        var staleReadsAfterSetPose = 0
+        val setPoseCalls = mutableListOf<Pose>()
+        private var pendingWrite: Pose? = null
+        private var pendingStaleReads = 0
+
+        override fun setPose(pose: Pose) {
+            setPoseCalls += pose
+            cachedPose = pose
+            if (staleReadsAfterSetPose == 0) {
+                devicePose = pose
+            } else {
+                // A repeated write while one is in flight replaces it but does not restart the delay.
+                if (pendingWrite == null) pendingStaleReads = staleReadsAfterSetPose
+                pendingWrite = pose
+            }
+        }
+
+        override fun state(): MotionState = MotionState.ofVelocity(cachedPose, measuredVelocity)
+
+        override fun update() {
+            reads++
+            onRead()
+            pendingWrite?.let {
+                if (pendingStaleReads > 0) {
+                    pendingStaleReads--
+                } else {
+                    devicePose = it
+                    pendingWrite = null
+                }
+            }
+            cachedPose = devicePose
+        }
+
         override fun reset() {}
     }
 }

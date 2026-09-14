@@ -42,6 +42,9 @@ class TeleopWatchdogRecoveryTest {
                     },
                 ),
             )
+            robot.init()
+            robot.initTick()
+            hardware.clearWrites()
             robot.start()
         }
 
@@ -114,11 +117,13 @@ class TeleopWatchdogRecoveryTest {
     }
 
     @Test
-    fun fallbackCanStartBeforePedroHasEverUpdatedAndStopWithoutReadingOdometry() {
+    fun fallbackCanStartBeforeTheFirstLoopUpdateAndStopWithoutReadingOdometry() {
         val h = Harness()
+        // Only the INIT read has happened.
+        val initReads = h.hardware.localizer.reads
         h.failOdometry()
         h.tick()
-        assertEquals(0, h.hardware.localizer.reads)
+        assertEquals(initReads, h.hardware.localizer.reads)
         assertArrayEquals(DoubleArray(4) { 0.25 }, h.hardware.powers(), 1e-9)
         assertEquals(
             listOf(Direction.REVERSE, Direction.FORWARD, Direction.REVERSE, Direction.FORWARD),
@@ -127,7 +132,7 @@ class TeleopWatchdogRecoveryTest {
 
         h.robot.stop()
         assertArrayEquals(DoubleArray(4), h.hardware.powers(), 1e-9)
-        assertEquals(0, h.hardware.localizer.reads)
+        assertEquals(initReads, h.hardware.localizer.reads)
     }
 
     @Test

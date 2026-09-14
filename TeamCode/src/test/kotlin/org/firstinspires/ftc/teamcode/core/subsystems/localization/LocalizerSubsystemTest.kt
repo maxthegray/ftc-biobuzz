@@ -175,7 +175,7 @@ class LocalizerSubsystemTest {
             onEvent = events::add,
             isFollowing = { following },
             onFault = { faults++ },
-        )
+        ).also(::initialized)
 
         fun setPose(x: Double, y: Double, heading: Double) {
             follower.setPose(Pose(x, y, heading))
@@ -260,7 +260,7 @@ class LocalizerSubsystemTest {
             onEvent = h.events::add,
             isFollowing = { true },
             onFault = { error("policy blew up") },
-        )
+        ).also(::initialized)
         h.setPose(Double.NaN, 0.0, 0.0)
 
         localizer.periodic() // must not throw
@@ -293,4 +293,11 @@ class LocalizerSubsystemTest {
     private companion object {
         const val EPS = 1e-6
     }
+}
+
+/** Init the localizer on an empty hardware map and confirm its start pose, as the init loop does. */
+private fun initialized(localizer: LocalizerSubsystem) {
+    localizer.init(com.qualcomm.robotcore.hardware.HardwareMap(null, null))
+    localizer.initPeriodic()
+    assertTrue(localizer.ready)
 }

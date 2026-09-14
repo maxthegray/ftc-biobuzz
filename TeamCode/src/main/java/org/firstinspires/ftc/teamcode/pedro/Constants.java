@@ -75,6 +75,11 @@ public final class Constants {
         c.xPodDirection.set(GoBildaPinpointDriver.EncoderDirection.REVERSED);
         c.yPodDirection.set(GoBildaPinpointDriver.EncoderDirection.FORWARD);
         c.podType.set(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
+        // No device command at construction. LocalizerSubsystem writes the start
+        // pose at every INIT instead. RECALIBRATE_IMU (Pedro's default) and
+        // RESET_AND_RECALIBRATE_IMU would recalibrate the gyro every run, which
+        // needs a stationary robot for ~0.25 s and is not needed to zero the pose.
+        c.resetMode.set(PinpointLocalizer.ResetMode.NONE);
     });
 
     /** Paste AutoTune's Foresight output here. Required values are deliberately unset. */

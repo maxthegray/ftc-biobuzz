@@ -298,7 +298,8 @@ class Robot(
     /**
      * Stop every subsystem before callbacks or storage can block, then clear
      * Ivy without running end handlers (hardware is already stopped and must
-     * stay that way), persist handoff state, and close the recorder. Runs once.
+     * stay that way) and close the recorder. Nothing carries over to the next
+     * op-mode: the next init resets localization. Runs once.
      * [afterHardwareStopped] can report a crash while motors are already off.
      */
     fun stop(afterHardwareStopped: () -> Unit = {}) {
@@ -310,13 +311,8 @@ class Robot(
         try { afterHardwareStopped() } catch (_: Throwable) { /* preserve the original fault */ }
         try { Scheduler.reset() } catch (_: Throwable) { /* best-effort */ }
         try { recordEvent("stop") } catch (_: Throwable) { /* best-effort */ }
-        if (loopCount > 0) {
-            for (s in subsystems) {
-                try { s.persistState() } catch (_: Throwable) { /* best-effort */ }
-            }
-        }
         try { closeFlightRecorder() } catch (_: Throwable) { /* best-effort */ }
-        // INIT tuning must survive cancellation too; pose handoff above still requires an active loop.
+        // Tuning edited during INIT must survive cancellation too.
         try { ConfigStore.persistIfDirty() } catch (_: Throwable) { /* preserve the original fault */ }
     }
 
