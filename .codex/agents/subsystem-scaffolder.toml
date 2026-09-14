@@ -79,7 +79,7 @@ class <Name>Subsystem(/* injected deps if any */) : SubsystemBase("<Name>") {
         .setStart { /* ... */ }
         .setExecute { /* ... */ }
         .setDone { /* returnBoolean */ }
-        .setEnd { /* cleanup on natural end or interruption; must be idempotent */ }
+        .setEnd { /* make safe only: may run without a start (cancelled group) or twice (deadline) */ }
 }
 ```
 
@@ -98,6 +98,10 @@ class <Name>Subsystem(/* injected deps if any */) : SubsystemBase("<Name>") {
    Ivy can arbitrate hardware conflicts. Ivy commands have no names; record
    `robot.recordEvent(...)` where a timeline entry matters.
 5. **Command state resets in `setStart`** — instances are reused across runs.
+   End handlers may run for a command that never started (Ivy ends every
+   later step of a cancelled `sequential`) or twice (`deadline`): they only
+   zero targets or reset state, never energize an actuator. Guard cleanup
+   that must match a real run with a flag set in `setStart`.
    If the command needs run-time state (e.g. a path from the current pose),
    use Ivy's `Commands.lazy { build() }` and give the lazy command the
    requirements explicitly.
