@@ -97,6 +97,8 @@ compensation; tune on a full battery.
 Re-enable `opmodes/skeletons/LocalizationTestTeleOp.kt`. From a clear origin:
 Y follows 24" forward, A returns; speed is capped at 30% of max velocity
 (`pathSpeedFraction`). Press the button again or move a stick to cancel.
+Pressing a button within 0.25 in of its target does nothing; with
+`turnToTargetHeading` the robot turns to the target heading instead.
 Endpoint drift with low `follow/translationalErrorIn` is localization; high
 error is following or battery.
 
@@ -408,6 +410,9 @@ Record results in `PROGRESS.md`.
 **Cancellation and takeover**
 - [ ] Localization Test: moving a stick mid-path stops the path immediately
       and hands control to the sticks; pressing the target button again cancels.
+      Pressing a button while already at that target does nothing (`last
+      press: … already at …`, no `COMMAND FAULT`); with `turnToTargetHeading`
+      and a different heading the robot only turns.
 - [ ] A race timeout stops the drive and the routine continues.
 - [ ] Stopping the op-mode mid-path stops all four motors at once.
 
