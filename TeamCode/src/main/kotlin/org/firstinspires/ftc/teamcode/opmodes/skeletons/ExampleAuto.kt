@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode.opmodes.skeletons
 
-import com.pedropathing.api.Paths.curve
 import com.pedropathing.api.Paths.line
 import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.Scheduler
@@ -17,6 +16,7 @@ import org.firstinspires.ftc.teamcode.core.runtime.StartDelay
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerSubsystem
 import org.firstinspires.ftc.teamcode.core.util.Alliance
+import org.firstinspires.ftc.teamcode.core.util.linearHeading
 import org.firstinspires.ftc.teamcode.core.util.monotonicWaitMs
 import org.firstinspires.ftc.teamcode.pedro.Constants
 
@@ -27,8 +27,9 @@ import org.firstinspires.ftc.teamcode.pedro.Constants
  *  - Poses are written once in RED coordinates through [Alliance.poses]
  *    (degrees); BLUE gets them mirrored. Bare headings go through
  *    [Alliance.mirror].
- *  - Paths come from Pedro's `Paths` API. `linear` heading interpolation is
- *    used only on a `curve`: in Pedro 3.0.0 it runs backwards on a `line`.
+ *  - Paths come from Pedro's `Paths` API. Turning along a path uses
+ *    [linearHeading]: Pedro 3.0.0's own `.linear(...)` runs backwards on a
+ *    `line` and on compound paths.
  *  - The routine is plain Ivy composition: `sequential`, `race` for timeouts,
  *    `deadline` for a mid-path marker that fires once and is dropped if the
  *    path ends first. Waits and timeouts use [monotonicWaitMs], never Ivy's
@@ -58,7 +59,6 @@ class ExampleAuto : OpModeBase() {
     private val start get() = poses.of(8.0, 56.0, 0.0)
     private val out get() = poses.of(32.0, 56.0, 0.0)
     private val outTurned get() = poses.of(32.0, 56.0, 90.0)
-    private val midway get() = poses.of(20.0, 56.0, 0.0)
 
     override fun configure() {
         val follower = Constants.create(hardwareMap)
@@ -81,9 +81,7 @@ class ExampleAuto : OpModeBase() {
 
     private fun outPath(): Path = line(start, out).constant(start)
 
-    // A three-point Bézier with a collinear control point is a straight line
-    // on which linear heading interpolation runs in the right direction.
-    private fun backPath(): Path = curve(outTurned, midway, start).linear(outTurned, start)
+    private fun backPath(): Path = line(outTurned, start).heading(linearHeading(outTurned, start))
 
     private fun buildRoutine(): Command = race(
         sequential(

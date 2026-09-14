@@ -143,7 +143,8 @@ val p = alliance.poses()                      // PoseFactory in degrees, RED coo
 val start = p.of(8.0, 56.0, 0.0)
 val out = p.of(32.0, 56.0, 0.0)
 Paths.line(start, out).constant(start)
-Paths.curve(a, control, b).linear(a, b)       // ≥ 3 points
+Paths.line(a, b).heading(linearHeading(a, b)) // turn along a path (core/util), never .linear
+Paths.curve(a, control, b).constant(a)        // ≥ 3 points
 Paths.path(first, second)                     // compound
 path.with(Constants.foresightConfig.maxPathSpeed.at(0.5))
 ```
@@ -151,9 +152,12 @@ path.with(Constants.foresightConfig.maxPathSpeed.at(0.5))
 Verified 3.0.0 behaviour to respect:
 
 - **`linear` heading runs backwards on `Paths.line` and on compound paths**
-  (t=0 gets the end heading). It is correct on a `Paths.curve` segment. Use
-  `constant`/`tangent`/`facingPoint` on lines, or a 3-point curve with a
-  collinear control point when a straight segment must rotate.
+  (t=0 gets the end heading) because the default `Curve.pathCompletion`
+  returns the fraction remaining; only `BezierCurve` overrides it. Use
+  `path.heading(linearHeading(a, b))` from `core/util` on every path kind: it
+  interpolates by distance travelled, turns the short way like Pedro's, and
+  follows alliance-mapped poses. Pedro's `Interpolator.piecewise()` breakpoints
+  have the same problem on lines and compound paths.
 - `Paths.curve` rejects fewer than three points (the docs show two).
 - `PoseFactory.mirrorX` maps heading to −h, which is not this repo's field
   reflection (π−h). Use `Alliance.poses()` / `Alliance.mirror`.

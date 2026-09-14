@@ -147,6 +147,7 @@ class LibraryContractTest {
 
     @Test
     fun pedroLinearHeadingRunsBackwardsOnLinesButNotOnCurves() {
+        // Why paths use core/util linearHeading (LinearHeadingTest).
         val a = Pose(0.0, 0.0, 0.0)
         val b = Pose(48.0, 0.0, Math.PI / 2)
         val line = Paths.line(a, b).linear(a, b)

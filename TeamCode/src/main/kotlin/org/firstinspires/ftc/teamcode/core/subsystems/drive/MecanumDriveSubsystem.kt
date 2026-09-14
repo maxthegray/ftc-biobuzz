@@ -178,7 +178,8 @@ class MecanumDriveSubsystem(
      * end pose; otherwise it idles. Interruption stops the follower.
      *
      * Pedro 3.0.0 runs `linear(...)` heading interpolation backwards on
-     * `Paths.line` and compound paths; use it only on `Paths.curve` segments.
+     * `Paths.line` and compound paths; use
+     * [org.firstinspires.ftc.teamcode.core.util.linearHeading] instead.
      */
     fun followCommand(path: Path, holdEnd: Boolean = false): CommandBuilder {
         var running = false
