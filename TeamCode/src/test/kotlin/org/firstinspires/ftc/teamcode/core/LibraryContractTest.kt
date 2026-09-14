@@ -27,11 +27,17 @@ import org.junit.Test
  * Behaviour of the published Ivy 1.1.1 and Pedro Pathing 3.0.0 artifacts that
  * this repo's design depends on or works around. A library upgrade that
  * changes any of these fails here, naming the assumption to revisit.
+ * AI-GUIDE.md → Library workarounds says what to clean up for each one.
  */
 class LibraryContractTest {
 
     @Before
     fun resetScheduler() = Scheduler.reset()
+
+    private companion object {
+        /** Prefix for failures that mean a workaround may be removable. */
+        const val CHANGED = "Library behaviour changed; see AI-GUIDE.md → Library workarounds:"
+    }
 
     @Test
     fun ivyResetDropsCommandsWithoutRunningEndHandlers() {
@@ -142,17 +148,19 @@ class LibraryContractTest {
         val wallStart = System.currentTimeMillis()
         while (System.currentTimeMillis() - wallStart < 3) Thread.onSpinWait()
         Scheduler.execute()
-        assertFalse(Scheduler.isScheduled(wait))
+        assertFalse("$CHANGED Ivy waitMs timing (monotonicWaitMs)", Scheduler.isScheduled(wait))
     }
 
     @Test
     fun pedroLinearHeadingRunsBackwardsOnLinesButNotOnCurves() {
         // Why paths use core/util linearHeading (LinearHeadingTest).
+        // Pedro-Pathing/PedroPathing#176.
         val a = Pose(0.0, 0.0, 0.0)
         val b = Pose(48.0, 0.0, Math.PI / 2)
         val line = Paths.line(a, b).linear(a, b)
-        assertEquals(Math.PI / 2, line.heading(0.0), 1e-9)
-        assertEquals(0.0, line.heading(1.0), 1e-9)
+        val fixed = "$CHANGED Pedro linear heading on lines, #176 (linearHeading)"
+        assertEquals(fixed, Math.PI / 2, line.heading(0.0), 1e-9)
+        assertEquals(fixed, 0.0, line.heading(1.0), 1e-9)
 
         val curve = Paths.curve(a, Pose(24.0, 0.0), b).linear(a, b)
         assertEquals(0.0, curve.heading(0.0), 1e-9)
@@ -166,7 +174,7 @@ class LibraryContractTest {
         // Why Alliance.poses() maps with Alliance.mirror instead.
         val mirrored = PoseFactory.radians().mirrorX(70.75).of(10.0, 20.0, 0.3)
         assertEquals(131.5, mirrored.x(), 1e-9)
-        assertEquals(2 * Math.PI - 0.3, mirrored.heading(), 1e-9)
+        assertEquals("$CHANGED PoseFactory.mirrorX heading (Alliance.poses)", 2 * Math.PI - 0.3, mirrored.heading(), 1e-9)
     }
 
     @Test
@@ -199,7 +207,7 @@ class LibraryContractTest {
         follower.manual(1.0, 0.0, 0.0)
         follower.update(0.02)
         follower.stop()
-        assertTrue(hardware.powers().all { it == 1.0 })
+        assertTrue("$CHANGED Follower.stop (MecanumDriveSubsystem.halt)", hardware.powers().all { it == 1.0 })
         follower.update(0.02)
         assertTrue(hardware.powers().all { it == 0.0 })
     }

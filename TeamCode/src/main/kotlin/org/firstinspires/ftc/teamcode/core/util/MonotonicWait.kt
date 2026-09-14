@@ -4,6 +4,8 @@ import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.CommandBuilder
 
 /**
+ * Workaround for Ivy 1.1.1's wall-clock `waitMs` (AI-GUIDE.md → Library workarounds).
+ *
  * Ivy's `Commands.waitMs` with a monotonic clock. Ivy 1.1.1 times `waitMs`
  * with `System.currentTimeMillis()`, which jumps when the Control Hub's wall
  * clock is set: a jump forward ends every wait at once, a jump back stalls

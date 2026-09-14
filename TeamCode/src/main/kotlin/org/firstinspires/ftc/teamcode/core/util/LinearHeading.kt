@@ -5,6 +5,9 @@ import com.pedropathing.paths.interpolator.Interpolator
 import com.pedropathing.utils.Angle
 
 /**
+ * Workaround for Pedro-Pathing/PedroPathing#176. Delete it once Pedro's
+ * `.linear` is fixed (AI-GUIDE.md → Library workarounds).
+ *
  * Linear heading interpolation that is correct on every Pedro path:
  * `Paths.line(a, b).heading(linearHeading(a, b))`.
  *
