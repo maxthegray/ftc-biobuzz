@@ -5,6 +5,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap
 import com.qualcomm.robotcore.util.RobotLog
 import java.io.PrintWriter
 import java.io.StringWriter
+import org.firstinspires.ftc.teamcode.core.logging.CommandHistory
 import org.firstinspires.ftc.teamcode.core.logging.FlightRecorder
 import org.firstinspires.ftc.teamcode.core.util.Alliance
 import org.firstinspires.ftc.teamcode.core.util.Clock
@@ -35,6 +36,7 @@ class Robot(
         // Ivy's scheduler is a static singleton that survives op-modes, tests
         // and Sloth reloads. Nothing from a previous run may execute here.
         Scheduler.reset()
+        CommandHistory.reset(clock)
     }
 
     /** Commands aborted by a thrown exception this op-mode. */
@@ -105,6 +107,7 @@ class Robot(
             clock = clock,
             directory = directory,
         )
+        if (flightRecorder != null) CommandHistory.startRecording()
     }
 
     /** Write a timestamped message to the WPILOG `events` channel. */
@@ -113,8 +116,12 @@ class Robot(
     }
 
     fun closeFlightRecorder() {
-        flightRecorder?.close()
-        flightRecorder = null
+        try {
+            flightRecorder?.close()
+        } finally {
+            flightRecorder = null
+            CommandHistory.stopRecording()
+        }
     }
 
     /** Initialise every registered subsystem. Exceptions propagate so init fails loudly. */
@@ -249,6 +256,8 @@ class Robot(
         for (s in subsystems) {
             try { s.onCommandFault() } catch (_: Throwable) { /* safe every subsystem */ }
         }
+        // Bookkeeping only: the traced executions Ivy dropped without end handlers.
+        CommandHistory.abortAll("command fault")
         commandFaultCount++
         lastCommandFault = e
         val message = "COMMAND FAULT: ${e.javaClass.simpleName}: ${e.message} (commands cleared, subsystems halted)"
@@ -294,6 +303,7 @@ class Robot(
             // The recorder has already faulted; shutdown is best-effort.
         }
         flightRecorder = null
+        CommandHistory.stopRecording()
     }
 
     private fun throttle(lastNs: Long, now: Long): Boolean =
@@ -314,6 +324,7 @@ class Robot(
         }
         try { afterHardwareStopped() } catch (_: Throwable) { /* preserve the original fault */ }
         try { Scheduler.reset() } catch (_: Throwable) { /* best-effort */ }
+        CommandHistory.abortAll("op-mode stop")
         try { recordEvent("stop") } catch (_: Throwable) { /* best-effort */ }
         try { closeFlightRecorder() } catch (_: Throwable) { /* best-effort */ }
         // Tuning edited during INIT must survive cancellation too.

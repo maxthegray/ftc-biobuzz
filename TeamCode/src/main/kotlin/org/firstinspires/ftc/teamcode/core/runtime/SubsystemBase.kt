@@ -1,8 +1,10 @@
 package org.firstinspires.ftc.teamcode.core.runtime
 
+import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.CommandBuilder
 import com.pedropathing.ivy.behaviors.ConflictBehavior
 import com.qualcomm.robotcore.hardware.HardwareMap
+import org.firstinspires.ftc.teamcode.core.logging.LoggedCommand
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 
 /**
@@ -21,14 +23,25 @@ abstract class SubsystemBase(val name: String) {
 
     /**
      * Ivy command [Robot] schedules whenever this subsystem is free. Assigning
-     * one sets its [ConflictBehavior] to CANCEL, so a default never preempts an
-     * explicit command of equal priority; explicit commands at
-     * [CommandPriorities.DEFAULT] or above still preempt the default.
+     * one sets its [ConflictBehavior] to CANCEL (through a [LoggedCommand] to the
+     * builder it wraps), so a default never preempts an explicit command of
+     * equal priority; explicit commands at [CommandPriorities.DEFAULT] or above
+     * still preempt the default.
      */
-    var defaultCommand: CommandBuilder? = null
+    var defaultCommand: Command? = null
         set(value) {
-            field = value?.setConflictBehavior(ConflictBehavior.CANCEL)
+            field = value?.also(::cancelOnConflict)
         }
+
+    private fun cancelOnConflict(command: Command) {
+        when (command) {
+            is CommandBuilder -> command.setConflictBehavior(ConflictBehavior.CANCEL)
+            is LoggedCommand -> cancelOnConflict(command.command)
+            else -> require(command.conflictBehavior() == ConflictBehavior.CANCEL) {
+                "A default command must use ConflictBehavior.CANCEL"
+            }
+        }
+    }
 
     /**
      * Subsystem type that must already be registered before this one.
