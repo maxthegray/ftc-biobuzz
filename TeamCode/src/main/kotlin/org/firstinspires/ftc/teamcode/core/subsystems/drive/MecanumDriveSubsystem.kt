@@ -5,7 +5,6 @@ import com.pedropathing.drivetrain.DrivePowers
 import com.pedropathing.follower.Follower
 import com.pedropathing.follower.ManualDrive
 import com.pedropathing.ivy.Command
-import com.pedropathing.ivy.CommandBuilder
 import com.pedropathing.ivy.behaviors.EndCondition
 import com.pedropathing.math.Pose
 import com.pedropathing.math.Vector2D
@@ -17,6 +16,7 @@ import kotlin.math.abs
 import kotlin.math.hypot
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
+import org.firstinspires.ftc.teamcode.core.logging.logged
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.DriveTelemetrySource
 import org.firstinspires.ftc.teamcode.core.runtime.RobotConfig
@@ -42,6 +42,10 @@ import org.firstinspires.ftc.teamcode.core.util.Clock
  * forwarding to its previous command) and ends a `deadline` child twice;
  * those ends do nothing here, so they cannot stop the follower or fire
  * `onEnd` again.
+ *
+ * Every factory returns a [logged] command named by its `name` argument, so
+ * manual driving, paths, holds, turns and the fallback appear in
+ * `commands/events` without extra code. Schedule and cancel that instance.
  *
  * Completion semantics:
  *  - [followCommand] ends when Pedro leaves FOLLOW mode: the parametric end of
@@ -115,10 +119,11 @@ class MecanumDriveSubsystem(
         priority: Int = CommandPriorities.DEFAULT,
         onStart: () -> Unit = {},
         onEnd: (EndCondition) -> Unit = {},
+        name: String = "Drive teleop",
         input: () -> TeleopInput,
-    ): CommandBuilder {
+    ): Command {
         var running = false
-        return Command.build()
+        val command = Command.build()
             .requiring(this)
             .setPriority(priority)
             .setStart {
@@ -136,6 +141,7 @@ class MecanumDriveSubsystem(
                     onEnd(endCondition)
                 }
             }
+        return logged(name, command)
     }
 
     /**
@@ -144,8 +150,8 @@ class MecanumDriveSubsystem(
      * in the robot frame. Make it the default command too so nothing reclaims
      * the drive.
      */
-    fun robotCentricFallbackCommand(input: () -> TeleopInput): CommandBuilder =
-        teleopCommand(priority = Int.MAX_VALUE, onStart = { odometryFallback = true }, input = input)
+    fun robotCentricFallbackCommand(name: String = "Drive robot-centric fallback", input: () -> TeleopInput): Command =
+        teleopCommand(priority = Int.MAX_VALUE, onStart = { odometryFallback = true }, name = name, input = input)
 
     private fun stageTeleop(i: TeleopInput) {
         val scale = DriveConfig.safeTeleopPowerScale *
@@ -181,9 +187,9 @@ class MecanumDriveSubsystem(
      * `Paths.line` and compound paths; use
      * [org.firstinspires.ftc.teamcode.core.util.linearHeading] instead.
      */
-    fun followCommand(path: Path, holdEnd: Boolean = false): CommandBuilder {
+    fun followCommand(path: Path, holdEnd: Boolean = false, name: String = "Drive follow"): Command {
         var running = false
-        return Command.build()
+        val command = Command.build()
             .requiring(this)
             .setPriority(CommandPriorities.DRIVER_ACTION)
             .setStart {
@@ -199,20 +205,22 @@ class MecanumDriveSubsystem(
                 if (running && it != EndCondition.NATURALLY) halt()
                 running = false
             }
+        return logged(name, command)
     }
 
     /**
      * Hold [pose] (position and heading) until the measured pose is within
      * [DriveConfig.holdToleranceInches]/[DriveConfig.holdToleranceRadians],
      * or [timeoutMs] passes. Either way the follower keeps holding afterwards;
-     * the timeout only bounds how long a routine waits.
+     * the timeout only bounds how long a routine waits, so FINISH in the log is
+     * not proof of arrival.
      */
-    fun holdCommand(pose: Pose, timeoutMs: Double = DEFAULT_HOLD_TIMEOUT_MS): CommandBuilder {
+    fun holdCommand(pose: Pose, timeoutMs: Double = DEFAULT_HOLD_TIMEOUT_MS, name: String = "Drive hold"): Command {
         require(timeoutMs.isFinite() && timeoutMs >= 0.0) { "hold timeout must be finite and non-negative" }
         var updatesAtStart = 0L
         var startNs = 0L
         var running = false
-        return Command.build()
+        val command = Command.build()
             .requiring(this)
             .setPriority(CommandPriorities.DRIVER_ACTION)
             .setStart {
@@ -230,6 +238,7 @@ class MecanumDriveSubsystem(
                 if (running && it != EndCondition.NATURALLY) halt()
                 running = false
             }
+        return logged(name, command)
     }
 
     /**
@@ -238,13 +247,13 @@ class MecanumDriveSubsystem(
      * If it has not converged within [timeoutMs] it throws: a timed-out turn is
      * never reported as success. Always stops the follower when it ends.
      */
-    fun turnToCommand(radians: Double, timeoutMs: Double = 2_000.0): CommandBuilder {
+    fun turnToCommand(radians: Double, timeoutMs: Double = 2_000.0, name: String = "Drive turn"): Command {
         require(radians.isFinite()) { "turn heading must be finite" }
         require(timeoutMs.isFinite() && timeoutMs >= 0.0) { "turn timeout must be finite and non-negative" }
         var startNs = 0L
         var updatesAtStart = 0L
         var running = false
-        return Command.build()
+        val command = Command.build()
             .requiring(this)
             .setPriority(CommandPriorities.DRIVER_ACTION)
             .setStart {
@@ -268,6 +277,7 @@ class MecanumDriveSubsystem(
                 if (running) halt()
                 running = false
             }
+        return logged(name, command)
     }
 
     private fun requirePathControl(action: String) {

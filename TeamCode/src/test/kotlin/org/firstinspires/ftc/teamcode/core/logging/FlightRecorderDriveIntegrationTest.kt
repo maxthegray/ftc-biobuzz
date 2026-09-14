@@ -3,12 +3,15 @@ package org.firstinspires.ftc.teamcode.core.logging
 import com.pedropathing.api.Paths
 import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.Scheduler
+import com.pedropathing.ivy.commands.Commands.waitUntil
+import com.pedropathing.ivy.groups.Groups.sequential
 import com.pedropathing.math.Pose
 import com.pedropathing.math.Velocity
 import com.qualcomm.robotcore.hardware.Gamepad
 import java.io.File
 import java.io.IOException
 import java.io.UncheckedIOException
+import kotlin.math.abs
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
@@ -65,7 +68,7 @@ class FlightRecorderDriveIntegrationTest {
         )
         val gamepad = Gamepad()
         val driver = GamepadEx(gamepad)
-        val teleop = drive.teleopCommand { TeleopInput(driver.leftStickY, driver.leftStickX, driver.rightStickX) }
+        val teleop = drive.teleopCommand(name = "Driver sticks") { TeleopInput(driver.leftStickY, driver.leftStickX, driver.rightStickX) }
         /** The recorder opens on this clock reading: the log's timestamp zero. */
         val openedNs = hardware.clock.nanos()
 
@@ -109,17 +112,27 @@ class FlightRecorderDriveIntegrationTest {
         s.gamepad.dpad_left = true
         repeat(3) { s.tick() }
 
-        val follow = s.drive.followCommand(Paths.line(Pose(8.0, 56.0), Pose(56.0, 56.0)).constant(0.0))
-        s.tick { Scheduler.schedule(follow) }
+        // A nested route: the pause after the path is never reached.
+        val route = logged(
+            "Route",
+            sequential(
+                s.drive.followCommand(Paths.line(Pose(8.0, 56.0), Pose(56.0, 56.0)).constant(0.0), name = "Follow line"),
+                logged("Pause", waitUntil { false }),
+            ),
+        )
+        s.tick { Scheduler.schedule(route) }
         s.hardware.localizer.measuredPose = Pose(20.0, 57.0, 0.0)
         repeat(3) { s.tick() }
 
-        val takeover = s.drive.teleopCommand(priority = CommandPriorities.DRIVER_OVERRIDE) { TeleopInput(0.0, 0.0, 0.0) }
+        val takeover = s.drive.teleopCommand(priority = CommandPriorities.DRIVER_OVERRIDE, name = "Driver takeover") { TeleopInput(0.0, 0.0, 0.0) }
         s.tick { Scheduler.schedule(takeover) }
         s.hardware.localizer.measuredPose = Pose(30.0, 50.0, Math.toRadians(30.0))
         s.tick { Scheduler.cancel(takeover) }
 
-        val bad: Command = Command.build().requiring(s.drive).setPriority(CommandPriorities.DRIVER_ACTION).setExecute { error("boom") }
+        val bad: Command = logged(
+            "Faulty step",
+            Command.build().requiring(s.drive).setPriority(CommandPriorities.DRIVER_ACTION).setExecute { error("boom") },
+        )
         s.tick { Scheduler.schedule(bad) }
         s.robot.recordEvent("marker")
         s.hardware.localizer.measuredPose = Pose(90.0, 40.0, Math.PI / 2)
@@ -196,6 +209,46 @@ class FlightRecorderDriveIntegrationTest {
         assertTrue("marker" in events)
         assertEquals("stop", events.last())
         assertFalse(log.has("commands/running"))
+
+        // Command history: what the robot was trying to do, on the same time base.
+        val history = log.strings("commands/events")
+        assertEquals(
+            listOf(
+                "START #1 Driver sticks",
+                "INTERRUPT #1 Driver sticks",
+                "START #2 Route",
+                "START #3 Follow line",
+                "INTERRUPT #3 Follow line",
+                "INTERRUPT #2 Route",
+                "START #4 Driver takeover",
+                "INTERRUPT #4 Driver takeover",
+                "START #5 Driver sticks",
+                "INTERRUPT #5 Driver sticks",
+                "START #6 Faulty step",
+                "FAIL #6 Faulty step in execute: IllegalStateException: boom",
+                "START #7 Driver sticks",
+                "ABORT #7 Driver sticks: op-mode stop",
+            ),
+            history.map { it.second },
+        )
+        val historyTimes = history.map { it.first }
+        assertTrue(historyTimes.zipWithNext().all { (a, b) -> b > a })
+        fun at(text: String) = history.single { it.second == text }.first
+        // Same clock reading as the samples: records of one tick differ only by the 1 µs
+        // ordering bumps. The follow starts on the tick whose sample first shows FOLLOWING.
+        val firstFollowing = log.strings("driveMode").first { it.second == "FOLLOWING" }.first
+        assertTrue(abs(at("START #3 Follow line") - firstFollowing) <= 10L)
+        val fault = log.strings("events").single { it.second.startsWith("COMMAND FAULT") }.first
+        assertTrue(abs(fault - at("FAIL #6 Faulty step in execute: IllegalStateException: boom")) <= 10L)
+        assertTrue(at("ABORT #7 Driver sticks: op-mode stop") >= lastLoopUs)
+
+        val active = log.strings("commands/active")
+        fun activeAt(t: Long) = active.last { it.first <= t }.second
+        assertEquals("#2 Route\n#3 Follow line", activeAt(at("START #3 Follow line")))
+        assertEquals("#4 Driver takeover", activeAt(at("START #4 Driver takeover")))
+        assertEquals("", activeAt(at("FAIL #6 Faulty step in execute: IllegalStateException: boom")))
+        assertEquals("", active.last().second)
+        assertEquals(0L, log.longs("commands/lost").last().second)
     }
 
     @Test

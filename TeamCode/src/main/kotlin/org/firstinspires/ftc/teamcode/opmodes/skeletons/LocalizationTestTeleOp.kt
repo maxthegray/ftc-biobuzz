@@ -10,6 +10,7 @@ import com.pedropathing.math.Pose
 import com.qualcomm.robotcore.eventloop.opmode.Disabled
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import kotlin.math.abs
+import org.firstinspires.ftc.teamcode.core.logging.logged
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
@@ -94,17 +95,17 @@ class LocalizationTestTeleOp : TeleOpBase() {
                 val path = Paths.line(start, target)
                     .constant(start)
                     .with(Constants.foresightConfig.maxPathSpeed.at(pathSpeedFraction))
-                steps += drive.followCommand(path)
+                steps += drive.followCommand(path, name = "Localization test path")
             }
             if (targetHeading != null &&
                 abs(shortestAngleDelta(start.heading(), targetHeading)) > DriveConfig.safeHoldToleranceRadians
             ) {
-                steps += drive.turnToCommand(targetHeading)
+                steps += drive.turnToCommand(targetHeading, name = "Localization test turn")
             }
             return when (steps.size) {
                 0 -> null
                 1 -> steps.single()
-                else -> sequential(*steps.toTypedArray())
+                else -> logged("Localization test move", sequential(*steps.toTypedArray()))
             }
         }
     }
@@ -130,7 +131,7 @@ class LocalizationTestTeleOp : TeleOpBase() {
         // Moving a stick takes the drive back at driver-action priority, which
         // interrupts the path through Ivy's requirements.
         driver.trigger { stickMoved() }.whileTrue(
-            drive.teleopCommand(priority = CommandPriorities.DRIVER_ACTION) {
+            drive.teleopCommand(priority = CommandPriorities.DRIVER_ACTION, name = "Driver takeover") {
                 TeleopInput(driver.leftStickY, driver.leftStickX, driver.rightStickX, driver.rightTrigger > 0.1)
             },
         )
