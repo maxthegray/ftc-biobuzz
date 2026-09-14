@@ -57,8 +57,10 @@ class <Name>Subsystem(/* injected deps if any */) : SubsystemBase("<Name>") {
     }
 
     override fun onCommandFault() {
-        // A command threw somewhere: Ivy was cleared WITHOUT end handlers and
-        // every subsystem gets this call. Make actuators safe. Never throw.
+        // A command or binding threw an Exception: Ivy was cleared WITHOUT end
+        // handlers and every subsystem gets this call. Make actuators safe.
+        // Never throw. (An Error such as TODO()'s NotImplementedError is not
+        // contained: it ends the op-mode through stop().)
         targetPower = 0.0
     }
 

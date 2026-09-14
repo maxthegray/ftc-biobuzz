@@ -205,13 +205,19 @@ drive.pose / drive.velocity / drive.atPose(target) / drive.toggleFieldCentric()
    they lock at start. A button held through init does not fire at start.
 5. **Register the drive before the localizer** (`registerAfter` enforces it):
    the localizer samples pose history after `Follower.update()`.
-6. **Fault policy.** An exception from bindings or command execution clears
-   Ivy (no end handlers run), calls `onCommandFault()` on **every** subsystem,
-   records `COMMAND FAULT: …` in the WPILOG, and the loop continues with
-   defaults. An autonomous routine is then no longer scheduled and the
-   op-mode stops itself. Exceptions from `periodic()`, `onLoop()` and
-   `writeHardware()` end the op-mode (hardware stopped first, stack trace
-   recorded). Telemetry and recorder failures are contained.
+6. **Fault policy.** An `Exception` from bindings or command execution
+   clears Ivy (no end handlers run), calls `onCommandFault()` on **every**
+   subsystem, records `COMMAND FAULT: …` in the WPILOG, and the loop
+   continues with defaults. An autonomous routine is then no longer scheduled
+   and the op-mode stops itself. An `Error` is not contained, wherever it is
+   thrown: Kotlin's `TODO()` throws `NotImplementedError`, so a `TODO()` left
+   in a command or binding **ends the op-mode**, as do exceptions from
+   `periodic()`, `onLoop()` and `writeHardware()`. `OpModeBase` then calls
+   `Robot.stopAfterCrash`: every subsystem is stopped first, `LOOP CRASHED`
+   and the stack trace are recorded, the log closes, and the error is
+   rethrown to the Driver Station. Telemetry and recorder failures are
+   contained. Use `error("…")` (an `IllegalStateException`) for a command
+   that should fail without ending the op-mode.
 7. **Localizer faults.** `LocalizerSubsystem.periodic()` trips on a non-finite
    pose, a pose frozen while following, or a bad Pinpoint status, and calls
    `onFault` once. Teleop (`TeleOpBase`) schedules the robot-centric fallback

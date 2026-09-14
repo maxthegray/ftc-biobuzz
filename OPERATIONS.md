@@ -112,6 +112,9 @@ error is following or battery.
 - **Command fault:** in a throwaway teleop, bind a button to a command whose
   `setExecute` throws. Health shows `command faults`, every mechanism stops
   for a tick, the drive default resumes, and the log carries `COMMAND FAULT`.
+  Repeat with a command whose `setExecute` calls `TODO()`: the op-mode must
+  end with every motor stopped, the Driver Station must show
+  `NotImplementedError`, and the log must end with `LOOP CRASHED` and `stop`.
 
 ## 8. Vision diagnostics (stationary, no motors)
 
