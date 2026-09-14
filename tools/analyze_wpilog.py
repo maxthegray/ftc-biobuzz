@@ -10,11 +10,16 @@ the text one-pager, plus a channel manifest and the full event timeline) for
 programmatic post-match debugging. --channel adds the full [tSec, value]
 series for the named channels.
 
-Logs recorded before the Ivy migration also carry `commands/running` (the
-sampled command set); those transitions are reported when present. Newer logs
-have no command history: Ivy exposes no command registry or lifecycle hooks,
-so `commandHistoryRecorded` is false and only explicit events describe what
-commands did.
+Command history comes in three generations, reported as `commandHistoryCoverage`:
+
+- "all scheduled": logs from before the Ivy migration carry `commands/running`,
+  the complete set of scheduled commands sampled after each loop.
+- "none": logs from the Ivy migration until command tracing was added have no
+  command history; only explicit events describe what commands did.
+- "instrumented": current logs carry `commands/events`, `commands/active` and
+  `commands/lost` for commands wrapped with `logged(...)` only. Untraced
+  commands, including untraced children of a traced group, never appear, and
+  `commands/lost` > 0 means records were dropped (`commandHistoryIntact` false).
 
 With no arguments, analyzes the newest .wpilog under ./robot-logs (where
 `make pull-logs` drops them). Ten minutes between matches is the real
@@ -157,6 +162,39 @@ PHASES = [
 
 _SCALAR_TYPES = ("double", "int64")
 
+_COMMAND_RECORD_RE = re.compile(r"^(START|FINISH|INTERRUPT|SUSPEND|RESUME|FAIL|ABORT) #(\d+|-) (.*)$", re.S)
+
+
+def command_executions(records):
+    """Rebuild traced executions from `commands/events`, keyed by execution id."""
+    executions = {}
+    orphan_failures = []
+    for ts, text in records.get("commands/events", []):
+        match = _COMMAND_RECORD_RE.match(text)
+        if match is None:
+            continue
+        verb, ident, rest = match.groups()
+        if ident == "-":
+            orphan_failures.append({"tSec": ts / 1e6, "text": text})
+            continue
+        ident = int(ident)
+        if verb == "START":
+            executions[ident] = {"id": ident, "name": rest, "startSec": ts / 1e6,
+                                 "endSec": None, "outcome": "OPEN", "detail": "",
+                                 "suspensions": 0}
+            continue
+        run = executions.get(ident)
+        if run is None:
+            continue  # its START was lost
+        if verb == "SUSPEND":
+            run["suspensions"] += 1
+        elif verb in ("FINISH", "INTERRUPT", "FAIL", "ABORT"):
+            run["endSec"] = ts / 1e6
+            run["outcome"] = verb
+            detail = rest[len(run["name"]):] if rest.startswith(run["name"]) else rest
+            run["detail"] = detail.lstrip(": ").strip()
+    return [executions[k] for k in sorted(executions)], orphan_failures
+
 
 def build_report(records, channel_types, path, truncated=False):
     """Compute every metric once; both the text and JSON outputs read this."""
@@ -217,8 +255,28 @@ def build_report(records, channel_types, path, truncated=False):
             time_in[mode] = time_in.get(mode, 0) + (seg_end - ts)
         report["driveModeTimeSec"] = {m: time_in[m] / 1e6 for m in sorted(time_in)}
 
-    # --- commands (pre-Ivy logs only) ------------------------------------
-    report["commandHistoryRecorded"] = "commands/running" in records
+    # --- commands ----------------------------------------------------------
+    if "commands/events" in channel_types or "commands/events" in records:
+        coverage = "instrumented"
+    elif "commands/running" in records:
+        coverage = "all scheduled"
+    else:
+        coverage = "none"
+    report["commandHistoryCoverage"] = coverage
+    report["commandHistoryRecorded"] = coverage != "none"
+    lost = records.get("commands/lost", [])
+    report["commandHistoryLostRecords"] = lost[-1][1] if lost else 0
+    report["commandHistoryIntact"] = coverage != "none" and report["commandHistoryLostRecords"] == 0
+    executions, orphan_failures = command_executions(records)
+    report["commandExecutions"] = executions
+    report["commandFailures"] = [
+        {"tSec": run["endSec"], "text": f"#{run['id']} {run['name']}: {run['detail']}"}
+        for run in executions if run["outcome"] == "FAIL"
+    ] + orphan_failures
+    report["commandActive"] = [
+        {"tSec": ts / 1e6, "active": [c for c in text.split("\n") if c]}
+        for ts, text in records.get("commands/active", [])
+    ]
     running = records.get("commands/running", [])
     report["commandChanges"] = len(running)
     report["commands"] = [
@@ -295,8 +353,25 @@ def print_text_report(report):
         parts = ", ".join(f"{m} {t:.1f}s" for m, t in drive_mode.items())
         print(f"\ndrive mode time: {parts}")
 
-    if report["commandHistoryRecorded"]:
+    coverage = report["commandHistoryCoverage"]
+    if coverage == "all scheduled":
         print(f"\ncommand-set changes: {report['commandChanges']}")
+    elif coverage == "instrumented":
+        runs = report["commandExecutions"]
+        counts = {}
+        for run in runs:
+            counts[run["outcome"]] = counts.get(run["outcome"], 0) + 1
+        summary = ", ".join(f"{n} {o.lower()}" for o, n in sorted(counts.items()))
+        print(f"\ncommand history: instrumented commands only; {len(runs)} executions"
+              + (f" ({summary})" if summary else ""))
+        if report["commandHistoryLostRecords"]:
+            print(f"  WARNING: {report['commandHistoryLostRecords']} command records lost; history is incomplete")
+        for failure in report["commandFailures"]:
+            print(f"  [{failure['tSec']:8.2f}s] FAIL {failure['text']}")
+        for run in runs:
+            end = f"{run['endSec']:8.2f}s" if run["endSec"] is not None else "    open "
+            detail = f" ({run['detail']})" if run["detail"] else ""
+            print(f"  [{run['startSec']:8.2f}s → {end}] #{run['id']} {run['name']}: {run['outcome']}{detail}")
     else:
         print("\ncommand history: not recorded (see explicit events)")
 
@@ -359,9 +434,22 @@ def to_json_dict(report):
         out["driveModeTimeSec"] = {m: round(t, 1) for m, t in report["driveModeTimeSec"].items()}
 
     out["commandHistoryRecorded"] = report["commandHistoryRecorded"]
-    if report["commandHistoryRecorded"]:
+    out["commandHistoryCoverage"] = report["commandHistoryCoverage"]
+    if report["commandHistoryCoverage"] == "all scheduled":
         out["commands"] = [{"tSec": round(c["tSec"], 3), "running": c["running"]}
                            for c in report["commands"]]
+    elif report["commandHistoryCoverage"] == "instrumented":
+        out["commandHistoryIntact"] = report["commandHistoryIntact"]
+        out["commandHistoryLostRecords"] = report["commandHistoryLostRecords"]
+        out["commandExecutions"] = [
+            {**run, "startSec": round(run["startSec"], 3),
+             "endSec": None if run["endSec"] is None else round(run["endSec"], 3)}
+            for run in report["commandExecutions"]
+        ]
+        out["commandFailures"] = [{"tSec": round(f["tSec"], 3), "text": f["text"]}
+                                  for f in report["commandFailures"]]
+        out["commandActive"] = [{"tSec": round(a["tSec"], 3), "active": a["active"]}
+                                for a in report["commandActive"]]
     out["events"] = [{"tSec": round(e["tSec"], 3), "text": e["text"]}
                      for e in report["events"]]
     out["faults"] = [{"tSec": round(f["tSec"], 3), "text": f["text"]}
