@@ -137,9 +137,10 @@ routine is no longer scheduled.
 - **Completion:** `followCommand` ends at Pedro's *parametric end*, which is
   not arrival. Follow it with `holdCommand(pose)` when arrival matters.
   `turnToCommand` throws on timeout, which aborts the whole routine.
-- **Headings on straight lines:** in Pedro 3.0.0, `.linear(...)` on
-  `Paths.line` rotates backwards. Use `.constant(...)`, or a three-point
-  `Paths.curve(a, midpoint, b).linear(a, b)` (see `backPath()` in the example).
+- **Turning along a path:** in Pedro 3.0.0, `.linear(...)` rotates backwards
+  on `Paths.line` and compound paths. Use
+  `path.heading(linearHeading(a, b))` (`core/util`; see `backPath()` in the
+  example), or `.constant(...)` to keep one heading.
 - **Alliances:** one `@Autonomous` class per alliance/routine; the BLUE copy
   overrides `initialAlliance` only. Never use `PoseFactory.mirrorX`.
 - **Relocalization:** `localizer.applyCorrection(measured, timestampNanos, …)`

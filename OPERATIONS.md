@@ -357,7 +357,7 @@ fix it in `WpiStruct` and say so there.
 | Op-mode stopped | Driver Station exception, `LOOP CRASHED` event, loop phase maxima, minimum battery |
 | All mechanisms twitched off / auto stopped mid-routine | `COMMAND FAULT` event and Health `command faults` |
 | Path "finished" short of the target | `follow/translationalErrorIn` at the end; follow ends at the parametric end, add `holdCommand` |
-| Robot rotated the wrong way along a line | `.linear(...)` on `Paths.line` (Pedro 3.0.0); use a 3-point curve |
+| Robot rotated the wrong way along a line | `.linear(...)` on `Paths.line` or a compound path (Pedro 3.0.0); use `linearHeading` |
 | Auton wrong only when mirrored | Headings not through `Alliance.mirror`, or `PoseFactory.mirrorX` used |
 | Paths refuse to start | `FORESIGHT_TUNED` false, or `ROBOT_CENTRIC_FALLBACK` after a localizer fault |
 | Auton drifted | `follow/translationalErrorIn`: small error means localization; large means following |
@@ -396,8 +396,8 @@ Record results in `PROGRESS.md`.
       (xPodOffset 2.8346 in, yPodOffset 0, X REVERSED, Y FORWARD).
 - [ ] Foresight Tuner completes; output pasted; `FORESIGHT_TUNED = true`.
 - [ ] Tests → Hold resists pushing; Line and Curve repeat without drift.
-- [ ] A `Paths.line(...).linear(...)` path is avoided; a 3-point curve with
-      linear heading rotates the right way.
+- [ ] A `Paths.line(a, b).heading(linearHeading(a, b))` path (Example Auto's
+      return leg) starts at a's heading and ends at b's, on RED and BLUE.
 
 **Driving and turning**
 - [ ] Stick signs, precision trigger, squared input curve, diagonal speed.
