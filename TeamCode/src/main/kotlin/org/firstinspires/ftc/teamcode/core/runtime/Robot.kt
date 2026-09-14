@@ -3,6 +3,8 @@ package org.firstinspires.ftc.teamcode.core.runtime
 import com.pedropathing.ivy.Scheduler
 import com.qualcomm.robotcore.hardware.HardwareMap
 import com.qualcomm.robotcore.util.RobotLog
+import java.io.PrintWriter
+import java.io.StringWriter
 import org.firstinspires.ftc.teamcode.core.logging.FlightRecorder
 import org.firstinspires.ftc.teamcode.core.util.Alliance
 import org.firstinspires.ftc.teamcode.core.util.Clock
@@ -139,10 +141,12 @@ class Robot(
      *  7. [telemetry] — observe-only; a failure is counted, never fatal
      *  8. Flight recorder sample
      *
-     * An exception from phase 3 or 5 aborts every command: the scheduler is
+     * An [Exception] from phase 3 or 5 aborts every command: the scheduler is
      * cleared, every subsystem gets [SubsystemBase.onCommandFault], and the
      * reason is recorded. The loop continues and defaults resume next tick.
-     * Exceptions from 2, 4 and 6 end the op-mode.
+     * Exceptions from 2, 4 and 6, and any [Error] (including Kotlin's `TODO()`,
+     * which throws [NotImplementedError]), propagate out of this call: the
+     * op-mode must then call [stopAfterCrash] and end.
      */
     fun loop(
         input: () -> Unit = {},
@@ -314,6 +318,22 @@ class Robot(
         try { closeFlightRecorder() } catch (_: Throwable) { /* best-effort */ }
         // Tuning edited during INIT must survive cancellation too.
         try { ConfigStore.persistIfDirty() } catch (_: Throwable) { /* preserve the original fault */ }
+    }
+
+    /**
+     * Something escaped [loop] or init: stop the hardware, then record
+     * `LOOP CRASHED` with the stack trace before the log closes. [report]
+     * receives the one-line message. The caller rethrows [crash].
+     */
+    fun stopAfterCrash(crash: Throwable, report: (String) -> Unit = {}) = stop {
+        val message = "LOOP CRASHED: ${crash.javaClass.simpleName}: ${crash.message}"
+        try {
+            val trace = StringWriter().also { crash.printStackTrace(PrintWriter(it)) }.toString()
+            recordEvent("$message\n$trace")
+        } catch (_: Throwable) {
+            // Still report the message.
+        }
+        report(message)
     }
 
     /** Loop frequency in Hz over the most recent tick. */

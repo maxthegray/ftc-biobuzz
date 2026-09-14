@@ -5,8 +5,6 @@ import com.bylazar.telemetry.PanelsTelemetry
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode
 import com.qualcomm.robotcore.hardware.VoltageSensor
 import com.qualcomm.robotcore.util.RobotLog
-import java.io.PrintWriter
-import java.io.StringWriter
 import org.firstinspires.ftc.robotcore.external.Telemetry
 import org.firstinspires.ftc.teamcode.core.logging.FieldView
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
@@ -128,12 +126,9 @@ abstract class OpModeBase : LinearOpMode() {
         }
     }
 
-    /** Hardware is already stopped when this runs. The stack trace goes into the WPILOG `events` channel. */
-    private fun reportLoopCrash(t: Throwable) {
+    /** Hardware is already stopped when this runs; the trace is already in the WPILOG `events` channel. */
+    private fun reportLoopCrash(t: Throwable, message: String) {
         try {
-            val message = "LOOP CRASHED: ${t.javaClass.simpleName}: ${t.message}"
-            val trace = StringWriter().also { t.printStackTrace(PrintWriter(it)) }.toString()
-            robot.recordEvent("$message\n$trace")
             telemetry.addLine(message)
             telemetry.update()
             RobotLog.ee(logTag, t, message)
@@ -278,7 +273,8 @@ abstract class OpModeBase : LinearOpMode() {
                 )
             }
         } catch (t: Throwable) {
-            robot.stop { reportLoopCrash(t) }
+            // Exceptions and Errors alike (TODO() is a NotImplementedError).
+            robot.stopAfterCrash(t) { reportLoopCrash(t, it) }
             throw t
         } finally {
             robot.stop()

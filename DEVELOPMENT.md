@@ -157,10 +157,15 @@ automatically — record an event when a command's start or end matters.
   equal priority takes over.
 - A default command never takes over from an explicit command of equal
   priority; it resumes when the subsystem is free.
-- **If a command throws**, the robot clears every command, halts every
-  subsystem (`onCommandFault()`), records `COMMAND FAULT` in the log, and
-  keeps looping with defaults. In auto that means the routine is gone and the
-  op-mode stops. Health telemetry shows the count.
+- **If a command throws an `Exception`** (for example `error("…")` or
+  `require(...)`), the robot clears every command, halts every subsystem
+  (`onCommandFault()`), records `COMMAND FAULT` in the log, and keeps looping
+  with defaults. In auto that means the routine is gone and the op-mode stops.
+  Health telemetry shows the count.
+- **An `Error` ends the op-mode.** `TODO()` throws `NotImplementedError`,
+  which is an `Error`: a command or binding still containing `TODO()` stops
+  every motor, records `LOOP CRASHED` with the stack trace, and ends the run.
+  Replace every `TODO()` before driving.
 - **If the localizer fails** in teleop, the driver keeps robot-centric sticks
   for the rest of the run; paths, holds and turns refuse to start.
 
