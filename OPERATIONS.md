@@ -16,7 +16,7 @@ existing motor names and directions, and **no Foresight tuning**
 manual driving works and every path, hold and turn command refuses to start.
 
 A **full APK install** is required the first time after this migration: the
-dependencies, SDK version and `@Pinned` `PersistedPose` signature changed.
+dependencies and SDK version changed.
 
 ## 0. Chassis-free framework smoke test
 
@@ -44,9 +44,11 @@ turn each wheel robot-forward. Fix directions in `pedro/Constants.java`
 
 ## 3. Pinpoint axes and heading (on blocks, then by hand)
 
-- Init **Drive Only** with the robot still: the Pinpoint IMU recalibrates when
-  the follower is created, and Health must reach `Localizer: ok` (it shows
-  `waiting for Pinpoint READY (status …)` meanwhile, five-second limit).
+- Power the robot on with it still: the Pinpoint calibrates its IMU at power-up
+  and is not recalibrated at INIT.
+- Init **Drive Only**: Health must reach `Localizer: ok` (it shows
+  `waiting for start pose …` or `waiting for Pinpoint READY (status …)`
+  meanwhile, five-second limit) and the pose must read (0, 0, 0).
 - Push the robot by hand and watch the Panels field: forward is +x, left is
   +y, counter-clockwise rotation increases heading. AutoTune → **Tests →
   Localization / Pose** shows the same.
@@ -59,6 +61,18 @@ In **Drive Only** at low stick: forward/back, strafe left/right, turn
 direction. Toggle field-centric (Back+B), rotate the robot, confirm
 translation stays field-true; reset heading (Back+Y) and confirm "away from
 the driver" is +x.
+
+**Second-run heading drill.** Every op-mode starts at (0, 0, 0), so teleop's
+field-centric "forward" is wherever the robot faces at INIT.
+1. Init and start Drive Only with the robot facing away from the driver. Drive
+   a metre and rotate it 90°. Stop.
+2. Without power-cycling, face the robot away from the driver again and init
+   Drive Only. Before START the pose must read (0, 0, 0), not the first run's
+   pose, and Health must show `Localizer: ok`.
+3. Start: stick forward drives away from the driver with no Back+Y.
+4. Repeat with an autonomous before teleop: teleop still starts at (0, 0, 0),
+   regardless of where the autonomous ended. Face the robot away from the
+   driver before INIT, or press Back+Y after START.
 
 ## 5. AutoTune (clear carpet, full battery)
 
@@ -343,11 +357,11 @@ fix it in `WpiStruct` and say so there.
 | Paths refuse to start | `FORESIGHT_TUNED` false, or `ROBOT_CENTRIC_FALLBACK` after a localizer fault |
 | Auton drifted | `follow/translationalErrorIn`: small error means localization; large means following |
 | Sudden pose jump | `pose correction applied` events and correction gates |
-| Field-centric wrong | Back+Y heading reset; after auton, `PERSISTED POSE RESTORE` |
+| Field-centric wrong | Robot faced elsewhere at INIT (heading starts at 0): Back+Y |
 | Driving robot-centric unexpectedly | `LOCALIZER FAULT` event, `Drive/odometryFallback` |
 | Loop rate collapsed | Phase maxima: `writeHardware` usually Pinpoint, `telemetry` Panels, `periodic` season I/O |
 | Tuned config reverted | Registration, public primitive `@JvmField`, config schema |
-| Pinpoint unhealthy | Init Health status, I²C cable, robot still during init (IMU recalibration) |
+| Pinpoint unhealthy | Init Health status (`waiting for start pose` = pose write not landing), I²C cable, robot still at power-up (IMU calibration) |
 | Ball target flickers or lingers | `BallCamera/frame/ageMs`, `rate/processedFps`, `target/status`, `candidates/accepted` |
 | Tag diagnostic shows nothing | Limelight health (pipeline index/type), `Limelight/fiducial/count`, Full 3D and marker size |
 
@@ -408,5 +422,7 @@ Record results in `PROGRESS.md`.
 - [ ] `make debug` summarises the newest Auto + TeleOp logs.
 - [ ] Log size stays bounded (a host test run wrote ~24 kB/s at 50 Hz) and the file is intact
       after stopping normally and after a battery pull.
-- [ ] Autonomous final pose restores in the following teleop
-      (`PERSISTED POSE RESTORE: APPLIED`).
+- [ ] Second-run heading drill (step 4): a second init reads (0, 0, 0), and
+      teleop after an autonomous does not inherit the autonomous pose.
+- [ ] The last `Field/Robot` sample of a stopped log is where the robot
+      actually stopped, not the field origin.

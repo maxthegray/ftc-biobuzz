@@ -34,10 +34,10 @@ import org.firstinspires.ftc.teamcode.pedro.Constants
  *    path ends first.
  *  - One op-mode per alliance and routine: copy this file and override
  *    [initialAlliance] for BLUE. Only the start delay is picked at init.
- *  - Lifecycle: refuse to start without Foresight tuning or a ready
- *    localizer, set the start pose at start, require scheduling to succeed,
- *    stop when the routine is no longer scheduled. The final pose persists
- *    automatically for teleop.
+ *  - Lifecycle: the start pose is written to the Pinpoint at INIT (place the
+ *    robot first); refuse to start without Foresight tuning or a ready
+ *    localizer (start pose confirmed); require scheduling to succeed; stop
+ *    when the routine is no longer scheduled. Teleop starts again at (0, 0, 0).
  *
  * Disabled: it needs Foresight tuning and real poses before it means anything.
  */
@@ -71,6 +71,8 @@ class ExampleAuto : OpModeBase() {
                 // Driving blind is worse than parking: cancel the routine (its
                 // drive command stops the follower) and stay put.
                 onFault = { routine?.let(Scheduler::cancel) },
+                // Written to the Pinpoint at INIT, after the reset. Place the robot before INIT.
+                startingPose = start,
             ),
         )
         startDelay = StartDelay(telemetryBag)
@@ -117,7 +119,6 @@ class ExampleAuto : OpModeBase() {
             abortAuto("localizer not ready before start: ${localizer.health()}")
             return
         }
-        localizer.setPose(start)
         val selected = buildRoutine()
         routine = selected
         Scheduler.schedule(selected)

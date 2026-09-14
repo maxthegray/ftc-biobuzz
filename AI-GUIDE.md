@@ -218,10 +218,18 @@ drive.pose / drive.velocity / drive.atPose(target) / drive.toggleFieldCentric()
    and makes it the default: no follower update, no odometry read, no
    field-centric rotation, and paths/holds/turns refuse. Auton cancels the
    routine and stays put.
-8. **Shutdown.** `Robot.stop()` stops every subsystem first, then runs the
+8. **Fresh localization.** `LocalizerSubsystem.init()` writes `startingPose`
+   (default `Pose.zero()`; an autonomous passes its field start pose) to the
+   Pinpoint at every INIT. A read that disagrees before one confirms it is a
+   pre-reset sample: the pose is written again, and `ready` stays false until
+   a read confirms it within 0.5 in / 1° (fault after five seconds). The pose
+   is written, not recalibrated: `Constants` sets Pedro's Pinpoint
+   `ResetMode.NONE`, so the IMU keeps its power-up calibration and INIT has
+   no stationary requirement. No pose is restored from a previous op-mode.
+9. **Shutdown.** `Robot.stop()` stops every subsystem first, then runs the
    crash-report callback, clears Ivy without end handlers (so cleanup cannot
-   re-energize hardware), persists handoff state (only if a loop ran), closes
-   the recorder, and saves dirty config. `stop()` must zero actuators and
+   re-energize hardware), closes the recorder (the last logged pose is the
+   last real one), and saves dirty config. Nothing else carries over. `stop()` must zero actuators and
    avoid storage I/O.
 
 ## Config persistence (ConfigStore) + Sloth hot reload + Panels
@@ -248,7 +256,7 @@ overrides. Bump `RobotConfig.CONFIG_SCHEMA` when tuned values stop applying.
 `DriveConfig.brakeOnTeleop` is copied into Pedro's `manualBrakeMode` when the
 follower is created (next init).
 
-The only `@Pinned` class is `PersistedPose`. Don't pin config objects. Ivy's
+There are no `@Pinned` classes. Don't pin config objects. Ivy's
 static scheduler is reset by every `Robot`, so commands created before a
 reload never run.
 

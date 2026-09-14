@@ -80,8 +80,7 @@ dependencies {
 
     // Sloth hot reload (pulls Sinister 2.2.0 transitively).
     // Live-tuned config values survive reloads via ConfigStore (persisted to
-    // disk, reloaded at op-mode init) — see AI-GUIDE.md. Only classes carrying
-    // live in-process state (PersistedPose) still need @Pinned.
+    // disk, reloaded at op-mode init) — see AI-GUIDE.md. No class needs @Pinned.
     implementation 'dev.frozenmilk.sinister:Sloth:0.2.4'
 
     constraints {

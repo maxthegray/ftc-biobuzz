@@ -19,7 +19,6 @@ import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.DriveTelemetrySource
-import org.firstinspires.ftc.teamcode.core.runtime.PersistedPose
 import org.firstinspires.ftc.teamcode.core.runtime.RobotConfig
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.shortestAngleDelta
@@ -368,10 +367,6 @@ class MecanumDriveSubsystem(
         } else if (!follower.holding()) {
             latchedPathProgress = 0.0
         }
-    }
-
-    override fun persistState() {
-        PersistedPose.record(pose)
     }
 
     override fun health(): String =

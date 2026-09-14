@@ -23,6 +23,9 @@ import org.firstinspires.ftc.teamcode.pedro.Constants
  *    the Driver Station's gamepad re-bind chords)
  *  - **Back + B** — toggle field-centric / robot-centric
  *
+ * Localization starts at (0, 0, 0) every run; nothing is restored from a
+ * previous op-mode (see [LocalizerSubsystem]).
+ *
  * On a localizer fault the drive switches, for the rest of the run, to
  * robot-centric sticks that bypass odometry; paths, holds and turns refuse.
  *
@@ -37,9 +40,6 @@ abstract class TeleOpBase : OpModeBase() {
 
     protected lateinit var localizer: LocalizerSubsystem
         private set
-
-    /** Override to false for teleops that must not inherit auton's field pose. */
-    protected open val restorePoseFromAuton: Boolean get() = true
 
     final override fun configure() {
         val follower = Constants.create(hardwareMap)
@@ -84,12 +84,4 @@ abstract class TeleOpBase : OpModeBase() {
 
     /** Register additional subsystems and wire trigger bindings here. */
     protected open fun configureTeleop() {}
-
-    /** If you override this, call `super.onStart()` to keep the pose handoff. */
-    override fun onStart() {
-        if (restorePoseFromAuton && localizer.ready) {
-            val restored = localizer.restorePersistedPose()
-            robot.recordEvent("PERSISTED POSE RESTORE: ${if (restored) "APPLIED" else "NOT APPLIED"}")
-        }
-    }
 }

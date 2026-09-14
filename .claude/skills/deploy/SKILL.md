@@ -9,7 +9,7 @@ Pick the right deploy path and run it. The two paths must not be confused:
 
 - **Full install** — `./gradlew :TeamCode:installDebug`. Full APK build +
   install. Required after changing anything Sloth can't hot-reload: a
-  `@Pinned` class (`PersistedPose`; config objects are no longer pinned —
+  `@Pinned` class (there are none today; config objects are not pinned —
   ConfigStore persists their values), any dependency/gradle change, the
   manifest, resources, or any source outside the
   `org.firstinspires.ftc.teamcode` package. Also the right call for the

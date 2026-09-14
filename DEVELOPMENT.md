@@ -101,9 +101,11 @@ private fun routine(): Command = race(
 )
 ```
 
-In `onStart`: refuse to run if `!Constants.FORESIGHT_TUNED` or
-`!localizer.ready`, call `localizer.setPose(start)`, `Scheduler.schedule(...)`
-and check `Scheduler.isScheduled(...)`. In `onLoop`, stop the op-mode once the
+Pass the start pose to the localizer in `configure()`:
+`LocalizerSubsystem(follower, ..., startingPose = start)`. It is written to the
+Pinpoint at INIT, so place the robot before pressing INIT. In `onStart`: refuse
+to run if `!Constants.FORESIGHT_TUNED` or `!localizer.ready` (start pose not
+yet confirmed), `Scheduler.schedule(...)` and check `Scheduler.isScheduled(...)`. In `onLoop`, stop the op-mode once the
 routine is no longer scheduled.
 
 - **Markers** (do something part-way along a path, once):
@@ -171,12 +173,12 @@ Everything else is Ivy or Pedro. Each remaining helper has one job:
 | `core/runtime/Robot`, `OpModeBase` | Loop order (bulk reads → reads → input → commands → writes → telemetry → log), init lockout, Ivy reset, fault policy, shutdown order |
 | `SubsystemBase` | The read/write/stop/log lifecycle and passive default commands |
 | `MecanumDriveSubsystem` | The one drive owner: stick shaping, field-centric, drive commands with requirements, interruption cleanup and measured completion |
-| `LocalizerSubsystem`, `PoseEstimator`, `PoseHistory` | Pinpoint readiness/fault watchdog, pose handoff, latency-compensated vision corrections |
+| `LocalizerSubsystem`, `PoseEstimator`, `PoseHistory` | Start pose written at every INIT, Pinpoint readiness/fault watchdog, latency-compensated vision corrections |
 | `GamepadEx`, `Trigger` | Deadbanded sticks, edges, and button bindings that schedule Ivy commands (Ivy has none) |
 | `Alliance` | RED→BLUE transform with the season's symmetry (Pedro's `mirrorX` uses a different heading convention) |
 | `FlightRecorder`, `WpiLogWriter`, `WpiStruct`, `StateLog` | WPILOG files for AdvantageScope |
 | `FieldView`, `TelemetryBag` | Panels field drawing and throttled DS/Panels telemetry |
-| `ConfigStore`, `PersistedPose` | Tuning that survives restarts and hot reloads; auto→teleop pose handoff |
+| `ConfigStore` | Tuning that survives restarts and hot reloads |
 | `DeviceReaders`, `Preflight`, `BulkReadManager`, `MotorIO`, `LoopProfile`, `StartDelay`, `MatchTimer`, `PIDFController` | Named hardware errors, missing-device listing, manual bulk caching, testable motors, loop timing, start delay, endgame rumble, gains |
 | `pedro/Constants.java`, `pedro/Tuning.java` | Pedro's configuration and AutoTune registration, in the Quickstart layout |
 
@@ -261,6 +263,8 @@ Changed behaviour:
 - **Hold arrival** is measured against `DriveConfig` tolerances instead of
   Pedro 2 path constraints.
 - **Paths refuse to run** until Foresight is tuned (`FORESIGHT_TUNED`).
-- **Pinpoint IMU recalibrates at every follower creation** (Pedro 3 default);
-  keep the robot still during init.
+- **Fresh localization every run:** every op-mode starts at its
+  `startingPose` (teleop: 0, 0, 0). The autonomous-to-teleop pose handoff
+  (`PersistedPose`) is gone. The Pinpoint's pose is written at INIT; its IMU is
+  not recalibrated (`ResetMode.NONE`), so it relies on the power-up calibration.
 - Drive mode values and all other WPILOG channel names and types are unchanged.

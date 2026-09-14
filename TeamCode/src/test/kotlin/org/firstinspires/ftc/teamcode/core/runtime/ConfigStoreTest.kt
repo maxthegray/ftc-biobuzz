@@ -107,14 +107,12 @@ class ConfigStoreTest {
             val beforeInit = tempFile.readText()
             val robot = Robot(HardwareMap(null, null))
             var stopped = false
-            var statePersisted = false
             var diskAtStop: String? = null
             robot.register(object : SubsystemBase("camera") {
                 override fun stop() {
                     diskAtStop = tempFile.readText()
                     stopped = true
                 }
-                override fun persistState() { statePersisted = true }
             })
             robot.initTick()
             BallVisionConfig.resolutionWidth = 320
@@ -126,7 +124,6 @@ class ConfigStoreTest {
 
             assertTrue(stopped)
             assertEquals(beforeInit, diskAtStop)
-            assertFalse("INIT cancellation must not overwrite pose handoff state", statePersisted)
             ConfigStore.loadFromDisk()
             assertEquals(320, BallVisionConfig.resolutionWidth)
             assertEquals(240, BallVisionConfig.resolutionHeight)

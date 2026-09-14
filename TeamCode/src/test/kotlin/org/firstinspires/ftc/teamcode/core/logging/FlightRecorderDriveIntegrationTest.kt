@@ -10,7 +10,6 @@ import java.io.File
 import java.io.IOException
 import java.io.UncheckedIOException
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
-import org.firstinspires.ftc.teamcode.core.runtime.PersistedPose
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
@@ -43,18 +42,19 @@ class FlightRecorderDriveIntegrationTest {
             it.delete()
             it.mkdirs()
         }
-        PersistedPose.storageFile = null
-        PersistedPose.clear()
     }
 
     @After
     fun tearDown() {
         logDir.deleteRecursively()
-        PersistedPose.clear()
     }
 
-    private class Session(logDir: File) {
-        val hardware = PedroDriveFixture()
+    private class Session(
+        logDir: File,
+        odometry: PedroDriveFixture.OdometryProbe = PedroDriveFixture.OdometryProbe(),
+        registerMore: (Robot) -> Unit = {},
+    ) {
+        val hardware = PedroDriveFixture(localizer = odometry)
         val robot = Robot(hardware.hardwareMap, hardware.clock)
         val drive: MecanumDriveSubsystem = robot.register(hardware.drive)
         val localizer = robot.register(
@@ -73,6 +73,9 @@ class FlightRecorderDriveIntegrationTest {
                 directory = logDir,
             )
             drive.defaultCommand = teleop
+            registerMore(robot)
+            robot.init()
+            robot.initTick()
             robot.start()
         }
 
@@ -106,7 +109,7 @@ class FlightRecorderDriveIntegrationTest {
         val bad: Command = Command.build().requiring(s.drive).setPriority(CommandPriorities.DRIVER_ACTION).setExecute { error("boom") }
         s.tick { Scheduler.schedule(bad) }
         s.robot.recordEvent("marker")
-        s.hardware.localizer.measuredPose = Pose(72.0, 72.0, Math.PI / 2)
+        s.hardware.localizer.measuredPose = Pose(90.0, 40.0, Math.PI / 2)
         repeat(2) { s.tick() }
         s.robot.stop()
 
@@ -117,7 +120,8 @@ class FlightRecorderDriveIntegrationTest {
         assertNotNull(log.raws("/.schema/struct:Pose2d").singleOrNull())
         val field = log.structDoubles("Field/Robot")
         assertArrayEquals(doubleArrayOf(-1.6256, -0.4064, 0.0), field.first().second, 1e-9)
-        assertArrayEquals(doubleArrayOf(0.0, 0.0, Math.PI / 2), field.last().second, 1e-9)
+        // The last sample is the last real pose; stop adds no sample.
+        assertArrayEquals(doubleArrayOf(18 * 0.0254, -32 * 0.0254, Math.PI / 2), field.last().second, 1e-9)
 
         // Raw Pedro inches, sampled on the same ticks as the struct.
         val pose = log.doubleArrays("pose")
@@ -153,7 +157,7 @@ class FlightRecorderDriveIntegrationTest {
         assertTrue(log.longs("loop/windowMaxTotalNanos").isNotEmpty())
         assertEquals(true, log.booleans("Drive/fieldCentric").first().second)
         assertEquals(false, log.booleans("Localizer/faulted").first().second)
-        assertTrue(log.doubles("Drive/motors/leftFront/power").isNotEmpty())
+        assertTrue(listOf("leftFront", "leftRear", "rightFront", "rightRear").any { log.doubles("Drive/motors/$it/power").isNotEmpty() })
 
         val events = log.strings("events").map { it.second }
         assertTrue("init IntegrationTest" in events)
@@ -165,14 +169,15 @@ class FlightRecorderDriveIntegrationTest {
 
     @Test
     fun recorderIoFailureDisablesRecordingButDrivingContinues() {
-        val s = Session(logDir)
         var failing = false
-        s.robot.register(object : SubsystemBase("Flaky") {
-            override fun logState(log: StateLog) {
-                if (failing) throw UncheckedIOException(IOException("sd card removed"))
-                log.put("ok", true)
-            }
-        })
+        val s = Session(logDir) { robot ->
+            robot.register(object : SubsystemBase("Flaky") {
+                override fun logState(log: StateLog) {
+                    if (failing) throw UncheckedIOException(IOException("sd card removed"))
+                    log.put("ok", true)
+                }
+            })
+        }
         s.gamepad.left_stick_y = -1f
         repeat(2) { s.tick() }
         failing = true
@@ -206,18 +211,22 @@ class FlightRecorderDriveIntegrationTest {
     }
 
     @Test
-    fun finalPoseIsPersistedAtStopAndRestoredByTheNextOpMode() {
-        val auto = Session(logDir)
-        auto.hardware.localizer.measuredPose = Pose(100.0, 30.0, 1.0)
-        auto.tick()
-        auto.robot.stop()
+    fun finalRealPoseIsKeptAtStopAndTheNextOpModeLogsFromZero() {
+        val first = Session(logDir)
+        first.hardware.localizer.measuredPose = Pose(100.0, 30.0, 1.0)
+        first.tick()
+        first.robot.stop()
+        val firstLog = readSingleLog()
+        assertArrayEquals(doubleArrayOf(100.0, 30.0, 1.0), firstLog.doubleArrays("pose").last().second, 1e-9)
+        logDir.listFiles()!!.forEach { it.delete() }
 
-        val teleop = Session(logDir)
-        assertTrue(teleop.localizer.restorePersistedPose())
-        val restored = teleop.drive.pose
-        assertEquals(100.0, restored.x(), 0.0)
-        assertEquals(30.0, restored.y(), 0.0)
-        assertEquals(1.0, restored.heading(), 0.0)
-        teleop.robot.stop()
+        // Same Pinpoint, still holding the first run's pose.
+        val second = Session(logDir, first.hardware.localizer)
+        assertArrayEquals(DoubleArray(3), second.drive.pose.let { doubleArrayOf(it.x(), it.y(), it.heading()) }, 0.0)
+        assertTrue(second.localizer.ready)
+        second.tick()
+        second.robot.stop()
+        val secondLog = readSingleLog()
+        assertTrue(secondLog.doubleArrays("pose").all { it.second.contentEquals(doubleArrayOf(0.0, 0.0, 0.0)) })
     }
 }

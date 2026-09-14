@@ -234,25 +234,6 @@ class RobotLoopTest {
     }
 
     @Test
-    fun stateIsPersistedOnlyAfterALoopHasRun() {
-        val persisted = mutableListOf<String>()
-        robot.register(object : SubsystemBase("persist") {
-            override fun persistState() { persisted += "persist" }
-        })
-        robot.stop()
-        assertTrue(persisted.isEmpty())
-
-        val second = Robot(HardwareMap(null, null), clock)
-        second.register(object : SubsystemBase("persist") {
-            override fun persistState() { persisted += "persist" }
-        })
-        second.start()
-        second.loop()
-        second.stop()
-        assertEquals(listOf("persist"), persisted)
-    }
-
-    @Test
     fun registerAfterContractIsEnforced() {
         class First : SubsystemBase("first")
         class Second : SubsystemBase("second") {

@@ -59,8 +59,6 @@ class LocalizationTestTeleOp : TeleOpBase() {
     private var activeFollow: Command? = null
     private var targetLabel: String = "-"
 
-    override val restorePoseFromAuton: Boolean get() = false
-
     override fun configureTeleop() {
         // Y only when it isn't the Back+Y heading-reset chord; A only when
         // it isn't the Driver Station's Start+A gamepad re-bind chord.
