@@ -37,6 +37,12 @@ import org.firstinspires.ftc.teamcode.core.util.Clock
  * commands have decided what the follower should do. Teleop input is staged
  * by [teleopCommand] and applied there.
  *
+ * Every drive command cleans up at most once per start. Ivy 1.1.1 also ends
+ * group children that never started (a cancelled `sequential`, a `lazy`
+ * forwarding to its previous command) and ends a `deadline` child twice;
+ * those ends do nothing here, so they cannot stop the follower or fire
+ * `onEnd` again.
+ *
  * Completion semantics:
  *  - [followCommand] ends when Pedro leaves FOLLOW mode: the parametric end of
  *    the path. That is not arrival; Pedro then holds or idles.
@@ -110,17 +116,27 @@ class MecanumDriveSubsystem(
         onStart: () -> Unit = {},
         onEnd: (EndCondition) -> Unit = {},
         input: () -> TeleopInput,
-    ): CommandBuilder = Command.build()
-        .requiring(this)
-        .setPriority(priority)
-        .setStart(onStart)
-        .setExecute { stageTeleop(input()) }
-        .setDone { false }
-        .setEnd { endCondition ->
-            stagedManual = null
-            follower.stop()
-            onEnd(endCondition)
-        }
+    ): CommandBuilder {
+        var running = false
+        return Command.build()
+            .requiring(this)
+            .setPriority(priority)
+            .setStart {
+                running = true
+                onStart()
+            }
+            // Ivy still executes a command interrupted earlier in the same tick.
+            .setExecute { if (running) stageTeleop(input()) }
+            .setDone { false }
+            .setEnd { endCondition ->
+                if (running) {
+                    running = false
+                    stagedManual = null
+                    follower.stop()
+                    onEnd(endCondition)
+                }
+            }
+    }
 
     /**
      * Localizer fault recovery: owns drive for the rest of the run at the
@@ -164,18 +180,25 @@ class MecanumDriveSubsystem(
      * Pedro 3.0.0 runs `linear(...)` heading interpolation backwards on
      * `Paths.line` and compound paths; use it only on `Paths.curve` segments.
      */
-    fun followCommand(path: Path, holdEnd: Boolean = false): CommandBuilder = Command.build()
-        .requiring(this)
-        .setPriority(CommandPriorities.DRIVER_ACTION)
-        .setStart {
-            requirePathControl("follow")
-            pathSegments = path.segments.size.coerceAtLeast(1)
-            latchedPathProgress = 0.0
-            follower.holdEnd.set(holdEnd)
-            follower.follow(path)
-        }
-        .setDone { !follower.following() }
-        .setEnd { if (it != EndCondition.NATURALLY) halt() }
+    fun followCommand(path: Path, holdEnd: Boolean = false): CommandBuilder {
+        var running = false
+        return Command.build()
+            .requiring(this)
+            .setPriority(CommandPriorities.DRIVER_ACTION)
+            .setStart {
+                running = true
+                requirePathControl("follow")
+                pathSegments = path.segments.size.coerceAtLeast(1)
+                latchedPathProgress = 0.0
+                follower.holdEnd.set(holdEnd)
+                follower.follow(path)
+            }
+            .setDone { !follower.following() }
+            .setEnd {
+                if (running && it != EndCondition.NATURALLY) halt()
+                running = false
+            }
+    }
 
     /**
      * Hold [pose] (position and heading) until the measured pose is within
@@ -187,10 +210,12 @@ class MecanumDriveSubsystem(
         require(timeoutMs.isFinite() && timeoutMs >= 0.0) { "hold timeout must be finite and non-negative" }
         var updatesAtStart = 0L
         var startNs = 0L
+        var running = false
         return Command.build()
             .requiring(this)
             .setPriority(CommandPriorities.DRIVER_ACTION)
             .setStart {
+                running = true
                 requirePathControl("hold")
                 updatesAtStart = updateCount
                 startNs = clock.nanos()
@@ -200,7 +225,10 @@ class MecanumDriveSubsystem(
                 // Wait for one follower update so the measurement postdates the command.
                 (updateCount > updatesAtStart && atPose(pose)) || (clock.nanos() - startNs) / 1e6 >= timeoutMs
             }
-            .setEnd { if (it != EndCondition.NATURALLY) halt() }
+            .setEnd {
+                if (running && it != EndCondition.NATURALLY) halt()
+                running = false
+            }
     }
 
     /**
@@ -214,10 +242,12 @@ class MecanumDriveSubsystem(
         require(timeoutMs.isFinite() && timeoutMs >= 0.0) { "turn timeout must be finite and non-negative" }
         var startNs = 0L
         var updatesAtStart = 0L
+        var running = false
         return Command.build()
             .requiring(this)
             .setPriority(CommandPriorities.DRIVER_ACTION)
             .setStart {
+                running = true
                 requirePathControl("turnTo")
                 startNs = clock.nanos()
                 updatesAtStart = updateCount
@@ -233,7 +263,10 @@ class MecanumDriveSubsystem(
                 }
                 reached
             }
-            .setEnd { halt() }
+            .setEnd {
+                if (running) halt()
+                running = false
+            }
     }
 
     private fun requirePathControl(action: String) {

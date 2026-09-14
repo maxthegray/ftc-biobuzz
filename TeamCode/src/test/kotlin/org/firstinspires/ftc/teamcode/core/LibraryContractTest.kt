@@ -5,9 +5,11 @@ import com.pedropathing.api.PoseFactory
 import com.pedropathing.follower.Follower
 import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.Scheduler
+import com.pedropathing.ivy.behaviors.BlockedBehavior
 import com.pedropathing.ivy.behaviors.ConflictBehavior
 import com.pedropathing.ivy.behaviors.EndCondition
 import com.pedropathing.ivy.commands.Commands.infinite
+import com.pedropathing.ivy.commands.Commands.lazy
 import com.pedropathing.ivy.commands.Commands.waitUntil
 import com.pedropathing.ivy.groups.Groups.deadline
 import com.pedropathing.ivy.groups.Groups.sequential
@@ -42,13 +44,46 @@ class LibraryContractTest {
     }
 
     @Test
-    fun ivyCancelCascadesInterruptedIntoGroupChildren() {
-        val ends = mutableListOf<String>()
-        val group = sequential(infinite {}.setEnd { ends += "a:$it" }, infinite {}.setEnd { ends += "b:$it" })
+    fun ivyCancelCascadesInterruptedIntoGroupChildrenIncludingOnesThatNeverStarted() {
+        // Why every end handler must tolerate an end without a start.
+        val log = mutableListOf<String>()
+        val group = sequential(
+            infinite {}.setStart { log += "a:start" }.setEnd { log += "a:$it" },
+            infinite {}.setStart { log += "b:start" }.setEnd { log += "b:$it" },
+        )
         Scheduler.schedule(group)
         Scheduler.execute()
         Scheduler.cancel(group)
-        assertEquals(listOf("a:INTERRUPTED", "b:INTERRUPTED"), ends)
+        assertEquals(listOf("a:start", "a:INTERRUPTED", "b:INTERRUPTED"), log)
+    }
+
+    @Test
+    fun ivyCancelEndsAQueuedCommandThatNeverStarted() {
+        val requirement = Any()
+        val log = mutableListOf<String>()
+        Scheduler.schedule(infinite {}.requiring(requirement).setPriority(5))
+        val queued = infinite {}.requiring(requirement)
+            .setBlockedBehavior(BlockedBehavior.QUEUE)
+            .setStart { log += "start" }
+            .setEnd { log += "end:$it" }
+        Scheduler.schedule(queued)
+        assertTrue(Scheduler.isScheduled(queued))
+        Scheduler.cancel(queued)
+        assertEquals(listOf("end:INTERRUPTED"), log)
+    }
+
+    @Test
+    fun ivyLazyEndedWithoutStartingForwardsToItsPreviousCommand() {
+        val log = mutableListOf<String>()
+        var run = 0
+        val stepped = lazy {
+            val n = ++run
+            infinite {}.setEnd { log += "inner$n:$it" }
+        }
+        Scheduler.schedule(stepped)
+        Scheduler.cancel(stepped)
+        stepped.end(EndCondition.INTERRUPTED)
+        assertEquals(listOf("inner1:INTERRUPTED", "inner1:INTERRUPTED"), log)
     }
 
     @Test

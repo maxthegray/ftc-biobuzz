@@ -34,7 +34,7 @@ class IntakeSubsystem : SubsystemBase("Intake") {
         .setPriority(CommandPriorities.DRIVER_ACTION)
         .setStart { rollerPower = 1.0 }
         .setDone { ballSeen }
-        .setEnd { rollerPower = 0.0 } // natural end or interruption
+        .setEnd { rollerPower = 0.0 } // only ever makes the roller safe
 
     override fun onCommandFault() { rollerPower = 0.0 }
     override fun stop() { rollerPower = 0.0; roller.setPower(0.0) }
@@ -59,6 +59,26 @@ Rules:
 - End handlers run on natural end and on interruption, **not** when the
   op-mode stops or a command faults. `stop()` and `onCommandFault()` are what
   make the mechanism safe then.
+- An end handler can also run for a command that **never started** (a later
+  step of a cancelled `sequential`) and can run **twice** (a `deadline`
+  child). Write it so that is harmless: set targets to zero or reset state,
+  never start a motor or log "done" there. If cleanup must match a real
+  run, set a flag in `setStart`:
+
+  ```kotlin
+  fun spitOut(): Command {
+      var running = false
+      return Command.build()
+          .requiring(this)
+          .setStart { running = true; rollerPower = -0.5 }
+          .setDone { !ballSeen }
+          .setEnd {
+              if (running) lastSpitOut = it // counts only runs that happened
+              running = false
+              rollerPower = 0.0
+          }
+  }
+  ```
 - Bench rigs without the drivetrain override `requiredDevices`:
   `get() = listOf(Preflight.Requirement("liftMotor", DcMotorEx::class.java))`.
 

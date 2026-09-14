@@ -102,9 +102,15 @@ Semantics verified against the 1.1.1 artifact (`LibraryContractTest` pins them):
   default). Equal priority **overrides** by default; lower-priority holders
   are interrupted.
 - `Scheduler.reset()` drops everything **without calling end handlers**.
-- `cancel` of a group ends its unfinished children with INTERRUPTED.
+- `cancel` of a group ends its unfinished children with INTERRUPTED,
+  **including children that never started** (every later step of a
+  `sequential`). `cancel` of a queued command ends it without a start, and a
+  `lazy` ended before it starts forwards the end to its previous command.
 - `deadline` ends an unfinished child twice (INTERRUPTED, then NATURALLY).
-  End handlers must be idempotent and must not treat NATURALLY as success.
+- So an end handler can run without a start, or twice. It may only make
+  things safe (zero a target, reset state); never energize hardware or
+  treat NATURALLY as success in it. When cleanup must match a real run,
+  guard it with a flag set in `setStart` (the drive commands do this).
 - A command preempted *from inside* `Scheduler.execute()` still executes once
   more that tick. Schedule from bindings (input phase), `periodic()` (e.g.
   fault policies) or `onLoop()`, not from another command's execute.
