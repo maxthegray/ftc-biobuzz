@@ -111,13 +111,13 @@ private fun toScore(): Path = Paths.line(start, score).constant(start)
 
 private fun routine(): Command = race(
     sequential(
-        waitMs(startDelay.millis.toDouble()),
-        race(drive.followCommand(toScore()), waitMs(4_000.0)),   // step timeout
-        drive.holdCommand(score),                                 // wait for arrival
+        monotonicWaitMs(startDelay.millis.toDouble()),
+        race(drive.followCommand(toScore()), monotonicWaitMs(4_000.0)), // step timeout
+        drive.holdCommand(score),                                        // wait for arrival
         instant { robot.recordEvent("AUTO: scored") },
         drive.turnToCommand(alliance.mirror(Math.toRadians(90.0))),
     ),
-    waitMs(29_000.0),                                             // whole-routine timeout
+    monotonicWaitMs(29_000.0),                                           // whole-routine timeout
 )
 ```
 
@@ -128,6 +128,9 @@ to run if `!Constants.FORESIGHT_TUNED` or `!localizer.ready` (start pose not
 yet confirmed), `Scheduler.schedule(...)` and check `Scheduler.isScheduled(...)`. In `onLoop`, stop the op-mode once the
 routine is no longer scheduled.
 
+- **Waits:** use `monotonicWaitMs(ms)` from `core/util`, not Ivy's `waitMs`,
+  which is timed by the wall clock and ends early or stalls if the hub's
+  time is set mid-match.
 - **Markers** (do something part-way along a path, once):
   `deadline(drive.followCommand(path), sequential(waitUntil { drive.pathProgress() >= 0.5 }, instant { lift.up() }))`.
   If the path ends or is cancelled first, the marker is dropped.

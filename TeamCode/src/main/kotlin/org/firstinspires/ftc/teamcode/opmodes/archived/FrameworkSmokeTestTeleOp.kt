@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode.opmodes.archived
 import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.CommandBuilder
 import com.pedropathing.ivy.commands.Commands.instant
-import com.pedropathing.ivy.commands.Commands.waitMs
 import com.pedropathing.ivy.groups.Groups.sequential
 import com.qualcomm.robotcore.eventloop.opmode.Disabled
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
@@ -15,6 +14,7 @@ import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
 import org.firstinspires.ftc.teamcode.core.util.Clock
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx.Button
+import org.firstinspires.ftc.teamcode.core.util.monotonicWaitMs
 
 /** Archived chassis-free runtime check; re-enable for framework or Control Hub bring-up. */
 @Disabled
@@ -39,7 +39,7 @@ class FrameworkSmokeTestTeleOp : OpModeBase() {
         driver.button(Button.DPAD_UP).onTrue(
             sequential(
                 instant { robot.recordEvent("smoke sequence start") },
-                waitMs(500.0),
+                monotonicWaitMs(500.0, robot.clock),
                 instant(smoke::completeSequence),
             ),
         )

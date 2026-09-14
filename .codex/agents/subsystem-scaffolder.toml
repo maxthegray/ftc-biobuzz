@@ -118,7 +118,9 @@ class <Name>Subsystem(/* injected deps if any */) : SubsystemBase("<Name>") {
 - Priorities (`CommandPriorities`): defaults 0 < auton/assist 10 < driver
   action 20 < override 30. Blocked only by strictly higher; equal overrides.
 - Helpers (`com.pedropathing.ivy.commands.Commands`): `instant {}`,
-  `waitMs(ms)`, `waitUntil {}`, `infinite {}`, `lazy {}`. Composition
+  `waitUntil {}`, `infinite {}`, `lazy {}`; for waits use
+  `org.firstinspires.ftc.teamcode.core.util.monotonicWaitMs(ms)`, never Ivy's
+  wall-clock `waitMs`. Composition
   (`com.pedropathing.ivy.groups.Groups`): `sequential / parallel / race /
   deadline`.
 - `defaultCommand` takes a `CommandBuilder`.

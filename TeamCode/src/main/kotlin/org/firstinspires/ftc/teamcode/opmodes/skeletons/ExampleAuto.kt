@@ -5,7 +5,6 @@ import com.pedropathing.api.Paths.line
 import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.Scheduler
 import com.pedropathing.ivy.commands.Commands.instant
-import com.pedropathing.ivy.commands.Commands.waitMs
 import com.pedropathing.ivy.commands.Commands.waitUntil
 import com.pedropathing.ivy.groups.Groups.deadline
 import com.pedropathing.ivy.groups.Groups.race
@@ -18,6 +17,7 @@ import org.firstinspires.ftc.teamcode.core.runtime.StartDelay
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerSubsystem
 import org.firstinspires.ftc.teamcode.core.util.Alliance
+import org.firstinspires.ftc.teamcode.core.util.monotonicWaitMs
 import org.firstinspires.ftc.teamcode.pedro.Constants
 
 /**
@@ -31,7 +31,8 @@ import org.firstinspires.ftc.teamcode.pedro.Constants
  *    used only on a `curve`: in Pedro 3.0.0 it runs backwards on a `line`.
  *  - The routine is plain Ivy composition: `sequential`, `race` for timeouts,
  *    `deadline` for a mid-path marker that fires once and is dropped if the
- *    path ends first.
+ *    path ends first. Waits and timeouts use [monotonicWaitMs], never Ivy's
+ *    wall-clock `waitMs`.
  *  - One op-mode per alliance and routine: copy this file and override
  *    [initialAlliance] for BLUE. Only the start delay is picked at init.
  *  - Lifecycle: the start pose is written to the Pinpoint at INIT (place the
@@ -86,7 +87,7 @@ class ExampleAuto : OpModeBase() {
 
     private fun buildRoutine(): Command = race(
         sequential(
-            waitMs(startDelay.millis.toDouble()),
+            monotonicWaitMs(startDelay.millis.toDouble()),
             race(
                 deadline(
                     drive.followCommand(outPath()),
@@ -95,15 +96,15 @@ class ExampleAuto : OpModeBase() {
                         instant { robot.recordEvent("AUTO: outbound midpoint") },
                     ),
                 ),
-                waitMs(4_000.0),
+                monotonicWaitMs(4_000.0),
             ),
             drive.holdCommand(out),
-            waitMs(300.0), // stand-in for "score"
+            monotonicWaitMs(300.0), // stand-in for "score"
             drive.turnToCommand(alliance.mirror(Math.toRadians(90.0))),
             drive.followCommand(backPath(), holdEnd = true),
             instant { robot.recordEvent("AUTO: complete") },
         ),
-        waitMs(29_000.0),
+        monotonicWaitMs(29_000.0),
     )
 
     override fun onInitLoop() {
