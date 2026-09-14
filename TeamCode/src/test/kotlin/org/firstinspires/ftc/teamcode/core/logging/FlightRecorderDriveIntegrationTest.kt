@@ -31,6 +31,9 @@ import org.junit.Test
  * drive: a teleop → path → driver takeover → command fault session produces a
  * WPILOG that decodes with the channels, units, transforms and timestamps
  * AdvantageScope layouts and `tools/analyze_wpilog.py` rely on.
+ *
+ * Set `WPILOG_SAMPLE_DIR` to keep that session's log for AdvantageScope and
+ * the analyzer (see OPERATIONS.md, "Flight recorder validation").
  */
 class FlightRecorderDriveIntegrationTest {
 
@@ -63,6 +66,8 @@ class FlightRecorderDriveIntegrationTest {
         val gamepad = Gamepad()
         val driver = GamepadEx(gamepad)
         val teleop = drive.teleopCommand { TeleopInput(driver.leftStickY, driver.leftStickX, driver.rightStickX) }
+        /** The recorder opens on this clock reading: the log's timestamp zero. */
+        val openedNs = hardware.clock.nanos()
 
         init {
             robot.enableFlightRecorder(
@@ -85,7 +90,14 @@ class FlightRecorderDriveIntegrationTest {
         }
     }
 
-    private fun readSingleLog(): WpiLog = WpiLog.read(logDir.listFiles { f -> f.extension == "wpilog" }!!.single())
+    private fun logFile(): File = logDir.listFiles { f -> f.extension == "wpilog" }!!.single()
+
+    private fun readSingleLog(): WpiLog = WpiLog.read(logFile())
+
+    private fun exportSampleIfRequested() {
+        val dir = System.getenv("WPILOG_SAMPLE_DIR")?.takeIf { it.isNotBlank() } ?: return
+        logFile().copyTo(File(dir, "IntegrationSample.wpilog").also { it.parentFile.mkdirs() }, overwrite = true)
+    }
 
     @Test
     fun teleopPathTakeoverAndFaultProduceADecodableFieldLog() {
@@ -104,6 +116,7 @@ class FlightRecorderDriveIntegrationTest {
 
         val takeover = s.drive.teleopCommand(priority = CommandPriorities.DRIVER_OVERRIDE) { TeleopInput(0.0, 0.0, 0.0) }
         s.tick { Scheduler.schedule(takeover) }
+        s.hardware.localizer.measuredPose = Pose(30.0, 50.0, Math.toRadians(30.0))
         s.tick { Scheduler.cancel(takeover) }
 
         val bad: Command = Command.build().requiring(s.drive).setPriority(CommandPriorities.DRIVER_ACTION).setExecute { error("boom") }
@@ -111,8 +124,10 @@ class FlightRecorderDriveIntegrationTest {
         s.robot.recordEvent("marker")
         s.hardware.localizer.measuredPose = Pose(90.0, 40.0, Math.PI / 2)
         repeat(2) { s.tick() }
+        val lastLoopUs = (s.hardware.clock.nanos() - s.openedNs) / 1000
         s.robot.stop()
 
+        exportSampleIfRequested()
         val log = readSingleLog()
 
         // AdvantageScope 2D field: struct Pose2d in metres about the field centre.
@@ -127,6 +142,19 @@ class FlightRecorderDriveIntegrationTest {
         val pose = log.doubleArrays("pose")
         assertEquals(field.map { it.first }, pose.map { it.first })
         assertArrayEquals(doubleArrayOf(8.0, 56.0, 0.0), pose.first().second, 1e-9)
+        // Every Field/Robot sample is its pose sample moved to the field centre, in metres.
+        for ((i, sample) in field.withIndex()) {
+            val (x, y, h) = pose[i].second
+            assertArrayEquals(doubleArrayOf((x - 72.0) * 0.0254, (y - 72.0) * 0.0254, h), sample.second, 1e-9)
+        }
+        assertEquals(
+            listOf(Pose(8.0, 56.0, 0.0), Pose(20.0, 57.0, 0.0), Pose(30.0, 50.0, Math.toRadians(30.0)), Pose(90.0, 40.0, Math.PI / 2))
+                .map { listOf(it.x(), it.y(), it.heading()) },
+            pose.map { it.second.toList() }.distinct(),
+        )
+        // Shutdown: nothing sampled after the last loop, and no zero pose was invented.
+        assertTrue(field.last().first <= lastLoopUs)
+        assertFalse(pose.any { it.second.all { v -> v == 0.0 } })
         assertArrayEquals(doubleArrayOf(10.0, -2.0, 0.5), log.doubleArrays("velocity").first().second, 1e-9)
 
         // Timestamps: microseconds since open, non-decreasing, at most one sample per 10 ms.
@@ -159,6 +187,9 @@ class FlightRecorderDriveIntegrationTest {
         assertEquals(false, log.booleans("Localizer/faulted").first().second)
         assertTrue(listOf("leftFront", "leftRear", "rightFront", "rightRear").any { log.doubles("Drive/motors/$it/power").isNotEmpty() })
 
+        // Same-tick events get distinct timestamps, so AdvantageScope shows every one.
+        val eventTimes = log.strings("events").map { it.first }
+        assertTrue(eventTimes.zipWithNext().all { (a, b) -> b > a })
         val events = log.strings("events").map { it.second }
         assertTrue("init IntegrationTest" in events)
         assertTrue("COMMAND FAULT: IllegalStateException: boom (commands cleared, subsystems halted)" in events)

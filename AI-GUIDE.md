@@ -296,7 +296,7 @@ reload never run.
 | `battery` | double | volts |
 | `loop/totalNanos`, `loop/<phase>Nanos`, `loop/windowMax…` | int64 | loop timing and per-window peaks |
 | `<Subsystem>/…` | any | `SubsystemBase.logState` channels |
-| `events` | string | explicit events with their own timestamps (not sampled) |
+| `events` | string | explicit events with their own timestamps (not sampled); strictly increasing, a same-microsecond event moves 1 µs later |
 
 Log values with `logState(log)` (`log.put("name", value)`) and events with
 `robot.recordEvent("text")`. Nothing records command starts or ends: there is
