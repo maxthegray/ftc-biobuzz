@@ -66,6 +66,28 @@ Pedro is **not** on `maven.pedropathing.com`. If you need to bump any version,
 verify the artifact exists in its real repository and check its POM/module
 dependencies first. Don't guess.
 
+## Library workarounds (re-check on every Pedro or Ivy upgrade)
+
+Each workaround below exists because of a behaviour pinned in
+`TeamCode/src/test/kotlin/.../core/LibraryContractTest.kt`. After a version
+bump, run the unit tests: a failing contract test means the library changed,
+and its failure message points here. Confirm the new behaviour in the
+library's source, then do the listed cleanup in the same change. Don't just
+flip the assertion.
+
+| Workaround | Library behaviour (upstream) | Contract test | When the test fails |
+|---|---|---|---|
+| `core/util/LinearHeading.kt` (`linearHeading`) | Pedro 3.0.0 `Interpolator.linear`/`longLinear`/`piecewise` use `Curve.pathCompletion`, which returns the fraction *remaining* on `Line` and `CompoundCurve`: headings run backwards and `endPose()` gets the start heading. [Pedro-Pathing/PedroPathing#176](https://github.com/Pedro-Pathing/PedroPathing/issues/176), open as of 2026-09-14 | `pedroLinearHeadingRunsBackwardsOnLinesButNotOnCurves` | Check `.linear`, `longLinear`, `piecewise` and `endPose()` on a line and a compound path. If all are fixed: replace every `.heading(linearHeading(a, b))` with `.linear(a, b)` (`git grep linearHeading`), delete `LinearHeading.kt` and `LinearHeadingTest.kt`, turn the contract test into a check that `.linear` is correct, and remove the bug notes here, in the Pedro section, `DEVELOPMENT.md` and `OPERATIONS.md` (triage row and checklist). `linearHeading` stays correct until then, so there is no hurry. |
+| `core/util/MonotonicWait.kt` (`monotonicWaitMs`) | Ivy 1.1.1 `Commands.waitMs` uses `System.currentTimeMillis()`. Not reported upstream | `ivyWaitMsIsTimedByTheWallClock` | If Ivy's wait is now monotonic: replace `monotonicWaitMs(ms)` with `waitMs(ms)`, delete the helper and `MonotonicWaitTest.kt`, update docs. Tests that need a fake clock may still want the helper. |
+| `Alliance.poses()` / `Alliance.mirror` instead of `PoseFactory.mirrorX` | `mirrorX` maps heading to −h; this field's reflection is π−h. A convention, not a bug | `pedroPoseFactoryMirrorXIsNotTheFieldReflection` | Keep `Alliance`, which also handles `FieldSymmetry.ROTATE`. Only if `mirrorX` now gives π−h, consider using it for MIRROR seasons. |
+| `MecanumDriveSubsystem.halt()` stops the drivetrain directly | Pedro 3.0.0 `Follower.stop()` changes mode only; motors update on the next `update()` | `pedroStopOnlyChangesModeUntilTheNextUpdate` | If `stop()` now zeroes motors immediately, the direct `drivetrain.stop()` is redundant but harmless. |
+| Drive commands instead of Ivy's `PedroCommands` (no `com.pedropathing.ivy:pedro` dependency) | Ivy 1.1.1 `follow` has no requirement and no interruption cleanup; `hold` reports no arrival | None (the artifact isn't a dependency) | On an Ivy upgrade, read `PedroCommands` in the new `ivy:pedro` sources before considering it. The drive commands also carry the logging and completion semantics. |
+| Once-per-start guards in drive commands; `LoggedCommand` ignoring unstarted or repeated ends; ABORT after `Scheduler.reset` | Ivy 1.1.1 ends unstarted group children, ends deadline children twice, forwards a lazy's end, skips `end` on reset, executes a command interrupted earlier in the tick | the `ivy…` tests | Re-check `MecanumDriveSubsystem`, `CommandHistory.kt`, `DriveCommandCancellationTest` and `CommandHistoryTest` against the new scheduler and groups. The guards stay harmless if Ivy stops doing this. |
+
+Checking upstream: `gh issue view 176 -R Pedro-Pathing/PedroPathing`, and the
+newest versions at
+`https://repo1.maven.org/maven2/com/pedropathing/<core|revhub|tuning|ivy/core>/maven-metadata.xml`.
+
 ## Optimize for the best decision, not the cheapest
 
 When a decision forks between a pragmatic compromise and the genuinely better
@@ -154,6 +176,8 @@ path.with(Constants.foresightConfig.maxPathSpeed.at(0.5))
 Verified 3.0.0 behaviour to respect:
 
 - **`linear` heading runs backwards on `Paths.line` and on compound paths**
+  ([#176](https://github.com/Pedro-Pathing/PedroPathing/issues/176); see
+  **Library workarounds** for removing the workaround once fixed)
   (t=0 gets the end heading) because the default `Curve.pathCompletion`
   returns the fraction remaining; only `BezierCurve` overrides it. Use
   `path.heading(linearHeading(a, b))` from `core/util` on every path kind: it
@@ -425,6 +449,7 @@ No team or season prefix. `"Match"` or `"Diagnostics"` groups. Title Case, no
 - Don't rename hardware-map strings (`frontLeftMotor`, `pinpoint`, …).
 - Don't move files between `java/` and `kotlin/` source roots.
 - Don't bump FTC SDK, Pedro, Ivy, Kotlin, AGP, Sloth or Panels versions.
+  When asked to, work through **Library workarounds** as part of the bump.
 - Don't edit the copied AutoTune procedures; re-copy them from the Quickstart.
 - Don't add wrappers, DSLs or aliases over Ivy or Pedro APIs. `logged` is the
   single sanctioned command wrapper; don't grow it into a framework.
