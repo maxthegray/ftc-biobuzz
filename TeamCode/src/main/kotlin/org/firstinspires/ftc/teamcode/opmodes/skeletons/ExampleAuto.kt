@@ -11,6 +11,7 @@ import com.pedropathing.ivy.groups.Groups.sequential
 import com.pedropathing.paths.Path
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous
 import com.qualcomm.robotcore.eventloop.opmode.Disabled
+import org.firstinspires.ftc.teamcode.core.logging.logged
 import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.runtime.StartDelay
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
@@ -34,6 +35,8 @@ import org.firstinspires.ftc.teamcode.pedro.Constants
  *    `deadline` for a mid-path marker that fires once and is dropped if the
  *    path ends first. Waits and timeouts use [monotonicWaitMs], never Ivy's
  *    wall-clock `waitMs`.
+ *  - The routine and its meaningful steps are [logged], so `commands/events`
+ *    shows which step ran, finished, was interrupted or failed.
  *  - One op-mode per alliance and routine: copy this file and override
  *    [initialAlliance] for BLUE. Only the start delay is picked at init.
  *  - Lifecycle: the start pose is written to the Pinpoint at INIT (place the
@@ -83,26 +86,32 @@ class ExampleAuto : OpModeBase() {
 
     private fun backPath(): Path = line(outTurned, start).heading(linearHeading(outTurned, start))
 
-    private fun buildRoutine(): Command = race(
-        sequential(
-            monotonicWaitMs(startDelay.millis.toDouble()),
-            race(
-                deadline(
-                    drive.followCommand(outPath()),
-                    sequential(
-                        waitUntil { drive.pathProgress() >= 0.5 },
-                        instant { robot.recordEvent("AUTO: outbound midpoint") },
+    // Named steps show up in commands/events and commands/active. The drive
+    // factories are already logged (pass `name`); other steps are wrapped with
+    // logged(). The marker and the instants stay unlogged: they are events.
+    private fun buildRoutine(): Command = logged(
+        "Example Auto routine",
+        race(
+            sequential(
+                logged("Start delay", monotonicWaitMs(startDelay.millis.toDouble())),
+                race(
+                    deadline(
+                        drive.followCommand(outPath(), name = "Drive out"),
+                        sequential(
+                            waitUntil { drive.pathProgress() >= 0.5 },
+                            instant { robot.recordEvent("AUTO: outbound midpoint") },
+                        ),
                     ),
+                    logged("Drive out time limit", monotonicWaitMs(4_000.0)),
                 ),
-                monotonicWaitMs(4_000.0),
+                drive.holdCommand(out, name = "Settle at out"),
+                logged("Score", monotonicWaitMs(300.0)), // stand-in for "score"
+                drive.turnToCommand(alliance.mirror(Math.toRadians(90.0)), name = "Turn to 90 deg"),
+                drive.followCommand(backPath(), holdEnd = true, name = "Drive back"),
+                instant { robot.recordEvent("AUTO: complete") },
             ),
-            drive.holdCommand(out),
-            monotonicWaitMs(300.0), // stand-in for "score"
-            drive.turnToCommand(alliance.mirror(Math.toRadians(90.0))),
-            drive.followCommand(backPath(), holdEnd = true),
-            instant { robot.recordEvent("AUTO: complete") },
+            logged("Routine time limit", monotonicWaitMs(29_000.0)),
         ),
-        monotonicWaitMs(29_000.0),
     )
 
     override fun onInitLoop() {

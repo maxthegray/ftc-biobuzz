@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.opmodes
 
 import com.pedropathing.ivy.Scheduler
 import com.pedropathing.ivy.commands.Commands.instant
+import org.firstinspires.ftc.teamcode.core.logging.logged
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
@@ -54,8 +55,8 @@ abstract class TeleOpBase : OpModeBase() {
                 precision = driver.rightTrigger > 0.1,
             )
         }
-        drive.defaultCommand = drive.teleopCommand(input = stickInput)
-        val faultFallback = drive.robotCentricFallbackCommand(stickInput)
+        drive.defaultCommand = drive.teleopCommand(name = "Driver sticks", input = stickInput)
+        val faultFallback = drive.robotCentricFallbackCommand(name = "Driver sticks (robot-centric fallback)", input = stickInput)
         localizer = robot.register(
             LocalizerSubsystem(
                 follower,
@@ -72,9 +73,12 @@ abstract class TeleOpBase : OpModeBase() {
         (driver.button(Button.BACK) and driver.button(Button.Y)).onTrue(
             // Claiming the drive preempts a path or assist: hard-snapping the
             // pose under a live path controller would command a large jerk.
-            instant { localizer.setPose(drive.pose.withHeading(0.0)) }
-                .requiring(drive)
-                .setPriority(CommandPriorities.DRIVER_ACTION),
+            logged(
+                "Reset heading",
+                instant { localizer.setPose(drive.pose.withHeading(0.0)) }
+                    .requiring(drive)
+                    .setPriority(CommandPriorities.DRIVER_ACTION),
+            ),
         )
         (driver.button(Button.BACK) and driver.button(Button.B)).onTrue(
             instant { drive.toggleFieldCentric() },
