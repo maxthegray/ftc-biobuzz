@@ -74,4 +74,30 @@ class FlightRecorderRateTest {
             logDir.deleteRecursively()
         }
     }
+
+    @Test
+    fun sameMicrosecondEventsStayDistinctAndLaterEventsKeepTheirOwnTime() {
+        val logDir = File.createTempFile("event-timestamps", "").also {
+            it.delete()
+            it.mkdirs()
+        }
+        try {
+            val clock = FakeClock()
+            val robot = Robot(HardwareMap(null, null), clock)
+            robot.enableFlightRecorder("EventTest", { null }, { null }, { null }, directory = logDir)
+            clock.advanceMs(5.0)
+            robot.recordEvent("first")
+            robot.recordEvent("second")
+            clock.advanceMs(5.0)
+            robot.stopAfterCrash(IllegalStateException("boom"))
+
+            val events = WpiLog.read(logDir.listFiles { f -> f.extension == "wpilog" }!!.single()).strings("events")
+            assertEquals(
+                listOf(0L to "init EventTest", 5_000L to "first", 5_001L to "second", 10_000L to "LOOP CRASHED", 10_001L to "stop"),
+                events.map { (ts, text) -> ts to text.substringBefore(":") },
+            )
+        } finally {
+            logDir.deleteRecursively()
+        }
+    }
 }

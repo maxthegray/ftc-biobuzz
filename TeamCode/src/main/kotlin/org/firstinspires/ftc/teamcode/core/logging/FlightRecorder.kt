@@ -21,7 +21,10 @@ import org.firstinspires.ftc.teamcode.core.util.GamepadEx
  *
  * Continuous channels (pose, velocity, drive mode, follow errors, gamepads,
  * loop timing, battery, subsystem [StateLog] channels) are *sampled* at no
- * more than 100 Hz. `events` keeps each explicit [event]'s own timestamp.
+ * more than 100 Hz. `events` keeps each explicit [event]'s own timestamp,
+ * except that an event in the same microsecond as the previous one is moved
+ * 1 µs later: AdvantageScope keeps one string per timestamp, and would
+ * otherwise hide, for example, `LOOP CRASHED` behind the `stop` after it.
  * Nothing here is a complete command history: Ivy exposes no lifecycle hooks,
  * so command starts and ends are not logged unless code records an event.
  * Timing-window maxima preserve loop spikes between samples.
@@ -43,6 +46,7 @@ class FlightRecorder private constructor(
     private var nextSampleNs = Long.MIN_VALUE
     private var sampledThisLoop = false
     private var sampleTimestampUs = 0L
+    private var lastEventUs = Long.MIN_VALUE
     private var windowMaxTotalNanos = 0L
     private val windowMaxPhaseNanos = LongArray(LoopPhase.entries.size)
 
@@ -239,7 +243,9 @@ class FlightRecorder private constructor(
     fun event(message: String) {
         if (!enabled) return
         guard {
-            writer.appendString(events, message, timestampUs())
+            val ts = maxOf(timestampUs(), lastEventUs + 1)
+            lastEventUs = ts
+            writer.appendString(events, message, ts)
         }
     }
 

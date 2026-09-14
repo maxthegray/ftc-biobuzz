@@ -317,7 +317,9 @@ latency budget from the measurements above; and on-blocks tests before carpet.
 
 Every op-mode writes a WPILOG under `/sdcard/FIRST/logs` (newest 30 kept).
 Continuous channels are sampled at ≤ 100 Hz; `events` keeps each event's own
-timestamp; per-window loop maxima keep spikes between samples.
+timestamp (an event in the same microsecond as the one before moves 1 µs later
+so AdvantageScope shows both); per-window loop maxima keep spikes between
+samples.
 
 ```sh
 make debug       # newest Auto + TeleOp, JSON diagnostic bundle
@@ -349,6 +351,43 @@ moves the origin from Pedro's corner to the field centre, but does not rotate
 anything. Park at a known spot, confirm the drawn robot is there, drive one
 tile forward. A quarter-turn error is the axis convention, not the encoding —
 fix it in `WpiStruct` and say so there.
+
+### Flight recorder validation
+
+Three separate levels; passing one says nothing about the next.
+
+1. **Decoder (host, automated).** `FlightRecorderDriveIntegrationTest` runs
+   teleop, a path, a driver takeover, a command fault, an explicit event, pose
+   and heading changes and shutdown through the real `Robot`, Ivy and Pedro
+   drive, decodes the WPILOG, and checks every `Field/Robot` sample against
+   `((x − 72) · 0.0254, (y − 72) · 0.0254, heading)` of its `pose` sample, the
+   last sample against the last real pose, event order and the channel set.
+   To keep that log, run the test with an output directory outside the repo
+   (`--rerun`, because Gradle does not see the variable change):
+
+   ```sh
+   WPILOG_SAMPLE_DIR=../biobuzz-ivy-validation ./gradlew :TeamCode:testDebugUnitTest \
+     --tests '*FlightRecorderDriveIntegrationTest' --rerun
+   python3 tools/analyze_wpilog.py ../biobuzz-ivy-validation/IntegrationSample.wpilog
+   ```
+2. **AdvantageScope GUI (manual).** Open `IntegrationSample.wpilog` in
+   AdvantageScope (File → Open Log). Expected:
+   - The sidebar lists `Field/Robot` with `translation`/`rotation` children,
+     `pose`, `driveMode`, `events`, `follow/*`, `gamepad1/*`, `loop/*`,
+     `Drive/*`, `Localizer/*`.
+   - Add a **2D Field** tab, pick an FTC field, keep **Center/Rotated**, and
+     drag `Field/Robot` on. Scrub the timeline: the robot starts at
+     (−1.63, −0.41) m facing 0° (Pedro (8, 56) in), moves to
+     (−1.32, −0.38) m, turns to 30° at (−1.07, −0.56) m, and ends at
+     (0.46, −0.81) m facing 90° (Pedro (90, 40) in). It does not jump to
+     the field centre at the end.
+   - A **Line Graph** of `driveMode` and the `events` list show TELEOP →
+     FOLLOWING → TELEOP → IDLE → TELEOP and the four events `init
+     IntegrationTest`, `COMMAND FAULT: …`, `marker`, `stop` in that order.
+3. **Hardware (manual).** Park the robot at a known field pose, init an
+   op-mode, drive one tile forward and turn 90°, stop, pull the log, and
+   confirm the 2D field shows the same start, direction and end (see "Verify
+   the axes" above).
 
 ### Symptom triage
 
@@ -395,6 +434,7 @@ Record results in `PROGRESS.md`.
 - [ ] Pinpoint Tuner offsets/directions match `localizerConfig`
       (xPodOffset 2.8346 in, yPodOffset 0, X REVERSED, Y FORWARD).
 - [ ] Foresight Tuner completes; output pasted; `FORESIGHT_TUNED = true`.
+      No path, hold or turn is run on the robot before this.
 - [ ] Tests → Hold resists pushing; Line and Curve repeat without drift.
 - [ ] A `Paths.line(a, b).heading(linearHeading(a, b))` path (Example Auto's
       return leg) starts at a's heading and ends at b's, on RED and BLUE.
@@ -418,12 +458,16 @@ Record results in `PROGRESS.md`.
 
 **Faults**
 - [ ] Localizer fault drill (step 7) in teleop and in autonomous.
-- [ ] Command fault drill (step 7).
+- [ ] Command fault drill (step 7), including the `TODO()` variant: the op-mode
+      ends with every motor stopped and the log ends `LOOP CRASHED`, `stop`.
 - [ ] Unplugged Pinpoint at init: Health reports it, auto refuses to start.
 
 **Recording and field view**
+- [ ] `IntegrationSample.wpilog` passes the AdvantageScope GUI checks under
+      "Flight recorder validation".
 - [ ] A 2-minute teleop log opens in AdvantageScope; `Field/Robot` draws the
-      robot in the right place and orientation on the FTC field (axis check above).
+      robot in the right place and orientation on the FTC field, starting from
+      a known parked pose (axis check above).
 - [ ] `pose`, `velocity`, `driveMode`, `follow/*`, `battery`, `gamepad1/*`,
       `loop/*`, `Drive/*`, `Localizer/*` and season subsystem channels plot
       with sensible values; events line up with what happened.
