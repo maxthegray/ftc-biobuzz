@@ -29,12 +29,15 @@ class IntakeSubsystem : SubsystemBase("Intake") {
         roller.setPower(rollerPower) // the one place motor power is written
     }
 
-    fun grab(): Command = Command.build()
-        .requiring(this)
-        .setPriority(CommandPriorities.DRIVER_ACTION)
-        .setStart { rollerPower = 1.0 }
-        .setDone { ballSeen }
-        .setEnd { rollerPower = 0.0 } // only ever makes the roller safe
+    fun grab(): Command = logged( // named in the flight log's command history
+        "Intake grab",
+        Command.build()
+            .requiring(this)
+            .setPriority(CommandPriorities.DRIVER_ACTION)
+            .setStart { rollerPower = 1.0 }
+            .setDone { ballSeen }
+            .setEnd { rollerPower = 0.0 }, // only ever makes the roller safe
+    )
 
     override fun onCommandFault() { rollerPower = 0.0 }
     override fun stop() { rollerPower = 0.0; roller.setPower(0.0) }
@@ -109,17 +112,26 @@ private val score get() = poses.of(32.0, 56.0, 0.0)
 
 private fun toScore(): Path = Paths.line(start, score).constant(start)
 
-private fun routine(): Command = race(
-    sequential(
-        monotonicWaitMs(startDelay.millis.toDouble()),
-        race(drive.followCommand(toScore()), monotonicWaitMs(4_000.0)), // step timeout
-        drive.holdCommand(score),                                        // wait for arrival
-        instant { robot.recordEvent("AUTO: scored") },
-        drive.turnToCommand(alliance.mirror(Math.toRadians(90.0))),
+private fun routine(): Command = logged(
+    "Score preload",
+    race(
+        sequential(
+            logged("Start delay", monotonicWaitMs(startDelay.millis.toDouble())),
+            race(
+                drive.followCommand(toScore(), name = "Drive to score"),
+                logged("Drive to score time limit", monotonicWaitMs(4_000.0)), // step timeout
+            ),
+            drive.holdCommand(score, name = "Settle at score"),               // wait for arrival
+            instant { robot.recordEvent("AUTO: scored") },
+            drive.turnToCommand(alliance.mirror(Math.toRadians(90.0)), name = "Face the wall"),
+        ),
+        logged("Routine time limit", monotonicWaitMs(29_000.0)),             // whole-routine timeout
     ),
-    monotonicWaitMs(29_000.0),                                           // whole-routine timeout
 )
 ```
+
+Schedule, check and cancel the returned `routine()` instance. Drive commands
+take a `name`; wrap everything else worth seeing with `logged(...)`.
 
 Pass the start pose to the localizer in `configure()`:
 `LocalizerSubsystem(follower, ..., startingPose = start)`. It is written to the
@@ -160,8 +172,51 @@ override fun logState(log: StateLog) {
 ```
 
 For a one-off moment, record an event with its exact time:
-`robot.recordEvent("AUTO: preload scored")`. Commands are not logged
-automatically — record an event when a command's start or end matters.
+`robot.recordEvent("AUTO: preload scored")`.
+
+## Trace commands in the log
+
+Wrap a command with `logged` (`core/logging`) to put its runs in the WPILOG:
+
+```kotlin
+import org.firstinspires.ftc.teamcode.core.logging.logged
+
+fun raise(): Command = logged("Lift raise", Command.build().requiring(this).setDone { atTop })
+val auto = logged("Left auto", sequential(drive.followCommand(path, name = "Drive to bar"), lift.raise()))
+Scheduler.schedule(auto)   // schedule, cancel, bind and compare this instance
+```
+
+- The drive's `teleopCommand`, `followCommand`, `holdCommand`,
+  `turnToCommand` and `robotCentricFallbackCommand` are already logged; give
+  them a `name` instead of wrapping them again.
+- **Only wrapped commands appear.** A logged group does not show its children:
+  wrap each step you want to see. Skip trivial internals (`instant` markers,
+  a `waitUntil` inside a marker); record an event for a moment instead.
+- Keep the instance: `Scheduler.cancel(inner)` or `isScheduled(inner)` on the
+  unwrapped command does nothing, because Ivy only knows the wrapper.
+  `logged` on an already logged command renames it.
+
+Channels:
+
+| Channel | Meaning |
+|---|---|
+| `commands/events` | One record per change: `START #7 Drive to bar`, `FINISH #7 …`, `INTERRUPT #7 …`, `SUSPEND`/`RESUME #7 …`, `FAIL #7 … in execute: IllegalStateException: …`, `ABORT #7 …: command fault` / `op-mode stop` |
+| `commands/active` | The traced executions running after each record, one `#id name` per line (`(suspended)` when suspended) |
+| `commands/lost` | Records dropped because too much happened between two loops; above 0 the history is incomplete |
+
+- `#id` numbers each run from 1 per op-mode, so two runs of the same command,
+  or two commands with the same name, stay apart.
+- **FINISH means the command's own `done` returned true**, not that the robot
+  arrived: a hold that timed out, or a path at its parametric end, also
+  finishes. Check pose and `follow/*` for arrival.
+- **FAIL** is the command whose `start`, `execute`, `done` or `end` threw; a
+  logged group it ran inside also fails, marked `(from #child)`. **ABORT** is
+  bookkeeping for commands that were still running when the fault policy or
+  the op-mode stop cleared Ivy: they did not fail, and their end handlers did
+  not run.
+- Nothing records why a command was interrupted (driver takeover, a group's
+  timeout, cancel) or that a schedule was rejected: Ivy doesn't say. Read the
+  surrounding records and `events`.
 
 ## Download a WPILOG and open it in AdvantageScope
 
@@ -173,6 +228,11 @@ automatically — record an event when a command's start or end matters.
    (default *Center/Rotated* coordinates). **Graphs:** use `pose` (inches),
    `velocity`, `driveMode`, `follow/translationalErrorIn`, `battery`,
    `loop/totalNanos`, and your subsystem channels. `events` is the timeline.
+5. **What was the robot trying to do?** Open `commands/events` in a table
+   (or drag it onto a line graph) next to `driveMode`, `pose` and motor
+   channels, and scrub to the moment in question; `commands/active` shows
+   every traced command running then. `make analyze` lists each execution
+   with start, end and outcome, and failures first.
 
 ## Commands, priorities and faults
 
@@ -206,6 +266,7 @@ Everything else is Ivy or Pedro. Each remaining helper has one job:
 | `GamepadEx`, `Trigger` | Deadbanded sticks, edges, and button bindings that schedule Ivy commands (Ivy has none) |
 | `Alliance` | RED→BLUE transform with the season's symmetry (Pedro's `mirrorX` uses a different heading convention) |
 | `FlightRecorder`, `WpiLogWriter`, `WpiStruct`, `StateLog` | WPILOG files for AdvantageScope |
+| `logged`, `CommandHistory` | Command history for traced commands (Ivy has no lifecycle hooks or names) |
 | `FieldView`, `TelemetryBag` | Panels field drawing and throttled DS/Panels telemetry |
 | `ConfigStore` | Tuning that survives restarts and hot reloads |
 | `DeviceReaders`, `Preflight`, `BulkReadManager`, `MotorIO`, `LoopProfile`, `StartDelay`, `MatchTimer`, `PIDFController` | Named hardware errors, missing-device listing, manual bulk caching, testable motors, loop timing, start delay, endgame rumble, gains |
@@ -273,9 +334,11 @@ AutoTune web page), FTC SDK 11.1.0 (now 11.2.1, required by AutoTune).
 
 Removed features:
 
-- Flight log: `commands/running`; per-command `COMMAND STARTED/FINISHED/
-  INTERRUPTED/FAULTED` events; `schedule blocked` and `schedule default`
-  events. Ivy has no names, registry or lifecycle hooks.
+- Flight log: `commands/running` (every scheduled command) and per-command
+  `COMMAND STARTED/FINISHED/INTERRUPTED/FAULTED` events; `schedule blocked`
+  and `schedule default` events. Ivy has no names, registry or lifecycle
+  hooks. Command history came back later as `commands/events`,
+  `commands/active` and `commands/lost`, covering `logged` commands only.
 - `lastcrash.txt` and the recent-events ring (loop crashes still write their
   stack trace to `events`).
 - Per-trigger fault quarantine (`TRIGGER FAULT`).

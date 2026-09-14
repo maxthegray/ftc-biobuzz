@@ -330,13 +330,20 @@ make analyze     # pull logs and summarize the newest one
 For an auton problem inspect `robot-logs/Auto-*.wpilog` explicitly; the
 default target is usually the newer TeleOp log.
 
-**There is no command history.** Ivy has no lifecycle hooks, so logs from the
-current code have no `commands/running` channel and no per-command
-STARTED/FINISHED/INTERRUPTED/FAULTED events (the analyzer prints
-`command history: not recorded`). What commands did is visible through
-`driveMode`, subsystem channels, and events code records explicitly
-(`AUTO: …`, `COMMAND FAULT: …`, `LOCALIZER FAULT: …`, `LOOP CRASHED: …`).
-Logs recorded before September 2026 still show their command sets.
+**Command history covers `logged` commands only.** `commands/events` has a
+timestamped record for every start, finish, interruption, suspension, failure
+and abort of a traced command, each run with its own `#id`; `commands/active`
+shows which traced commands were running at any moment; `commands/lost` above
+0 means records were dropped. Traced today: all drive commands (driver sticks,
+takeovers, paths, holds, turns, the robot-centric fallback), Reset heading,
+Localization Test moves and Example Auto's steps. Untraced commands, and
+untraced children of a traced group, do not appear; FINISH is not arrival;
+interruption causes and rejected schedules are not recorded. The analyzer
+prints `command history: instrumented commands only` with every execution.
+Logs from the Ivy migration until tracing print `not recorded`; logs from
+before September 2026 show their complete command sets (`commands/running`).
+Explicit events (`AUTO: …`, `COMMAND FAULT: …`, `LOCALIZER FAULT: …`,
+`LOOP CRASHED: …`) are still in `events`.
 `lastcrash.txt` is no longer written; a loop crash's stack trace is in `events`.
 
 ### Watching the robot on AdvantageScope's 2D field
@@ -361,14 +368,20 @@ Three separate levels; passing one says nothing about the next.
    and heading changes and shutdown through the real `Robot`, Ivy and Pedro
    drive, decodes the WPILOG, and checks every `Field/Robot` sample against
    `((x − 72) · 0.0254, (y − 72) · 0.0254, heading)` of its `pose` sample, the
-   last sample against the last real pose, event order and the channel set.
+   last sample against the last real pose, event order and the channel set,
+   and the command history of that session: exact `commands/events` order and
+   ids, strictly increasing timestamps aligned with `driveMode` and the
+   `COMMAND FAULT` event, the active set during the nested route and the
+   takeover, and nothing active or lost at the end. `CommandHistoryTest` covers
+   the Ivy lifecycle cases (cancel before start, deadline double end, suspend,
+   repeat, identical names, faults, stop, bounded loss, recorder failure).
    To keep that log, run the test with an output directory outside the repo
    (`--rerun`, because Gradle does not see the variable change):
 
    ```sh
-   WPILOG_SAMPLE_DIR=../biobuzz-ivy-validation ./gradlew :TeamCode:testDebugUnitTest \
+   WPILOG_SAMPLE_DIR=../biobuzz-command-history-validation ./gradlew :TeamCode:testDebugUnitTest \
      --tests '*FlightRecorderDriveIntegrationTest' --rerun
-   python3 tools/analyze_wpilog.py ../biobuzz-ivy-validation/IntegrationSample.wpilog
+   python3 tools/analyze_wpilog.py ../biobuzz-command-history-validation/IntegrationSample.wpilog
    ```
 2. **AdvantageScope GUI (manual).** Open `IntegrationSample.wpilog` in
    AdvantageScope (File → Open Log). Expected:
@@ -384,17 +397,33 @@ Three separate levels; passing one says nothing about the next.
    - A **Line Graph** of `driveMode` and the `events` list show TELEOP →
      FOLLOWING → TELEOP → IDLE → TELEOP and the four events `init
      IntegrationTest`, `COMMAND FAULT: …`, `marker`, `stop` in that order.
+   - Add a **Table** tab with `commands/events`, `commands/active` and
+     `driveMode`. Fourteen `commands/events` rows, none missing: `START #1
+     Driver sticks` at 0.010 s; `INTERRUPT #1`, `START #2 Route`, `START #3
+     Follow line` at 0.040 s (the first FOLLOWING row); `INTERRUPT #3`,
+     `INTERRUPT #2 Route`, `START #4 Driver takeover` at 0.080 s; `INTERRUPT
+     #4`, `START #5 Driver sticks` at 0.090 s; `INTERRUPT #5`, `START #6
+     Faulty step`, `FAIL #6 Faulty step in execute: IllegalStateException:
+     boom` at 0.100 s (with `COMMAND FAULT` in `events`); `START #7 Driver
+     sticks` at 0.110 s; `ABORT #7 Driver sticks: op-mode stop` at 0.120 s.
+     `commands/active` reads `#2 Route` / `#3 Follow line` while following,
+     `#4 Driver takeover` during the takeover, and is empty at the end;
+     `commands/lost` is 0.
 3. **Hardware (manual).** Park the robot at a known field pose, init an
    op-mode, drive one tile forward and turn 90°, stop, pull the log, and
    confirm the 2D field shows the same start, direction and end (see "Verify
-   the axes" above).
+   the axes" above). In Localization Test, press Y, move a stick mid-path, and
+   confirm `commands/events` shows `START … Localization test path`, then
+   `INTERRUPT` of it with `START … Driver takeover` at the moment the sticks
+   moved, and `Driver sticks` resuming after release.
 
 ### Symptom triage
 
 | Symptom | First evidence to check |
 |---|---|
 | Op-mode stopped | Driver Station exception, `LOOP CRASHED` event, loop phase maxima, minimum battery |
-| All mechanisms twitched off / auto stopped mid-routine | `COMMAND FAULT` event and Health `command faults` |
+| All mechanisms twitched off / auto stopped mid-routine | `COMMAND FAULT` event and Health `command faults`; the `FAIL` record in `commands/events` names the traced command and phase |
+| Auto did the wrong step / stopped early | `commands/events` and `commands/active` around the moment (only `logged` steps appear); FINISH of a hold may be its timeout |
 | Path "finished" short of the target | `follow/translationalErrorIn` at the end; follow ends at the parametric end, add `holdCommand` |
 | Robot rotated the wrong way along a line | `.linear(...)` on `Paths.line` or a compound path (Pedro 3.0.0); use `linearHeading` |
 | Auton wrong only when mirrored | Headings not through `Alliance.mirror`, or `PoseFactory.mirrorX` used |
@@ -472,6 +501,9 @@ Record results in `PROGRESS.md`.
       `loop/*`, `Drive/*`, `Localizer/*` and season subsystem channels plot
       with sensible values; events line up with what happened.
 - [ ] `make debug` summarises the newest Auto + TeleOp logs.
+- [ ] A teleop log with a driver takeover shows `Driver sticks` interrupted and
+      resumed in `commands/events`, `commands/lost` stays 0, and the analyzer
+      reports `instrumented commands only`.
 - [ ] Log size stays bounded (a host test run wrote ~24 kB/s at 50 Hz) and the file is intact
       after stopping normally and after a battery pull.
 - [ ] Second-run heading drill (step 4): a second init reads (0, 0, 0), and
