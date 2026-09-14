@@ -52,5 +52,19 @@ object RobotConfig {
          * launches; getting this wrong silently breaks every BLUE auton path.
          */
         val SYMMETRY = org.firstinspires.ftc.teamcode.core.util.FieldSymmetry.MIRROR
+
+        /**
+         * Counter-clockwise quarter turns from Pedro's axes onto the FTC field
+         * frame, used only by the flight recorder's `Field/Robot` channel so
+         * AdvantageScope's 2D field (*Center/Rotated*) draws the robot where it
+         * really is. Pedro: (0, 0) at the corner on the audience's left, +X
+         * along the audience wall, +Y away from the audience. FTC: origin at
+         * the centre, +Y from the red wall to the blue wall. So this is +1 when
+         * the red wall is on the audience's left (DECODE 2025-26, where +X
+         * points at the audience) and −1 when it is on the right (the usual
+         * layout). Display only: paths, start poses and `Alliance` stay in
+         * Pedro's frame. Verify with the axis check in OPERATIONS.md.
+         */
+        const val FIELD_VIEW_QUARTER_TURNS = 1
     }
 }

@@ -143,22 +143,25 @@ class FlightRecorderDriveIntegrationTest {
         exportSampleIfRequested()
         val log = readSingleLog()
 
-        // AdvantageScope 2D field: struct Pose2d in metres about the field centre.
+        // AdvantageScope 2D field: struct Pose2d in metres about the field
+        // centre, rotated into the FTC frame by the season's quarter turns
+        // (DECODE: +1, so FTC x = -(Pedro y - 72), FTC y = Pedro x - 72).
         assertEquals("struct:Pose2d", log.type("Field/Robot"))
         assertNotNull(log.raws("/.schema/struct:Pose2d").singleOrNull())
         val field = log.structDoubles("Field/Robot")
-        assertArrayEquals(doubleArrayOf(-1.6256, -0.4064, 0.0), field.first().second, 1e-9)
+        assertArrayEquals(doubleArrayOf(0.4064, -1.6256, Math.PI / 2), field.first().second, 1e-9)
         // The last sample is the last real pose; stop adds no sample.
-        assertArrayEquals(doubleArrayOf(18 * 0.0254, -32 * 0.0254, Math.PI / 2), field.last().second, 1e-9)
+        assertArrayEquals(doubleArrayOf(32 * 0.0254, 18 * 0.0254, Math.PI), field.last().second, 1e-9)
 
         // Raw Pedro inches, sampled on the same ticks as the struct.
         val pose = log.doubleArrays("pose")
         assertEquals(field.map { it.first }, pose.map { it.first })
         assertArrayEquals(doubleArrayOf(8.0, 56.0, 0.0), pose.first().second, 1e-9)
-        // Every Field/Robot sample is its pose sample moved to the field centre, in metres.
+        // Every Field/Robot sample is its pose sample moved to the field
+        // centre, in metres, turned a quarter turn CCW with its heading.
         for ((i, sample) in field.withIndex()) {
             val (x, y, h) = pose[i].second
-            assertArrayEquals(doubleArrayOf((x - 72.0) * 0.0254, (y - 72.0) * 0.0254, h), sample.second, 1e-9)
+            assertArrayEquals(doubleArrayOf(-(y - 72.0) * 0.0254, (x - 72.0) * 0.0254, h + Math.PI / 2), sample.second, 1e-9)
         }
         assertEquals(
             listOf(Pose(8.0, 56.0, 0.0), Pose(20.0, 57.0, 0.0), Pose(30.0, 50.0, Math.toRadians(30.0)), Pose(90.0, 40.0, Math.PI / 2))
