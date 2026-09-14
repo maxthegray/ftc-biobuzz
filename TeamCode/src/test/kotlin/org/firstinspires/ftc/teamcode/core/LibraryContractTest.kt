@@ -10,6 +10,7 @@ import com.pedropathing.ivy.behaviors.ConflictBehavior
 import com.pedropathing.ivy.behaviors.EndCondition
 import com.pedropathing.ivy.commands.Commands.infinite
 import com.pedropathing.ivy.commands.Commands.lazy
+import com.pedropathing.ivy.commands.Commands.waitMs
 import com.pedropathing.ivy.commands.Commands.waitUntil
 import com.pedropathing.ivy.groups.Groups.deadline
 import com.pedropathing.ivy.groups.Groups.sequential
@@ -130,6 +131,18 @@ class LibraryContractTest {
         Scheduler.schedule(victim)
         Scheduler.execute()
         assertEquals(listOf("end:INTERRUPTED", "executed"), log)
+    }
+
+    @Test
+    fun ivyWaitMsIsTimedByTheWallClock() {
+        // Why routines use monotonicWaitMs: no monotonic or injected clock is
+        // consulted, only System.currentTimeMillis().
+        val wait = waitMs(2.0)
+        Scheduler.schedule(wait)
+        val wallStart = System.currentTimeMillis()
+        while (System.currentTimeMillis() - wallStart < 3) Thread.onSpinWait()
+        Scheduler.execute()
+        assertFalse(Scheduler.isScheduled(wait))
     }
 
     @Test

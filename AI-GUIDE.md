@@ -82,7 +82,8 @@ stop, and ticks it once per loop. Op-modes never call `Scheduler.execute()`.
 ```kotlin
 import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.Scheduler
-import com.pedropathing.ivy.commands.Commands.*   // instant, waitMs, waitUntil, infinite, lazy, conditional
+import com.pedropathing.ivy.commands.Commands.*   // instant, waitUntil, infinite, lazy, conditional (not waitMs)
+import org.firstinspires.ftc.teamcode.core.util.monotonicWaitMs
 import com.pedropathing.ivy.groups.Groups.*       // sequential, parallel, race, deadline, repeat, loop
 
 Command.build()
@@ -116,7 +117,9 @@ Semantics verified against the 1.1.1 artifact (`LibraryContractTest` pins them):
   fault policies) or `onLoop()`, not from another command's execute.
 - Groups take the union of child requirements and the max child priority;
   nothing stops two drive commands in one `parallel`. Don't do that.
-- `waitMs` uses `System.currentTimeMillis()`.
+- `waitMs` uses `System.currentTimeMillis()`, which jumps when the hub's
+  wall clock is set. Use `monotonicWaitMs(ms)` (`core/util`), the same command
+  on `System.nanoTime()`; pass a `Clock` in tests.
 - There are no command names, no running-command registry and no lifecycle
   hooks.
 
@@ -195,7 +198,7 @@ drive.pose / drive.velocity / drive.atPose(target) / drive.toggleFieldCentric()
 - A mid-path marker is plain Ivy: `deadline(drive.followCommand(path),
   sequential(waitUntil { drive.pathProgress() >= 0.5 }, instant { … }))`.
   It fires once, and is dropped if the path ends or is cancelled first.
-- A step timeout is `race(step, waitMs(ms))`; the loser is interrupted.
+- A step timeout is `race(step, monotonicWaitMs(ms))`; the loser is interrupted.
 - `halt()` (stop, command fault) writes zero power immediately.
 
 ## Lifecycle rules (enforced by Robot/OpModeBase)

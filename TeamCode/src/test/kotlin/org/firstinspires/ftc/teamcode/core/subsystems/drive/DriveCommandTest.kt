@@ -4,7 +4,6 @@ import com.pedropathing.api.Paths
 import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.Scheduler
 import com.pedropathing.ivy.commands.Commands.instant
-import com.pedropathing.ivy.commands.Commands.waitMs
 import com.pedropathing.ivy.commands.Commands.waitUntil
 import com.pedropathing.ivy.groups.Groups.deadline
 import com.pedropathing.ivy.groups.Groups.race
@@ -14,6 +13,7 @@ import kotlin.math.PI
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem.TeleopInput
+import org.firstinspires.ftc.teamcode.core.util.monotonicWaitMs
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -206,12 +206,11 @@ class DriveCommandTest {
     fun aRaceTimeoutInterruptsTheStepAndTheRoutineContinues() {
         val h = Harness()
         var next = false
-        val routine = sequential(race(h.drive.followCommand(h.line()), waitMs(30.0)), instant { next = true })
+        val routine = sequential(race(h.drive.followCommand(h.line()), monotonicWaitMs(30.0, h.hardware.clock)), instant { next = true })
         Scheduler.schedule(routine)
         h.tick()
         assertTrue(h.hardware.powers().any { it != 0.0 })
-        // Ivy's waitMs runs on wall-clock time.
-        Thread.sleep(50)
+        assertFalse(next)
         repeat(3) { h.tick() }
         assertTrue(next)
         assertEquals("IDLE", h.drive.driveModeName)
