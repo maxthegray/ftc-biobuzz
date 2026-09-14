@@ -25,8 +25,11 @@ import org.firstinspires.ftc.teamcode.core.util.GamepadEx
  * except that an event in the same microsecond as the previous one is moved
  * 1 µs later: AdvantageScope keeps one string per timestamp, and would
  * otherwise hide, for example, `LOOP CRASHED` behind the `stop` after it.
- * Nothing here is a complete command history: Ivy exposes no lifecycle hooks,
- * so command starts and ends are not logged unless code records an event.
+ * Commands wrapped with [logged] are traced by [CommandHistory]: every start,
+ * finish, interruption, suspension, failure and abort goes to `commands/events`
+ * with its own timestamp, and `commands/active` holds the traced executions
+ * open after it, so commands shorter than a sample still appear. Only traced
+ * commands appear; `commands/lost` counts records dropped from the bounded queue.
  * Timing-window maxima preserve loop spikes between samples.
  *
  * I/O failures permanently disable the recorder for this op-mode. A non-I/O
@@ -47,6 +50,10 @@ class FlightRecorder private constructor(
     private var sampledThisLoop = false
     private var sampleTimestampUs = 0L
     private var lastEventUs = Long.MIN_VALUE
+    // 0: the initial empty active set and lost count are written at 0 µs.
+    private var lastCommandEventUs = 0L
+    private var lastActiveCommands = ""
+    private var writtenLostCommandRecords = 0L
     private var windowMaxTotalNanos = 0L
     private val windowMaxPhaseNanos = LongArray(LoopPhase.entries.size)
 
@@ -91,6 +98,13 @@ class FlightRecorder private constructor(
     }
     private val battery = writer.startEntry("battery", "double")
     private val events = writer.startEntry("events", "string")
+    private val commandEvents = writer.startEntry("commands/events", "string")
+    private val activeCommands = writer.startEntry("commands/active", "string")
+    private val lostCommandRecords = writer.startEntry("commands/lost", "int64").also {
+        // Declares traced history from the first record: nothing active, nothing lost.
+        writer.appendString(activeCommands, "", 0L)
+        writer.appendInt64(it, 0L, 0L)
+    }
     private val followTranslationalError = writer.startEntry("follow/translationalErrorIn", "double")
     private val followHeadingError = writer.startEntry("follow/headingErrorRad", "double")
 
@@ -135,6 +149,7 @@ class FlightRecorder private constructor(
         if (!enabled) return
         guard {
             sampledThisLoop = false
+            writeCommandHistory()
             val now = clock.nanos()
             val ts = timestampUs(now)
             accumulateTiming(robot)
@@ -252,10 +267,37 @@ class FlightRecorder private constructor(
     override fun close() {
         if (!enabled) return
         guard {
+            writeCommandHistory()
             writer.flush()
             writer.close()
         }
         enabled = false
+    }
+
+    /**
+     * Writes queued command records with their own timestamps. Like `events`,
+     * each channel's timestamps strictly increase (AdvantageScope keeps one
+     * string per timestamp), so a record in the same microsecond moves 1 µs later.
+     */
+    private fun writeCommandHistory() {
+        while (true) {
+            val record = CommandHistory.poll() ?: break
+            val ts = maxOf(timestampUs(record.nanos), lastCommandEventUs + 1, 0L)
+            lastCommandEventUs = ts
+            writer.appendString(commandEvents, record.text, ts)
+            if (record.active != lastActiveCommands) {
+                lastActiveCommands = record.active
+                writer.appendString(activeCommands, record.active, ts)
+            }
+        }
+        val lost = CommandHistory.lost
+        if (lost != writtenLostCommandRecords) {
+            val ts = maxOf(timestampUs(), lastCommandEventUs + 1)
+            lastCommandEventUs = ts
+            writer.appendString(commandEvents, "HISTORY INCOMPLETE: $lost command records lost", ts)
+            writer.appendInt64(lostCommandRecords, lost, ts)
+            writtenLostCommandRecords = lost
+        }
     }
 
     private fun writeGamepad(pad: GamepadEx?, axesEntry: Int, buttonsEntry: Int, timestampUs: Long) {
