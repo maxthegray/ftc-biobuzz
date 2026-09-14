@@ -76,14 +76,17 @@ class <Name>Subsystem(/* injected deps if any */) : SubsystemBase("<Name>") {
     }
 
     // Public API: clean methods + Ivy command factories
-    // (com.pedropathing.ivy.Command / CommandBuilder).
-    fun <action>(): CommandBuilder = Command.build()
-        .requiring(this)
-        .setPriority(CommandPriorities.DRIVER_ACTION)
-        .setStart { /* ... */ }
-        .setExecute { /* ... */ }
-        .setDone { /* returnBoolean */ }
-        .setEnd { /* make safe only: may run without a start (cancelled group) or twice (deadline) */ }
+    // (com.pedropathing.ivy.Command), logged so their runs are in the flight log.
+    fun <action>(): Command = logged(
+        "<Mechanism> <action>",
+        Command.build()
+            .requiring(this)
+            .setPriority(CommandPriorities.DRIVER_ACTION)
+            .setStart { /* ... */ }
+            .setExecute { /* ... */ }
+            .setDone { /* returnBoolean */ }
+            .setEnd { /* make safe only: may run without a start (cancelled group) or twice (deadline) */ },
+    )
 }
 ```
 
@@ -99,8 +102,12 @@ class <Name>Subsystem(/* injected deps if any */) : SubsystemBase("<Name>") {
 3. **Don't rename hardware-map strings.** Ask the user for the exact config
    name; don't invent one.
 4. **Commands that touch this subsystem must declare `requiring(this)`** so
-   Ivy can arbitrate hardware conflicts. Ivy commands have no names; record
-   `robot.recordEvent(...)` where a timeline entry matters.
+   Ivy can arbitrate hardware conflicts. Wrap each meaningful command
+   factory in `logged("<Mechanism> <action>", ...)`
+   (`org.firstinspires.ftc.teamcode.core.logging.logged`) so its runs appear in
+   the flight log's `commands/events`; return the wrapper and let callers
+   schedule that instance. Only wrapped commands are traced; don't wrap trivial
+   `instant`s. Use `robot.recordEvent(...)` for one-off moments.
 5. **Command state resets in `setStart`** — instances are reused across runs.
    End handlers may run for a command that never started (Ivy ends every
    later step of a cancelled `sequential`) or twice (`deadline`): they only
@@ -127,7 +134,7 @@ class <Name>Subsystem(/* injected deps if any */) : SubsystemBase("<Name>") {
   wall-clock `waitMs`. Composition
   (`com.pedropathing.ivy.groups.Groups`): `sequential / parallel / race /
   deadline`.
-- `defaultCommand` takes a `CommandBuilder`.
+- `defaultCommand` takes any `Command`, including a `logged` one (CANCEL is set on the builder inside).
 
 ## After writing
 

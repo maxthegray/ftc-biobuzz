@@ -121,7 +121,9 @@ Semantics verified against the 1.1.1 artifact (`LibraryContractTest` pins them):
   wall clock is set. Use `monotonicWaitMs(ms)` (`core/util`), the same command
   on `System.nanoTime()`; pass a `Clock` in tests.
 - There are no command names, no running-command registry and no lifecycle
-  hooks.
+  hooks. The one exception this repo adds is `logged(name, command)`
+  (`core/logging/CommandHistory.kt`), a forwarding `Command` that traces its
+  lifecycle into the flight log (see **Command history**).
 
 Priority ladder (`CommandPriorities`): defaults `0` < auton routines and
 assists `10` < driver actions `20` < overrides `30`. Keep priorities ≥ 0.
@@ -297,25 +299,70 @@ reload never run.
 | `loop/totalNanos`, `loop/<phase>Nanos`, `loop/windowMax…` | int64 | loop timing and per-window peaks |
 | `<Subsystem>/…` | any | `SubsystemBase.logState` channels |
 | `events` | string | explicit events with their own timestamps (not sampled); strictly increasing, a same-microsecond event moves 1 µs later |
+| `commands/events` | string | lifecycle records of `logged` commands, own timestamps, strictly increasing (see below) |
+| `commands/active` | string | traced executions open after each record, `#id name` per line, `(suspended)` suffix |
+| `commands/lost` | int64 | records dropped from the bounded queue; 0 at open, rewritten when it grows |
 
 Log values with `logState(log)` (`log.put("name", value)`) and events with
-`robot.recordEvent("text")`. Nothing records command starts or ends: there is
-**no complete command history**. Do not describe sampled channels as one.
+`robot.recordEvent("text")`.
+
+### Command history
+
+```kotlin
+fun raise(): Command = logged("Lift raise", Command.build().requiring(this).setDone { atTop })
+drive.followCommand(path, name = "Drive to bar")   // drive factories are already logged
+```
+
+- `logged` returns a `LoggedCommand` that forwards requirements, priority, the
+  three behaviours, return values and exceptions to the wrapped command on
+  every call. Schedule, cancel, bind and compare **the returned instance**;
+  Ivy never sees the inner one. `logged` on a logged command renames it.
+  `SubsystemBase.defaultCommand` takes any `Command` and sets CANCEL on the
+  builder inside a `LoggedCommand`.
+- Records: `START #id name`, `FINISH` (its `done` returned true, not
+  arrival), `INTERRUPT`, `SUSPEND`/`RESUME` (Ivy's SUSPEND behaviour; resume is
+  seen at the next `execute`), `FAIL #id name in <start|execute|done|end>:
+  <Exception>: <message>` with `(from #child)` when a logged parent sees its
+  child's exception, `FAIL #- name …` when a command threw outside a traced
+  run, and `ABORT #id name: command fault | op-mode stop | restarted without an
+  end` for runs Ivy dropped without `end`.
+- Ivy quirks handled: `end` without `start` and a second `end` record nothing;
+  `loop`/`repeat` restarting the same instance is a new id; `Scheduler.reset`
+  skips `end`, so `Robot` closes open runs with ABORT **after** subsystems are
+  halted (fault policy) or stopped (op-mode stop). ABORT never calls command
+  code.
+- `CommandHistory` is static like Ivy's scheduler and reset by every `Robot`.
+  Its open runs (≤ 64) are the truth; each change is timestamped on the robot
+  clock and queued (≤ 512) with the resulting active set, then written by the
+  recorder each loop and at close. Overflow and tracing errors increment
+  `lost` and write `HISTORY INCOMPLETE: N command records lost`; the command
+  itself is unaffected, and its exception is always rethrown unchanged.
+- **Coverage is instrumented commands only.** A logged group does not expose
+  unlogged children. There are no blocked-schedule events and no interruption
+  causes: Ivy's public API does not reveal them. Never describe
+  `commands/events` as a complete command history.
+- Instrumented today: the five drive factories (default names `Drive
+  teleop`, `Drive follow`, `Drive hold`, `Drive turn`, `Drive robot-centric
+  fallback`), TeleOpBase's `Driver sticks`, fallback and `Reset heading`,
+  Localization Test's moves and `Driver takeover`, Example Auto's routine and
+  steps. Instrument new mechanism commands and autonomous steps the same way;
+  don't wrap trivial `instant`s or marker internals.
 
 Failure isolation: an I/O failure disables the recorder for the run; a
 non-I/O exception in one subsystem's `logState` disables that subsystem's
 channels and records why; anything else escaping the recorder closes it. The
 loop keeps running.
 
-Retired with the migration (don't reintroduce): `commands/running`,
-`COMMAND STARTED/FINISHED/INTERRUPTED/FAULTED` events, blocked-schedule and
-first-default-resume events, `TRIGGER FAULT` quarantine, the recent-events
-ring, `lastcrash.txt`.
+Retired with the migration (don't reintroduce): `commands/running` (it meant
+every scheduled command; the analyzer still reads it in old logs),
+`COMMAND STARTED/FINISHED/INTERRUPTED/FAULTED` events in `events`,
+blocked-schedule and first-default-resume events, `TRIGGER FAULT` quarantine,
+the recent-events ring, `lastcrash.txt`.
 
 ## Things AI assistants get wrong often
 
 - **There is one scheduler and it is Ivy's static `Scheduler`.** There is no
-  `robot.scheduler`, no `core/command`, no command names.
+  `robot.scheduler`, no `core/command`. Names exist only on `logged` commands.
 - **Don't use Ivy's `PedroCommands`** for driving; use the drive's commands.
 - **Parametric end ≠ arrival.** Use `holdCommand` or `atPose` when arrival matters.
 - **`linear` on `Paths.line` is backwards in Pedro 3.0.0.**
@@ -354,7 +401,8 @@ background the SRSHub by default.
 
 ## When the user asks you to add a path or auton routine
 
-Copy `opmodes/skeletons/ExampleAuto.kt`: RED poses through `alliance.poses()`,
+Copy `opmodes/skeletons/ExampleAuto.kt` (routine and meaningful steps `logged`,
+drive steps named): RED poses through `alliance.poses()`,
 paths from `Paths`, the routine as Ivy groups of drive commands, `race`
 timeouts, `deadline` markers, start gates (`FORESIGHT_TUNED`,
 `localizer.ready`, schedule accepted), stop when the routine is no longer
@@ -378,7 +426,8 @@ No team or season prefix. `"Match"` or `"Diagnostics"` groups. Title Case, no
 - Don't move files between `java/` and `kotlin/` source roots.
 - Don't bump FTC SDK, Pedro, Ivy, Kotlin, AGP, Sloth or Panels versions.
 - Don't edit the copied AutoTune procedures; re-copy them from the Quickstart.
-- Don't add wrappers, DSLs or aliases over Ivy or Pedro APIs.
+- Don't add wrappers, DSLs or aliases over Ivy or Pedro APIs. `logged` is the
+  single sanctioned command wrapper; don't grow it into a framework.
 - Don't invent game-specific mechanisms or put season code in `core/`.
 - Don't enable disabled op-modes, change field dimensions or symmetry, or
   rewrite vision algorithms.
@@ -392,8 +441,11 @@ No team or season prefix. `"Match"` or `"Diagnostics"` groups. Title Case, no
   iteration, including `pedro/Constants.java`.
 
 Logs: `make debug` (newest Auto + TeleOp, JSON bundle), `make pull-logs`,
-`make analyze`. `tools/analyze_wpilog.py` reports `commandHistoryRecorded:
-false` for current logs. When a log doesn't determine the cause, give ranked
+`make analyze`. `tools/analyze_wpilog.py` reports `commandHistoryCoverage`:
+`"all scheduled"` (pre-Ivy logs, `commands/running`), `"none"` (Ivy logs before
+command tracing) or `"instrumented"` (current logs, `logged` commands only,
+with `commandExecutions`, `commandFailures`, `commandActive` and
+`commandHistoryIntact`/`commandHistoryLostRecords`). When a log doesn't determine the cause, give ranked
 hypotheses and the one channel or reproduction that decides it.
 
 ### Post-match debugging (the AI runs this)
@@ -401,7 +453,10 @@ hypotheses and the one channel or reproduction that decides it.
 When the user is plugged into the hub and reports a match problem, run
 **`make debug`**, anchor on the stated symptom, and drill into channels with
 `python3 tools/analyze_wpilog.py --json --channel <name,name> robot-logs/<file>`.
-The auton run is usually the second pulled file.
+The auton run is usually the second pulled file. For "what was it doing":
+read `commandFailures`, then the `commandExecutions` overlapping the symptom
+time, then `--channel commands/active,driveMode,pose` around it. State the
+coverage: an absent command may simply be unlogged.
 
 ## Running the project
 
