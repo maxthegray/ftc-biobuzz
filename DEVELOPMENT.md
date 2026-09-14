@@ -225,7 +225,10 @@ Channels:
    summary; `make pull-logs` copies all of them.
 3. Open the `.wpilog` in AdvantageScope (File → Open Log).
 4. **2D field:** drag `Field/Robot` onto a 2D Field tab with an FTC field
-   (default *Center/Rotated* coordinates). **Graphs:** use `pose` (inches),
+   (default *Center/Rotated* coordinates). It is already in the FTC frame:
+   Pedro's (0, 0) draws at the bottom-left corner as seen from the audience,
+   and heading 0 points right along the audience wall. Don't drag `pose`:
+   AdvantageScope reads its inches as metres. **Graphs:** use `pose` (inches),
    `velocity`, `driveMode`, `follow/translationalErrorIn`, `battery`,
    `loop/totalNanos`, and your subsystem channels. `events` is the timeline.
 5. **What was the robot trying to do?** Open `commands/events` in a table

@@ -12,6 +12,7 @@ import kotlin.math.max
 import org.firstinspires.ftc.teamcode.core.runtime.DriveTelemetrySource
 import org.firstinspires.ftc.teamcode.core.runtime.LoopPhase
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
+import org.firstinspires.ftc.teamcode.core.runtime.RobotConfig
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.util.Clock
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx
@@ -75,10 +76,11 @@ class FlightRecorder private constructor(
 
     /**
      * The same pose as [pose], re-encoded for AdvantageScope's 2D Field tab:
-     * a WPILib struct, in metres, about the field centre. [pose] stays in raw
-     * Pedro inches because that is what the line-graph tab, `analyze_wpilog.py`,
-     * and the poses in `Constants.java` are all in — reading a tuning number
-     * off a metric graph is its own bug.
+     * a WPILib struct in the FTC field frame — metres about the field centre,
+     * rotated by the season's [RobotConfig.Field.FIELD_VIEW_QUARTER_TURNS].
+     * [pose] stays in raw Pedro inches because that is what the line-graph
+     * tab, `analyze_wpilog.py`, and the poses in `Constants.java` are all in —
+     * reading a tuning number off a metric graph is its own bug.
      */
     private val fieldPose = writer.startEntry("Field/Robot", WpiStruct.POSE2D_TYPE)
     private val pose = writer.startEntry("pose", "double[]")
@@ -174,7 +176,13 @@ class FlightRecorder private constructor(
                 poseValues[1] = p.y()
                 poseValues[2] = p.heading()
                 writer.appendDoubleArray(pose, poseValues, ts)
-                WpiStruct.encodePose2d(fieldPoseBytes, p.x(), p.y(), p.heading())
+                WpiStruct.encodePose2d(
+                    fieldPoseBytes,
+                    p.x(),
+                    p.y(),
+                    p.heading(),
+                    RobotConfig.Field.FIELD_VIEW_QUARTER_TURNS,
+                )
                 writer.appendRaw(fieldPose, fieldPoseBytes, ts)
                 val v = drive.velocity
                 velocityValues[0] = v.vx

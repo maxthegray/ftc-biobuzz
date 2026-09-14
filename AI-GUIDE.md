@@ -312,7 +312,7 @@ reload never run.
 
 | Channel | Type | Meaning |
 |---|---|---|
-| `Field/Robot` | `struct:Pose2d` | Pose in metres about the field centre (AdvantageScope 2D field) |
+| `Field/Robot` | `struct:Pose2d` | Pose in the FTC field frame for AdvantageScope's 2D field: metres about the centre, axes and heading turned by `RobotConfig.Field.FIELD_VIEW_QUARTER_TURNS` (display only) |
 | `pose` | `double[]` | `[x in, y in, heading rad]`, raw Pedro frame |
 | `velocity` | `double[]` | `[vx in/s, vy in/s, omega rad/s]`, field frame |
 | `driveMode` | string | `IDLE`, `TELEOP`, `FOLLOWING`, `HOLDING`, `ROBOT_CENTRIC_FALLBACK` |
@@ -395,6 +395,15 @@ the recent-events ring, `lastcrash.txt`.
   `RobotConfig.Field.SYMMETRY`. Never `PoseFactory.mirrorX`.
 - **Foresight constants are not tuned.** Never invent values; run AutoTune.
   The Pedro docs' example ForesightConfig numbers are another robot's.
+- **Only `Field/Robot` is rotated.** Pedro's frame (origin at the corner on
+  the audience's left, +X along the audience wall) and the FTC frame
+  AdvantageScope draws (origin at the centre, +Y from the red wall to the
+  blue wall) differ by a quarter turn whose sign depends on which wall is red
+  that season: `RobotConfig.Field.FIELD_VIEW_QUARTER_TURNS` (+1 for DECODE,
+  −1 when red is on the audience's right). `WpiStruct` applies it to the
+  field-view channel and nothing else: `pose`, `Constants.java`, autonomous
+  start poses and `Alliance` are Pedro's frame and never change for it. A
+  robot drawn a quarter turn off means that constant, not a path.
 - **Pinpoint offsets map as** Pedro 2 `forwardPodY → xPodOffset`,
   `strafePodX → yPodOffset` (same `setOffsets(x, y)` call).
 - **Subsystem writes in `periodic`.** Don't.

@@ -350,14 +350,31 @@ Explicit events (`AUTO: …`, `COMMAND FAULT: …`, `LOCALIZER FAULT: …`,
 
 Drag **`Field/Robot`** onto the 2D Field tab and pick an FTC field; its default
 coordinate system (**Center/Rotated**) is the one the channel is written for.
-`Field/Robot` is a WPILib `Pose2d` struct in metres about the field centre;
-graph `pose` (raw Pedro inches) when comparing against `Constants.java`.
+`Field/Robot` is a WPILib `Pose2d` struct in the FTC field frame: metres about
+the field centre, rotated from Pedro's axes by
+`RobotConfig.Field.FIELD_VIEW_QUARTER_TURNS`. Graph `pose` (raw Pedro inches)
+when comparing against `Constants.java`; never put `pose` on the field, where
+its inches are read as metres.
 
-**Verify the axes once on a real field.** The encoding converts units and
-moves the origin from Pedro's corner to the field centre, but does not rotate
-anything. Park at a known spot, confirm the drawn robot is there, drive one
-tile forward. A quarter-turn error is the axis convention, not the encoding —
-fix it in `WpiStruct` and say so there.
+**Which way is which.** Pedro's frame is fixed by the audience: (0, 0) is the
+corner on the audience's left, +X runs right along the audience wall, +Y runs
+away from the audience. The FTC frame is fixed by the red wall: +Y points from
+the red wall to the blue wall, and AdvantageScope draws it with the audience
+at the bottom of the screen. In DECODE the red wall is on the audience's left
+(the alliances are swapped from the usual layout), so the two frames differ by
+one quarter turn counter-clockwise and the constant is `1`. With the usual
+layout (red on the right) it is `-1`. Set it when the game launches, next to
+`SYMMETRY`. On screen a DECODE log shows Pedro (0, 0) at the bottom-left
+corner and heading 0 pointing right; before this rotation existed the robot
+drew at the top-left facing down.
+
+**Verify the axes once on a real field.** Park the robot in Pedro's origin
+corner (audience side, red side in DECODE) facing along the audience wall,
+start a teleop, drive one tile forward. The drawn robot must sit in the
+bottom-left corner pointing right and move right. A quarter-turn error means
+`FIELD_VIEW_QUARTER_TURNS` is wrong for this field; anything else is the
+localizer. The rotation is display only — autonomous start poses, paths and
+`Alliance` stay in Pedro's frame and need no change when it changes.
 
 ### Flight recorder validation
 
@@ -389,11 +406,12 @@ Three separate levels; passing one says nothing about the next.
      `pose`, `driveMode`, `events`, `follow/*`, `gamepad1/*`, `loop/*`,
      `Drive/*`, `Localizer/*`.
    - Add a **2D Field** tab, pick an FTC field, keep **Center/Rotated**, and
-     drag `Field/Robot` on. Scrub the timeline: the robot starts at
-     (−1.63, −0.41) m facing 0° (Pedro (8, 56) in), moves to
-     (−1.32, −0.38) m, turns to 30° at (−1.07, −0.56) m, and ends at
-     (0.46, −0.81) m facing 90° (Pedro (90, 40) in). It does not jump to
-     the field centre at the end.
+     drag `Field/Robot` on. Scrub the timeline (values are the FTC frame,
+     DECODE quarter turn applied): the robot starts at (0.41, −1.63) m
+     facing 90° (Pedro (8, 56) in), near the left wall below the centre
+     line with the arrow pointing right; moves to (0.38, −1.32) m; turns to
+     120° at (0.56, −1.07) m; and ends at (0.81, 0.46) m facing 180°
+     (Pedro (90, 40) in). It does not jump to the field centre at the end.
    - A **Line Graph** of `driveMode` and the `events` list show TELEOP →
      FOLLOWING → TELEOP → IDLE → TELEOP and the four events `init
      IntegrationTest`, `COMMAND FAULT: …`, `marker`, `stop` in that order.
@@ -496,7 +514,8 @@ Record results in `PROGRESS.md`.
       "Flight recorder validation".
 - [ ] A 2-minute teleop log opens in AdvantageScope; `Field/Robot` draws the
       robot in the right place and orientation on the FTC field, starting from
-      a known parked pose (axis check above).
+      a known parked pose (axis check above: Pedro's origin corner draws
+      bottom-left, heading 0 points right).
 - [ ] `pose`, `velocity`, `driveMode`, `follow/*`, `battery`, `gamepad1/*`,
       `loop/*`, `Drive/*`, `Localizer/*` and season subsystem channels plot
       with sensible values; events line up with what happened.

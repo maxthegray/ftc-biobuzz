@@ -7,6 +7,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap
 import java.io.File
 import org.firstinspires.ftc.teamcode.core.runtime.DriveTelemetrySource
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
+import org.firstinspires.ftc.teamcode.core.runtime.RobotConfig
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.sim.FakeClock
 import org.junit.Assert.assertEquals
@@ -62,15 +63,18 @@ class FlightRecorderFieldPoseTest {
         val poses = log.structDoubles("Field/Robot")
         assertEquals(2, poses.size)
 
-        // (8, 56) inches from the corner -> (-64, -16) inches from the centre.
-        assertEquals(-1.6256, poses[0].second[0], 1e-9)
-        assertEquals(-0.4064, poses[0].second[1], 1e-9)
-        assertEquals(0.0, poses[0].second[2], 0.0)
+        // The recorder applies the season's FIELD_VIEW_QUARTER_TURNS (DECODE:
+        // +1). Pedro (8, 56) is (-64, -16) in from the centre; a quarter turn
+        // CCW puts it at FTC (+16, -64) in, and Pedro heading 0 at FTC +90°.
+        assertEquals(1, RobotConfig.Field.FIELD_VIEW_QUARTER_TURNS)
+        assertEquals(0.4064, poses[0].second[0], 1e-9)
+        assertEquals(-1.6256, poses[0].second[1], 1e-9)
+        assertEquals(Math.PI / 2, poses[0].second[2], 1e-12)
 
-        // Field centre encodes as the origin, heading untouched.
+        // Field centre encodes as the origin; the heading still turns.
         assertEquals(0.0, poses[1].second[0], 1e-9)
         assertEquals(0.0, poses[1].second[1], 1e-9)
-        assertEquals(Math.PI / 2, poses[1].second[2], 0.0)
+        assertEquals(Math.PI, poses[1].second[2], 1e-12)
 
         // Both channels are sampled from the same tick, so the struct and the
         // raw inches must agree pose for pose and timestamp for timestamp.
