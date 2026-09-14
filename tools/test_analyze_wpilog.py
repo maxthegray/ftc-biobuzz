@@ -122,7 +122,74 @@ class AnalyzeWpiLogTest(unittest.TestCase):
         bundle = analyze_wpilog.to_json_dict(analyze_wpilog.build_report(records, {}, "old.wpilog"))
 
         self.assertTrue(bundle["commandHistoryRecorded"])
+        self.assertEqual("all scheduled", bundle["commandHistoryCoverage"])
         self.assertEqual(["follow", "marker"], bundle["commands"][1]["running"])
+        self.assertNotIn("commandExecutions", bundle)
+
+    def test_migration_logs_report_no_coverage(self):
+        records = {"events": [(1, "init TeleOp")]}
+
+        bundle = analyze_wpilog.to_json_dict(analyze_wpilog.build_report(records, {"events": "string"}, "mid.wpilog"))
+
+        self.assertEqual("none", bundle["commandHistoryCoverage"])
+        self.assertFalse(bundle["commandHistoryRecorded"])
+        self.assertNotIn("commandHistoryIntact", bundle)
+
+    def test_instrumented_logs_rebuild_executions_and_never_claim_all_commands(self):
+        records = {
+            "commands/events": [
+                (1_000_000, "START #1 Driver sticks"),
+                (2_000_000, "INTERRUPT #1 Driver sticks"),
+                (2_000_001, "START #2 Route"),
+                (2_000_002, "START #3 Follow line"),
+                (2_500_000, "SUSPEND #2 Route"),
+                (2_600_000, "RESUME #2 Route"),
+                (3_000_000, "FAIL #3 Follow line in execute: IllegalStateException: boom: detail"),
+                (3_000_001, "FAIL #2 Route in execute: IllegalStateException: boom: detail (from #3)"),
+                (3_000_002, "FAIL #- Later step in end: IllegalStateException: late"),
+                (4_000_000, "START #4 Same name"),
+                (4_000_001, "START #5 Same name"),
+                (5_000_000, "ABORT #4 Same name: op-mode stop"),
+            ],
+            "commands/active": [(0, ""), (1_000_000, "#1 Driver sticks"), (4_000_001, "#4 Same name\n#5 Same name")],
+            "commands/lost": [(0, 0)],
+        }
+        types = {"commands/events": "string", "commands/active": "string", "commands/lost": "int64"}
+
+        bundle = analyze_wpilog.to_json_dict(analyze_wpilog.build_report(records, types, "new.wpilog"))
+
+        self.assertEqual("instrumented", bundle["commandHistoryCoverage"])
+        self.assertTrue(bundle["commandHistoryIntact"])
+        runs = {run["id"]: run for run in bundle["commandExecutions"]}
+        self.assertEqual(("INTERRUPT", 1.0, 2.0), (runs[1]["outcome"], runs[1]["startSec"], runs[1]["endSec"]))
+        self.assertEqual("in execute: IllegalStateException: boom: detail (from #3)", runs[2]["detail"])
+        self.assertEqual(1, runs[2]["suspensions"])
+        self.assertEqual("op-mode stop", runs[4]["detail"])
+        self.assertEqual(("OPEN", None), (runs[5]["outcome"], runs[5]["endSec"]))
+        self.assertEqual("Same name", runs[5]["name"])
+        self.assertEqual(3, len(bundle["commandFailures"]))
+        self.assertEqual(["#4 Same name", "#5 Same name"], bundle["commandActive"][-1]["active"])
+
+    def test_lost_records_mark_instrumented_history_incomplete(self):
+        records = {
+            "commands/events": [(1, "START #1 A"), (5, "HISTORY INCOMPLETE: 12 command records lost")],
+            "commands/lost": [(0, 0), (5, 12)],
+        }
+
+        bundle = analyze_wpilog.to_json_dict(analyze_wpilog.build_report(records, {}, "lossy.wpilog"))
+
+        self.assertFalse(bundle["commandHistoryIntact"])
+        self.assertEqual(12, bundle["commandHistoryLostRecords"])
+        self.assertEqual(1, len(bundle["commandExecutions"]))
+
+    def test_instrumented_log_without_any_traced_command_still_reports_coverage(self):
+        records = {"events": [(1, "init TeleOp")], "commands/active": [(0, "")], "commands/lost": [(0, 0)]}
+        types = {"events": "string", "commands/events": "string", "commands/active": "string", "commands/lost": "int64"}
+
+        bundle = analyze_wpilog.to_json_dict(analyze_wpilog.build_report(records, types, "idle.wpilog"))
+
+        self.assertEqual("instrumented", bundle["commandHistoryCoverage"])
+        self.assertEqual([], bundle["commandExecutions"])
 
 
 if __name__ == "__main__":
