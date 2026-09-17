@@ -1,12 +1,40 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {fieldPoint, sampleAt, plotPoints, plotBounds, scalarSeries, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals} from './core.mjs';
+import {fieldPoint, fieldView, sampleAt, plotPoints, plotBounds, scalarSeries, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals} from './core.mjs';
 
 test('Pedro field corners retain their axes with only screen Y inverted', () => {
-  assert.deepEqual(fieldPoint([0, 0, 0], 141.5, 20, 10, 283), [20, 293]);
-  assert.deepEqual(fieldPoint([141.5, 141.5, 0], 141.5, 20, 10, 283), [303, 10]);
-  const [x, y] = fieldPoint([8, 56, Math.PI / 2], 141.5, 20, 10, 283);
+  const view = {minX: 0, minY: 0, span: 141.5};
+  assert.deepEqual(fieldPoint([0, 0, 0], view, 20, 10, 283), [20, 293]);
+  assert.deepEqual(fieldPoint([141.5, 141.5, 0], view, 20, 10, 283), [303, 10]);
+  const [x, y] = fieldPoint([8, 56, Math.PI / 2], view, 20, 10, 283);
   assert.ok(Math.abs(x - 36) < 1e-10 && Math.abs(y - 181) < 1e-10);
+});
+
+test('field view stays on the field when the path does', () => {
+  const view = fieldView([[0, [8, 56, 0]], [1, [141.5, 0, 0]], [2, [NaN, 900, 0]]], 141.5);
+  assert.deepEqual(view, {minX: 0, minY: 0, span: 141.5, tile: 141.5 / 6, tiles: 6, slack: 141.5 / 24});
+  assert.deepEqual(fieldView([], 141.5).tiles, 6);
+});
+
+test('field view ignores a pose just past a wall', () => {
+  assert.equal(fieldView([[0, [-5, 72, 0]], [1, [72, 149, 0]]], 144).tiles, 6);
+  assert.equal(fieldView([[0, [-7, 72, 0]]], 144).minX, -24);
+});
+
+test('field view grows by whole tiles to hold an off-field path and stays square', () => {
+  const tile = 144 / 6;
+  const view = fieldView([[0, [0, 0, 0]], [1, [-30, 10, 0]], [2, [20, 160, 0]]], 144);
+  assert.equal(view.minX, -tile);
+  assert.equal(view.tiles, 7);
+  assert.ok(view.minY <= 0 && view.minY + view.span >= 160);
+  assert.equal(view.span, view.tiles * tile);
+});
+
+test('field view keeps the farthest real pose and caps growth at one field per side', () => {
+  const tile = 144 / 6;
+  assert.equal(fieldView([[0, [72, -103, 0]]], 144).minY, -5 * tile);
+  const far = fieldView([[0, [-1000, 72, 0]], [1, [1000, 72, 0]]], 144);
+  assert.deepEqual([far.minX, far.span], [-144, 432]);
 });
 
 test('cursor uses latest known state, never a future sample or interpolated command', () => {

@@ -174,6 +174,7 @@ def handler_for(library):
                     files = {"/": ("index.html", "text/html; charset=utf-8"),
                              "/app.js": ("app.js", "text/javascript"),
                              "/core.mjs": ("core.mjs", "text/javascript"),
+                             "/theme.js": ("theme.js", "text/javascript"),
                              "/style.css": ("style.css", "text/css")}
                     if url.path not in files:
                         self.send_json({"error": "Not found"}, 404)

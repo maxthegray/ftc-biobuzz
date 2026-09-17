@@ -1,4 +1,4 @@
-import {finite, indexAt, sampleAt, fieldPoint, scalarSeries, plotPoints, plotBounds, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals, buttonNames} from './core.mjs';
+import {finite, indexAt, sampleAt, fieldPoint, fieldView, scalarSeries, plotPoints, plotBounds, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals, buttonNames} from './core.mjs';
 
 const $ = id => document.getElementById(id);
 const state = {logs: [], run: null, time: 0, playing: false, generation: 0, charts: [], options: [],
@@ -80,6 +80,7 @@ async function openRun(id) {
     const poses = run.playback.pose || [];
     const stride = Math.max(1, Math.ceil(poses.length / 6000));
     state.trail = poses.filter((point, i) => i % stride === 0 || i === poses.length - 1);
+    state.fieldView = fieldView(poses, run.fieldLengthIn);
     $('run-title').textContent = runLabel(run.name);
     $('run-file').textContent = run.name;
     $('run-status').textContent = run.report.truncated ? 'Partial log' : 'No readable samples';
@@ -286,7 +287,15 @@ function updateChartControls() {
   preparePlots(); drawCharts();
 }
 
-const layerColors = ['#627e35', '#c18a33', '#658e9e', '#a76589', '#6969b1', '#bb6550', '#36938b', '#737c53'];
+const themeKey = 'maxscope.theme';
+let colors = null;
+const cssColors = () => {
+  const style = getComputedStyle(document.documentElement), read = name => style.getPropertyValue(`--${name}`).trim();
+  const names = ['field', 'off-field', 'hatch', 'grid', 'field-label', 'wall', 'field-caption', 'trail-future', 'trail-past', 'lime', 'robot-line', 'robot-arrow',
+    'chart-grid', 'chart-label', 'chart-cursor', 'muted', 'lane', 'lane-off', 'lane-edge', 'lane-ink', 'layer-0'];
+  return {...Object.fromEntries(names.map(name => [name, read(name)])),
+    lanes: Array.from({length: 6}, (_, i) => read(`lane-${i}`)), layers: Array.from({length: 8}, (_, i) => read(`layer-${i}`))};
+};
 
 function discreteLabel(value, option) {
   if (value === null) return 'Not recorded';
@@ -337,10 +346,10 @@ function drawDiscrete(chart) {
     const value = sampleAt(lane.data, state.time);
     lane.value.textContent = chart.loading ? 'Loading…' : discreteLabel(value, lane.option);
     lane.value.title = lane.value.textContent;
-    ctx.fillStyle = '#f2f4ec'; ctx.fillRect(left, 5, right - left, height - 10);
+    ctx.fillStyle = colors.lane; ctx.fillRect(left, 5, right - left, height - 10);
     ctx.save(); ctx.beginPath(); ctx.rect(left, 0, right - left, height); ctx.clip();
     ctx.font = '10px ui-monospace, monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    const palette = ['#d9e6bb', '#e8d9bc', '#cfe1e5', '#e4d2de', '#d8d8ea', '#e8d1c7'];
+    const palette = colors.lanes;
     for (let i = Math.max(0, indexAt(lane.intervals, start)); i < lane.intervals.length; i++) {
       const [time, interval] = lane.intervals[i];
       if (time > end) break;
@@ -349,20 +358,20 @@ function drawDiscrete(chart) {
       const label = discreteLabel(interval.value, lane.option);
       let hash = 0;
       for (const char of label) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-      ctx.fillStyle = interval.value === false || interval.value === '' || interval.value === 0 ? '#e8ebe2' : palette[hash % palette.length];
+      ctx.fillStyle = interval.value === false || interval.value === '' || interval.value === 0 ? colors['lane-off'] : palette[hash % palette.length];
       ctx.fillRect(a, 5, Math.max(1, b - a), height - 10);
-      ctx.strokeStyle = '#ffffffa0'; ctx.beginPath(); ctx.moveTo(a, 5); ctx.lineTo(a, height - 5); ctx.stroke();
+      ctx.strokeStyle = colors['lane-edge']; ctx.beginPath(); ctx.moveTo(a, 5); ctx.lineTo(a, height - 5); ctx.stroke();
       if (b - a > 24) {
         ctx.save(); ctx.beginPath(); ctx.rect(a + 5, 5, b - a - 10, height - 10); ctx.clip();
-        ctx.fillStyle = '#45503b'; ctx.fillText(label, a + 7, height / 2); ctx.restore();
+        ctx.fillStyle = colors['lane-ink']; ctx.fillText(label, a + 7, height / 2); ctx.restore();
       }
     }
     if (state.time >= start && state.time <= end) {
-      ctx.strokeStyle = '#627e35'; ctx.setLineDash([3, 3]); ctx.beginPath();
+      ctx.strokeStyle = colors['layer-0']; ctx.setLineDash([3, 3]); ctx.beginPath();
       ctx.moveTo(x(state.time), 0); ctx.lineTo(x(state.time), height); ctx.stroke(); ctx.setLineDash([]);
     }
     if (!lane.data.length) {
-      ctx.fillStyle = '#7c8770'; ctx.fillText(chart.loading ? 'Loading…' : 'No recorded samples', left + 8, height / 2);
+      ctx.fillStyle = colors['chart-label']; ctx.fillText(chart.loading ? 'Loading…' : 'No recorded samples', left + 8, height / 2);
     }
     ctx.restore();
   }
@@ -377,7 +386,7 @@ function renderLegend(chart) {
     check.type = 'checkbox'; check.checked = layer.visible;
     check.setAttribute('aria-label', `Show ${layer.option?.label || layer.key}`);
     check.onchange = () => { layer.visible = check.checked; preparePlots(); drawCharts(); };
-    label.style.color = layer.color;
+    label.style.color = `var(--layer-${layer.slot})`;
     label.append(check, node('span', '', layer.option?.label || `${layer.key.split('::')[0]} (not recorded)`));
     layer.value = node('span', 'chart-value', '—');
     const axis = node('span', 'axis-label', layer.axis === 1 ? 'R' : 'L');
@@ -586,7 +595,7 @@ async function loadCharts() {
   state.charts.forEach((chart, i) => {
     const visibility = new Map(chart.layers.map(layer => [layer.key, layer.visible]));
     chart.axes = [...new Set(definitions[i].filter(layer => layer.option).map(layer => layer.option.unit))];
-    chart.layers = definitions[i].map((layer, j) => ({...layer, color: layerColors[j % layerColors.length], visible: visibility.get(layer.key) ?? true,
+    chart.layers = definitions[i].map((layer, j) => ({...layer, slot: j % 8, visible: visibility.get(layer.key) ?? true,
       axis: Math.max(0, chart.axes.indexOf(layer.option?.unit)), data: [], points: []}));
     chart.loading = true;
     chart.discrete = discreteDefinitions[i].map(lane => ({...lane, data: [], intervals: []}));
@@ -651,19 +660,31 @@ function context(canvas) {
 function drawField() {
   if (!state.run || !$('field').clientWidth) return;
   const {ctx, width, height} = context($('field'));
-  const length = state.run.fieldLengthIn, size = Math.min(width - 78, height - 58);
-  const left = (width - size) / 2 + 8, top = 17;
-  ctx.fillStyle = '#f4f6ee'; ctx.fillRect(left, top, size, size);
-  ctx.lineWidth = 1; ctx.strokeStyle = '#dce2d1'; ctx.font = '9px ui-monospace, monospace';
-  for (let i = 0; i <= 6; i++) {
-    const at = i / 6 * size;
+  const length = state.run.fieldLengthIn, view = state.fieldView, size = Math.min(width - 78, height - 58);
+  const left = (width - size) / 2 + 8, top = 17, cell = size / view.tiles;
+  const [fieldLeft, fieldTop] = fieldPoint([0, length], view, left, top, size), fieldSize = length / view.span * size;
+  const expanded = view.tiles > 6;
+  ctx.fillStyle = expanded ? colors['off-field'] : colors.field; ctx.fillRect(left, top, size, size);
+  if (expanded) {
+    ctx.save(); ctx.beginPath(); ctx.rect(left, top, size, size); ctx.rect(fieldLeft, fieldTop, fieldSize, fieldSize); ctx.clip('evenodd');
+    ctx.strokeStyle = colors.hatch; ctx.lineWidth = 1; ctx.beginPath();
+    for (let d = 0; d <= size * 2; d += 8) { ctx.moveTo(left + d, top); ctx.lineTo(left + d - size, top + size); }
+    ctx.stroke(); ctx.restore();
+    ctx.fillStyle = colors.field; ctx.fillRect(fieldLeft, fieldTop, fieldSize, fieldSize);
+  }
+  ctx.lineWidth = 1; ctx.strokeStyle = colors.grid; ctx.font = '9px ui-monospace, monospace';
+  const labelEvery = Math.ceil(view.tiles / 6);
+  for (let i = 0; i <= view.tiles; i++) {
+    const at = i * cell, tileX = Math.round(view.minX / view.tile) + i, tileY = Math.round(view.minY / view.tile) + view.tiles - i;
     ctx.beginPath(); ctx.moveTo(left + at, top); ctx.lineTo(left + at, top + size); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(left, top + at); ctx.lineTo(left + size, top + at); ctx.stroke();
-    ctx.fillStyle = '#8b947e'; ctx.textAlign = 'center';
-    ctx.fillText(fmt(i / 6 * length, i === 0 ? 0 : 1), left + at, top + size + 16);
-    ctx.textAlign = 'right'; ctx.fillText(fmt((6 - i) / 6 * length, i === 6 ? 0 : 1), left - 8, top + at + 3);
+    const label = index => fmt(index * view.tile, index === 0 ? 0 : 1);
+    ctx.fillStyle = colors['field-label'];
+    if (tileX % labelEvery === 0) { ctx.textAlign = 'center'; ctx.fillText(label(tileX), left + at, top + size + 16); }
+    if (tileY % labelEvery === 0) { ctx.textAlign = 'right'; ctx.fillText(label(tileY), left - 8, top + at + 3); }
   }
-  ctx.fillStyle = '#6c775e'; ctx.textAlign = 'center';
+  if (expanded) { ctx.strokeStyle = colors.wall; ctx.lineWidth = 1.5; ctx.strokeRect(fieldLeft, fieldTop, fieldSize, fieldSize); }
+  ctx.fillStyle = colors['field-caption']; ctx.textAlign = 'center';
   ctx.fillText('AUDIENCE WALL · +X →', left + size / 2, height - 4);
   ctx.textAlign = 'left'; ctx.fillText('+Y ↑', 8, top + 6);
   ctx.save(); ctx.beginPath(); ctx.rect(left, top, size, size); ctx.clip();
@@ -673,13 +694,13 @@ function drawField() {
     let connected = false;
     for (const [t, pose] of trail) {
       if (!Array.isArray(pose) || !pose.slice(0, 2).every(finite) || (past && t > state.time)) { connected = false; continue; }
-      const [x, y] = fieldPoint(pose, length, left, top, size);
+      const [x, y] = fieldPoint(pose, view, left, top, size);
       if (connected) ctx.lineTo(x, y); else ctx.moveTo(x, y);
       connected = true;
     }
     ctx.stroke();
   };
-  drawTrail(false, '#d4dec4'); drawTrail(true, '#718f3b');
+  drawTrail(false, colors['trail-future']); drawTrail(true, colors['trail-past']);
   const series = state.run.playback.pose || [];
   const pose = sampleAt(series, state.time);
   const valid = Array.isArray(pose) && pose.length >= 3 && pose.slice(0, 3).every(finite);
@@ -687,15 +708,21 @@ function drawField() {
   const index = indexAt(series, state.time);
   const age = index >= 0 ? state.time - series[index][0] : null;
   const outside = valid && (pose[0] < 0 || pose[1] < 0 || pose[0] > length || pose[1] > length);
-  $('pose-status').textContent = !valid ? 'No valid pose at this time' : outside ? 'Pose is outside the field' : age > 0.25 ? `Last pose ${fmt(age)} s ago` : '';
-  if (valid) {
-    const [x, y] = fieldPoint(pose, length, left, top, size);
-    const radius = Math.max(5, 8 * size / length);
+  const [x, y] = valid ? fieldPoint(pose, view, left, top, size) : [];
+  const slack = view.slack / view.span * size;
+  const offView = valid && (x < left - slack || x > left + size + slack || y < top - slack || y > top + size + slack);
+  $('pose-status').textContent = !valid ? 'No valid pose at this time' : offView ? 'Pose is beyond the view' : outside ? 'Pose is outside the field' : age > 0.25 ? `Last pose ${fmt(age)} s ago` : '';
+  if (offView) {
+    const edgeX = Math.min(left + size - 2, Math.max(left + 2, x)), edgeY = Math.min(top + size - 2, Math.max(top + 2, y));
+    ctx.translate(edgeX, edgeY); ctx.rotate(Math.atan2(y - edgeY, x - edgeX));
+    ctx.fillStyle = colors['robot-arrow']; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-12, -6); ctx.lineTo(-12, 6); ctx.closePath(); ctx.fill();
+  } else if (valid) {
+    const radius = Math.max(5, 8 * size / view.span);
     ctx.translate(x, y); ctx.rotate(-pose[2]);
-    ctx.fillStyle = '#d4f06a'; ctx.strokeStyle = '#405b26'; ctx.lineWidth = 1.5;
+    ctx.fillStyle = colors.lime; ctx.strokeStyle = colors['robot-line']; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.roundRect(-radius, -radius, radius * 2, radius * 2, 4); ctx.fill(); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(radius * 1.65, 0); ctx.lineTo(radius * 1.2, -3); ctx.moveTo(radius * 1.65, 0); ctx.lineTo(radius * 1.2, 3); ctx.stroke();
-    ctx.beginPath(); ctx.arc(0, 0, 2, 0, Math.PI * 2); ctx.fillStyle = '#405b26'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, 2, 0, Math.PI * 2); ctx.fillStyle = colors['robot-line']; ctx.fill();
   }
   ctx.restore();
 }
@@ -710,16 +737,16 @@ function drawCharts() {
     ctx.font = '9px ui-monospace, monospace'; ctx.lineWidth = 1;
     for (let i = 0; i <= 2; i++) {
       const at = top + (bottom - top) * i / 2;
-      ctx.strokeStyle = '#edf0e6'; ctx.beginPath(); ctx.moveTo(left, at); ctx.lineTo(right, at); ctx.stroke();
+      ctx.strokeStyle = colors['chart-grid']; ctx.beginPath(); ctx.moveTo(left, at); ctx.lineTo(right, at); ctx.stroke();
     }
     chart.axes.forEach((unit, axis) => {
       const [min, max] = chart.bounds[axis] || [0, 1];
-      ctx.fillStyle = '#7c8770'; ctx.textAlign = axis === 0 ? 'right' : 'left';
+      ctx.fillStyle = colors['chart-label']; ctx.textAlign = axis === 0 ? 'right' : 'left';
       const at = axis === 0 ? left - 7 : right + 7;
       ctx.fillText(unit || 'value', at, 10);
       for (let i = 0; i <= 2; i++) ctx.fillText(fmt(max - (max - min) * i / 2, Math.abs(max) > 100 ? 0 : 1), at, top + (bottom - top) * i / 2 + 3);
     });
-    ctx.fillStyle = '#8c9383'; ctx.textAlign = 'left'; ctx.fillText(`${fmt(start, 1)} s`, left, height - 4);
+    ctx.fillStyle = colors.muted; ctx.textAlign = 'left'; ctx.fillText(`${fmt(start, 1)} s`, left, height - 4);
     ctx.textAlign = 'right'; ctx.fillText(`${fmt(end, 1)} s`, right, height - 4);
     ctx.save(); ctx.beginPath(); ctx.rect(left, top - 3, right - left, bottom - top + 6); ctx.clip();
     for (const layer of chart.layers) {
@@ -730,7 +757,7 @@ function drawCharts() {
       if (!layer.visible) continue;
       const [min, max] = chart.bounds[layer.axis] || [0, 1];
       const y = value => bottom - (value - min) / (max - min) * (bottom - top);
-      ctx.strokeStyle = layer.color; ctx.lineWidth = 1.5; ctx.beginPath();
+      ctx.strokeStyle = colors.layers[layer.slot]; ctx.lineWidth = 1.5; ctx.beginPath();
       let connected = false, previousValue = null;
       for (const [t, value] of layer.points) {
         if (!finite(value)) { connected = false; continue; }
@@ -741,12 +768,12 @@ function drawCharts() {
       ctx.stroke();
     }
     if (state.time >= start && state.time <= end) {
-      ctx.strokeStyle = '#728663'; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(x(state.time), top); ctx.lineTo(x(state.time), bottom); ctx.stroke(); ctx.setLineDash([]);
+      ctx.strokeStyle = colors['chart-cursor']; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(x(state.time), top); ctx.lineTo(x(state.time), bottom); ctx.stroke(); ctx.setLineDash([]);
     }
     ctx.restore();
     drawDiscrete(chart);
     if (!chart.layers.some(layer => layer.data.length)) {
-      ctx.fillStyle = '#989f8e'; ctx.textAlign = 'center';
+      ctx.fillStyle = colors.muted; ctx.textAlign = 'center';
       ctx.fillText(chart.loading ? 'Loading samples…' : chart.keys.length ? 'No recorded samples' : 'Add signals to compare them', (left + right) / 2, (top + bottom) / 2);
     }
   }
@@ -847,6 +874,25 @@ $('channel-clear').onclick = () => chooseChannel(null);
 $('channel-search').oninput = renderChannelTree;
 $('channel-picker').addEventListener('close', () => { state.pickerChart = null; });
 $('add-view').onchange = event => { addView(event.target.value); event.target.value = ''; };
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  colors = cssColors();
+  const next = theme === 'dark' ? 'light' : 'dark';
+  $('theme-toggle').textContent = theme === 'dark' ? '☀ Light' : '☾ Dark';
+  $('theme-toggle').setAttribute('aria-label', `Switch to ${next} mode`);
+  if (state.run && !$('workspace').hidden) { drawField(); drawCharts(); }
+}
+$('theme-toggle').onclick = () => {
+  const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  try { localStorage.setItem(themeKey, theme); } catch { /* Storage may be disabled. */ }
+  applyTheme(theme);
+};
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+  let saved = null;
+  try { saved = localStorage.getItem(themeKey); } catch { /* Storage may be disabled. */ }
+  if (!saved) applyTheme(event.matches ? 'dark' : 'light');
+});
+applyTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
 initializeLayout();
 new ResizeObserver(() => { if (state.run && !$('workspace').hidden) { preparePlots(); drawField(); drawCharts(); } }).observe($('workspace'));
 await refresh();
