@@ -1027,10 +1027,7 @@ canvas {
 }
 
 .card.dragging {
-  opacity: .5;
-}
-
-.card.drop-before {
+  opacity: .55;
   outline: 2px dashed var(--green);
   outline-offset: -2px;
 }
@@ -1463,16 +1460,43 @@ canvas {
 }
 
 .view-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.view-columns {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: 16px;
 }
 
+.view-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  min-height: 72px;
+  border-radius: 12px;
+}
+
+/* While dragging, every column grows to the tallest so its free space is a visible drop target. */
+.view-columns.dragging {
+  align-items: stretch;
+}
+
+.view-columns.dragging .view-column {
+  outline: 1px dashed var(--line);
+  outline-offset: 6px;
+}
+
+.view-columns.dragging .view-column.drop-column {
+  outline-color: var(--green);
+}
+
 .view-panel .metrics {
-  grid-column: 1 / -1;
   margin-bottom: 0;
-  order: 1000;
 }
 
 .card-heading {
@@ -1543,7 +1567,7 @@ canvas {
 }
 
 @media (min-width: 1100px) {
-  .view-panel:has(> [data-panel] ~ [data-panel]) {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  .view-columns {
+    grid-template-columns: repeat(var(--columns, 1), minmax(0, 1fr));
   }
 }
