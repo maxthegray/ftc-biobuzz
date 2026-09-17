@@ -619,8 +619,11 @@ function addHideButton(key, card) {
   remove.onclick = () => {
     state.panels[state.activeTab] = state.panels[state.activeTab].map(keys => keys.filter(item => item !== key));
     if (key.startsWith('camera:') && !shownKeys().includes(key)) {
+      // A camera view shown nowhere is discarded; take its card out too, since selectTab only
+      // sweeps registered views.
       state.cameraViews = state.cameraViews.filter(view => view.key !== key);
       views.delete(key);
+      card.remove();
     }
     saveLayout(); selectTab(state.activeTab);
   };
