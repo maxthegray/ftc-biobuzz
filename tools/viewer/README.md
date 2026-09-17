@@ -56,9 +56,12 @@ reduced trail; the coordinate readout always uses the full pose series.
   field on the left, Gamepads on the right and the run summary at the
   bottom; Events contains Commands and the event list.
 - **+ View** adds a view to the current tab without removing it from other
-  tabs, into whichever column is shorter. × in a view heading hides it from
-  that tab. Field and Events lay views out in two columns, Signals in one;
-  the columns stack on narrow windows. Drag a view by the ⠿ handle in its
+  tabs, into the column with fewer views (away from the field on a tie). ×
+  in a view heading hides it from that tab. Field and Events lay views out
+  in two columns, Signals in one; the columns stack on narrow windows. The
+  field's column is the wider one, an empty column gives its width to the
+  rest, and the field fills its column's height: taller when the other
+  column is taller, smaller when other views share its column. Drag a view by the ⠿ handle in its
   heading: it moves as you drag, into any column or the free space under
   one, and lands where you see it. With the handle focused, Alt+↑/↓ moves it
   within its column and Alt+←/→ across. The layout is saved per tab. Tab contents and graph

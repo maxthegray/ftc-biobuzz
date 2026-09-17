@@ -550,6 +550,12 @@ canvas {
   height:100%;
 }
 
+/* Out of flow, so the canvas's own pixel size never feeds back into its wrapper's height. */
+.field-wrap > canvas, .camera-wrap > canvas {
+  position: absolute;
+  inset: 0;
+}
+
 .field-status {
   position:absolute;
   top:12px;
@@ -973,8 +979,22 @@ canvas {
   font-weight: 650;
 }
 
+/* The field fills its column: at least a viewport-based height, more when the other column is
+   taller, and less when other views share its column. */
+.view-panel .field-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
 .view-panel .field-wrap {
-  height: clamp(240px, calc(100dvh - 430px), 430px);
+  flex: 1;
+  height: auto;
+  min-height: clamp(320px, calc(100dvh - 330px), 820px);
+}
+
+.view-column:has(> .card ~ .card) .field-wrap {
+  min-height: clamp(240px, calc(100dvh - 560px), 430px);
 }
 
 .view-panel .chart > canvas {
@@ -1468,7 +1488,7 @@ canvas {
 .view-columns {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  align-items: start;
+  align-items: stretch;
   gap: 16px;
 }
 
@@ -1479,11 +1499,6 @@ canvas {
   min-width: 0;
   min-height: 72px;
   border-radius: 12px;
-}
-
-/* While dragging, every column grows to the tallest so its free space is a visible drop target. */
-.view-columns.dragging {
-  align-items: stretch;
 }
 
 .view-columns.dragging .view-column {
@@ -1567,7 +1582,8 @@ canvas {
 }
 
 @media (min-width: 1100px) {
+  /* Set per tab by layoutColumns: the field's column is wider, empty columns are left out. */
   .view-columns {
-    grid-template-columns: repeat(var(--columns, 1), minmax(0, 1fr));
+    grid-template-columns: var(--template, minmax(0, 1fr));
   }
 }
