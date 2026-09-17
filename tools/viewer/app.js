@@ -3,7 +3,7 @@ import {finite, indexAt, sampleAt, fieldPoint, scalarSeries, plotPoints, plotBou
 const $ = id => document.getElementById(id);
 const state = {logs: [], run: null, time: 0, playing: false, generation: 0, charts: [], options: [],
   series: new Map(), window: [0, 1], events: [], eventNodes: [], commandCursors: [], graphGeneration: 0, frame: null,
-  activeTab: 'field', pickerChart: null, layout: null, focusedChart: null, panels: {field: ['field', 'gamepads'], signals: ['signals'], events: ['commands', 'events']}};
+  activeTab: 'field', pickerChart: null, layout: null, focusedChart: null, folder: '', panels: {field: ['field', 'gamepads'], signals: ['signals'], events: ['commands', 'events']}};
 const faultPattern = /FAULT|CRASH|FAIL|LOST|INCOMPLETE|DISABLED|OVERRUN/i;
 const fmt = (n, digits = 2) => finite(n) ? n.toFixed(digits) : '—';
 const node = (tag, className, text) => {
@@ -46,6 +46,68 @@ function renderLibrary() {
     $('runs').append(button);
   }
   if (!runs.length) $('runs').append(node('p', 'empty', state.logs.length ? 'No matching runs.' : 'No local logs yet. Open a WPILOG or run make pull-logs.'));
+}
+
+const folderKey = 'maxscope.folders';
+
+function recentFolders() {
+  try { return JSON.parse(localStorage.getItem(folderKey)) || []; } catch { return []; }
+}
+
+function rememberFolder(path) {
+  const folders = [path, ...recentFolders().filter(entry => entry !== path)].slice(0, 8);
+  try { localStorage.setItem(folderKey, JSON.stringify(folders)); } catch { /* Storage may be disabled. */ }
+}
+
+function renderFolder() {
+  $('folder-path').textContent = state.folder ? state.folder.replace(/^.*\/(?=[^/]*\/[^/]*$)/, '…/') : '…';
+  $('folder-change').title = state.folder || 'Change the folder MaxScope reads';
+}
+
+function renderRecentFolders() {
+  $('folder-recent').replaceChildren();
+  for (const folder of recentFolders().filter(entry => entry !== state.folder)) {
+    const button = node('button', 'folder-recent-item', folder);
+    button.type = 'button';
+    button.onclick = () => { $('folder-input').value = folder; applyFolder(folder); };
+    $('folder-recent').append(button);
+  }
+}
+
+function openFolderPicker() {
+  $('folder-error').textContent = '';
+  $('folder-input').value = state.folder;
+  renderRecentFolders();
+  $('folder-picker').showModal();
+  $('folder-input').select();
+}
+
+async function applyFolder(path) {
+  const wanted = path.trim();
+  if (!wanted) { $('folder-error').textContent = 'Type a folder path.'; return; }
+  try {
+    const result = await api('/api/folder', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({path: wanted})});
+    state.folder = result.path;
+    rememberFolder(result.path);
+    renderFolder();
+    $('folder-picker').close();
+    state.logs = state.logs.filter(log => log.uploaded);
+    await refresh();
+    notice(result.count
+      ? `${result.count} run${result.count === 1 ? '' : 's'} in ${result.path}`
+      : `No .wpilog files in ${result.path}`);
+  } catch (error) {
+    $('folder-error').textContent = error.message;
+  }
+}
+
+async function loadFolder() {
+  try {
+    const result = await api('/api/folder');
+    state.folder = result.path;
+    renderFolder();
+  } catch { renderFolder(); }
 }
 
 async function refresh() {
@@ -823,6 +885,10 @@ $('add-graph').onclick = () => {
 $('event-filter').onchange = () => { renderEvents(); updateDetails(); };
 $('field-commands-toggle').onchange = () => { saveLayout(); if (state.run) updateDetails(); };
 $('refresh').onclick = refresh;
+$('folder-change').onclick = openFolderPicker;
+$('folder-close').onclick = () => $('folder-picker').close();
+$('folder-apply').onclick = () => applyFolder($('folder-input').value);
+$('folder-input').onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); applyFolder($('folder-input').value); } };
 $('search').oninput = renderLibrary;
 $('file').onchange = async event => {
   const file = event.target.files[0];
@@ -849,4 +915,5 @@ $('channel-picker').addEventListener('close', () => { state.pickerChart = null; 
 $('add-view').onchange = event => { addView(event.target.value); event.target.value = ''; };
 initializeLayout();
 new ResizeObserver(() => { if (state.run && !$('workspace').hidden) { preparePlots(); drawField(); drawCharts(); } }).observe($('workspace'));
+await loadFolder();
 await refresh();
