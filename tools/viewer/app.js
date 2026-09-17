@@ -3,7 +3,7 @@ import {finite, indexAt, sampleAt, activeCommandSpans, fieldPoint, fieldView, ba
 const $ = id => document.getElementById(id);
 const state = {logs: [], run: null, time: 0, playing: false, generation: 0, charts: [], options: [],
   series: new Map(), window: [0, 1], events: [], eventNodes: [], commandCursors: [], graphGeneration: 0, frame: null,
-  cameras: [], cameraViews: [], dragKey: null, activeTab: 'field', pickerChart: null, layout: null, focusedChart: null, panels: {field: [['field'], ['camera:1', 'gamepads']], signals: [['signals']], events: [['commands'], ['events']]}};
+  cameras: [], cameraViews: [], dragKey: null, activeTab: 'field', pickerChart: null, layout: null, focusedChart: null, panels: {field: [['field'], ['gamepads']], signals: [['signals']], events: [['commands'], ['events']]}};
 const faultPattern = /FAULT|CRASH|FAIL|LOST|INCOMPLETE|DISABLED|OVERRUN/i;
 const fmt = (n, digits = 2) => finite(n) ? n.toFixed(digits) : '—';
 const node = (tag, className, text) => {

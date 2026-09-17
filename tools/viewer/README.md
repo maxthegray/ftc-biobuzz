@@ -52,9 +52,9 @@ reduced trail; the coordinate readout always uses the full pose series.
 
 ## Controls
 
-- Three tabs: **Field**, **Signals**, and **Events**. Field starts with
-  Gamepads and the run summary at the bottom; Events contains Commands and
-  the event list.
+- Three tabs: **Field**, **Signals**, and **Events**. Field starts with the
+  field on the left, Gamepads on the right and the run summary at the
+  bottom; Events contains Commands and the event list.
 - **+ View** adds a view to the current tab without removing it from other
   tabs, into whichever column is shorter. × in a view heading hides it from
   that tab. Field and Events lay views out in two columns, Signals in one;
