@@ -1015,6 +1015,26 @@ canvas {
   margin-left: auto;
 }
 
+.drag-handle {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 2px 2px 0;
+  cursor: grab;
+  touch-action: none;
+}
+
+.card.dragging {
+  opacity: .5;
+}
+
+.card.drop-before {
+  outline: 2px dashed var(--green);
+  outline-offset: -2px;
+}
+
 #add-graph::after {
   content: none;
 }
