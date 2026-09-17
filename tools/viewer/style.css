@@ -53,6 +53,7 @@
   --trail-past:#718f3b;
   --robot-line:#405b26;
   --robot-arrow:#405b26;
+  --ball:#c18a33;
   --chart-grid:#edf0e6;
   --chart-label:#7c8770;
   --chart-cursor:#728663;
@@ -132,6 +133,7 @@
   --trail-past:#7d9b4c;
   --robot-line:#405b26;
   --robot-arrow:#d4f06a;
+  --ball:#e2ac55;
   --chart-grid:#272c24;
   --chart-label:#8f977f;
   --chart-cursor:#a4b891;
@@ -557,6 +559,14 @@ canvas {
   background:var(--warn-bg);
   padding:4px 7px;
   border-radius:4px;
+}
+
+.ball-status {
+  left:auto;
+  right:24px;
+  color:var(--ink);
+  background:var(--pill-bg);
+  font-family:ui-monospace,monospace;
 }
 
 .field-status:empty {

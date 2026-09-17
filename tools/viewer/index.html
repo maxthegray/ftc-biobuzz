@@ -26,9 +26,9 @@
         <button id="tab-events" role="tab" aria-controls="panel-events" aria-selected="false" tabindex="-1" data-view="events">Events</button>
       </nav>
       <section id="panel-field" class="view-panel" role="tabpanel" aria-labelledby="tab-field">
-        <section class="card field-card"><div class="card-heading"><h3>Field</h3><span class="muted">Pedro · in / rad</span><label class="field-command-toggle"><input id="field-commands-toggle" type="checkbox" checked aria-label="Show active commands on field">Commands</label></div>
+        <section class="card field-card"><div class="card-heading"><h3>Field</h3><span class="muted">Pedro · in / rad</span><label class="field-command-toggle"><input id="field-commands-toggle" type="checkbox" checked aria-label="Show active commands on field">Commands</label><label id="field-ball-option" class="field-command-toggle" hidden><input id="field-ball-toggle" type="checkbox" checked aria-label="Show tracked ball direction on field">Ball</label></div>
           <div id="field-activity" class="field-activity"><div class="field-activity-heading"><span>Active commands</span><span id="field-command-coverage"></span></div><div id="field-active-commands" aria-label="Active commands on field"></div></div>
-          <div class="field-wrap"><canvas id="field" aria-label="Robot field playback in native Pedro coordinates"></canvas><span id="pose-status" class="field-status"></span></div>
+          <div class="field-wrap"><canvas id="field" aria-label="Robot field playback in native Pedro coordinates"></canvas><span id="pose-status" class="field-status"></span><span id="ball-status" class="field-status ball-status" hidden></span></div>
           <div class="pose-readouts"><div>X <strong id="pose-x">—</strong><small>in</small></div><div>Y <strong id="pose-y">—</strong><small>in</small></div><div>θ <strong id="pose-h">—</strong><small>rad</small></div></div>
           <div class="field-caption"><span>Origin: audience-left · +X right · +Y away</span><span id="field-size"></span></div>
         </section>
