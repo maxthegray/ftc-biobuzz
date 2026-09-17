@@ -465,6 +465,7 @@ function selectTab(name, focus = false) {
   for (const view of views.values()) $('view-storage').append(view);
   const columns = columnsOf(name);
   state.panels[name].forEach((keys, i) => { for (const key of keys) columns[i].append(views.get(key)); });
+  layoutColumns(name);
   if (name === 'field') $('panel-field').append($('metrics'));
   updateViewControls();
   for (const tab of document.querySelectorAll('[role="tab"]')) {
@@ -502,9 +503,10 @@ function updateViewControls() {
 
 function addView(key) {
   const columns = state.panels[state.activeTab];
-  // New views go to the shortest column as rendered, so they fill free space first.
-  const heights = columnsOf(state.activeTab).map(column => column.offsetHeight);
-  const shortest = heights.indexOf(Math.min(...heights));
+  // New views go to the column with the fewest views; on a tie, away from the field, which is
+  // the view that fills its column.
+  const shortest = columns.reduce((best, keys, i) =>
+    keys.length < columns[best].length || (keys.length === columns[best].length && columns[best].includes('field')) ? i : best, 0);
   if (key === 'camera') {
     const used = state.cameraViews.map(view => Number(view.key.split(':')[1]));
     const next = `camera:${Math.max(0, ...used) + 1}`;
@@ -542,6 +544,7 @@ function addDragHandle(key, card) {
     state.dragKey = key;
     card.classList.add('dragging');
     card.parentElement.parentElement.classList.add('dragging');
+    layoutColumns(state.activeTab, true);
     // On window, so a drag that leaves the handle still tracks and always ends.
     const move = moved => { if (state.dragKey === key) placeDraggedCard(card, moved.clientX, moved.clientY); };
     const stop = () => {
@@ -568,6 +571,7 @@ function endDrag(card) {
   state.dragKey = null;
   card.classList.remove('dragging');
   for (const marked of document.querySelectorAll('.view-columns.dragging, .view-column.drop-column')) marked.classList.remove('dragging', 'drop-column');
+  layoutColumns(state.activeTab);
 }
 
 // Moves the dragged card in the DOM to where the pointer is. Within a column the card only jumps
@@ -594,9 +598,23 @@ function placeDraggedCard(card, x, y) {
   }
 }
 
+// Columns share the width by what they hold: one with the field gets more, an empty one none —
+// except while dragging, when every column stays open as a drop target.
+function layoutColumns(name, dragging = false) {
+  const columns = columnsOf(name);
+  const weights = columns.map(column => {
+    const empty = !column.children.length;
+    column.hidden = empty && !dragging;
+    return empty ? 'minmax(0, 1fr)' : column.querySelector('.field-card') ? 'minmax(0, 3fr)' : 'minmax(0, 2fr)';
+  });
+  const template = columns.filter(column => !column.hidden).map(column => weights[columns.indexOf(column)]).join(' ');
+  columns[0].parentElement.style.setProperty('--template', template);
+}
+
 function commitColumns() {
   state.panels[state.activeTab] = columnsOf(state.activeTab).map(column => [...column.children].map(card => card.dataset.viewKey));
   saveLayout(); updateViewControls();
+  drawField(); drawCamera(); drawCharts();
 }
 
 function moveView(key, dColumn, dIndex) {
@@ -1209,5 +1227,7 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
 });
 applyTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
 initializeLayout();
-new ResizeObserver(() => { if (state.run && !$('workspace').hidden) { preparePlots(); drawField(); drawCamera(); drawCharts(); } }).observe($('workspace'));
+const redrawOnResize = new ResizeObserver(() => { if (state.run && !$('workspace').hidden) { preparePlots(); drawField(); drawCamera(); drawCharts(); } });
+redrawOnResize.observe($('workspace'));
+redrawOnResize.observe(document.querySelector('.field-wrap'));
 await refresh();
