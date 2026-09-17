@@ -56,9 +56,12 @@ reduced trail; the coordinate readout always uses the full pose series.
   Gamepads and the run summary at the bottom; Events contains Commands and
   the event list.
 - **+ View** adds a view to the current tab without removing it from other
-  tabs. × in a view heading hides it from that tab. Drag a view by the ⠿
-  handle in its heading to reorder the tab, or focus the handle and use
-  Alt+← / Alt+→; the order is saved per tab. Tab contents and graph
+  tabs, into whichever column is shorter. × in a view heading hides it from
+  that tab. Field and Events lay views out in two columns, Signals in one;
+  the columns stack on narrow windows. Drag a view by the ⠿ handle in its
+  heading: it moves as you drag, into any column or the free space under
+  one, and lands where you see it. With the handle focused, Alt+↑/↓ moves it
+  within its column and Alt+←/→ across. The layout is saved per tab. Tab contents and graph
   selections are saved in this browser; all views share playback time.
 - Signals starts with one large graph. **+ Graph** adds another (up to eight);
   × beside a graph removes it. With several graphs, **Expand** temporarily
