@@ -1,9 +1,9 @@
-import {finite, indexAt, sampleAt, fieldPoint, fieldView, ballSources, ballSighting, ballEstimate, sightingMount, loggedCameraMount, cameraDetections, POLLEN_DIAMETER_IN, scalarSeries, plotPoints, plotBounds, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals, buttonNames} from './core.mjs';
+import {finite, indexAt, sampleAt, activeCommandSpans, fieldPoint, fieldView, ballSources, ballSighting, ballEstimate, sightingMount, loggedCameraMount, cameraDetections, cameraSources, POLLEN_DIAMETER_IN, scalarSeries, plotPoints, plotBounds, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals, buttonNames} from './core.mjs';
 
 const $ = id => document.getElementById(id);
 const state = {logs: [], run: null, time: 0, playing: false, generation: 0, charts: [], options: [],
   series: new Map(), window: [0, 1], events: [], eventNodes: [], commandCursors: [], graphGeneration: 0, frame: null,
-  activeTab: 'field', pickerChart: null, layout: null, focusedChart: null, panels: {field: ['field', 'camera', 'gamepads'], signals: ['signals'], events: ['commands', 'events']}};
+  cameras: [], cameraViews: [], activeTab: 'field', pickerChart: null, layout: null, focusedChart: null, panels: {field: ['field', 'camera:1', 'gamepads'], signals: ['signals'], events: ['commands', 'events']}};
 const faultPattern = /FAULT|CRASH|FAIL|LOST|INCOMPLETE|DISABLED|OVERRUN/i;
 const fmt = (n, digits = 2) => finite(n) ? n.toFixed(digits) : '—';
 const node = (tag, className, text) => {
@@ -81,7 +81,9 @@ async function openRun(id) {
     const stride = Math.max(1, Math.ceil(poses.length / 6000));
     state.trail = poses.filter((point, i) => i % stride === 0 || i === poses.length - 1);
     state.fieldView = fieldView(poses, run.fieldLengthIn);
-    $('field-ball-option').hidden = !ballSources.some(source => run.playback[source.tx]?.length);
+    state.cameras = cameraSources(run.channels);
+    $('field-ball-option').hidden = !ballSources(state.cameras).some(source => run.playback[source.tx]?.length);
+    for (const view of state.cameraViews) fillCameraSources(view);
     $('run-title').textContent = runLabel(run.name);
     $('run-file').textContent = run.name;
     $('run-status').textContent = run.report.truncated ? 'Partial log' : 'No readable samples';
@@ -165,6 +167,44 @@ function renderCommands() {
     $('commands').append(row);
   }
   if (!runs.length) $('commands').append(node('p', 'empty', 'No traced executions in this run.'));
+  const playback = state.run.playback;
+  renderFieldTimeline(runs.length ? runs
+    : activeCommandSpans(playback['commands/active']?.length ? playback['commands/active'] : playback['commands/running'], state.run.endSec));
+}
+
+// The same executions as the Commands view, one row per command name, so the field card shows the
+// whole run at a glance under the commands active right now.
+function renderFieldTimeline(runs) {
+  const length = Math.max(state.run.endSec, 0.001);
+  const byName = new Map();
+  for (const run of runs) {
+    if (!byName.has(run.name)) byName.set(run.name, []);
+    byName.get(run.name).push(run);
+  }
+  const rows = [...byName].slice(0, FIELD_TIMELINE_LANES);
+  const shown = rows.flatMap(([, items]) => items).length;
+  $('field-timeline').hidden = !runs.length;
+  $('field-timeline').replaceChildren(...rows.map(([name, items]) => {
+    const row = node('div', 'timeline-row');
+    const label = node('span', 'timeline-name', name);
+    label.title = name;
+    const lane = node('div', 'timeline-lane');
+    for (const run of items) {
+      const bar = node('button', `command-bar ${run.outcome.toLowerCase()}`);
+      bar.style.left = `${run.startSec / length * 100}%`;
+      bar.style.width = `${Math.max(0.4, ((run.endSec ?? length) - run.startSec) / length * 100)}%`;
+      bar.title = `${run.name} · ${fmt(run.startSec, 3)}–${fmt(run.endSec, 3)} s · ${run.outcome === 'SAMPLED' ? 'from sampled active set' : run.outcome}`;
+      bar.setAttribute('aria-label', bar.title);
+      bar.onclick = () => seek(run.startSec);
+      lane.append(bar);
+    }
+    const cursor = node('span', 'command-cursor');
+    state.commandCursors.push(cursor);
+    lane.append(cursor);
+    row.append(label, lane);
+    return row;
+  }));
+  if (byName.size > rows.length) $('field-timeline').append(node('div', 'timeline-note', `${byName.size - rows.length} more commands in the Commands view`));
 }
 
 function renderEvents() {
@@ -291,6 +331,7 @@ function updateChartControls() {
 const themeKey = 'maxscope.theme';
 // Past this the estimate moves by feet per degree of ty, so only the direction is drawn.
 const BALL_TRUST_IN = 48;
+const FIELD_TIMELINE_LANES = 5;
 let colors = null;
 const cssColors = () => {
   const style = getComputedStyle(document.documentElement), read = name => style.getPropertyValue(`--${name}`).trim();
@@ -426,12 +467,14 @@ const layoutKey = 'maxscope.layout.v2';
 function saveLayout() {
   state.layout = {panels: state.panels, layers: state.charts.length ? state.charts.map(chart => [...chart.keys]) : state.layout?.layers,
     discrete: state.charts.length ? state.charts.map(chart => [...chart.discreteKeys]) : state.layout?.discrete,
-    fieldCommands: $('field-commands-toggle').checked, fieldBall: $('field-ball-toggle').checked};
+    fieldCommands: $('field-commands-toggle').checked, fieldBall: $('field-ball-toggle').checked,
+    cameraViews: Object.fromEntries(state.cameraViews.map(view => [view.key, view.source]))};
   try { localStorage.setItem(layoutKey, JSON.stringify(state.layout)); } catch { /* Storage may be disabled. */ }
 }
 
 function updateViewControls() {
-  for (const option of $('add-view').options) option.disabled = state.panels[state.activeTab].includes(option.value);
+  // Camera views can be added more than once, one per camera; the rest are single.
+  for (const option of $('add-view').options) option.disabled = option.value !== 'camera' && state.panels[state.activeTab].includes(option.value);
   for (const panel of document.querySelectorAll('.view-panel')) {
     let empty = panel.querySelector('.empty-tab');
     if (!empty) { empty = node('p', 'empty empty-tab', 'Use + View to add a view.'); panel.append(empty); }
@@ -441,9 +484,42 @@ function updateViewControls() {
 
 function addView(key) {
   const keys = state.panels[state.activeTab];
-  if (!views.has(key) || keys.includes(key)) return;
-  keys.push(key);
+  if (key === 'camera') {
+    const used = state.cameraViews.map(view => Number(view.key.split(':')[1]));
+    const next = `camera:${Math.max(0, ...used) + 1}`;
+    const shown = new Set(Object.values(state.panels).flat());
+    const spare = state.cameraViews.find(view => !shown.has(view.key));
+    createCameraViewIfNeeded(spare ? spare.key : next, state.cameras.find(camera => !usedCameras().includes(camera)));
+    keys.push(spare ? spare.key : next);
+  } else {
+    if (!views.has(key) || keys.includes(key)) return;
+    keys.push(key);
+  }
   saveLayout(); selectTab(state.activeTab);
+  drawCamera();
+}
+
+const usedCameras = () => state.cameraViews.map(view => view.source).filter(Boolean);
+
+function createCameraViewIfNeeded(key, source) {
+  const existing = state.cameraViews.find(view => view.key === key);
+  if (existing) return existing;
+  return createCameraView(key, source ?? state.cameras[0] ?? null);
+}
+
+function addHideButton(key, card) {
+  const remove = node('button', 'text-button hide-view', '×');
+  remove.setAttribute('aria-label', `Hide ${viewNames[key] ?? 'Camera'} from this tab`);
+  remove.title = 'Hide from this tab';
+  remove.onclick = () => {
+    state.panels[state.activeTab] = state.panels[state.activeTab].filter(item => item !== key);
+    if (key.startsWith('camera:') && !Object.values(state.panels).flat().includes(key)) {
+      state.cameraViews = state.cameraViews.filter(view => view.key !== key);
+      views.delete(key);
+    }
+    saveLayout(); selectTab(state.activeTab);
+  };
+  card.querySelector('.card-heading').append(remove);
 }
 
 function wireTab(tab) {
@@ -461,18 +537,10 @@ function wireTab(tab) {
 
 function initializeLayout() {
   const elements = {field: document.querySelector('.field-card'), signals: document.querySelector('.signals-card'),
-    commands: $('commands').closest('.card'), events: $('events').closest('.card'), gamepads: document.querySelector('.inputs-card'),
-    camera: document.querySelector('.camera-card')};
+    commands: $('commands').closest('.card'), events: $('events').closest('.card'), gamepads: document.querySelector('.inputs-card')};
   for (const [key, view] of Object.entries(elements)) {
     view.dataset.panel = key; views.set(key, view);
-    const remove = node('button', 'text-button hide-view', '×');
-    remove.setAttribute('aria-label', `Hide ${viewNames[key]} from this tab`);
-    remove.title = 'Hide from this tab';
-    remove.onclick = () => {
-      state.panels[state.activeTab] = state.panels[state.activeTab].filter(item => item !== key);
-      saveLayout(); selectTab(state.activeTab);
-    };
-    view.querySelector('.card-heading').append(remove);
+    addHideButton(key, view);
   }
   document.querySelectorAll('[role="tab"]').forEach(wireTab);
   try {
@@ -481,6 +549,11 @@ function initializeLayout() {
     $('field-ball-toggle').checked = saved?.fieldBall !== false;
     const previous = saved || JSON.parse(localStorage.getItem('maxscope.layout.v1'));
     if (saved?.panels) {
+      for (const keys of Object.values(saved.panels)) {
+        for (const key of Array.isArray(keys) ? keys : []) {
+          if (key.startsWith('camera:')) createCameraViewIfNeeded(key, saved.cameraViews?.[key]);
+        }
+      }
       for (const tab of Object.keys(state.panels)) {
         if (Array.isArray(saved.panels[tab])) state.panels[tab] = [...new Set(saved.panels[tab].filter(key => views.has(key)))];
       }
@@ -489,6 +562,7 @@ function initializeLayout() {
       state.layout = {discrete: Array.isArray(previous.discrete) ? previous.discrete.slice(0, 8).map(keys => Array.isArray(keys) ? [...new Set(keys.filter(key => typeof key === 'string'))].slice(0, 8) : []) : undefined, layers: previous.layers.slice(0, 8).map(keys => Array.isArray(keys) ? [...new Set(keys.filter(key => typeof key === 'string'))].slice(0, 8) : [])};
     }
   } catch { /* Ignore an unavailable or outdated saved layout. */ }
+  for (const key of new Set(Object.values(state.panels).flat())) if (key.startsWith('camera:')) createCameraViewIfNeeded(key);
   selectTab('field');
 }
 
@@ -717,7 +791,7 @@ function drawField() {
   const slack = view.slack / view.span * size;
   const offView = valid && (x < left - slack || x > left + size + slack || y < top - slack || y > top + size + slack);
   $('pose-status').textContent = !valid ? 'No valid pose at this time' : offView ? 'Pose is beyond the view' : outside ? 'Pose is outside the field' : age > 0.25 ? `Last pose ${fmt(age)} s ago` : '';
-  const ball = !$('field-ball-option').hidden && $('field-ball-toggle').checked && valid ? ballSighting(state.run.playback, state.time) : null;
+  const ball = !$('field-ball-option').hidden && $('field-ball-toggle').checked && valid ? ballSighting(state.run.playback, state.time, state.cameras) : null;
   const angle = value => value === null ? '—' : `${value >= 0 ? '+' : ''}${fmt(value, 1)}°`;
   $('ball-status').hidden = $('field-ball-option').hidden || !$('field-ball-toggle').checked;
   const estimate = ball ? ballEstimate(pose, ball, sightingMount(state.run.playback, state.time, ball)) : null;
@@ -725,14 +799,20 @@ function drawField() {
   const range = !estimate || estimate.distanceIn === null ? '' : near ? ` · ~${fmt(estimate.distanceIn, 0)} in` : ' · far';
   $('ball-status').textContent = !ball ? 'No ball target' : `tx ${angle(ball.txDeg)} · ty ${angle(ball.tyDeg)}${ball.targetTyDeg === null ? '' : ` → ${angle(ball.targetTyDeg)}`}${range}`;
   const ballRadius = Math.max(4, POLLEN_DIAMETER_IN / 2 / view.span * size);
-  if (ball && !offView && ball.source === 'BallCamera') {
-    const mount = loggedCameraMount(state.run.playback, state.time);
-    for (const detection of cameraDetections(state.run.playback, state.time)?.detections || []) {
-      if (detection.selected || detection.rejection || !mount || detection.txDeg === null || detection.tyDeg === null) continue;
-      const other = ballEstimate(pose, detection, mount);
-      if (other.distanceIn === null || other.distanceIn > BALL_TRUST_IN) continue;
-      const [otherX, otherY] = fieldPoint(other.point, view, left, top, size);
-      ctx.strokeStyle = colors.ball; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(otherX, otherY, ballRadius, 0, Math.PI * 2); ctx.stroke();
+  // Every camera's accepted detections, each through its own logged mount; the tracked one is
+  // drawn below with its ray.
+  if (ball && !offView) {
+    for (const camera of state.cameras) {
+      const mount = loggedCameraMount(state.run.playback, state.time, camera);
+      if (!mount) continue;
+      for (const detection of cameraDetections(state.run.playback, state.time, camera)?.detections || []) {
+        if (detection.rejection || detection.txDeg === null || detection.tyDeg === null) continue;
+        if (camera === ball.camera && detection.selected) continue;
+        const other = ballEstimate(pose, detection, mount);
+        if (other.distanceIn === null || other.distanceIn > BALL_TRUST_IN) continue;
+        const [otherX, otherY] = fieldPoint(other.point, view, left, top, size);
+        ctx.strokeStyle = colors.ball; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(otherX, otherY, ballRadius, 0, Math.PI * 2); ctx.stroke();
+      }
     }
   }
   if (estimate && !offView) {
@@ -761,15 +841,57 @@ function drawField() {
   ctx.restore();
 }
 
+// Camera views are added from + View, one card per camera, each choosing which camera it shows.
+function createCameraView(key, source = null) {
+  const card = node('section', 'card camera-card');
+  const heading = node('div', 'card-heading');
+  const select = node('select');
+  select.setAttribute('aria-label', 'Camera to show');
+  const summary = node('span', 'muted');
+  heading.append(node('h3', '', 'Camera'), select, summary);
+  const wrap = node('div', 'camera-wrap');
+  const canvas = node('canvas');
+  canvas.setAttribute('aria-label', 'Camera detections in image pixels');
+  const status = node('span', 'field-status');
+  wrap.append(canvas, status);
+  const size = node('span', '');
+  const caption = node('div', 'field-caption');
+  caption.append(node('span', '', 'Filled: selected · outlined: accepted · faded: rejected (reason)'), size);
+  card.append(heading, wrap, caption);
+  const view = {key, source, card, select, summary, canvas, status, size};
+  select.onchange = () => { view.source = select.value; saveLayout(); drawCamera(); };
+  state.cameraViews.push(view);
+  views.set(key, card);
+  addHideButton(key, card);
+  fillCameraSources(view);
+  return view;
+}
+
+function fillCameraSources(view) {
+  const cameras = state.cameras.length ? state.cameras : view.source ? [view.source] : [];
+  if (!view.source || (state.cameras.length && !state.cameras.includes(view.source))) view.source = cameras[0] ?? view.source;
+  view.select.replaceChildren(...cameras.map(camera => {
+    const option = node('option', '', camera);
+    option.value = camera;
+    option.selected = camera === view.source;
+    return option;
+  }));
+  view.select.hidden = cameras.length < 2;
+}
+
 function drawCamera() {
-  if (!state.run || !$('camera').clientWidth) return;
-  const {ctx, width, height} = context($('camera'));
-  const frame = cameraDetections(state.run.playback, state.time);
-  $('camera-status').textContent = !frame ? 'No camera detections in this log' : !frame.fresh ? 'No fresh camera frame' : '';
+  for (const view of state.cameraViews) drawCameraView(view);
+}
+
+function drawCameraView(view) {
+  if (!state.run || !view.canvas.clientWidth) return;
+  const {ctx, width, height} = context(view.canvas);
+  const frame = view.source ? cameraDetections(state.run.playback, state.time, view.source) : null;
+  view.status.textContent = !frame ? 'No camera detections in this log' : !frame.fresh ? 'No fresh camera frame' : '';
   const accepted = frame?.detections.filter(detection => !detection.rejection).length ?? 0;
-  $('camera-summary').textContent = frame?.fresh ? `${frame.detections.length} candidates · ${accepted} accepted` : '';
+  view.summary.textContent = frame?.fresh ? `${frame.detections.length} candidates · ${accepted} accepted` : '';
   const frameWidth = frame?.widthPx ?? 640, frameHeight = frame?.heightPx ?? 480;
-  $('camera-size').textContent = frame?.widthPx ? `${frameWidth} × ${frameHeight} px` : '';
+  view.size.textContent = frame?.widthPx ? `${frameWidth} × ${frameHeight} px` : '';
   const scale = Math.min((width - 24) / frameWidth, (height - 16) / frameHeight);
   const left = (width - frameWidth * scale) / 2, top = 8;
   ctx.fillStyle = colors.field; ctx.fillRect(left, top, frameWidth * scale, frameHeight * scale);

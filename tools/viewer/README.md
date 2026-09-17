@@ -92,16 +92,24 @@ reduced trail; the coordinate readout always uses the full pose series.
   camera mount: `BallCamera/mount/…` from the log when `measured` is true,
   otherwise the Limelight's measured mount in `core.mjs` (lens 110.75 mm high,
   pitched 10° down, offset unknown). Within 48 in the ray is solid and ends at
-  a ball dot, with the distance in the corner readout; other accepted
-  detections in range are outlined. Farther, or with no ty or mount, the ray
+  a ball dot, with the distance in the corner readout; accepted detections
+  from every camera with a logged mount are outlined in range. Farther, or with no ty or mount, the ray
   is dashed and direction-only: past that range, one degree of ty moves the
   estimate by feet. Angles more than 250 ms old are hidden.
 - **Camera** is a view of the camera frame itself: every candidate blob the
   detector published, at its pixel position and radius. The selected blob is
   filled and labelled with its angles, accepted blobs are outlined, and
-  rejected ones are faded and labelled with the filter they failed. It needs
-  the `BallCamera/candidates/…` channels, so logs recorded before those
-  existed show nothing.
+  rejected ones are faded and labelled with the filter they failed. Add it
+  once per camera from **+ View**; each card chooses which camera it shows,
+  and the picker is hidden when a log has only one. Cameras are found by
+  channel prefix (`<Subsystem>/candidates/…` or `<Subsystem>/target/…`), so a
+  second camera subsystem appears without any viewer change. Logs recorded
+  before a camera logged its candidates show nothing.
+- Field shows a command timeline under the active commands: one row per
+  command name, bars for when it ran, and the playback cursor. Click a bar to
+  seek. Instrumented logs use the recorded executions; older logs fall back to
+  spans derived from the sampled active set, whose edges are only as exact as
+  the sampling. Rows past the first five are counted in a note.
 - Scroll over a graph to zoom all graphs around the pointer. Reset zoom
   restores the full run. The slider always spans the complete run.
 

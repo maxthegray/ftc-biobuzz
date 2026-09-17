@@ -797,6 +797,11 @@ canvas {
   background:var(--bar-fail);
 }
 
+.command-bar.sampled {
+  background: var(--chip-bg);
+  border: 1px solid var(--chip-line);
+}
+
 .command-bar.interrupt {
   background:var(--bar-interrupt);
 }
@@ -1106,6 +1111,40 @@ canvas {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.field-timeline {
+  margin-top: 10px;
+}
+
+.timeline-row {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 8px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.timeline-name {
+  font-size: 9px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-lane {
+  position: relative;
+  height: 9px;
+  background: var(--pill-bg);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.timeline-note {
+  font-size: 9px;
+  color: var(--muted);
+  margin-top: 6px;
 }
 
 .active-command-chip {

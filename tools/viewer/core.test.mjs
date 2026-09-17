@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {fieldPoint, fieldView, ballSighting, ballEstimate, cameraDetections, loggedCameraMount, sampleAt, plotPoints, plotBounds, scalarSeries, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals} from './core.mjs';
+import {activeCommandSpans, fieldPoint, fieldView, ballSighting, ballEstimate, cameraDetections, loggedCameraMount, cameraSources, sampleAt, plotPoints, plotBounds, scalarSeries, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals} from './core.mjs';
 
 test('Pedro field corners retain their axes with only screen Y inverted', () => {
   const view = {minX: 0, minY: 0, span: 141.5};
@@ -136,10 +136,10 @@ test('discrete picker includes command state and individual gamepad buttons, not
 test('ball sighting prefers the assist target and ignores stale or missing angles', () => {
   const playback = {'BallAssist/tx': [[1, 10], [2, null]], 'BallAssist/ty': [[1, -3]], 'BallAssist/targetTy': [[0, 2]],
     'BallCamera/target/horizontalDeg': [[1.9, -5]]};
-  assert.deepEqual(ballSighting(playback, 1.1), {source: 'BallAssist', mount: 'limelight', txDeg: 10, tyDeg: -3, targetTyDeg: 2});
-  assert.equal(ballSighting(playback, 1.5), null);
-  assert.deepEqual(ballSighting(playback, 2.0), {source: 'BallCamera', mount: 'logged', txDeg: -5, tyDeg: null, targetTyDeg: null});
-  assert.equal(ballSighting({}, 1), null);
+  assert.deepEqual(ballSighting(playback, 1.1, ['BallCamera']), {source: 'BallAssist', camera: null, mount: 'limelight', txDeg: 10, tyDeg: -3, targetTyDeg: 2});
+  assert.equal(ballSighting(playback, 1.5, ['BallCamera']), null);
+  assert.deepEqual(ballSighting(playback, 2.0, ['BallCamera']), {source: 'BallCamera', camera: 'BallCamera', mount: 'logged', txDeg: -5, tyDeg: null, targetTyDeg: null});
+  assert.equal(ballSighting({}, 1, ['BallCamera']), null);
 });
 
 test('assist ty falls back to the Limelight only when it is the same target', () => {
@@ -163,8 +163,8 @@ test('ball estimate projects the camera ray onto the ball-centre plane', () => {
 });
 
 test('USB camera vertical angles are flipped to positive up', () => {
-  const playback = {'BallCamera/target/horizontalDeg': [[1, 3]], 'BallCamera/target/verticalDeg': [[1, 8]]};
-  assert.equal(ballSighting(playback, 1).tyDeg, -8);
+  const playback = {'IntakeCam/target/horizontalDeg': [[1, 3]], 'IntakeCam/target/verticalDeg': [[1, 8]]};
+  assert.equal(ballSighting(playback, 1, ['IntakeCam']).tyDeg, -8);
 });
 
 test('ball estimate starts at the mounted camera and turns with its yaw', () => {
@@ -178,9 +178,9 @@ test('ball estimate starts at the mounted camera and turns with its yaw', () => 
 test('logged camera mount is used only once marked measured', () => {
   const playback = {'BallCamera/mount/measured': [[0, false]], 'BallCamera/mount/heightIn': [[0, 6]], 'BallCamera/mount/pitchDownDeg': [[0, 15]],
     'BallCamera/mount/forwardIn': [[0, 7]], 'BallCamera/mount/leftIn': [[0, 0]], 'BallCamera/mount/yawDeg': [[0, 0]]};
-  assert.equal(loggedCameraMount(playback, 1), null);
+  assert.equal(loggedCameraMount(playback, 1, 'BallCamera'), null);
   playback['BallCamera/mount/measured'] = [[0, true]];
-  assert.deepEqual(loggedCameraMount(playback, 1), {heightIn: 6, pitchDownDeg: 15, forwardIn: 7, leftIn: 0, yawDeg: 0});
+  assert.deepEqual(loggedCameraMount(playback, 1, 'BallCamera'), {heightIn: 6, pitchDownDeg: 15, forwardIn: 7, leftIn: 0, yawDeg: 0});
 });
 
 test('camera detections pair the logged columns and drop stale frames', () => {
@@ -190,15 +190,15 @@ test('camera detections pair the logged columns and drop stale frames', () => {
     'BallCamera/candidates/verticalDeg': [[1, [4, null]], [2, []]], 'BallCamera/candidates/rejections': [[1, 'accepted,small'], [2, '']],
     'BallCamera/candidates/selectedIndex': [[1, 0], [2, -1]], 'BallCamera/frame/widthPx': [[0, 640]], 'BallCamera/frame/heightPx': [[0, 480]],
   };
-  const frame = cameraDetections(playback, 1.1);
+  const frame = cameraDetections(playback, 1.1, 'BallCamera');
   assert.equal(frame.widthPx, 640);
   assert.deepEqual(frame.detections, [
     {xPx: 400, yPx: 300, radiusPx: 12, txDeg: 5, tyDeg: -4, rejection: null, selected: true},
     {xPx: 50, yPx: 60, radiusPx: 1, txDeg: null, tyDeg: null, rejection: 'small', selected: false},
   ]);
-  assert.deepEqual(cameraDetections(playback, 2.1).detections, []);
-  assert.deepEqual(cameraDetections(playback, 1.5).detections, []);
-  assert.equal(cameraDetections({}, 1), null);
+  assert.deepEqual(cameraDetections(playback, 2.1, 'BallCamera').detections, []);
+  assert.deepEqual(cameraDetections(playback, 1.5, 'BallCamera').detections, []);
+  assert.equal(cameraDetections({}, 1, 'BallCamera'), null);
 });
 
 test('a projected sighting recovers the ball it came from, wherever the robot stands', () => {
@@ -219,4 +219,26 @@ test('a projected sighting recovers the ball it came from, wherever the robot st
     const {point} = ballEstimate(pose, sightingFrom(pose), mount);
     assert.ok(Math.hypot(point[0] - ball[0], point[1] - ball[1]) < 1e-6, `pose ${pose} gave ${point}`);
   }
+});
+
+test('cameras are discovered by channel prefix, whatever a subsystem is called', () => {
+  assert.deepEqual(cameraSources([{name: 'BallCamera/candidates/xPx'}, {name: 'BallCamera/target/horizontalDeg'},
+    {name: 'IntakeCam/target/horizontalDeg'}, {name: 'pose'}, {name: 'Limelight/target/txDegrees'}]), ['BallCamera', 'IntakeCam']);
+  assert.deepEqual(cameraSources([]), []);
+});
+
+test('the sighting names the camera it came from so its own mount is used', () => {
+  const playback = {'FrontCam/target/horizontalDeg': [[1, 2]], 'RearCam/target/horizontalDeg': [[1, -9]]};
+  assert.equal(ballSighting(playback, 1, ['RearCam', 'FrontCam']).camera, 'RearCam');
+  assert.equal(ballSighting(playback, 1, ['FrontCam']).camera, 'FrontCam');
+});
+
+test('sampled active sets become one span per command name', () => {
+  const series = [[0, ''], [1, '#1 Drive teleop'], [2, '#1 Drive teleop\n#2 Ball aim (suspended)'], [3, '#2 Ball aim'], [4, '']];
+  assert.deepEqual(activeCommandSpans(series, 6), [
+    {name: 'Drive teleop', startSec: 1, endSec: 3, outcome: 'SAMPLED'},
+    {name: 'Ball aim', startSec: 2, endSec: 4, outcome: 'SAMPLED'},
+  ]);
+  assert.deepEqual(activeCommandSpans([[0, '#1 Held']], 9), [{name: 'Held', startSec: 0, endSec: 9, outcome: 'SAMPLED'}]);
+  assert.deepEqual(activeCommandSpans(), []);
 });
