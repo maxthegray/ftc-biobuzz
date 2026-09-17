@@ -1,9 +1,11 @@
 package org.firstinspires.ftc.teamcode.vision
 
 import com.qualcomm.robotcore.hardware.HardwareMap
+import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.runtime.HardwareConfigError
 import org.firstinspires.ftc.teamcode.core.sim.FakeClock
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -21,10 +23,16 @@ class BallCameraSubsystemTest {
     }
 
     @Before
-    fun setUp() = BallVisionConfig.resetDefaults()
+    fun setUp() {
+        BallVisionConfig.resetDefaults()
+        BallCameraMountConfig.resetDefaults()
+    }
 
     @After
-    fun tearDown() = BallVisionConfig.resetDefaults()
+    fun tearDown() {
+        BallVisionConfig.resetDefaults()
+        BallCameraMountConfig.resetDefaults()
+    }
 
     private fun subsystem() = BallCameraSubsystem(backendFactory = factory, clock = clock)
 
@@ -142,6 +150,43 @@ class BallCameraSubsystemTest {
     }
 
     @Test
+    fun everyPublishedCandidateAndTheMountReachTheFlightLog() {
+        val camera = subsystem()
+        camera.init(HardwareMap(null, null))
+        val backend = opened.single()
+        backend.frame = frameCapturedAt(
+            clock.now - 10_000_000L,
+            listOf(BallCandidateFilterTest.blob(area = 1.0, x = 50.0, y = 60.0), BallCandidateFilterTest.blob(x = 400.0, y = 300.0)),
+        )
+        BallCameraMountConfig.heightIn = 4.36
+        BallCameraMountConfig.measured = true
+        camera.periodic()
+
+        val log = RecordingStateLog()
+        camera.logState(log)
+        assertArrayEquals(doubleArrayOf(400.0, 50.0), log.channels["candidates/xPx"] as DoubleArray, 0.0)
+        assertArrayEquals(doubleArrayOf(300.0, 60.0), log.channels["candidates/yPx"] as DoubleArray, 0.0)
+        assertEquals("accepted,small", log.channels["candidates/rejections"])
+        assertEquals(0L, log.channels["candidates/selectedIndex"])
+        // The fake lens is unknown, so angles are NaN rather than guessed.
+        assertTrue((log.channels["candidates/horizontalDeg"] as DoubleArray).all { it.isNaN() })
+        assertEquals(640L, log.channels["frame/widthPx"])
+        assertEquals(true, log.channels["mount/measured"])
+        assertEquals(4.36, log.channels["mount/heightIn"])
+
+        val repeat = RecordingStateLog()
+        camera.logState(repeat)
+        assertSame(log.channels["candidates/xPx"], repeat.channels["candidates/xPx"])
+
+        clock.advanceMs(500.0)
+        camera.periodic()
+        val stale = RecordingStateLog()
+        camera.logState(stale)
+        assertEquals(0, (stale.channels["candidates/xPx"] as DoubleArray).size)
+        assertEquals(-1L, stale.channels["candidates/selectedIndex"])
+    }
+
+    @Test
     fun resetToDefaultsFlagIsHandledOnTheRobotLoop() {
         val camera = subsystem()
         camera.init(HardwareMap(null, null))
@@ -201,14 +246,26 @@ class BallCameraSubsystemTest {
         assertSame(opened[1].stream, second.runningStream)
     }
 
-    private fun frameCapturedAt(captureNanos: Long): BallFrameResult {
+    private fun frameCapturedAt(
+        captureNanos: Long,
+        blobs: List<BlobMeasurement> = listOf(BallCandidateFilterTest.blob()),
+    ): BallFrameResult {
         val filters = BlobFilterSettings(0.01, 50.0, 0.0, 10.0, 0.0, 8)
         return BallFrameResult(
             frameNumber = 1, captureTimeNanos = captureNanos, processingStartNanos = captureNanos,
             publishedNanos = captureNanos + 1, widthPx = 640, heightPx = 480, roi = PixelRect(0, 0, 640, 480),
             settingsVersion = 1, contourCount = 1, ignoredSmallCount = 0,
-            selection = BallCandidateFilter.evaluate(listOf(BallCandidateFilterTest.blob()), 640.0 * 480, filters),
+            selection = BallCandidateFilter.evaluate(blobs, 640.0 * 480, filters),
         )
+    }
+
+    private class RecordingStateLog : StateLog {
+        val channels = mutableMapOf<String, Any>()
+        override fun put(channel: String, value: Double) { channels[channel] = value }
+        override fun put(channel: String, value: Long) { channels[channel] = value }
+        override fun put(channel: String, value: Boolean) { channels[channel] = value }
+        override fun put(channel: String, value: String) { channels[channel] = value }
+        override fun put(channel: String, value: DoubleArray) { channels[channel] = value }
     }
 
     private class FakeBackend(

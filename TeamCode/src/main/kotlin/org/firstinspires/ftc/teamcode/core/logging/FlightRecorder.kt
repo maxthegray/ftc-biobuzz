@@ -141,6 +141,10 @@ class FlightRecorder private constructor(
             writer.appendString(entry(channel, "string"), value, timestampUs)
         }
 
+        override fun put(channel: String, value: DoubleArray) {
+            writer.appendDoubleArray(entry(channel, "double[]"), value, timestampUs)
+        }
+
         private fun entry(channel: String, type: String): Int {
             val name = prefix + channel
             return channelIds.getOrPut(name) { writer.startEntry(name, type) }

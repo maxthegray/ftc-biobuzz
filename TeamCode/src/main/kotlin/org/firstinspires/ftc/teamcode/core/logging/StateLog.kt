@@ -16,4 +16,10 @@ interface StateLog {
 
     /** Strings are de-duplicated: only written when the value changes. */
     fun put(channel: String, value: String)
+
+    /**
+     * A `double[]` sample; the length may change from tick to tick. Written
+     * immediately, so a cached array can be passed again unchanged.
+     */
+    fun put(channel: String, value: DoubleArray)
 }

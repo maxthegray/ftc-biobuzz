@@ -66,6 +66,7 @@ class BallCameraSubsystem(
     private var backend: BallCameraBackend? = null
     private var lastDetection: DetectionSettings? = null
     private var lastCamera: CameraImageRequest? = null
+    private var candidateColumns = CandidateColumns.EMPTY
 
     val tracker = BallObservationTracker(clock)
 
@@ -160,6 +161,8 @@ class BallCameraSubsystem(
         log.put("frame/processingMs", frame?.processingMs ?: Double.NaN)
         log.put("frame/publishToReceiptMs", obs.publishToReceiptMs)
         log.put("frame/settingsVersion", frame?.settingsVersion ?: 0L)
+        log.put("frame/widthPx", (frame?.widthPx ?: 0).toLong())
+        log.put("frame/heightPx", (frame?.heightPx ?: 0).toLong())
         log.put("rate/processedFps", tracker.processedFps)
         log.put("rate/receivedFps", tracker.receivedFps)
         log.put("rate/skippedFrames", tracker.skippedFrames)
@@ -168,6 +171,22 @@ class BallCameraSubsystem(
         log.put("candidates/contours", (frame?.contourCount ?: 0).toLong())
         log.put("candidates/evaluated", (frame?.selection?.evaluatedCount ?: 0).toLong())
         log.put("candidates/accepted", (frame?.selection?.acceptedCount ?: 0).toLong())
+        val intrinsics = lensReport.intrinsics
+        if (obs.candidates !== candidateColumns.candidates || obs.selected !== candidateColumns.selected ||
+            intrinsics !== candidateColumns.intrinsics
+        ) {
+            candidateColumns = CandidateColumns(obs.candidates, obs.selected, intrinsics)
+        }
+        val columns = candidateColumns
+        log.put("candidates/xPx", columns.xPx)
+        log.put("candidates/yPx", columns.yPx)
+        log.put("candidates/radiusPx", columns.radiusPx)
+        log.put("candidates/areaPx", columns.areaPx)
+        log.put("candidates/circularity", columns.circularity)
+        log.put("candidates/horizontalDeg", columns.horizontalDeg)
+        log.put("candidates/verticalDeg", columns.verticalDeg)
+        log.put("candidates/rejections", columns.rejections)
+        log.put("candidates/selectedIndex", columns.selectedIndex)
         log.put("target/status", obs.targetStatus.name)
         val blob = obs.selected?.blob
         log.put("target/xPx", blob?.centroidXPx ?: Double.NaN)
@@ -184,6 +203,40 @@ class BallCameraSubsystem(
         log.put("controls/requestedExposureMicros", control.requested?.exposureMicros ?: -1L)
         log.put("controls/readbackExposureMicros", control.readback?.exposureMicros ?: -1L)
         log.put("controls/readbackWhiteBalanceK", (control.readback?.whiteBalanceKelvin ?: -1).toLong())
+        log.put("mount/measured", BallCameraMountConfig.measured)
+        log.put("mount/heightIn", BallCameraMountConfig.heightIn)
+        log.put("mount/pitchDownDeg", BallCameraMountConfig.pitchDownDeg)
+        log.put("mount/forwardIn", BallCameraMountConfig.forwardIn)
+        log.put("mount/leftIn", BallCameraMountConfig.leftIn)
+        log.put("mount/yawDeg", BallCameraMountConfig.yawDeg)
+    }
+
+    /**
+     * The published candidates of the current observation as parallel columns,
+     * accepted first, rebuilt only when the observation or lens changes. Angles
+     * follow [LensIntrinsics.rayAnglesDegrees] (vertical + below the axis) and
+     * are NaN until the lens is known. [rejections] names each candidate's
+     * first failed filter, or `accepted`.
+     */
+    private class CandidateColumns(
+        val candidates: List<BallCandidate>,
+        val selected: BallCandidate?,
+        val intrinsics: LensIntrinsics?,
+    ) {
+        val xPx = DoubleArray(candidates.size) { candidates[it].blob.centroidXPx }
+        val yPx = DoubleArray(candidates.size) { candidates[it].blob.centroidYPx }
+        val radiusPx = DoubleArray(candidates.size) { candidates[it].blob.enclosingRadiusPx }
+        val areaPx = DoubleArray(candidates.size) { candidates[it].blob.contourAreaPx }
+        val circularity = DoubleArray(candidates.size) { candidates[it].blob.circularity }
+        private val angles = candidates.map { intrinsics?.rayAnglesDegrees(it.blob.centroidXPx, it.blob.centroidYPx) }
+        val horizontalDeg = DoubleArray(candidates.size) { angles[it]?.first ?: Double.NaN }
+        val verticalDeg = DoubleArray(candidates.size) { angles[it]?.second ?: Double.NaN }
+        val rejections = candidates.joinToString(",") { it.rejection?.label ?: "accepted" }
+        val selectedIndex = candidates.indexOfFirst { it === selected }.toLong()
+
+        companion object {
+            val EMPTY = CandidateColumns(emptyList(), null, null)
+        }
     }
 
     /** Releases the camera within [CLOSE_TIMEOUT_MS]; safe to call before init or twice. */
