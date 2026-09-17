@@ -42,36 +42,51 @@ export function fieldView(poses, length, maxExtraFields = 1) {
 // the Limelight assist acted on; its ty is only logged while approaching, so the Limelight's own ty
 // fills in when its tx shows it is the same target. BallCamera is the USB camera, whose vertical
 // angle is positive below the axis and whose mount comes from its own log.
-export const ballSources = [
-  {name: 'BallAssist', tx: 'BallAssist/tx', ty: 'BallAssist/ty', targetTy: 'BallAssist/targetTy',
-    fallbackVisible: 'Limelight/target/visible', fallbackTx: 'Limelight/target/txDegrees', fallbackTy: 'Limelight/target/tyDegrees',
-    mount: 'limelight'},
-  {name: 'BallCamera', tx: 'BallCamera/target/horizontalDeg', ty: 'BallCamera/target/verticalDeg', tyPositiveDown: true, mount: 'logged'},
-];
+export const assistSource = {name: 'BallAssist', tx: 'BallAssist/tx', ty: 'BallAssist/ty', targetTy: 'BallAssist/targetTy',
+  fallbackVisible: 'Limelight/target/visible', fallbackTx: 'Limelight/target/txDegrees', fallbackTy: 'Limelight/target/tyDegrees',
+  mount: 'limelight'};
+
+// Every camera subsystem in a log, by the channel prefix its own name gives it.
+export function cameraSources(channels = []) {
+  const names = new Set(channels.map(channel => channel.name ?? channel));
+  const prefixes = new Set();
+  for (const name of names) {
+    const match = name.match(/^(.+)\/(?:candidates\/xPx|target\/horizontalDeg)$/);
+    if (match) prefixes.add(match[1]);
+  }
+  return [...prefixes].sort();
+}
+
+const cameraSighting = camera => ({name: camera, camera, tx: `${camera}/target/horizontalDeg`,
+  ty: `${camera}/target/verticalDeg`, tyPositiveDown: true, mount: 'logged'});
+
+export function ballSources(cameras = []) {
+  return [assistSource, ...cameras.map(cameraSighting)];
+}
 
 // Logs from before the camera mount was logged. Measured on the robot; offset from the centre unknown.
 export const cameraMounts = {limelight: {heightIn: 110.75 / 25.4, pitchDownDeg: 10, forwardIn: 0, leftIn: 0, yawDeg: 0}};
 export const POLLEN_DIAMETER_IN = 2.8;
 
-export function ballSighting(playback, time, maxAgeSec = 0.25) {
+export function ballSighting(playback, time, cameras = [], maxAgeSec = 0.25) {
   const fresh = name => {
     const series = playback[name] || [], index = indexAt(series, time);
     return index >= 0 && finite(series[index][1]) && time - series[index][0] <= maxAgeSec ? series[index][1] : null;
   };
-  for (const source of ballSources) {
+  for (const source of ballSources(cameras)) {
     const tx = fresh(source.tx);
     if (tx === null) continue;
     let ty = fresh(source.ty);
     if (ty === null && source.fallbackTy && sampleAt(playback[source.fallbackVisible], time) === true && Math.abs((fresh(source.fallbackTx) ?? Infinity) - tx) < 0.5) ty = fresh(source.fallbackTy);
     if (ty !== null && source.tyPositiveDown) ty = -ty;
     const targetTy = source.targetTy ? sampleAt(playback[source.targetTy], time) : null;
-    return {source: source.name, mount: source.mount, txDeg: tx, tyDeg: ty, targetTyDeg: finite(targetTy) ? targetTy : null};
+    return {source: source.name, camera: source.camera ?? null, mount: source.mount, txDeg: tx, tyDeg: ty, targetTyDeg: finite(targetTy) ? targetTy : null};
   }
   return null;
 }
 
-export function loggedCameraMount(playback, time) {
-  const value = name => sampleAt(playback[`BallCamera/mount/${name}`], time);
+export function loggedCameraMount(playback, time, camera) {
+  const value = name => sampleAt(playback[`${camera}/mount/${name}`], time);
   if (value('measured') !== true) return null;
   const mount = {heightIn: value('heightIn'), pitchDownDeg: value('pitchDownDeg'),
     forwardIn: value('forwardIn') ?? 0, leftIn: value('leftIn') ?? 0, yawDeg: value('yawDeg') ?? 0};
@@ -79,15 +94,15 @@ export function loggedCameraMount(playback, time) {
 }
 
 export function sightingMount(playback, time, sighting) {
-  return sighting?.mount === 'logged' ? loggedCameraMount(playback, time) : cameraMounts[sighting?.mount] ?? null;
+  return sighting?.mount === 'logged' ? loggedCameraMount(playback, time, sighting.camera) : cameraMounts[sighting?.mount] ?? null;
 }
 
 // Every candidate the USB camera published for its frame at `time`, accepted first. Angles are
 // converted to +up. Empty when the candidate sample is older than `maxAgeSec`.
-export function cameraDetections(playback, time, maxAgeSec = 0.25) {
-  const xs = playback['BallCamera/candidates/xPx'];
+export function cameraDetections(playback, time, camera, maxAgeSec = 0.25) {
+  const xs = playback[`${camera}/candidates/xPx`];
   if (!xs?.length) return null;
-  const value = name => sampleAt(playback[`BallCamera/${name}`], time);
+  const value = name => sampleAt(playback[`${camera}/${name}`], time);
   const index = indexAt(xs, time), fresh = index >= 0 && time - xs[index][0] <= maxAgeSec;
   const column = name => fresh && Array.isArray(value(`candidates/${name}`)) ? value(`candidates/${name}`) : [];
   const x = fresh && Array.isArray(xs[index][1]) ? xs[index][1] : [];
@@ -236,6 +251,22 @@ export function discreteSeries(series, bit) {
   return series.map(([time, value]) => [time, bit !== undefined
     ? (finite(value) ? Boolean(value & (1 << bit)) : null)
     : (typeof value === 'string' || typeof value === 'boolean' || finite(value) ? value : null)]);
+}
+
+// Spans per command name from the sampled active set, for logs without lifecycle records. A name
+// is active while it appears in consecutive samples; sampling makes the edges approximate.
+export function activeCommandSpans(series = [], endSec) {
+  const open = new Map(), spans = [];
+  const names = value => new Set(typeof value === 'string' && value ? value.split('\n').map(line => line.replace(/^#\d+ /, '').replace(/ \(suspended\)$/, '')).filter(Boolean) : []);
+  for (const [time, value] of series) {
+    const active = names(value);
+    for (const [name, start] of [...open]) {
+      if (!active.has(name)) { spans.push({name, startSec: start, endSec: time, outcome: 'SAMPLED'}); open.delete(name); }
+    }
+    for (const name of active) if (!open.has(name)) open.set(name, time);
+  }
+  for (const [name, start] of open) spans.push({name, startSec: start, endSec, outcome: 'SAMPLED'});
+  return spans.sort((a, b) => a.startSec - b.startSec);
 }
 
 export function discreteIntervals(series, end) {

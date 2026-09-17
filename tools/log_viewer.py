@@ -21,14 +21,19 @@ MAX_UPLOAD = 256 * 1024 * 1024
 PLAYBACK_CHANNELS = ("pose", "driveMode", "gamepad1/axes", "gamepad1/buttons",
                      "gamepad2/axes", "gamepad2/buttons", "commands/active", "commands/running",
                      "BallAssist/tx", "BallAssist/ty", "BallAssist/targetTy",
-                     "Limelight/target/visible", "Limelight/target/txDegrees", "Limelight/target/tyDegrees",
-                     "BallCamera/target/horizontalDeg", "BallCamera/target/verticalDeg",
-                     "BallCamera/frame/widthPx", "BallCamera/frame/heightPx", "BallCamera/frame/status",
-                     "BallCamera/candidates/xPx", "BallCamera/candidates/yPx", "BallCamera/candidates/radiusPx",
-                     "BallCamera/candidates/horizontalDeg", "BallCamera/candidates/verticalDeg",
-                     "BallCamera/candidates/rejections", "BallCamera/candidates/selectedIndex",
-                     "BallCamera/mount/measured", "BallCamera/mount/heightIn", "BallCamera/mount/pitchDownDeg",
-                     "BallCamera/mount/forwardIn", "BallCamera/mount/leftIn", "BallCamera/mount/yawDeg")
+                     "Limelight/target/visible", "Limelight/target/txDegrees", "Limelight/target/tyDegrees")
+
+# Any camera subsystem's detections, whatever it is called: <Subsystem>/<one of these>.
+CAMERA_CHANNEL_SUFFIXES = tuple(
+    f"candidates/{name}" for name in ("xPx", "yPx", "radiusPx", "horizontalDeg", "verticalDeg", "rejections", "selectedIndex")
+) + tuple(f"frame/{name}" for name in ("widthPx", "heightPx", "status")) + (
+    "target/horizontalDeg", "target/verticalDeg",
+) + tuple(f"mount/{name}" for name in ("measured", "heightIn", "pitchDownDeg", "forwardIn", "leftIn", "yawDeg"))
+
+
+def camera_channels(records):
+    return tuple(name for name in records
+                 if name.partition("/")[0] and name.partition("/")[2] in CAMERA_CHANNEL_SUFFIXES)
 
 
 def json_safe(value):
@@ -124,7 +129,7 @@ class LogLibrary:
             return {"id": ident, "name": self.names[ident], "report": report,
                     "endSec": max(timestamps, default=0) / 1e6,
                     "fieldLengthIn": field_length(), "channels": channels,
-                    "playback": series_seconds(records, PLAYBACK_CHANNELS),
+                    "playback": series_seconds(records, PLAYBACK_CHANNELS + camera_channels(records)),
                     "commandEvents": [{"tSec": ts / 1e6, "text": value}
                                       for ts, value in records.get("commands/events", [])]}
 

@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from log_viewer import LogLibrary, ThreadingHTTPServer, handler_for, json_safe
+from log_viewer import LogLibrary, ThreadingHTTPServer, camera_channels, handler_for, json_safe
 
 
 def fixture(truncated=False):
@@ -130,3 +130,14 @@ class ViewerTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CameraChannelTest(unittest.TestCase):
+    def test_any_subsystems_detection_channels_are_sent_for_playback(self):
+        records = {"pose": [], "BallCamera/candidates/xPx": [], "IntakeCam/target/horizontalDeg": [],
+                   "IntakeCam/mount/heightIn": [], "Limelight/target/txDegrees": [], "Lift/heightIn": [],
+                   "commands/active": []}
+        self.assertEqual(
+            ("BallCamera/candidates/xPx", "IntakeCam/target/horizontalDeg", "IntakeCam/mount/heightIn"),
+            camera_channels(records),
+        )
