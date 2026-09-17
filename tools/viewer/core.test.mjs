@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {fieldPoint, fieldView, ballSighting, ballEstimate, sampleAt, plotPoints, plotBounds, scalarSeries, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals} from './core.mjs';
+import {fieldPoint, fieldView, ballSighting, ballEstimate, cameraDetections, loggedCameraMount, sampleAt, plotPoints, plotBounds, scalarSeries, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals} from './core.mjs';
 
 test('Pedro field corners retain their axes with only screen Y inverted', () => {
   const view = {minX: 0, minY: 0, span: 141.5};
@@ -138,7 +138,7 @@ test('ball sighting prefers the assist target and ignores stale or missing angle
     'BallCamera/target/horizontalDeg': [[1.9, -5]]};
   assert.deepEqual(ballSighting(playback, 1.1), {source: 'BallAssist', mount: 'limelight', txDeg: 10, tyDeg: -3, targetTyDeg: 2});
   assert.equal(ballSighting(playback, 1.5), null);
-  assert.deepEqual(ballSighting(playback, 2.0), {source: 'BallCamera', mount: null, txDeg: -5, tyDeg: null, targetTyDeg: null});
+  assert.deepEqual(ballSighting(playback, 2.0), {source: 'BallCamera', mount: 'logged', txDeg: -5, tyDeg: null, targetTyDeg: null});
   assert.equal(ballSighting({}, 1), null);
 });
 
@@ -160,4 +160,63 @@ test('ball estimate projects the camera ray onto the ball-centre plane', () => {
   assert.equal(ballEstimate([0, 0, 0], {txDeg: 0, tyDeg: 10}, mount).distanceIn, null);
   const noRange = ballEstimate([0, 0, 1], {txDeg: 45, tyDeg: null}, mount);
   assert.ok(Math.abs(noRange.bearing - (1 - Math.PI / 4)) < 1e-12 && noRange.point === null);
+});
+
+test('USB camera vertical angles are flipped to positive up', () => {
+  const playback = {'BallCamera/target/horizontalDeg': [[1, 3]], 'BallCamera/target/verticalDeg': [[1, 8]]};
+  assert.equal(ballSighting(playback, 1).tyDeg, -8);
+});
+
+test('ball estimate starts at the mounted camera and turns with its yaw', () => {
+  const mount = {heightIn: 4.36, pitchDownDeg: 10, forwardIn: 8, leftIn: 2, yawDeg: 90};
+  const estimate = ballEstimate([10, 10, 0], {txDeg: 0, tyDeg: -10}, mount);
+  assert.deepEqual(estimate.origin, [18, 12]);
+  assert.ok(Math.abs(estimate.bearing - Math.PI / 2) < 1e-12);
+  assert.ok(Math.abs(estimate.point[0] - 18) < 1e-9 && estimate.point[1] > 12);
+});
+
+test('logged camera mount is used only once marked measured', () => {
+  const playback = {'BallCamera/mount/measured': [[0, false]], 'BallCamera/mount/heightIn': [[0, 6]], 'BallCamera/mount/pitchDownDeg': [[0, 15]],
+    'BallCamera/mount/forwardIn': [[0, 7]], 'BallCamera/mount/leftIn': [[0, 0]], 'BallCamera/mount/yawDeg': [[0, 0]]};
+  assert.equal(loggedCameraMount(playback, 1), null);
+  playback['BallCamera/mount/measured'] = [[0, true]];
+  assert.deepEqual(loggedCameraMount(playback, 1), {heightIn: 6, pitchDownDeg: 15, forwardIn: 7, leftIn: 0, yawDeg: 0});
+});
+
+test('camera detections pair the logged columns and drop stale frames', () => {
+  const playback = {
+    'BallCamera/candidates/xPx': [[1, [400, 50]], [2, []]], 'BallCamera/candidates/yPx': [[1, [300, 60]], [2, []]],
+    'BallCamera/candidates/radiusPx': [[1, [12, 1]], [2, []]], 'BallCamera/candidates/horizontalDeg': [[1, [5, null]], [2, []]],
+    'BallCamera/candidates/verticalDeg': [[1, [4, null]], [2, []]], 'BallCamera/candidates/rejections': [[1, 'accepted,small'], [2, '']],
+    'BallCamera/candidates/selectedIndex': [[1, 0], [2, -1]], 'BallCamera/frame/widthPx': [[0, 640]], 'BallCamera/frame/heightPx': [[0, 480]],
+  };
+  const frame = cameraDetections(playback, 1.1);
+  assert.equal(frame.widthPx, 640);
+  assert.deepEqual(frame.detections, [
+    {xPx: 400, yPx: 300, radiusPx: 12, txDeg: 5, tyDeg: -4, rejection: null, selected: true},
+    {xPx: 50, yPx: 60, radiusPx: 1, txDeg: null, tyDeg: null, rejection: 'small', selected: false},
+  ]);
+  assert.deepEqual(cameraDetections(playback, 2.1).detections, []);
+  assert.deepEqual(cameraDetections(playback, 1.5).detections, []);
+  assert.equal(cameraDetections({}, 1), null);
+});
+
+test('a projected sighting recovers the ball it came from, wherever the robot stands', () => {
+  const mount = {heightIn: 6, pitchDownDeg: 15, forwardIn: 7, leftIn: 2, yawDeg: -5};
+  const ball = [96, 72], above = mount.heightIn - 1.4, pitch = mount.pitchDownDeg * Math.PI / 180;
+  const sightingFrom = pose => {
+    const heading = pose[2], axis = heading + mount.yawDeg * Math.PI / 180;
+    const camera = [pose[0] + Math.cos(heading) * mount.forwardIn - Math.sin(heading) * mount.leftIn,
+      pose[1] + Math.sin(heading) * mount.forwardIn + Math.cos(heading) * mount.leftIn];
+    const range = Math.hypot(ball[0] - camera[0], ball[1] - camera[1]);
+    const alpha = Math.atan2(ball[1] - camera[1], ball[0] - camera[0]) - axis;
+    const forward = range * Math.cos(alpha), right = -range * Math.sin(alpha);
+    const denominator = forward * Math.cos(pitch) + above * Math.sin(pitch);
+    return {txDeg: Math.atan(right / denominator) * 180 / Math.PI,
+      tyDeg: -Math.atan((above * Math.cos(pitch) - forward * Math.sin(pitch)) / denominator) * 180 / Math.PI};
+  };
+  for (const pose of [[40, 60, 0], [66, 67.8, -0.162], [77.5, 71.25, 0.4], [96, 40, Math.PI / 2], [120, 90, Math.PI]]) {
+    const {point} = ballEstimate(pose, sightingFrom(pose), mount);
+    assert.ok(Math.hypot(point[0] - ball[0], point[1] - ball[1]) < 1e-6, `pose ${pose} gave ${point}`);
+  }
 });

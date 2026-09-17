@@ -85,16 +85,23 @@ reduced trail; the coordinate readout always uses the full pose series.
   shown as recorded; this is only the command coverage available in the log.
 - **Ball** (shown when the log has ball-tracking channels) draws where the
   robot thinks the tracked ball is: `BallAssist/tx`/`ty`, or the USB camera's
-  `BallCamera/target/horizontalDeg` when no assist target was logged. When
-  the assist's ty isn't logged (aim only), the Limelight's own ty is used if
-  its tx matches. For the Limelight, the camera ray is projected onto the
-  plane of a pollen's centre (2.8 in diameter) using the measured mount in
-  `core.mjs`: lens 110.75 mm high, pitched 10° down. Within 48 in the ray is
-  solid and ends at a ball dot, with the distance in the corner readout.
-  Farther, or with no ty or mount, the ray is dashed and direction-only:
-  past that range, one degree of ty moves the estimate by feet. The camera
-  offset from the robot centre isn't set yet, so the ray starts at the robot
-  centre. Angles more than 250 ms old are hidden.
+  `BallCamera/target/horizontalDeg`/`verticalDeg` (positive below the axis,
+  flipped here). When the assist's ty isn't logged (aim only), the Limelight's
+  own ty is used if it sees a target whose tx matches. The camera ray is
+  projected onto the plane of a pollen's centre (2.8 in diameter) using the
+  camera mount: `BallCamera/mount/…` from the log when `measured` is true,
+  otherwise the Limelight's measured mount in `core.mjs` (lens 110.75 mm high,
+  pitched 10° down, offset unknown). Within 48 in the ray is solid and ends at
+  a ball dot, with the distance in the corner readout; other accepted
+  detections in range are outlined. Farther, or with no ty or mount, the ray
+  is dashed and direction-only: past that range, one degree of ty moves the
+  estimate by feet. Angles more than 250 ms old are hidden.
+- **Camera** is a view of the camera frame itself: every candidate blob the
+  detector published, at its pixel position and radius. The selected blob is
+  filled and labelled with its angles, accepted blobs are outlined, and
+  rejected ones are faded and labelled with the filter they failed. It needs
+  the `BallCamera/candidates/…` channels, so logs recorded before those
+  existed show nothing.
 - Scroll over a graph to zoom all graphs around the pointer. Reset zoom
   restores the full run. The slider always spans the complete run.
 

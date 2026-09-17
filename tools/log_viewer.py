@@ -22,7 +22,13 @@ PLAYBACK_CHANNELS = ("pose", "driveMode", "gamepad1/axes", "gamepad1/buttons",
                      "gamepad2/axes", "gamepad2/buttons", "commands/active", "commands/running",
                      "BallAssist/tx", "BallAssist/ty", "BallAssist/targetTy",
                      "Limelight/target/visible", "Limelight/target/txDegrees", "Limelight/target/tyDegrees",
-                     "BallCamera/target/horizontalDeg", "BallCamera/target/verticalDeg")
+                     "BallCamera/target/horizontalDeg", "BallCamera/target/verticalDeg",
+                     "BallCamera/frame/widthPx", "BallCamera/frame/heightPx", "BallCamera/frame/status",
+                     "BallCamera/candidates/xPx", "BallCamera/candidates/yPx", "BallCamera/candidates/radiusPx",
+                     "BallCamera/candidates/horizontalDeg", "BallCamera/candidates/verticalDeg",
+                     "BallCamera/candidates/rejections", "BallCamera/candidates/selectedIndex",
+                     "BallCamera/mount/measured", "BallCamera/mount/heightIn", "BallCamera/mount/pitchDownDeg",
+                     "BallCamera/mount/forwardIn", "BallCamera/mount/leftIn", "BallCamera/mount/yawDeg")
 
 
 def json_safe(value):

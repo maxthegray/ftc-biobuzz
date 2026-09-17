@@ -19,7 +19,7 @@
     <div id="workspace" hidden>
       <section class="run-heading"><div><h2 id="run-title"></h2><p id="run-file"></p></div><span id="run-status" class="pill" hidden></span></section>
       <section class="transport card" aria-label="Playback controls"><button id="play" class="play" aria-label="Play" disabled>▶</button><span id="time" class="time">0.000</span><input id="scrub" type="range" min="0" max="1" step="0.001" value="0" aria-label="Playback time"><span id="duration" class="duration">0.00 s</span><select id="speed" aria-label="Playback speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></section>
-      <div class="tab-actions"><select id="add-view" aria-label="Add view to current tab"><option value="">+ View</option><option value="field">Field</option><option value="signals">Signals</option><option value="commands">Commands</option><option value="events">Events</option><option value="gamepads">Gamepads</option></select></div>
+      <div class="tab-actions"><select id="add-view" aria-label="Add view to current tab"><option value="">+ View</option><option value="field">Field</option><option value="signals">Signals</option><option value="commands">Commands</option><option value="events">Events</option><option value="gamepads">Gamepads</option><option value="camera">Camera</option></select></div>
       <nav class="view-tabs" role="tablist" aria-label="Log views">
         <button id="tab-field" role="tab" aria-controls="panel-field" aria-selected="true" tabindex="0" data-view="field">Field</button>
         <button id="tab-signals" role="tab" aria-controls="panel-signals" aria-selected="false" tabindex="-1" data-view="signals">Signals</button>
@@ -46,6 +46,10 @@
         <section class="card"><div class="card-heading"><h3>Events</h3><select id="event-filter" aria-label="Event filter"><option value="all">All events</option><option value="faults">Faults & warnings</option></select></div><div id="events" class="events"></div></section>
       </section>
       <section hidden>
+      <section class="card camera-card"><div class="card-heading"><h3>Camera</h3><span id="camera-summary" class="muted"></span></div>
+        <div class="camera-wrap"><canvas id="camera" aria-label="Ball camera detections in image pixels"></canvas><span id="camera-status" class="field-status"></span></div>
+        <div class="field-caption"><span>Filled: selected · outlined: accepted · faded: rejected (reason)</span><span id="camera-size"></span></div>
+      </section>
       <section class="card inputs-card"><div class="card-heading"><h3>Gamepads</h3><span class="muted">After deadband</span></div><div id="gamepads" class="gamepads"></div></section>
       </section>
     </div>
