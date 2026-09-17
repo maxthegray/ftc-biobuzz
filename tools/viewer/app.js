@@ -3,7 +3,7 @@ import {finite, indexAt, sampleAt, activeCommandSpans, fieldPoint, fieldView, ba
 const $ = id => document.getElementById(id);
 const state = {logs: [], run: null, time: 0, playing: false, generation: 0, charts: [], options: [],
   series: new Map(), window: [0, 1], events: [], eventNodes: [], commandCursors: [], graphGeneration: 0, frame: null,
-  cameras: [], cameraViews: [], activeTab: 'field', pickerChart: null, layout: null, focusedChart: null, panels: {field: ['field', 'camera:1', 'gamepads'], signals: ['signals'], events: ['commands', 'events']}};
+  cameras: [], cameraViews: [], dragKey: null, activeTab: 'field', pickerChart: null, layout: null, focusedChart: null, panels: {field: ['field', 'camera:1', 'gamepads'], signals: ['signals'], events: ['commands', 'events']}};
 const faultPattern = /FAULT|CRASH|FAIL|LOST|INCOMPLETE|DISABLED|OVERRUN/i;
 const fmt = (n, digits = 2) => finite(n) ? n.toFixed(digits) : '—';
 const node = (tag, className, text) => {
@@ -507,6 +507,81 @@ function createCameraViewIfNeeded(key, source) {
   return createCameraView(key, source ?? state.cameras[0] ?? null);
 }
 
+// Views are reordered by dragging their handle, or with Alt+arrow while the handle has focus.
+// Pointer events rather than HTML5 drag: they work with touch and a pen too.
+function addDragHandle(key, card) {
+  card.dataset.viewKey = key;
+  const handle = node('button', 'drag-handle', '⠿');
+  handle.title = 'Drag to reorder · Alt+← / Alt+→ to move';
+  handle.setAttribute('aria-label', `Reorder ${viewNames[key] ?? 'Camera'}`);
+  handle.onpointerdown = event => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    state.dragKey = key;
+    card.classList.add('dragging');
+    // On window, so a drag that leaves the handle still tracks and always ends.
+    const move = moved => { if (state.dragKey === key) markDropTarget(moved.clientX, moved.clientY); };
+    const finish = ended => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', finish);
+      window.removeEventListener('pointercancel', cancel);
+      if (state.dragKey === key) dropView(key, ended.clientX, ended.clientY);
+      endDrag(card);
+    };
+    const cancel = () => { window.removeEventListener('pointermove', move); endDrag(card); };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', finish);
+    window.addEventListener('pointercancel', cancel);
+  };
+  handle.onkeydown = event => {
+    const delta = event.altKey && event.key === 'ArrowRight' ? 1 : event.altKey && event.key === 'ArrowLeft' ? -1 : 0;
+    if (delta) { event.preventDefault(); moveView(key, delta); }
+  };
+  card.querySelector('.card-heading').prepend(handle);
+}
+
+function endDrag(card) {
+  state.dragKey = null;
+  card.classList.remove('dragging');
+  for (const marked of document.querySelectorAll('.drop-before')) marked.classList.remove('drop-before');
+}
+
+function moveView(key, delta) {
+  const keys = state.panels[state.activeTab], from = keys.indexOf(key), to = from + delta;
+  if (from < 0 || to < 0 || to >= keys.length) return;
+  keys.splice(to, 0, keys.splice(from, 1)[0]);
+  saveLayout(); selectTab(state.activeTab);
+  views.get(key)?.querySelector('.drag-handle')?.focus();
+}
+
+// The view the pointer is before, in reading order: the first whose row is below the pointer, or
+// whose left half it is over. Null means past the last view, so the dragged one goes to the end.
+function dropTargetKey(x, y) {
+  for (const card of $(`panel-${state.activeTab}`).querySelectorAll('[data-view-key]')) {
+    const box = card.getBoundingClientRect();
+    if (y < box.bottom && (y < box.top || x < box.left + box.width / 2)) return card.dataset.viewKey;
+  }
+  return null;
+}
+
+function markDropTarget(x, y) {
+  const target = dropTargetKey(x, y);
+  for (const marked of document.querySelectorAll('.drop-before')) marked.classList.remove('drop-before');
+  if (target && target !== state.dragKey) views.get(target)?.classList.add('drop-before');
+}
+
+function dropView(key, x, y) {
+  const keys = state.panels[state.activeTab];
+  if (!keys.includes(key)) return;
+  const target = dropTargetKey(x, y);
+  const without = keys.filter(item => item !== key);
+  const at = target && target !== key ? without.indexOf(target) : without.length;
+  const reordered = [...without.slice(0, at), key, ...without.slice(at)];
+  if (reordered.join() === keys.join()) return;
+  state.panels[state.activeTab] = reordered;
+  saveLayout(); selectTab(state.activeTab);
+}
+
 function addHideButton(key, card) {
   const remove = node('button', 'text-button hide-view', '×');
   remove.setAttribute('aria-label', `Hide ${viewNames[key] ?? 'Camera'} from this tab`);
@@ -540,6 +615,7 @@ function initializeLayout() {
     commands: $('commands').closest('.card'), events: $('events').closest('.card'), gamepads: document.querySelector('.inputs-card')};
   for (const [key, view] of Object.entries(elements)) {
     view.dataset.panel = key; views.set(key, view);
+    addDragHandle(key, view);
     addHideButton(key, view);
   }
   document.querySelectorAll('[role="tab"]').forEach(wireTab);
@@ -859,6 +935,7 @@ function createCameraView(key, source = null) {
   caption.append(node('span', '', 'Filled: selected · outlined: accepted · faded: rejected (reason)'), size);
   card.append(heading, wrap, caption);
   const view = {key, source, card, select, summary, canvas, status, size};
+  addDragHandle(key, card);
   select.onchange = () => { view.source = select.value; saveLayout(); drawCamera(); };
   state.cameraViews.push(view);
   views.set(key, card);
