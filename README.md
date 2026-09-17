@@ -21,8 +21,26 @@ make build
 
 On the robot:
 
-1. Name things `frontLeftMotor`, `frontRightMotor`, `backLeftMotor`,
-   `backRightMotor`, and `pinpoint` in the Driver Station config.
+1. Name every device in the Driver Station "Configure Robot" screen exactly
+   as below — Preflight fails at init with the missing name otherwise:
+
+   | Name | Device | Type | Used by |
+   |---|---|---|---|
+   | `frontLeftMotor` | drive motor | Motor | Drive Only, and every op-mode (drivetrain) |
+   | `frontRightMotor` | drive motor | Motor | Drive Only, and every op-mode (drivetrain) |
+   | `backLeftMotor` | drive motor | Motor | Drive Only, and every op-mode (drivetrain) |
+   | `backRightMotor` | drive motor | Motor | Drive Only, and every op-mode (drivetrain) |
+   | `pinpoint` | goBILDA Pinpoint | I2C, `GoBildaPinpointDriver` | Drive Only, and every op-mode (localization) |
+   | `limelight` | Limelight 3A | Ethernet device | Limelight AprilTag Test |
+   | `ballCamera` | goBILDA Global Shutter USB Camera (3122-0004-0001) | Webcam | Ball Tracking Test |
+
+   The four motor names and `pinpoint` are defined in
+   [`RobotConfig.kt`](TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/core/runtime/RobotConfig.kt)
+   — change them there, not just on the Driver Station. `limelight` and
+   `ballCamera` are defaults on `LimelightSubsystem`/`BallCameraSubsystem`
+   instead, since vision hardware names aren't identity in the same sense.
+   `srsHub` (`SRSHubSubsystem`'s default name) is wired only in the archived
+   SRS Loop Benchmark diagnostic, not on the current sensorbot config.
 2. Do a full APK install the first time (`make install`).
 3. Work through [OPERATIONS.md](OPERATIONS.md) for bring-up and AutoTune.
    Foresight (Pedro's path follower) is **not tuned yet**: driving works, but

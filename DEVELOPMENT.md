@@ -218,6 +218,18 @@ Channels:
   timeout, cancel) or that a schedule was rejected: Ivy doesn't say. Read the
   surrounding records and `events`.
 
+## Review a WPILOG in MaxScope
+
+Run `make viewer` and open `http://127.0.0.1:8008`. Choose an already-pulled
+run or **Open WPILOG** to inspect another file. Field playback, graphs,
+commands, events and gamepads share one time cursor. The field reads raw
+Pedro `pose` in inches/radians: origin at the audience-left corner, +X right,
++Y away, heading counterclockwise. No AdvantageScope coordinate conversion
+is needed. Robot logging remains compatible with both viewers.
+
+The first draft runs locally with Python 3.10+ and no extra dependencies.
+See [MaxScope](tools/viewer/README.md) for controls, limits and tests.
+
 ## Download a WPILOG and open it in AdvantageScope
 
 1. Connect to the Control Hub (USB, or its Wi-Fi then `make connect`).
