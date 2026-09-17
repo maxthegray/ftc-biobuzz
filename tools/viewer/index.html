@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MaxScope</title><link rel="stylesheet" href="/style.css">
+  <title>MaxScope</title><script src="/theme.js"></script><link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <aside class="sidebar">
@@ -13,7 +13,7 @@
     <div class="sidebar-foot"><span class="status-dot"></span>Offline</div>
   </aside>
   <main>
-    <header><h1>Log review</h1><label class="button primary" for="file">Open WPILOG<input id="file" type="file" accept=".wpilog" class="file-input"></label></header>
+    <header><h1>Log review</h1><div class="header-actions"><button id="theme-toggle" class="button theme-toggle" type="button"></button><label class="button primary" for="file">Open WPILOG<input id="file" type="file" accept=".wpilog" class="file-input"></label></div></header>
     <div id="notice" class="notice" role="status" hidden></div>
     <section id="welcome" class="welcome"><p>Select a run or open a WPILOG file.</p></section>
     <div id="workspace" hidden>

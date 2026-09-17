@@ -37,6 +37,14 @@ coordinates to canvas pixels. Existing AdvantageScope output remains
 compatible. Field size is not historical metadata in today's logs, so older
 logs with different field dimensions need a future metadata addition.
 
+When a run's poses leave the field (for example an op-mode that never set a
+starting pose), the view grows by whole tiles to hold the whole path, at most
+one field length past each wall. A pose less than a quarter tile past a wall
+doesn't add a tile. The view stays square. The field keeps its outline;
+the area outside it is hatched. A pose past that limit is shown as an arrow on
+the edge of the view. The view is fixed for the run, so it doesn't move while
+scrubbing.
+
 The grid is season-neutral. The robot outline is a position/heading marker,
 not a measured chassis footprint. The faint trail is the recorded run and
 the darker trail is its elapsed portion, not a planned path. Drawing uses a
@@ -54,6 +62,8 @@ reduced trail; the coordinate readout always uses the full pose series.
   × beside a graph removes it. With several graphs, **Expand** temporarily
   fills the Signals view with one; **Show all graphs** restores the others.
   Existing saved graphs are retained when upgrading from the earlier viewer.
+- **Dark** / **Light** in the header switches the theme. The choice is saved
+  in this browser; until you pick one, the viewer follows the system setting.
 - Scrub the shared time slider, click a graph, event, or command bar to seek.
 - Play at 0.25–4×. Space toggles playback when focus is outside a control.
 - Left/right arrow steps 20 ms; Shift+arrow steps one second.

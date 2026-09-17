@@ -15,9 +15,27 @@ export function sampleAt(series = [], time) {
   return index < 0 ? null : series[index][1];
 }
 
-export function fieldPoint(pose, length, left, top, size) {
+export function fieldPoint(pose, view, left, top, size) {
   // Only map Cartesian coordinates to screen pixels; no field rotation or unit conversion.
-  return [left + pose[0] / length * size, top + (1 - pose[1] / length) * size];
+  return [left + (pose[0] - view.minX) / view.span * size, top + (1 - (pose[1] - view.minY) / view.span) * size];
+}
+
+// Square view over the field and the run's whole path, in whole field tiles. Poses within
+// `slack` of a wall don't add a tile. Each side grows by at most `maxExtraFields` field
+// lengths so a pose glitch can't shrink the field to a dot.
+export function fieldView(poses, length, maxExtraFields = 1) {
+  const tile = length / 6, cap = 6 * maxExtraFields, slack = tile / 4;
+  let minX = 0, maxX = length, minY = 0, maxY = length;
+  for (const [, pose] of poses) {
+    if (!Array.isArray(pose) || !finite(pose[0]) || !finite(pose[1])) continue;
+    minX = Math.min(minX, pose[0]); maxX = Math.max(maxX, pose[0]);
+    minY = Math.min(minY, pose[1]); maxY = Math.max(maxY, pose[1]);
+  }
+  const tiles = (lo, hi) => [Math.max(-cap, Math.floor((lo + slack) / tile)), Math.min(6 + cap, Math.ceil((hi - slack) / tile))];
+  const x = tiles(minX, maxX), y = tiles(minY, maxY);
+  const count = Math.max(x[1] - x[0], y[1] - y[0]);
+  const low = ([lo, hi]) => lo - Math.floor((count - (hi - lo)) / 2);
+  return {minX: low(x) * tile, minY: low(y) * tile, span: count * tile, tile, tiles: count, slack};
 }
 
 export function scalarSeries(series, component = null, scale = 1) {
