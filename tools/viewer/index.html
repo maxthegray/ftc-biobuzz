@@ -10,6 +10,9 @@
     <div class="library-title"><span>Runs</span><button id="refresh" class="icon" title="Refresh local logs" aria-label="Refresh local logs">↻</button></div>
     <input id="search" type="search" placeholder="Find a run…" aria-label="Find a run">
     <div id="runs" class="runs" aria-label="Recorded runs"></div>
+    <button id="folder-change" class="folder-row" title="Change the folder MaxScope reads">
+      <span class="folder-label">Log folder</span><span id="folder-path" class="folder-path">…</span>
+    </button>
     <div class="sidebar-foot"><span class="status-dot"></span>Offline</div>
   </aside>
   <main>
@@ -50,6 +53,13 @@
       </section>
     </div>
   </main>
+  <dialog id="folder-picker" aria-labelledby="folder-title">
+    <div class="picker-heading"><h2 id="folder-title">Log folder</h2><button id="folder-close" class="icon" aria-label="Close folder picker">×</button></div>
+    <p class="picker-note">Type or paste the folder holding your .wpilog files. The server reads it in place; nothing is copied or uploaded. Subfolders are included.</p>
+    <input id="folder-input" type="text" placeholder="/path/to/robot-logs" aria-label="Log folder path" autocomplete="off" spellcheck="false">
+    <div id="folder-recent" class="folder-recent" aria-label="Recent folders"></div>
+    <div class="picker-footer"><span id="folder-error" class="folder-error"></span><button id="folder-apply" class="button primary">Use folder</button></div>
+  </dialog>
   <dialog id="channel-picker" aria-labelledby="picker-title">
     <div class="picker-heading"><h2 id="picker-title">Choose a signal</h2><button id="picker-close" class="icon" aria-label="Close signal picker">×</button></div>
     <input id="channel-search" type="search" placeholder="Search channels…" aria-label="Search channels" autocomplete="off">
