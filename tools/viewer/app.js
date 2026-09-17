@@ -1,9 +1,9 @@
-import {finite, indexAt, sampleAt, fieldPoint, fieldView, ballSources, ballSighting, ballEstimate, cameraMounts, POLLEN_DIAMETER_IN, scalarSeries, plotPoints, plotBounds, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals, buttonNames} from './core.mjs';
+import {finite, indexAt, sampleAt, fieldPoint, fieldView, ballSources, ballSighting, ballEstimate, sightingMount, loggedCameraMount, cameraDetections, POLLEN_DIAMETER_IN, scalarSeries, plotPoints, plotBounds, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals, buttonNames} from './core.mjs';
 
 const $ = id => document.getElementById(id);
 const state = {logs: [], run: null, time: 0, playing: false, generation: 0, charts: [], options: [],
   series: new Map(), window: [0, 1], events: [], eventNodes: [], commandCursors: [], graphGeneration: 0, frame: null,
-  activeTab: 'field', pickerChart: null, layout: null, focusedChart: null, panels: {field: ['field', 'gamepads'], signals: ['signals'], events: ['commands', 'events']}};
+  activeTab: 'field', pickerChart: null, layout: null, focusedChart: null, panels: {field: ['field', 'camera', 'gamepads'], signals: ['signals'], events: ['commands', 'events']}};
 const faultPattern = /FAULT|CRASH|FAIL|LOST|INCOMPLETE|DISABLED|OVERRUN/i;
 const fmt = (n, digits = 2) => finite(n) ? n.toFixed(digits) : '—';
 const node = (tag, className, text) => {
@@ -419,7 +419,7 @@ function selectTab(name, focus = false) {
   if (state.run) seek(state.time);
 }
 
-const viewNames = {field: 'Field', signals: 'Signals', commands: 'Commands', events: 'Events', gamepads: 'Gamepads'};
+const viewNames = {field: 'Field', signals: 'Signals', commands: 'Commands', events: 'Events', gamepads: 'Gamepads', camera: 'Camera'};
 const views = new Map();
 const layoutKey = 'maxscope.layout.v2';
 
@@ -461,7 +461,8 @@ function wireTab(tab) {
 
 function initializeLayout() {
   const elements = {field: document.querySelector('.field-card'), signals: document.querySelector('.signals-card'),
-    commands: $('commands').closest('.card'), events: $('events').closest('.card'), gamepads: document.querySelector('.inputs-card')};
+    commands: $('commands').closest('.card'), events: $('events').closest('.card'), gamepads: document.querySelector('.inputs-card'),
+    camera: document.querySelector('.camera-card')};
   for (const [key, view] of Object.entries(elements)) {
     view.dataset.panel = key; views.set(key, view);
     const remove = node('button', 'text-button hide-view', '×');
@@ -719,18 +720,30 @@ function drawField() {
   const ball = !$('field-ball-option').hidden && $('field-ball-toggle').checked && valid ? ballSighting(state.run.playback, state.time) : null;
   const angle = value => value === null ? '—' : `${value >= 0 ? '+' : ''}${fmt(value, 1)}°`;
   $('ball-status').hidden = $('field-ball-option').hidden || !$('field-ball-toggle').checked;
-  const estimate = ball ? ballEstimate(pose, ball, cameraMounts[ball.mount]) : null;
+  const estimate = ball ? ballEstimate(pose, ball, sightingMount(state.run.playback, state.time, ball)) : null;
   const near = estimate?.distanceIn !== null && estimate?.distanceIn <= BALL_TRUST_IN;
   const range = !estimate || estimate.distanceIn === null ? '' : near ? ` · ~${fmt(estimate.distanceIn, 0)} in` : ' · far';
   $('ball-status').textContent = !ball ? 'No ball target' : `tx ${angle(ball.txDeg)} · ty ${angle(ball.tyDeg)}${ball.targetTyDeg === null ? '' : ` → ${angle(ball.targetTyDeg)}`}${range}`;
+  const ballRadius = Math.max(4, POLLEN_DIAMETER_IN / 2 / view.span * size);
+  if (ball && !offView && ball.source === 'BallCamera') {
+    const mount = loggedCameraMount(state.run.playback, state.time);
+    for (const detection of cameraDetections(state.run.playback, state.time)?.detections || []) {
+      if (detection.selected || detection.rejection || !mount || detection.txDeg === null || detection.tyDeg === null) continue;
+      const other = ballEstimate(pose, detection, mount);
+      if (other.distanceIn === null || other.distanceIn > BALL_TRUST_IN) continue;
+      const [otherX, otherY] = fieldPoint(other.point, view, left, top, size);
+      ctx.strokeStyle = colors.ball; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(otherX, otherY, ballRadius, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
   if (estimate && !offView) {
-    const end = near ? estimate.point : [pose[0] + Math.cos(estimate.bearing) * view.span * 2, pose[1] + Math.sin(estimate.bearing) * view.span * 2];
+    const end = near ? estimate.point : [estimate.origin[0] + Math.cos(estimate.bearing) * view.span * 2, estimate.origin[1] + Math.sin(estimate.bearing) * view.span * 2];
+    const [startX, startY] = fieldPoint(estimate.origin, view, left, top, size);
     const [endX, endY] = fieldPoint(end, view, left, top, size);
     ctx.strokeStyle = colors.ball; ctx.lineWidth = 2; ctx.setLineDash(near ? [] : [6, 4]);
-    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(endX, endY); ctx.stroke(); ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(endX, endY); ctx.stroke(); ctx.setLineDash([]);
     if (near) {
       ctx.fillStyle = colors.ball; ctx.beginPath();
-      ctx.arc(endX, endY, Math.max(4, POLLEN_DIAMETER_IN / 2 / view.span * size), 0, Math.PI * 2); ctx.fill();
+      ctx.arc(endX, endY, ballRadius, 0, Math.PI * 2); ctx.fill();
     }
   }
   if (offView) {
@@ -746,6 +759,41 @@ function drawField() {
     ctx.beginPath(); ctx.arc(0, 0, 2, 0, Math.PI * 2); ctx.fillStyle = colors['robot-line']; ctx.fill();
   }
   ctx.restore();
+}
+
+function drawCamera() {
+  if (!state.run || !$('camera').clientWidth) return;
+  const {ctx, width, height} = context($('camera'));
+  const frame = cameraDetections(state.run.playback, state.time);
+  $('camera-status').textContent = !frame ? 'No camera detections in this log' : !frame.fresh ? 'No fresh camera frame' : '';
+  const accepted = frame?.detections.filter(detection => !detection.rejection).length ?? 0;
+  $('camera-summary').textContent = frame?.fresh ? `${frame.detections.length} candidates · ${accepted} accepted` : '';
+  const frameWidth = frame?.widthPx ?? 640, frameHeight = frame?.heightPx ?? 480;
+  $('camera-size').textContent = frame?.widthPx ? `${frameWidth} × ${frameHeight} px` : '';
+  const scale = Math.min((width - 24) / frameWidth, (height - 16) / frameHeight);
+  const left = (width - frameWidth * scale) / 2, top = 8;
+  ctx.fillStyle = colors.field; ctx.fillRect(left, top, frameWidth * scale, frameHeight * scale);
+  ctx.strokeStyle = colors.grid; ctx.lineWidth = 1; ctx.strokeRect(left, top, frameWidth * scale, frameHeight * scale);
+  ctx.setLineDash([3, 4]); ctx.beginPath();
+  ctx.moveTo(left + frameWidth * scale / 2, top); ctx.lineTo(left + frameWidth * scale / 2, top + frameHeight * scale);
+  ctx.moveTo(left, top + frameHeight * scale / 2); ctx.lineTo(left + frameWidth * scale, top + frameHeight * scale / 2);
+  ctx.stroke(); ctx.setLineDash([]);
+  if (!frame) return;
+  ctx.save(); ctx.beginPath(); ctx.rect(left, top, frameWidth * scale, frameHeight * scale); ctx.clip();
+  ctx.font = '9px ui-monospace, monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  for (const detection of [...frame.detections].reverse()) {
+    if (detection.xPx === null || detection.yPx === null) continue;
+    const cx = left + detection.xPx * scale, cy = top + detection.yPx * scale, r = Math.max(3, (detection.radiusPx ?? 0) * scale);
+    ctx.globalAlpha = detection.rejection ? 0.45 : 1;
+    ctx.strokeStyle = detection.rejection ? colors.muted : colors.ball; ctx.lineWidth = detection.selected ? 2.5 : 1.5;
+    ctx.setLineDash(detection.rejection ? [3, 3] : []);
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    if (detection.selected) { ctx.fillStyle = colors.ball; ctx.globalAlpha = 0.35; ctx.fill(); ctx.globalAlpha = 1; }
+    ctx.stroke(); ctx.setLineDash([]);
+    const label = detection.rejection ?? (detection.txDeg === null ? '' : `${fmt(detection.txDeg, 1)}°, ${fmt(detection.tyDeg, 1)}°`);
+    if (label) { ctx.fillStyle = detection.rejection ? colors.muted : colors['lane-ink']; ctx.fillText(label, cx + r + 4, cy); }
+  }
+  ctx.restore(); ctx.globalAlpha = 1;
 }
 
 function drawCharts() {
@@ -835,7 +883,7 @@ function seek(time) {
   state.time = Math.max(0, Math.min(state.run.endSec, time));
   $('scrub').value = state.time;
   $('time').textContent = `${fmt(state.time, 3)} s`;
-  drawField(); drawCharts(); updateDetails();
+  drawField(); drawCamera(); drawCharts(); updateDetails();
 }
 
 function stop() {
@@ -902,7 +950,7 @@ function applyTheme(theme) {
   const next = theme === 'dark' ? 'light' : 'dark';
   $('theme-toggle').textContent = theme === 'dark' ? '☀ Light' : '☾ Dark';
   $('theme-toggle').setAttribute('aria-label', `Switch to ${next} mode`);
-  if (state.run && !$('workspace').hidden) { drawField(); drawCharts(); }
+  if (state.run && !$('workspace').hidden) { drawField(); drawCamera(); drawCharts(); }
 }
 $('theme-toggle').onclick = () => {
   const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
@@ -916,5 +964,5 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
 });
 applyTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
 initializeLayout();
-new ResizeObserver(() => { if (state.run && !$('workspace').hidden) { preparePlots(); drawField(); drawCharts(); } }).observe($('workspace'));
+new ResizeObserver(() => { if (state.run && !$('workspace').hidden) { preparePlots(); drawField(); drawCamera(); drawCharts(); } }).observe($('workspace'));
 await refresh();

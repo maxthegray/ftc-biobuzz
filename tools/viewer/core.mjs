@@ -38,18 +38,19 @@ export function fieldView(poses, length, maxExtraFields = 1) {
   return {minX: low(x) * tile, minY: low(y) * tile, span: count * tile, tile, tiles: count, slack};
 }
 
-// Ball the robot is tracking, as camera angles (degrees, +tx right, +ty up). BallAssist is what
-// the assist acted on; its ty is only logged while approaching, so the Limelight's own ty fills in
-// when the Limelight's tx shows it is the same target. BallCamera is the USB camera's raw target.
+// Ball the robot is tracking, as camera angles in degrees: +tx right, +ty up. BallAssist is what
+// the Limelight assist acted on; its ty is only logged while approaching, so the Limelight's own ty
+// fills in when its tx shows it is the same target. BallCamera is the USB camera, whose vertical
+// angle is positive below the axis and whose mount comes from its own log.
 export const ballSources = [
   {name: 'BallAssist', tx: 'BallAssist/tx', ty: 'BallAssist/ty', targetTy: 'BallAssist/targetTy',
     fallbackVisible: 'Limelight/target/visible', fallbackTx: 'Limelight/target/txDegrees', fallbackTy: 'Limelight/target/tyDegrees',
     mount: 'limelight'},
-  {name: 'BallCamera', tx: 'BallCamera/target/horizontalDeg', ty: 'BallCamera/target/verticalDeg'},
+  {name: 'BallCamera', tx: 'BallCamera/target/horizontalDeg', ty: 'BallCamera/target/verticalDeg', tyPositiveDown: true, mount: 'logged'},
 ];
 
-// Measured on the robot; camera offset from the robot centre is not yet known, so it is zero.
-export const cameraMounts = {limelight: {heightIn: 110.75 / 25.4, pitchDownDeg: 10}};
+// Logs from before the camera mount was logged. Measured on the robot; offset from the centre unknown.
+export const cameraMounts = {limelight: {heightIn: 110.75 / 25.4, pitchDownDeg: 10, forwardIn: 0, leftIn: 0, yawDeg: 0}};
 export const POLLEN_DIAMETER_IN = 2.8;
 
 export function ballSighting(playback, time, maxAgeSec = 0.25) {
@@ -62,24 +63,63 @@ export function ballSighting(playback, time, maxAgeSec = 0.25) {
     if (tx === null) continue;
     let ty = fresh(source.ty);
     if (ty === null && source.fallbackTy && sampleAt(playback[source.fallbackVisible], time) === true && Math.abs((fresh(source.fallbackTx) ?? Infinity) - tx) < 0.5) ty = fresh(source.fallbackTy);
+    if (ty !== null && source.tyPositiveDown) ty = -ty;
     const targetTy = source.targetTy ? sampleAt(playback[source.targetTy], time) : null;
-    return {source: source.name, mount: source.mount ?? null, txDeg: tx, tyDeg: ty, targetTyDeg: finite(targetTy) ? targetTy : null};
+    return {source: source.name, mount: source.mount, txDeg: tx, tyDeg: ty, targetTyDeg: finite(targetTy) ? targetTy : null};
   }
   return null;
 }
 
-// Intersects the camera ray with the plane of the ball's centre. Returns the field bearing from the
-// robot and, when the ray points below that plane, the ball position and horizontal distance.
+export function loggedCameraMount(playback, time) {
+  const value = name => sampleAt(playback[`BallCamera/mount/${name}`], time);
+  if (value('measured') !== true) return null;
+  const mount = {heightIn: value('heightIn'), pitchDownDeg: value('pitchDownDeg'),
+    forwardIn: value('forwardIn') ?? 0, leftIn: value('leftIn') ?? 0, yawDeg: value('yawDeg') ?? 0};
+  return Object.values(mount).every(finite) ? mount : null;
+}
+
+export function sightingMount(playback, time, sighting) {
+  return sighting?.mount === 'logged' ? loggedCameraMount(playback, time) : cameraMounts[sighting?.mount] ?? null;
+}
+
+// Every candidate the USB camera published for its frame at `time`, accepted first. Angles are
+// converted to +up. Empty when the candidate sample is older than `maxAgeSec`.
+export function cameraDetections(playback, time, maxAgeSec = 0.25) {
+  const xs = playback['BallCamera/candidates/xPx'];
+  if (!xs?.length) return null;
+  const value = name => sampleAt(playback[`BallCamera/${name}`], time);
+  const index = indexAt(xs, time), fresh = index >= 0 && time - xs[index][0] <= maxAgeSec;
+  const column = name => fresh && Array.isArray(value(`candidates/${name}`)) ? value(`candidates/${name}`) : [];
+  const x = fresh && Array.isArray(xs[index][1]) ? xs[index][1] : [];
+  const y = column('yPx'), radius = column('radiusPx'), horizontal = column('horizontalDeg'), vertical = column('verticalDeg');
+  const rejections = fresh && typeof value('candidates/rejections') === 'string' ? value('candidates/rejections').split(',') : [];
+  const selectedIndex = fresh ? value('candidates/selectedIndex') : -1;
+  const number = v => finite(v) ? v : null;
+  return {
+    widthPx: number(value('frame/widthPx')) || null, heightPx: number(value('frame/heightPx')) || null,
+    status: value('frame/status') ?? null, fresh,
+    detections: x.map((xPx, i) => ({xPx: number(xPx), yPx: number(y[i]), radiusPx: number(radius[i]),
+      txDeg: number(horizontal[i]), tyDeg: finite(vertical[i]) ? -vertical[i] : null,
+      rejection: rejections[i] && rejections[i] !== 'accepted' ? rejections[i] : null, selected: i === selectedIndex})),
+  };
+}
+
+// Intersects the camera ray with the plane of the ball's centre. The ray starts at the camera
+// (mount offset from the pose point) along the robot heading plus the mount yaw. Without a mount
+// or ty only the bearing is known.
 export function ballEstimate(pose, sighting, mount, ballDiameterIn = POLLEN_DIAMETER_IN) {
-  const rad = Math.PI / 180, pitch = (mount?.pitchDownDeg ?? 0) * rad;
-  const right = Math.tan(sighting.txDeg * rad), up = sighting.tyDeg === null ? 0 : Math.tan(sighting.tyDeg * rad);
-  const forward = mount && sighting.tyDeg !== null ? up * Math.sin(pitch) + Math.cos(pitch) : 1;
-  const bearing = pose[2] - Math.atan2(right, forward);
-  if (!mount || sighting.tyDeg === null) return {bearing, distanceIn: null, point: null};
-  const drop = Math.sin(pitch) - up * Math.cos(pitch), above = mount.heightIn - ballDiameterIn / 2;
-  if (drop <= 0 || above <= 0) return {bearing, distanceIn: null, point: null};
-  const scale = above / drop, distanceIn = Math.hypot(forward, right) * scale;
-  return {bearing, distanceIn, point: [pose[0] + Math.cos(bearing) * distanceIn, pose[1] + Math.sin(bearing) * distanceIn]};
+  const rad = Math.PI / 180, heading = pose[2];
+  const forwardIn = mount?.forwardIn ?? 0, leftIn = mount?.leftIn ?? 0;
+  const origin = [pose[0] + Math.cos(heading) * forwardIn - Math.sin(heading) * leftIn,
+    pose[1] + Math.sin(heading) * forwardIn + Math.cos(heading) * leftIn];
+  const pitch = (mount?.pitchDownDeg ?? 0) * rad, ranged = Boolean(mount) && sighting.tyDeg !== null;
+  const right = Math.tan(sighting.txDeg * rad), up = ranged ? Math.tan(sighting.tyDeg * rad) : 0;
+  const forward = ranged ? up * Math.sin(pitch) + Math.cos(pitch) : 1;
+  const bearing = heading + (mount?.yawDeg ?? 0) * rad - Math.atan2(right, forward);
+  const drop = Math.sin(pitch) - up * Math.cos(pitch), above = (mount?.heightIn ?? 0) - ballDiameterIn / 2;
+  if (!ranged || drop <= 0 || above <= 0) return {origin, bearing, distanceIn: null, point: null};
+  const distanceIn = Math.hypot(forward, right) * above / drop;
+  return {origin, bearing, distanceIn, point: [origin[0] + Math.cos(bearing) * distanceIn, origin[1] + Math.sin(bearing) * distanceIn]};
 }
 
 export function scalarSeries(series, component = null, scale = 1) {

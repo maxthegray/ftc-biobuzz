@@ -860,6 +860,12 @@ canvas {
   margin-top:0;
 }
 
+.camera-wrap {
+  position:relative;
+  width:100%;
+  height:300px;
+}
+
 .gamepads {
   display:grid;
   grid-template-columns:1fr 1fr;
