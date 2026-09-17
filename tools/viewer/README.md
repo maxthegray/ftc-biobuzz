@@ -83,6 +83,18 @@ reduced trail; the coordinate readout always uses the full pose series.
 - Field shows active commands above the replay. Its **Commands** checkbox
   toggles this display. Multiple active commands and suspended states are
   shown as recorded; this is only the command coverage available in the log.
+- **Ball** (shown when the log has ball-tracking channels) draws where the
+  robot thinks the tracked ball is: `BallAssist/tx`/`ty`, or the USB camera's
+  `BallCamera/target/horizontalDeg` when no assist target was logged. When
+  the assist's ty isn't logged (aim only), the Limelight's own ty is used if
+  its tx matches. For the Limelight, the camera ray is projected onto the
+  plane of a pollen's centre (2.8 in diameter) using the measured mount in
+  `core.mjs`: lens 110.75 mm high, pitched 10° down. Within 48 in the ray is
+  solid and ends at a ball dot, with the distance in the corner readout.
+  Farther, or with no ty or mount, the ray is dashed and direction-only:
+  past that range, one degree of ty moves the estimate by feet. The camera
+  offset from the robot centre isn't set yet, so the ray starts at the robot
+  centre. Angles more than 250 ms old are hidden.
 - Scroll over a graph to zoom all graphs around the pointer. Reset zoom
   restores the full run. The slider always spans the complete run.
 

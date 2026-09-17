@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {fieldPoint, fieldView, sampleAt, plotPoints, plotBounds, scalarSeries, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals} from './core.mjs';
+import {fieldPoint, fieldView, ballSighting, ballEstimate, sampleAt, plotPoints, plotBounds, scalarSeries, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals} from './core.mjs';
 
 test('Pedro field corners retain their axes with only screen Y inverted', () => {
   const view = {minX: 0, minY: 0, span: 141.5};
@@ -131,4 +131,33 @@ test('discrete picker includes command state and individual gamepad buttons, not
   assert.deepEqual(discreteSeries([[0, ''], [1, false], [2, NaN]]), [[0, ''], [1, false], [2, null]]);
   assert.equal(discreteOptions([{name: 'commands/running', type: 'string'}])[0].source, 'commands/running');
   assert.equal(discreteOptions([])[0].source, undefined);
+});
+
+test('ball sighting prefers the assist target and ignores stale or missing angles', () => {
+  const playback = {'BallAssist/tx': [[1, 10], [2, null]], 'BallAssist/ty': [[1, -3]], 'BallAssist/targetTy': [[0, 2]],
+    'BallCamera/target/horizontalDeg': [[1.9, -5]]};
+  assert.deepEqual(ballSighting(playback, 1.1), {source: 'BallAssist', mount: 'limelight', txDeg: 10, tyDeg: -3, targetTyDeg: 2});
+  assert.equal(ballSighting(playback, 1.5), null);
+  assert.deepEqual(ballSighting(playback, 2.0), {source: 'BallCamera', mount: null, txDeg: -5, tyDeg: null, targetTyDeg: null});
+  assert.equal(ballSighting({}, 1), null);
+});
+
+test('assist ty falls back to the Limelight only when it is the same target', () => {
+  const playback = {'BallAssist/tx': [[1, 6.2]], 'Limelight/target/visible': [[1, true]], 'Limelight/target/txDegrees': [[1, 6.3]], 'Limelight/target/tyDegrees': [[1, -4]]};
+  assert.equal(ballSighting(playback, 1).tyDeg, -4);
+  assert.equal(ballSighting({...playback, 'Limelight/target/visible': [[1, false]]}, 1).tyDeg, null);
+  playback['Limelight/target/txDegrees'] = [[1, -12]];
+  assert.equal(ballSighting(playback, 1).tyDeg, null);
+});
+
+test('ball estimate projects the camera ray onto the ball-centre plane', () => {
+  const mount = {heightIn: 4.36, pitchDownDeg: 10}, above = 4.36 - 1.4;
+  const ahead = ballEstimate([0, 0, 0], {txDeg: 0, tyDeg: -10}, mount);
+  assert.ok(Math.abs(ahead.distanceIn - above / Math.tan(20 * Math.PI / 180)) < 1e-9);
+  assert.ok(Math.abs(ahead.point[0] - ahead.distanceIn) < 1e-9 && Math.abs(ahead.point[1]) < 1e-9);
+  const right = ballEstimate([10, 20, Math.PI / 2], {txDeg: 20, tyDeg: -10}, mount);
+  assert.ok(right.bearing < Math.PI / 2 && right.point[0] > 10 && right.point[1] > 20);
+  assert.equal(ballEstimate([0, 0, 0], {txDeg: 0, tyDeg: 10}, mount).distanceIn, null);
+  const noRange = ballEstimate([0, 0, 1], {txDeg: 45, tyDeg: null}, mount);
+  assert.ok(Math.abs(noRange.bearing - (1 - Math.PI / 4)) < 1e-12 && noRange.point === null);
 });

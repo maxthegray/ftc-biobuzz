@@ -19,7 +19,10 @@ ROOT = Path(__file__).resolve().parents[1]
 ASSETS = Path(__file__).with_name("viewer")
 MAX_UPLOAD = 256 * 1024 * 1024
 PLAYBACK_CHANNELS = ("pose", "driveMode", "gamepad1/axes", "gamepad1/buttons",
-                     "gamepad2/axes", "gamepad2/buttons", "commands/active", "commands/running")
+                     "gamepad2/axes", "gamepad2/buttons", "commands/active", "commands/running",
+                     "BallAssist/tx", "BallAssist/ty", "BallAssist/targetTy",
+                     "Limelight/target/visible", "Limelight/target/txDegrees", "Limelight/target/tyDegrees",
+                     "BallCamera/target/horizontalDeg", "BallCamera/target/verticalDeg")
 
 
 def json_safe(value):

@@ -1,4 +1,4 @@
-import {finite, indexAt, sampleAt, fieldPoint, fieldView, scalarSeries, plotPoints, plotBounds, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals, buttonNames} from './core.mjs';
+import {finite, indexAt, sampleAt, fieldPoint, fieldView, ballSources, ballSighting, ballEstimate, cameraMounts, POLLEN_DIAMETER_IN, scalarSeries, plotPoints, plotBounds, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals, buttonNames} from './core.mjs';
 
 const $ = id => document.getElementById(id);
 const state = {logs: [], run: null, time: 0, playing: false, generation: 0, charts: [], options: [],
@@ -81,6 +81,7 @@ async function openRun(id) {
     const stride = Math.max(1, Math.ceil(poses.length / 6000));
     state.trail = poses.filter((point, i) => i % stride === 0 || i === poses.length - 1);
     state.fieldView = fieldView(poses, run.fieldLengthIn);
+    $('field-ball-option').hidden = !ballSources.some(source => run.playback[source.tx]?.length);
     $('run-title').textContent = runLabel(run.name);
     $('run-file').textContent = run.name;
     $('run-status').textContent = run.report.truncated ? 'Partial log' : 'No readable samples';
@@ -288,10 +289,12 @@ function updateChartControls() {
 }
 
 const themeKey = 'maxscope.theme';
+// Past this the estimate moves by feet per degree of ty, so only the direction is drawn.
+const BALL_TRUST_IN = 48;
 let colors = null;
 const cssColors = () => {
   const style = getComputedStyle(document.documentElement), read = name => style.getPropertyValue(`--${name}`).trim();
-  const names = ['field', 'off-field', 'hatch', 'grid', 'field-label', 'wall', 'field-caption', 'trail-future', 'trail-past', 'lime', 'robot-line', 'robot-arrow',
+  const names = ['field', 'off-field', 'hatch', 'grid', 'field-label', 'wall', 'field-caption', 'trail-future', 'trail-past', 'lime', 'robot-line', 'robot-arrow', 'ball',
     'chart-grid', 'chart-label', 'chart-cursor', 'muted', 'lane', 'lane-off', 'lane-edge', 'lane-ink', 'layer-0'];
   return {...Object.fromEntries(names.map(name => [name, read(name)])),
     lanes: Array.from({length: 6}, (_, i) => read(`lane-${i}`)), layers: Array.from({length: 8}, (_, i) => read(`layer-${i}`))};
@@ -423,7 +426,7 @@ const layoutKey = 'maxscope.layout.v2';
 function saveLayout() {
   state.layout = {panels: state.panels, layers: state.charts.length ? state.charts.map(chart => [...chart.keys]) : state.layout?.layers,
     discrete: state.charts.length ? state.charts.map(chart => [...chart.discreteKeys]) : state.layout?.discrete,
-    fieldCommands: $('field-commands-toggle').checked};
+    fieldCommands: $('field-commands-toggle').checked, fieldBall: $('field-ball-toggle').checked};
   try { localStorage.setItem(layoutKey, JSON.stringify(state.layout)); } catch { /* Storage may be disabled. */ }
 }
 
@@ -474,6 +477,7 @@ function initializeLayout() {
   try {
     const saved = JSON.parse(localStorage.getItem(layoutKey));
     $('field-commands-toggle').checked = saved?.fieldCommands !== false;
+    $('field-ball-toggle').checked = saved?.fieldBall !== false;
     const previous = saved || JSON.parse(localStorage.getItem('maxscope.layout.v1'));
     if (saved?.panels) {
       for (const tab of Object.keys(state.panels)) {
@@ -712,6 +716,23 @@ function drawField() {
   const slack = view.slack / view.span * size;
   const offView = valid && (x < left - slack || x > left + size + slack || y < top - slack || y > top + size + slack);
   $('pose-status').textContent = !valid ? 'No valid pose at this time' : offView ? 'Pose is beyond the view' : outside ? 'Pose is outside the field' : age > 0.25 ? `Last pose ${fmt(age)} s ago` : '';
+  const ball = !$('field-ball-option').hidden && $('field-ball-toggle').checked && valid ? ballSighting(state.run.playback, state.time) : null;
+  const angle = value => value === null ? '—' : `${value >= 0 ? '+' : ''}${fmt(value, 1)}°`;
+  $('ball-status').hidden = $('field-ball-option').hidden || !$('field-ball-toggle').checked;
+  const estimate = ball ? ballEstimate(pose, ball, cameraMounts[ball.mount]) : null;
+  const near = estimate?.distanceIn !== null && estimate?.distanceIn <= BALL_TRUST_IN;
+  const range = !estimate || estimate.distanceIn === null ? '' : near ? ` · ~${fmt(estimate.distanceIn, 0)} in` : ' · far';
+  $('ball-status').textContent = !ball ? 'No ball target' : `tx ${angle(ball.txDeg)} · ty ${angle(ball.tyDeg)}${ball.targetTyDeg === null ? '' : ` → ${angle(ball.targetTyDeg)}`}${range}`;
+  if (estimate && !offView) {
+    const end = near ? estimate.point : [pose[0] + Math.cos(estimate.bearing) * view.span * 2, pose[1] + Math.sin(estimate.bearing) * view.span * 2];
+    const [endX, endY] = fieldPoint(end, view, left, top, size);
+    ctx.strokeStyle = colors.ball; ctx.lineWidth = 2; ctx.setLineDash(near ? [] : [6, 4]);
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(endX, endY); ctx.stroke(); ctx.setLineDash([]);
+    if (near) {
+      ctx.fillStyle = colors.ball; ctx.beginPath();
+      ctx.arc(endX, endY, Math.max(4, POLLEN_DIAMETER_IN / 2 / view.span * size), 0, Math.PI * 2); ctx.fill();
+    }
+  }
   if (offView) {
     const edgeX = Math.min(left + size - 2, Math.max(left + 2, x)), edgeY = Math.min(top + size - 2, Math.max(top + 2, y));
     ctx.translate(edgeX, edgeY); ctx.rotate(Math.atan2(y - edgeY, x - edgeX));
@@ -849,6 +870,7 @@ $('add-graph').onclick = () => {
 };
 $('event-filter').onchange = () => { renderEvents(); updateDetails(); };
 $('field-commands-toggle').onchange = () => { saveLayout(); if (state.run) updateDetails(); };
+$('field-ball-toggle').onchange = () => { saveLayout(); if (state.run) drawField(); };
 $('refresh').onclick = refresh;
 $('search').oninput = renderLibrary;
 $('file').onchange = async event => {
