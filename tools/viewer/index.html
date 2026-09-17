@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MaxScope</title><link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">M</span><span>MaxScope</span></a>
+    <div class="library-title"><span>Runs</span><button id="refresh" class="icon" title="Refresh local logs" aria-label="Refresh local logs">↻</button></div>
+    <input id="search" type="search" placeholder="Find a run…" aria-label="Find a run">
+    <div id="runs" class="runs" aria-label="Recorded runs"></div>
+    <div class="sidebar-foot"><span class="status-dot"></span>Offline</div>
+  </aside>
+  <main>
+    <header><h1>Log review</h1><label class="button primary" for="file">Open WPILOG<input id="file" type="file" accept=".wpilog" class="file-input"></label></header>
+    <div id="notice" class="notice" role="status" hidden></div>
+    <section id="welcome" class="welcome"><p>Select a run or open a WPILOG file.</p></section>
+    <div id="workspace" hidden>
+      <section class="run-heading"><div><h2 id="run-title"></h2><p id="run-file"></p></div><span id="run-status" class="pill" hidden></span></section>
+      <section class="transport card" aria-label="Playback controls"><button id="play" class="play" aria-label="Play" disabled>▶</button><span id="time" class="time">0.000</span><input id="scrub" type="range" min="0" max="1" step="0.001" value="0" aria-label="Playback time"><span id="duration" class="duration">0.00 s</span><select id="speed" aria-label="Playback speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></section>
+      <div class="tab-actions"><select id="add-view" aria-label="Add view to current tab"><option value="">+ View</option><option value="field">Field</option><option value="signals">Signals</option><option value="commands">Commands</option><option value="events">Events</option><option value="gamepads">Gamepads</option></select></div>
+      <nav class="view-tabs" role="tablist" aria-label="Log views">
+        <button id="tab-field" role="tab" aria-controls="panel-field" aria-selected="true" tabindex="0" data-view="field">Field</button>
+        <button id="tab-signals" role="tab" aria-controls="panel-signals" aria-selected="false" tabindex="-1" data-view="signals">Signals</button>
+        <button id="tab-events" role="tab" aria-controls="panel-events" aria-selected="false" tabindex="-1" data-view="events">Events</button>
+      </nav>
+      <section id="panel-field" class="view-panel" role="tabpanel" aria-labelledby="tab-field">
+        <section class="card field-card"><div class="card-heading"><h3>Field</h3><span class="muted">Pedro · in / rad</span><label class="field-command-toggle"><input id="field-commands-toggle" type="checkbox" checked aria-label="Show active commands on field">Commands</label></div>
+          <div id="field-activity" class="field-activity"><div class="field-activity-heading"><span>Active commands</span><span id="field-command-coverage"></span></div><div id="field-active-commands" aria-label="Active commands on field"></div></div>
+          <div class="field-wrap"><canvas id="field" aria-label="Robot field playback in native Pedro coordinates"></canvas><span id="pose-status" class="field-status"></span></div>
+          <div class="pose-readouts"><div>X <strong id="pose-x">—</strong><small>in</small></div><div>Y <strong id="pose-y">—</strong><small>in</small></div><div>θ <strong id="pose-h">—</strong><small>rad</small></div></div>
+          <div class="field-caption"><span>Origin: audience-left · +X right · +Y away</span><span id="field-size"></span></div>
+        </section>
+        <section id="metrics" class="metrics" aria-label="Run summary"></section>
+      </section>
+      <section id="panel-signals" class="view-panel" role="tabpanel" aria-labelledby="tab-signals" hidden>
+        <section class="card signals-card"><div class="card-heading"><h3>Signals</h3><button id="add-graph" class="channel-select">+ Graph</button></div>
+          <div id="charts"></div><div class="chart-footer"><span>Click a graph to seek · Scroll to zoom</span><button id="reset-zoom" class="text-button">Reset zoom</button></div>
+        </section>
+      </section>
+      <section id="view-storage" hidden>
+        <section class="card"><div class="card-heading"><h3>Commands</h3><span id="coverage" class="pill"></span></div><p id="coverage-note" class="section-note"></p><div id="active" class="active-commands"></div><div id="commands" class="commands"></div></section>
+      </section>
+      <section id="panel-events" class="view-panel" role="tabpanel" aria-labelledby="tab-events" hidden>
+        <section class="card"><div class="card-heading"><h3>Events</h3><select id="event-filter" aria-label="Event filter"><option value="all">All events</option><option value="faults">Faults & warnings</option></select></div><div id="events" class="events"></div></section>
+      </section>
+      <section hidden>
+      <section class="card inputs-card"><div class="card-heading"><h3>Gamepads</h3><span class="muted">After deadband</span></div><div id="gamepads" class="gamepads"></div></section>
+      </section>
+    </div>
+  </main>
+  <dialog id="channel-picker" aria-labelledby="picker-title">
+    <div class="picker-heading"><h2 id="picker-title">Choose a signal</h2><button id="picker-close" class="icon" aria-label="Close signal picker">×</button></div>
+    <input id="channel-search" type="search" placeholder="Search channels…" aria-label="Search channels" autocomplete="off">
+    <div id="channel-tree" class="channel-tree" aria-label="Channel folders"></div>
+    <p class="picker-note">Layer up to 8 signals · Two unit scales per graph</p>
+    <div class="picker-footer"><span id="channel-count" class="muted"></span><button id="channel-clear" class="text-button">Clear graph</button></div>
+  </dialog>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
