@@ -94,63 +94,6 @@ class ViewerTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.library.overview(self.library.register(wrong)["id"])
 
-    def test_choosing_another_folder_switches_the_library(self):
-        other = self.root / "season-logs"
-        (other / "nested").mkdir(parents=True)
-        (other / "nested" / "Auto-20260917-090000-000-1.wpilog").write_bytes(fixture())
-        stale = self.ident
-        self.assertEqual(other.resolve(), self.library.set_directory(other))
-        catalog = self.library.catalog()
-        self.assertEqual(["Auto-20260917-090000-000-1.wpilog"], [entry["name"] for entry in catalog])
-        self.assertEqual(1.000001, self.library.overview(catalog[0]["id"])["playback"]["pose"][0][0])
-        with self.assertRaises(KeyError):
-            self.library.overview(stale)
-
-    def test_imports_survive_a_folder_change(self):
-        imported = self.uploads / "Imported.wpilog"
-        imported.write_bytes(fixture())
-        ident = self.library.register(imported, "Imported.wpilog")["id"]
-        self.library.set_directory(self.root / "uploads")
-        self.assertEqual("Imported.wpilog", self.library.overview(ident)["name"])
-
-    def test_unusable_folders_are_refused(self):
-        for candidate in (self.root / "missing", self.path, ""):
-            with self.assertRaises(ValueError):
-                self.library.set_directory(candidate)
-        self.assertEqual(self.logs.resolve(), self.library.directory)
-
-    def test_folder_endpoint_accepts_and_rejects_over_http(self):
-        other = self.root / "elsewhere"
-        other.mkdir()
-        (other / "Teleop-20260917-100000-000-1.wpilog").write_bytes(fixture())
-        server = ThreadingHTTPServer(("127.0.0.1", 0), handler_for(self.library))
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-        connection = http.client.HTTPConnection("127.0.0.1", server.server_port)
-        try:
-            connection.request("POST", "/api/folder", body=json.dumps({"path": str(other)}))
-            response = connection.getresponse()
-            result = json.loads(response.read())
-            self.assertEqual(200, response.status)
-            self.assertEqual({"path": str(other.resolve()), "count": 1}, result)
-            connection.request("GET", "/api/folder")
-            response = connection.getresponse()
-            self.assertEqual(str(other.resolve()), json.loads(response.read())["path"])
-            connection.request("POST", "/api/folder", body=json.dumps({"path": str(self.root / "nope")}))
-            response = connection.getresponse()
-            self.assertIn("No such folder", json.loads(response.read())["error"])
-            self.assertEqual(400, response.status)
-            connection.request("POST", "/api/folder", body=b"not json")
-            response = connection.getresponse()
-            response.read()
-            self.assertEqual(400, response.status)
-            self.assertEqual(other.resolve(), self.library.directory)
-        finally:
-            connection.close()
-            server.shutdown()
-            server.server_close()
-            thread.join()
-
     def test_local_http_load_upload_and_origin_boundary(self):
         server = ThreadingHTTPServer(("127.0.0.1", 0), handler_for(self.library))
         thread = threading.Thread(target=server.serve_forever, daemon=True)

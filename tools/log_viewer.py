@@ -6,7 +6,6 @@ import gzip
 import hashlib
 import json
 import math
-import os
 import re
 import tempfile
 import threading
@@ -65,29 +64,6 @@ class LogLibrary:
         self.names[ident] = name or path.name
         return {"id": ident, "name": self.names[ident], "bytes": stat.st_size,
                 "modified": stat.st_mtime, "uploaded": path.parent == self.upload_directory}
-
-    def set_directory(self, directory):
-        if not str(directory).strip():
-            raise ValueError("Type the folder that holds your .wpilog files")
-        path = Path(str(directory).strip()).expanduser()
-        if not path.is_absolute():
-            path = ROOT / path
-        path = path.resolve()
-        if not path.is_dir():
-            raise ValueError(f"No such folder: {path}")
-        if not os.access(path, os.R_OK | os.X_OK):
-            raise ValueError(f"No permission to read {path}")
-        with self.lock:
-            if path != self.directory:
-                # Drop ids from the old folder so stale requests cannot read it; keep imports.
-                kept = {i for i, known in self.paths.items() if known.parent == self.upload_directory}
-                self.paths = {i: known for i, known in self.paths.items() if i in kept}
-                self.names = {i: name for i, name in self.names.items() if i in kept}
-                if self.cached_id not in self.paths:
-                    self.cached = None
-                    self.cached_id = None
-                self.directory = path
-        return self.directory
 
     def catalog(self):
         with self.lock:
@@ -188,9 +164,7 @@ def handler_for(library):
             url = urlsplit(self.path)
             query = parse_qs(url.query)
             try:
-                if url.path == "/api/folder":
-                    self.send_json({"path": str(library.directory), "exists": library.directory.is_dir()})
-                elif url.path == "/api/logs":
+                if url.path == "/api/logs":
                     self.send_json(library.catalog())
                 elif url.path == "/api/log":
                     self.send_json(library.overview(query.get("id", [""])[0]))
@@ -214,26 +188,9 @@ def handler_for(library):
         def do_POST(self):
             if not self.local_request():
                 return
-            path = urlsplit(self.path).path
-            if path == "/api/folder":
-                self.choose_folder()
-            elif path == "/api/upload":
-                self.receive_upload()
-            else:
+            if urlsplit(self.path).path != "/api/upload":
                 self.send_json({"error": "Not found"}, 404)
-
-        def choose_folder(self):
-            try:
-                length = int(self.headers.get("Content-Length", "0"))
-                if not 0 < length <= 8192:
-                    raise ValueError("Type the folder that holds your .wpilog files")
-                request = json.loads(self.rfile.read(length))
-                directory = library.set_directory(request.get("path", ""))
-                self.send_json({"path": str(directory), "count": len(library.catalog())})
-            except (ValueError, OSError, TypeError, AttributeError) as error:
-                self.send_json({"error": str(error) or "That folder could not be read"}, 400)
-
-        def receive_upload(self):
+                return
             temp_path = None
             try:
                 length = int(self.headers.get("Content-Length", "0"))
