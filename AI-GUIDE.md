@@ -322,13 +322,17 @@ reload never run.
 | `battery` | double | volts |
 | `loop/totalNanos`, `loop/<phase>Nanos`, `loop/windowMax…` | int64 | loop timing and per-window peaks |
 | `<Subsystem>/…` | any | `SubsystemBase.logState` channels |
+| `BallCamera/candidates/…` | `double[]` | every published blob of the current frame, accepted first: `xPx`, `yPx`, `radiusPx`, `areaPx`, `circularity`, `horizontalDeg`, `verticalDeg` (+ below the axis), with `rejections` (string, `accepted` or the failed filter, comma-separated) and `selectedIndex` |
+| `BallCamera/mount/…` | double/boolean | `BallCameraMountConfig` as recorded: `measured`, `heightIn`, `pitchDownDeg`, `forwardIn`, `leftIn`, `yawDeg` |
 | `events` | string | explicit events with their own timestamps (not sampled); strictly increasing, a same-microsecond event moves 1 µs later |
 | `commands/events` | string | lifecycle records of `logged` commands, own timestamps, strictly increasing (see below) |
 | `commands/active` | string | traced executions open after each record, `#id name` per line, `(suspended)` suffix |
 | `commands/lost` | int64 | records dropped from the bounded queue; 0 at open, rewritten when it grows |
 
 Log values with `logState(log)` (`log.put("name", value)`) and events with
-`robot.recordEvent("text")`.
+`robot.recordEvent("text")`. `put` also takes a `DoubleArray` for one row of
+parallel values (a per-frame detection list); its length may change per tick,
+and it is written immediately, so a cached array can be passed again.
 
 ### Command history
 

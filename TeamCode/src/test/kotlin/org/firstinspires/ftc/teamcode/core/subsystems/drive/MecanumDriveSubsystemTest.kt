@@ -220,5 +220,6 @@ class MecanumDriveSubsystemTest {
         override fun put(channel: String, value: Long) { channels[channel] = value }
         override fun put(channel: String, value: Boolean) { channels[channel] = value }
         override fun put(channel: String, value: String) { channels[channel] = value }
+        override fun put(channel: String, value: DoubleArray) { channels[channel] = value }
     }
 }

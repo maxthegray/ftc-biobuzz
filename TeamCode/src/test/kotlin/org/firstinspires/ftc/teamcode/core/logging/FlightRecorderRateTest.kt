@@ -28,6 +28,7 @@ class FlightRecorderRateTest {
                 override fun logState(log: StateLog) {
                     subsystemLogCalls++
                     log.put("calls", subsystemLogCalls.toLong())
+                    log.put("columns", DoubleArray(subsystemLogCalls) { it + 0.5 })
                 }
             })
             robot.enableFlightRecorder(
@@ -64,6 +65,7 @@ class FlightRecorderRateTest {
 
             val log = WpiLog.read(logDir.listFiles { f -> f.extension == "wpilog" }!!.single())
             assertEquals(2, subsystemLogCalls)
+            assertEquals(listOf(listOf(0.5), listOf(0.5, 1.5)), log.doubleArrays("Test/columns").map { it.second.toList() })
             assertEquals(2, log.doubles("battery").size)
             assertEquals(2, log.longs("loop/totalNanos").size)
             assertEquals(5_000_000L, log.longs("loop/windowMaxTotalNanos").maxOf { it.second })

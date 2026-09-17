@@ -235,6 +235,13 @@ that frames carry in `BallCamera/frame/settingsVersion`. An edit in the last
 second before stop can be missing from the log; the tuning file and lab
 record still have it.
 
+**Camera mount.** `ballCameraMount` (`BallCameraMountConfig`) records where the
+lens sits: `heightIn` above the floor, `pitchDownDeg` below horizontal,
+`forwardIn`/`leftIn` from the robot's pose point, `yawDeg` from its front, and
+`measured` once the numbers are real. Nothing on the robot uses them; they are
+logged every tick so MaxScope can place detections on the field, and each log
+keeps the geometry it was recorded with. Re-measure after moving the camera.
+
 **Saved vs compiled defaults.** Each OpMode init resets `ballVision` and
 `visionDiagnostics` to their compiled defaults, then applies the keys saved in
 `/sdcard/FIRST/config/tuning.properties`. Saved keys win; missing or invalid
