@@ -60,9 +60,9 @@ reduced trail; the coordinate readout always uses the full pose series.
   in a view heading hides it from that tab. Field and Events lay views out
   in two columns, Signals in one; the columns stack on narrow windows. The
   field's column is the wider one and an empty column gives its width to
-  the rest. The field is drawn square to its column's width, capped to fit
-  the window, taller still when the other column is taller, and smaller
-  when other views share its column. Drag a view by the ⠿ handle in its
+  the rest. The field is drawn square to its column's width and its card
+  wraps it exactly, so the column is only as tall as the field; it is
+  smaller when other views share its column. Drag a view by the ⠿ handle in its
   heading: it moves as you drag, into any column or the free space under
   one, and lands where you see it. With the handle focused, Alt+↑/↓ moves it
   within its column and Alt+←/→ across. The layout is saved per tab. Tab contents and graph

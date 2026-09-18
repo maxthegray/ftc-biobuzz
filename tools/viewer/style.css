@@ -979,24 +979,16 @@ canvas {
   font-weight: 650;
 }
 
-/* The field scales with its column: square to the column's width, capped so it fits the window,
-   growing further when the other column is taller and smaller when other views share its column. */
-.view-panel .field-card {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-}
-
+/* The field is square to its column's width and its card wraps it with no slack; the column is
+   as tall as the field and nothing more. Sharing the column with other views makes it smaller. */
 .view-panel .field-wrap {
-  flex: 1 0 auto;
   height: auto;
   aspect-ratio: 1;
-  min-height: 320px;
-  max-height: max(320px, calc(100dvh - 200px));
 }
 
 .view-column:has(> .card ~ .card) .field-wrap {
-  max-height: clamp(240px, calc(100dvh - 560px), 430px);
+  aspect-ratio: auto;
+  height: clamp(240px, calc(100dvh - 560px), 430px);
 }
 
 .view-panel .chart > canvas {
@@ -1490,8 +1482,13 @@ canvas {
 .view-columns {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  align-items: stretch;
+  align-items: start;
   gap: 16px;
+}
+
+/* While dragging, every column grows to the tallest so its free space is a visible drop target. */
+.view-columns.dragging {
+  align-items: stretch;
 }
 
 .view-column {
