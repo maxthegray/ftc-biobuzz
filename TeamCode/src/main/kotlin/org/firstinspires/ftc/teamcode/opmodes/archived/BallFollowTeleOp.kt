@@ -13,11 +13,11 @@ import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightColorTarge
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSubsystem
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx.Button
 import org.firstinspires.ftc.teamcode.opmodes.TeleOpBase
-import org.firstinspires.ftc.teamcode.vision.BallAimConfig
-import org.firstinspires.ftc.teamcode.vision.BallAimController
-import org.firstinspires.ftc.teamcode.vision.BallApproachConfig
-import org.firstinspires.ftc.teamcode.vision.BallAssistSubsystem
-import org.firstinspires.ftc.teamcode.vision.BallRangeController
+import org.firstinspires.ftc.teamcode.vision.archived.BallAimConfig
+import org.firstinspires.ftc.teamcode.vision.archived.BallAimController
+import org.firstinspires.ftc.teamcode.vision.archived.BallApproachConfig
+import org.firstinspires.ftc.teamcode.vision.archived.BallAssistSubsystem
+import org.firstinspires.ftc.teamcode.vision.archived.BallRangeController
 
 /**
  * Archived Limelight color-pipeline prototype. Current ball detection uses the

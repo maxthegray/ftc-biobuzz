@@ -6,10 +6,10 @@ import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.runtime.Preflight
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSubsystem
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx.Button
-import org.firstinspires.ftc.teamcode.vision.BallCameraSubsystem
-import org.firstinspires.ftc.teamcode.vision.SettingsChangeLog
-import org.firstinspires.ftc.teamcode.vision.TagSightingTracker
-import org.firstinspires.ftc.teamcode.vision.VisionDiagnosticsConfig
+import org.firstinspires.ftc.teamcode.vision.ball.BallCameraSubsystem
+import org.firstinspires.ftc.teamcode.vision.logging.SettingsChangeLog
+import org.firstinspires.ftc.teamcode.vision.apriltags.TagSightingTracker
+import org.firstinspires.ftc.teamcode.vision.diagnostics.VisionDiagnosticsConfig
 
 /**
  * Stationary USB-camera ball diagnostic: yellow-pollen color/shape detection
