@@ -309,11 +309,40 @@ bad Panels edit could hurt (see `DriveConfig`).
 
 ## Mechanisms
 
+Season mechanism skeletons live under `subsystems/`: `intake/IntakeSubsystem`,
+`transfer/TransferSubsystem`, `shooter/ShooterSubsystem`, and
+`turret/TurretSubsystem`. Transfer owns both the storage/feed rollers and the
+servo blocker; Turret owns all mechanically linked turret servos. Shooter
+will accept target RPM from a separately calibrated distance-to-speed model.
+
+These are unconfigured skeletons, not registered in any op-mode. Their `init`
+fails explicitly until hardware is implemented. Once CAD defines the
+actuators, resolve them through `DeviceReaders` in `init`, add logged Ivy
+command factories requiring the subsystem, implement reads/writes and fault/
+stop cleanup, then register in `configure()`. Replace the placeholder health
+and log channels with real mechanism state. Hardware names, motor counts,
+servo positions, turret limits and shooter tuning are intentionally unset.
+
 There is no generic mechanism base class. Build each lift/arm/turret as a
 plain `SubsystemBase` against the real hardware, with `PIDFController` +
 `PIDFGains` and the `MotorIO` seam (host tests can inject
 `SimMotorIO(clock, …)`). Add homing, soft limits or profiles only once you can
 validate them on the mechanism.
+
+## Vision layout
+
+Season vision code is grouped by responsibility under `vision/`:
+
+- `ball/`: USB camera lifecycle, color/shape detection, camera settings,
+  calibration and observation freshness.
+- `apriltags/`: season tag identities and sighting history.
+- `diagnostics/`: diagnostic configuration and saved lab records.
+- `logging/`: settings-change logging shared by cameras and diagnostics.
+- `archived/`: the older Limelight ball-follow controllers and their logging
+  hook, used by the disabled `opmodes/archived/BallFollowTeleOp`.
+
+Tests mirror these packages. The reusable Limelight device adapter stays in
+`core/subsystems/vision/`; diagnostic op-modes stay in `opmodes/diagnostics/`.
 
 ## Sensors and I²C
 

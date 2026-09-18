@@ -8,10 +8,10 @@ import org.firstinspires.ftc.teamcode.core.control.PIDFGains
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerConfig
 import org.firstinspires.ftc.teamcode.opmodes.archived.MotorTestConfig
-import org.firstinspires.ftc.teamcode.vision.BallAimConfig
-import org.firstinspires.ftc.teamcode.vision.BallApproachConfig
-import org.firstinspires.ftc.teamcode.vision.BallVisionConfig
-import org.firstinspires.ftc.teamcode.vision.VisionDiagnosticsConfig
+import org.firstinspires.ftc.teamcode.vision.archived.BallAimConfig
+import org.firstinspires.ftc.teamcode.vision.archived.BallApproachConfig
+import org.firstinspires.ftc.teamcode.vision.ball.BallVisionConfig
+import org.firstinspires.ftc.teamcode.vision.diagnostics.VisionDiagnosticsConfig
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

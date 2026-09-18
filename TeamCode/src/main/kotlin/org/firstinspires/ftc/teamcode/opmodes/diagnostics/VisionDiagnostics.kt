@@ -13,17 +13,17 @@ import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightFiducial
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSubsystem
 import org.firstinspires.ftc.teamcode.core.util.TelemetryBag
-import org.firstinspires.ftc.teamcode.vision.BallCameraMountConfig
-import org.firstinspires.ftc.teamcode.vision.BallCameraSubsystem
-import org.firstinspires.ftc.teamcode.vision.BallPreviewMode
-import org.firstinspires.ftc.teamcode.vision.BallVisionConfig
-import org.firstinspires.ftc.teamcode.vision.BallVisionSettings
-import org.firstinspires.ftc.teamcode.vision.BiobuzzAprilTags
-import org.firstinspires.ftc.teamcode.vision.HiveCellReadiness
-import org.firstinspires.ftc.teamcode.vision.LabRecordWriter
-import org.firstinspires.ftc.teamcode.vision.TagSightingTracker
-import org.firstinspires.ftc.teamcode.vision.VisionDiagnosticsConfig
-import org.firstinspires.ftc.teamcode.vision.VisionLabRecord
+import org.firstinspires.ftc.teamcode.vision.ball.BallCameraMountConfig
+import org.firstinspires.ftc.teamcode.vision.ball.BallCameraSubsystem
+import org.firstinspires.ftc.teamcode.vision.ball.BallPreviewMode
+import org.firstinspires.ftc.teamcode.vision.ball.BallVisionConfig
+import org.firstinspires.ftc.teamcode.vision.ball.BallVisionSettings
+import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags
+import org.firstinspires.ftc.teamcode.vision.apriltags.HiveCellReadiness
+import org.firstinspires.ftc.teamcode.vision.diagnostics.LabRecordWriter
+import org.firstinspires.ftc.teamcode.vision.apriltags.TagSightingTracker
+import org.firstinspires.ftc.teamcode.vision.diagnostics.VisionDiagnosticsConfig
+import org.firstinspires.ftc.teamcode.vision.diagnostics.VisionLabRecord
 
 /** Wiring and telemetry shared by the Limelight AprilTag Test and Ball Tracking Test. */
 internal object VisionDiagnostics {
