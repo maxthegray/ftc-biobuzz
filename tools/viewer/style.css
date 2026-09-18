@@ -979,8 +979,8 @@ canvas {
   font-weight: 650;
 }
 
-/* The field fills its column: at least a viewport-based height, more when the other column is
-   taller, and less when other views share its column. */
+/* The field scales with its column: square to the column's width, capped so it fits the window,
+   growing further when the other column is taller and smaller when other views share its column. */
 .view-panel .field-card {
   display: flex;
   flex-direction: column;
@@ -988,13 +988,15 @@ canvas {
 }
 
 .view-panel .field-wrap {
-  flex: 1;
+  flex: 1 0 auto;
   height: auto;
-  min-height: clamp(320px, calc(100dvh - 330px), 820px);
+  aspect-ratio: 1;
+  min-height: 320px;
+  max-height: max(320px, calc(100dvh - 200px));
 }
 
 .view-column:has(> .card ~ .card) .field-wrap {
-  min-height: clamp(240px, calc(100dvh - 560px), 430px);
+  max-height: clamp(240px, calc(100dvh - 560px), 430px);
 }
 
 .view-panel .chart > canvas {
