@@ -120,13 +120,14 @@ error is following or battery.
 
 ## 8. Vision diagnostics (stationary, no motors)
 
-Two Diagnostics OpModes bring up the season's cameras. Neither commands a
-motor, applies a pose correction, or decides anything about HIVE state. Both
-run their cameras during INIT; gamepad buttons work only after START.
+Three Diagnostics OpModes bring up the season's cameras. None commands a
+motor or applies a pose correction; only Hive Tag Survey infers HIVE state.
+All run their cameras during INIT; gamepad buttons work only after START.
 
 | OpMode | Camera | Purpose |
 |---|---|---|
 | **Limelight AprilTag Test** | Limelight 3A `limelight` | Every HIVE tag: ID, BIOBUZZ meaning, camera-relative measurements, freshness |
+| **Hive Tag Survey** | Limelight 3A `limelight` on a tripod | Every tag's height and implied goal, each CELL's fused goal, each HIVE's state |
 | **Ball Tracking Test** | goBILDA 3122-0004-0001 `ballCamera` | Yellow POLLEN color/shape detection, Panels tuning, RC preview |
 
 ### Hardware and configuration
@@ -174,7 +175,7 @@ pipeline; use **pipeline 1** (`visionDiagnostics.limelightTagPipelineIndex`):
 | Standard | ID Filter | Blank for the first session, so stray tags show as `NOT A BIOBUZZ TAG`; later `30,31,…,45` |
 | Standard | Detector Downscale | Start 1–2 and record it |
 | Advanced | Full 3D | **On** — required for camera-space pose |
-| Advanced | Camera pose in robot space / field map | Leave unset; this diagnostic reports camera-relative values only, and the HIVES pivot |
+| Advanced | Camera pose in robot space / field map | Leave unset; the robot code places tags itself from `turretCamera`, and the HIVES pivot |
 
 Download the pipeline file from the web interface after tuning and commit it
 next to the lab record.
@@ -192,8 +193,9 @@ age and still excludes USB transport and the wait before the first poll.
 Without a device `ts`, identity falls back to receipt timestamps, so duplicates
 across polls cannot be distinguished.
 
-Tags identify a CELL. Seeing one does not show which CELL faces up or whether
-it can take a score; every CELL reads `readiness NOT_INFERRED`.
+Tags identify a CELL. The AprilTag Test does not say which CELL faces up;
+Hive Tag Survey infers that from measured tag heights. A raised CELL is the
+goal, not a promise that it can take a score.
 
 ### Panels and the camera preview
 
@@ -300,6 +302,58 @@ Then `make pull-lab-records`, fill in the header, and commit the record.
 Adopt tuned values by editing the `DEFAULT_*` constants listed under
 **[adopt as compiled defaults]** and deleting those keys from the hub's
 tuning file.
+
+### Hive Tag Survey (real CELL and field)
+
+Each HIVE is one alliance's. It sits tipped 30° with one CELL raised (the
+goal) and the other lowered, and a tip swaps them. Each CELL's four tags are on
+its bottom face, below and in front of the opening. FIRST's cluster definition
+(SDK 12.0.0) gives every tag's offset to the centre of its CELL's opening, so
+each tag implies the same goal point from a different offset. See
+`BiobuzzAprilTags`.
+
+Setup:
+
+1. Limelight on a tripod, upright (image not flipped), pipeline 1 as above
+   with **Full 3D on**.
+2. Measure and set `turretCamera` in Panels: `heightIn` (lens centre above the
+   tiles), `pitchUpDeg` (optical axis above horizontal; a phone level on the
+   housing), `yawDeg` 0, `forwardIn`/`leftIn`/`axisForwardIn`/`axisLeftIn` 0 (the
+   tripod point is the reference). Set `measured` true. The turret angle is held
+   at 0.
+3. Open **Hive Tag Survey**; *Survey Setup* must read `measured`.
+
+Procedure (save a lab record with **A** after START once each step settles; **B**
+clears the survey memory):
+
+1. **One CELL head-on.** Aim at your raised CELL from 1.5–2.5 m. *CELL Goals*
+   spread under ~1 in with all four tags used. A consistent spread that grows
+   as you move sideways means the Limelight rotation convention in
+   `GoalGeometry.tagRotation()` is wrong; record the rows and fix that
+   function, nothing else.
+2. **Distance.** Tape-measure the horizontal distance from the tripod point to
+   the centre of the CELL opening; compare *horizontal*. Compare *height* with
+   the opening centre's height.
+3. **Raised vs lowered.** With both CELLs of a HIVE in view, note the tag heights
+   *Tags (latest)* reports for each. Tip the HIVE and repeat. Set
+   `hiveGoal.raisedMinHeightIn` midway between the raised and lowered heights,
+   and keep `classificationMarginIn` well under half the gap. *HIVEs* must
+   flip after a tip (event `HIVE TIP: …`) and never flip on a still HIVE.
+   *faces … below horizontal* should differ between raised and lowered tags;
+   it is a cross-check, not an input.
+4. **Match setup.** Stage the field per manual §10.3.1: *HIVEs* must read RED
+   audience CELL raised, BLUE far CELL raised (`HiveState.matchSetup`, the
+   autonomous prior). If not, fix `matchSetup`.
+5. **Every tag.** Walk the tripod round so all 16 tags appear in *Tags
+   (latest)*; save a record. `make pull-lab-records` and commit it.
+
+Robot use: `HiveGoalSubsystem` (registered after the Limelight) with the
+turret as its `TurretAngleSource`, `HiveGoalSubsystem.MATCH_SETUP` priors in
+autonomous (teleop starts unknown), and the localizer's `estimator::poseAt` and
+pose so a held goal follows the robot's motion. Autonomous can wait for a tip
+with `race(waitUntil { hive.tipCount(RED) > before }, monotonicWaitMs(…))`;
+a tip is only seen while the camera can see that HIVE. Shooter speed comes from
+`ShotModel.rpmForDistance(goal.horizontalDistanceIn)`, which is not fitted yet.
 
 ### Not measured yet — needed before powered ball assists
 
@@ -462,6 +516,8 @@ Three separate levels; passing one says nothing about the next.
 | Pinpoint unhealthy | Init Health status (`waiting for start pose` = pose write not landing), I²C cable, robot still at power-up (IMU calibration) |
 | Ball target flickers or lingers | `BallCamera/frame/ageMs`, `rate/processedFps`, `target/status`, `candidates/accepted` |
 | Tag diagnostic shows nothing | Limelight health (pipeline index/type), `Limelight/fiducial/count`, Full 3D and marker size |
+| HIVE goal missing or on the wrong CELL | `HiveGoal/<ALLIANCE>/state`, `HiveGoal/tags/heightIn` and `tags/class` against `settings/raisedMinHeightIn`, `mount/*`, `frames/withoutTurretAngle` |
+| HIVE goal spread large | `HiveGoal/tags/deviationIn` per tag: one tag far off is an outlier; all off together is the mount or rotation convention |
 
 - Repeated `LOOP OVERRUN` events matter; one at init/stop is usually warm-up.
 - Swap a battery below 12.0 V resting. Normal operation should not sag below ~10 V.
@@ -473,7 +529,7 @@ Record results in `PROGRESS.md`.
 
 **Install and reload**
 - [ ] Full APK install succeeds; Driver Station shows Drive Only, Ball Tracking
-      Test, Limelight AprilTag Test (no Pedro Tuning op-mode).
+      Test, Limelight AprilTag Test, Hive Tag Survey (no Pedro Tuning op-mode).
 - [ ] AutoTune page loads at `http://192.168.43.1:10158` and lists Mecanum
       Tuner, Pinpoint Tuner, Foresight Tuner and Tests (Sloth 0.2.4 runtime).
 - [ ] Panels loads at `:8001`; a `DriveConfig` edit applies live and survives
@@ -515,6 +571,13 @@ Record results in `PROGRESS.md`.
 - [ ] Command fault drill (step 7), including the `TODO()` variant: the op-mode
       ends with every motor stopped and the log ends `LOOP CRASHED`, `stop`.
 - [ ] Unplugged Pinpoint at init: Health reports it, auto refuses to start.
+
+**HIVE tags** (Hive Tag Survey, above)
+- [ ] Four tags of one CELL agree on its goal within ~1 in, head-on and from the side.
+- [ ] Horizontal distance and goal height match a tape measure.
+- [ ] Raised and lowered tags separate cleanly; `raisedMinHeightIn` set between them.
+- [ ] A tip is reported once; a still HIVE never flips.
+- [ ] Staged field reads RED audience / BLUE far raised.
 
 **Recording and field view**
 - [ ] `IntegrationSample.wpilog` passes the AdvantageScope GUI checks under

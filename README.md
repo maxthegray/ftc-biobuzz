@@ -56,6 +56,7 @@ Enabled Driver Station op-modes:
 | Drive Only | Manual driving and drivetrain checks |
 | Ball Tracking Test | USB ball camera tuning and diagnostics |
 | Limelight AprilTag Test | AprilTag diagnostics |
+| Hive Tag Survey | HIVE tag geometry, goal and state check on a real CELL |
 
 `opmodes/archived/` holds disabled bring-up utilities (Framework Smoke Test,
 Motor Direction Test, Panels Motor Spin, SRS Loop Benchmark) and the old
@@ -111,7 +112,7 @@ TeamCode/src/main/
     │   ├── runtime/          Robot, OpModeBase, SubsystemBase, config
     │   ├── subsystems/       drive, localization, Limelight
     │   └── util/             gamepads, triggers, alliance, telemetry
-    ├── vision/               season vision: tag catalog, ball camera, assists
+    ├── vision/               season vision: tag catalog, HIVE goal tracking, ball camera
     └── opmodes/              teleop, diagnostics, skeletons, archived
 ```
 

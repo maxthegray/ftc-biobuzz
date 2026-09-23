@@ -324,6 +324,9 @@ reload never run.
 | `<Subsystem>/…` | any | `SubsystemBase.logState` channels |
 | `BallCamera/candidates/…` | `double[]` | every published blob of the current frame, accepted first: `xPx`, `yPx`, `radiusPx`, `areaPx`, `circularity`, `horizontalDeg`, `verticalDeg` (+ below the axis), with `rejections` (string, `accepted` or the failed filter, comma-separated) and `selectedIndex` |
 | `BallCamera/mount/…` | double/boolean | `BallCameraMountConfig` as recorded: `measured`, `heightIn`, `pitchDownDeg`, `forwardIn`, `leftIn`, `yawDeg` |
+| `HiveGoal/<RED\|BLUE>/…` | mixed | `state` (`AUDIENCE_RAISED`, `FAR_RAISED`, `UNKNOWN`), `stateAssumed`, `tipCount`, and the goal: `visible`, `cell`, `turretBearingDeg`, `robotBearingDeg`, `distanceIn` (horizontal, from the turret axis), `heightIn`, `spreadIn`, `ageMs` (since estimated capture), `tagIds`, `reprojected` |
+| `HiveGoal/tags/…` | `double[]` | every season tag of the latest processed frame: `id`, `heightIn`, `class` (1 raised, −1 lowered, 0 ambiguous), `goalX/Y/ZIn` (implied goal, robot frame at capture), `deviationIn` (from its CELL's fused goal), `used`, `facingBelowHorizontalDeg` |
+| `HiveGoal/mount/…`, `HiveGoal/settings/…` | double/boolean | `turretCamera` and `hiveGoal` values as recorded |
 | `events` | string | explicit events with their own timestamps (not sampled); strictly increasing, a same-microsecond event moves 1 µs later |
 | `commands/events` | string | lifecycle records of `logged` commands, own timestamps, strictly increasing (see below) |
 | `commands/active` | string | traced executions open after each record, `#id name` per line, `(suspended)` suffix |
@@ -419,7 +422,18 @@ the recent-events ring, `lastcrash.txt`.
 - **Vision timestamps are not interchangeable.** Limelight `staleness` is
   receipt age, `ts` is device clock (identity only), VisionPortal capture
   time is `System.nanoTime()`. Label which age a number is.
-- **A BIOBUZZ tag sighting is not HIVE state.**
+- **A BIOBUZZ tag sighting is not HIVE state.** HIVE state is inferred only by
+  `HiveStateEstimator`, from measured tag heights with hysteresis; a raised
+  CELL is the goal, not a claim that it can take a score. Tags have no field
+  poses (the HIVES pivot) and are never used for localization.
+- **The Limelight rotation convention is unverified.** Every use of a tag's
+  orientation goes through `GoalGeometry.tagRotation()`; if the Hive Tag Survey
+  shows four tags of one CELL disagreeing, fix that one function. Raised/lowered
+  uses tag position only, so it does not depend on it.
+- **HIVE goal offsets are FIRST's** (SDK 12.0.0 `AprilTagGameDatabase`), in
+  `BiobuzzAprilTags`; don't make them tunable or re-derive them from figures.
+- **Camera frames use the turret angle at capture time**, from
+  `TurretAngleSource`, never the commanded angle.
 
 ## When the user asks you to add a subsystem
 
@@ -448,7 +462,8 @@ overrides `initialAlliance` only. Start delay via `StartDelay` on dpad in init.
 
 ## Naming op-modes
 
-Currently enabled: Drive Only, Ball Tracking Test, Limelight AprilTag Test.
+Currently enabled: Drive Only, Ball Tracking Test, Limelight AprilTag Test,
+Hive Tag Survey.
 AutoTune is a web page, not a Driver Station op-mode. `opmodes/archived/` and
 `opmodes/skeletons/` hold `@Disabled` op-modes; keep them disabled unless the
 user asks.

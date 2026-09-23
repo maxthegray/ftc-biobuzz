@@ -313,7 +313,11 @@ Season mechanism skeletons live under `subsystems/`: `intake/IntakeSubsystem`,
 `transfer/TransferSubsystem`, `shooter/ShooterSubsystem`, and
 `turret/TurretSubsystem`. Transfer owns both the storage/feed rollers and the
 servo blocker; Turret owns all mechanically linked turret servos. Shooter
-will accept target RPM from a separately calibrated distance-to-speed model.
+will accept target RPM from `shooter/ShotModel.rpmForDistance`, a
+distance-to-speed function still to be fitted from shots at measured
+distances (it returns null until then). The turret will implement
+`turret/TurretAngleSource` from a `ScalarHistory` of its servo-encoder angle,
+so `HiveGoalSubsystem` can place each camera frame at its capture time.
 
 These are unconfigured skeletons, not registered in any op-mode. Their `init`
 fails explicitly until hardware is implemented. Once CAD defines the
@@ -335,7 +339,14 @@ Season vision code is grouped by responsibility under `vision/`:
 
 - `ball/`: USB camera lifecycle, color/shape detection, camera settings,
   calibration and observation freshness.
-- `apriltags/`: season tag identities and sighting history.
+- `apriltags/`: season tag identities, FIRST's cluster geometry, and sighting
+  history.
+- `hive/`: HIVE goal tracking for the turret-mounted Limelight. `GoalGeometry`
+  places each tag's implied goal (its CELL's opening centre) on the robot
+  through `TurretCameraMountConfig` and the turret angle at capture time;
+  `HiveStateEstimator` infers which CELL of each HIVE is raised from tag
+  heights, with hysteresis and tip counts; `HiveGoalTracker` fuses each
+  alliance's goal; `HiveGoalSubsystem` exposes both alliances to op-modes.
 - `diagnostics/`: diagnostic configuration and saved lab records.
 - `logging/`: settings-change logging shared by cameras and diagnostics.
 - `archived/`: the older Limelight ball-follow controllers and their logging
