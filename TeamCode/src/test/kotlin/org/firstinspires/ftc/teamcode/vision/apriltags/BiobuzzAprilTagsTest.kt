@@ -32,6 +32,15 @@ class BiobuzzAprilTagsTest {
     }
 
     @Test
+    fun goalOffsetsMatchSdk12ClusterGeometry() {
+        val slot1 = BiobuzzAprilTags.lookup(42)!!
+        assertEquals(6.5, slot1.goalXInTagInches, 0.0)
+        assertEquals(-7.1874, slot1.goalYInTagInches, 0.0)
+        assertEquals(5.622, slot1.goalZInTagInches, 0.0)
+        assertEquals(-2.75, BiobuzzAprilTags.lookup(44)!!.goalXInTagInches, 0.0)
+    }
+
+    @Test
     fun unknownIdsAreNotSeasonTags() {
         assertNull(BiobuzzAprilTags.lookup(29))
         assertNull(BiobuzzAprilTags.lookup(46))

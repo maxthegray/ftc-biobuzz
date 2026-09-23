@@ -21,9 +21,17 @@ package org.firstinspires.ftc.teamcode.vision.apriltags
  *    audience. Figure 9-17 labels the opposite-audience clusters "Scoring Tags".
  * Team Update 00 (September 12, 2026) makes no AprilTag change.
  *
+ * Cluster geometry relative to the goal comes from FTC SDK 12.0.0
+ * `AprilTagGameDatabase.getBioBuzzCluster`: the cluster origin is the centre
+ * of the CELL opening, and every tag centre sits at
+ * ([Tag.offsetFromClusterCenterInches], [TAG_ROW_Y_INCHES], [TAG_ROW_Z_INCHES])
+ * in the cluster frame: +X along the sticker in slot order, +Y towards the
+ * label band, +Z into the sticker face. 7.1874 in. is Figure 9-15's 9.938 in.
+ * less 2.75 in.; 5.622 in. is the centroid of the Figure 9-11 opening.
+ *
  * Deliberately absent: field poses. The HIVES pivot, so a tag's field pose
- * depends on HIVE state; and a sighting says nothing about whether its CELL
- * is upward-facing or ready to score. [HiveCellReadiness] keeps that separate.
+ * depends on HIVE state, which `vision/hive` infers from measured tag heights.
+ * A single sighting says nothing about whether its CELL is raised.
  */
 object BiobuzzAprilTags {
 
@@ -35,6 +43,12 @@ object BiobuzzAprilTags {
 
     /** Tag centre offsets along the sticker, from the cluster centreline, slot 1 → 4. */
     private val SLOT_OFFSETS_INCHES = doubleArrayOf(-6.5, -2.75, 2.75, 6.5)
+
+    /** Tag centres from the CELL opening centre, towards the label band (cluster +Y). */
+    const val TAG_ROW_Y_INCHES = 7.1874
+
+    /** Tag centres from the CELL opening centre, into the sticker face (cluster +Z); negative: the opening is behind the face. */
+    const val TAG_ROW_Z_INCHES = -5.622
 
     enum class Alliance { RED, BLUE }
 
@@ -58,6 +72,15 @@ object BiobuzzAprilTags {
         /** Tag centre from the cluster centreline along the sticker, same left-to-right sense as [slot]. */
         val offsetFromClusterCenterInches: Double,
     ) {
+        /**
+         * The CELL opening centre in this tag's frame (+X right looking at the
+         * tag, +Y towards the label band, +Z into the face), inches. Each tag
+         * of a cluster points at the same goal from a different offset.
+         */
+        val goalXInTagInches: Double get() = -offsetFromClusterCenterInches
+        val goalYInTagInches: Double get() = -TAG_ROW_Y_INCHES
+        val goalZInTagInches: Double get() = -TAG_ROW_Z_INCHES
+
         val meaning: String get() = "${cell.stickerLabel} slot $slot"
     }
 
