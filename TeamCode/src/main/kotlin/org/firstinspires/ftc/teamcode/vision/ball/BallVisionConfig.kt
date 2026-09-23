@@ -17,6 +17,12 @@ import com.bylazar.configurables.annotations.Configurable
  * `/sdcard/FIRST/config/tuning.properties`. Set [resetToDefaults] (or delete
  * the keys and restart) to return to the defaults. These are tentative values
  * from the September 18, 2026 USB-camera tuning session.
+ *
+ * The `mount*` fields record where the lens sits on the robot. Nothing on the
+ * robot uses them: [BallCameraSubsystem] logs them every tick under
+ * `BallCamera/mount/…`, so each flight log carries the geometry it was
+ * recorded with and MaxScope can place detections on the field. Leave
+ * [mountMeasured] false until the numbers come from a tape measure.
  */
 @Configurable
 object BallVisionConfig {
@@ -64,6 +70,12 @@ object BallVisionConfig {
     private const val DEFAULT_RESOLUTION_WIDTH = 640
     private const val DEFAULT_RESOLUTION_HEIGHT = 480
     private const val DEFAULT_STREAM_FORMAT = STREAM_MJPEG
+    private const val DEFAULT_MOUNT_HEIGHT_IN = 0.0
+    private const val DEFAULT_MOUNT_PITCH_DOWN_DEG = 0.0
+    private const val DEFAULT_MOUNT_FORWARD_IN = 0.0
+    private const val DEFAULT_MOUNT_LEFT_IN = 0.0
+    private const val DEFAULT_MOUNT_YAW_DEG = 0.0
+    private const val DEFAULT_MOUNT_MEASURED = false
     private const val DEFAULT_RESET_TO_DEFAULTS = false
 
     /** 0 = YCrCb (channels Y, Cr, Cb), 1 = HSV (OpenCV H 0–180, S, V). */
@@ -140,6 +152,24 @@ object BallVisionConfig {
     /** **restart** 0 = MJPEG, 1 = YUY2 (goBILDA lists YUY2 only at 1280-wide, 10 fps). */
     @JvmField var streamFormat: Int = DEFAULT_STREAM_FORMAT
 
+    /** Lens centre above the floor, inches. */
+    @JvmField var mountHeightIn: Double = DEFAULT_MOUNT_HEIGHT_IN
+
+    /** Optical axis below horizontal, degrees; positive tilts the camera down. */
+    @JvmField var mountPitchDownDeg: Double = DEFAULT_MOUNT_PITCH_DOWN_DEG
+
+    /** Lens position from the robot's pose point (its centre): + toward the robot's front, inches. */
+    @JvmField var mountForwardIn: Double = DEFAULT_MOUNT_FORWARD_IN
+
+    /** Lens position from the robot's pose point: + toward the robot's left, inches. */
+    @JvmField var mountLeftIn: Double = DEFAULT_MOUNT_LEFT_IN
+
+    /** Optical axis from the robot's front, degrees, counterclockwise-positive like Pedro headings. */
+    @JvmField var mountYawDeg: Double = DEFAULT_MOUNT_YAW_DEG
+
+    /** True once the mount values above describe the camera as mounted. */
+    @JvmField var mountMeasured: Boolean = DEFAULT_MOUNT_MEASURED
+
     /** Set true to restore every field above to its compiled default on the next robot loop. */
     @JvmField var resetToDefaults: Boolean = DEFAULT_RESET_TO_DEFAULTS
 
@@ -177,6 +207,12 @@ object BallVisionConfig {
         resolutionWidth = DEFAULT_RESOLUTION_WIDTH
         resolutionHeight = DEFAULT_RESOLUTION_HEIGHT
         streamFormat = DEFAULT_STREAM_FORMAT
+        mountHeightIn = DEFAULT_MOUNT_HEIGHT_IN
+        mountPitchDownDeg = DEFAULT_MOUNT_PITCH_DOWN_DEG
+        mountForwardIn = DEFAULT_MOUNT_FORWARD_IN
+        mountLeftIn = DEFAULT_MOUNT_LEFT_IN
+        mountYawDeg = DEFAULT_MOUNT_YAW_DEG
+        mountMeasured = DEFAULT_MOUNT_MEASURED
         resetToDefaults = DEFAULT_RESET_TO_DEFAULTS
     }
 
@@ -215,6 +251,12 @@ object BallVisionConfig {
         "resolutionWidth" to DEFAULT_RESOLUTION_WIDTH,
         "resolutionHeight" to DEFAULT_RESOLUTION_HEIGHT,
         "streamFormat" to DEFAULT_STREAM_FORMAT,
+        "mountHeightIn" to DEFAULT_MOUNT_HEIGHT_IN,
+        "mountPitchDownDeg" to DEFAULT_MOUNT_PITCH_DOWN_DEG,
+        "mountForwardIn" to DEFAULT_MOUNT_FORWARD_IN,
+        "mountLeftIn" to DEFAULT_MOUNT_LEFT_IN,
+        "mountYawDeg" to DEFAULT_MOUNT_YAW_DEG,
+        "mountMeasured" to DEFAULT_MOUNT_MEASURED,
         "resetToDefaults" to DEFAULT_RESET_TO_DEFAULTS,
     )
 }

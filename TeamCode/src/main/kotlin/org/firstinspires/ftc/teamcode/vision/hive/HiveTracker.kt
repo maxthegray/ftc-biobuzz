@@ -5,9 +5,9 @@ import java.util.EnumMap
 import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.sin
-import org.firstinspires.ftc.teamcode.core.estimation.isFinite
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
+import org.firstinspires.ftc.teamcode.core.subsystems.localization.isFinite
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightFiducial
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSubsystem
 import org.firstinspires.ftc.teamcode.core.util.Clock

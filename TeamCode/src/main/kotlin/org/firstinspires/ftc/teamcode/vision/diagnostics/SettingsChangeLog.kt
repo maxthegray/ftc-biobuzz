@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.vision.logging
+package org.firstinspires.ftc.teamcode.vision.diagnostics
 
 import java.lang.reflect.Modifier
 import org.firstinspires.ftc.teamcode.core.util.Clock

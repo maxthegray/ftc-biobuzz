@@ -1,12 +1,12 @@
 package org.firstinspires.ftc.teamcode.vision.ball
 
-import org.firstinspires.ftc.teamcode.vision.logging.SettingsChangeLog
 import com.qualcomm.robotcore.hardware.HardwareMap
 import java.util.Locale
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.runtime.HardwareConfigError
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.util.Clock
+import org.firstinspires.ftc.teamcode.vision.diagnostics.SettingsChangeLog
 
 /**
  * The camera, processor, and control worker behind [BallCameraSubsystem].
@@ -204,12 +204,12 @@ class BallCameraSubsystem(
         log.put("controls/requestedExposureMicros", control.requested?.exposureMicros ?: -1L)
         log.put("controls/readbackExposureMicros", control.readback?.exposureMicros ?: -1L)
         log.put("controls/readbackWhiteBalanceK", (control.readback?.whiteBalanceKelvin ?: -1).toLong())
-        log.put("mount/measured", BallCameraMountConfig.measured)
-        log.put("mount/heightIn", BallCameraMountConfig.heightIn)
-        log.put("mount/pitchDownDeg", BallCameraMountConfig.pitchDownDeg)
-        log.put("mount/forwardIn", BallCameraMountConfig.forwardIn)
-        log.put("mount/leftIn", BallCameraMountConfig.leftIn)
-        log.put("mount/yawDeg", BallCameraMountConfig.yawDeg)
+        log.put("mount/measured", BallVisionConfig.mountMeasured)
+        log.put("mount/heightIn", BallVisionConfig.mountHeightIn)
+        log.put("mount/pitchDownDeg", BallVisionConfig.mountPitchDownDeg)
+        log.put("mount/forwardIn", BallVisionConfig.mountForwardIn)
+        log.put("mount/leftIn", BallVisionConfig.mountLeftIn)
+        log.put("mount/yawDeg", BallVisionConfig.mountYawDeg)
     }
 
     /**

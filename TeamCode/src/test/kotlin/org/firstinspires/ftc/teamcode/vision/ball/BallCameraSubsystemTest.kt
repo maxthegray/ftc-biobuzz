@@ -25,13 +25,11 @@ class BallCameraSubsystemTest {
     @Before
     fun setUp() {
         BallVisionConfig.resetDefaults()
-        BallCameraMountConfig.resetDefaults()
     }
 
     @After
     fun tearDown() {
         BallVisionConfig.resetDefaults()
-        BallCameraMountConfig.resetDefaults()
     }
 
     private fun subsystem() = BallCameraSubsystem(backendFactory = factory, clock = clock)
@@ -158,8 +156,8 @@ class BallCameraSubsystemTest {
             clock.now - 10_000_000L,
             listOf(BallCandidateFilterTest.blob(area = 1.0, x = 50.0, y = 60.0), BallCandidateFilterTest.blob(x = 400.0, y = 300.0)),
         )
-        BallCameraMountConfig.heightIn = 4.36
-        BallCameraMountConfig.measured = true
+        BallVisionConfig.mountHeightIn = 4.36
+        BallVisionConfig.mountMeasured = true
         camera.periodic()
 
         val log = RecordingStateLog()

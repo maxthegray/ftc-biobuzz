@@ -104,12 +104,11 @@ TeamCode/src/main/
 └── kotlin/org/firstinspires/ftc/teamcode/
     ├── core/
     │   ├── control/          PIDF
-    │   ├── estimation/       latency-compensated pose correction
     │   ├── hardware/         SRSHub
     │   ├── io/               motor abstraction seam
     │   ├── logging/          WPILOG writer, flight recorder, Panels field view
     │   ├── runtime/          Robot, OpModeBase, SubsystemBase, config
-    │   ├── subsystems/       drive, localization, Limelight
+    │   ├── subsystems/       drive, localization (+ latency-compensated pose correction), Limelight
     │   └── util/             gamepads, triggers, alliance, telemetry
     ├── vision/               season vision: tag catalog, HIVE goal tracking, ball camera
     └── opmodes/              teleop, diagnostics, skeletons, archived

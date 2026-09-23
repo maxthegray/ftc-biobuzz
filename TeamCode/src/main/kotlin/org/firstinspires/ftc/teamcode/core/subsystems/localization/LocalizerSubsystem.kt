@@ -6,9 +6,6 @@ import com.pedropathing.math.Velocity
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver.DeviceStatus
 import com.qualcomm.robotcore.hardware.HardwareMap
-import org.firstinspires.ftc.teamcode.core.estimation.CorrectionResult
-import org.firstinspires.ftc.teamcode.core.estimation.PoseEstimator
-import org.firstinspires.ftc.teamcode.core.estimation.isFinite
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.runtime.DeviceReaders
 import org.firstinspires.ftc.teamcode.core.runtime.RobotConfig

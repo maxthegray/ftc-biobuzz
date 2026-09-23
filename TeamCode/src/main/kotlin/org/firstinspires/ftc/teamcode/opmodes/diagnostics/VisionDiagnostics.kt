@@ -13,7 +13,6 @@ import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightFiducial
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSubsystem
 import org.firstinspires.ftc.teamcode.core.util.TelemetryBag
-import org.firstinspires.ftc.teamcode.vision.ball.BallCameraMountConfig
 import org.firstinspires.ftc.teamcode.vision.ball.BallCameraSubsystem
 import org.firstinspires.ftc.teamcode.vision.ball.BallPreviewMode
 import org.firstinspires.ftc.teamcode.vision.ball.BallVisionConfig
@@ -55,7 +54,6 @@ internal object VisionDiagnostics {
     fun registerConfigsAndLoad(): Startup {
         ConfigStore.register("visionDiagnostics", VisionDiagnosticsConfig, VisionDiagnosticsConfig::resetDefaults)
         ConfigStore.register("ballVision", BallVisionConfig, BallVisionConfig::resetDefaults)
-        ConfigStore.register("ballCameraMount", BallCameraMountConfig, BallCameraMountConfig::resetDefaults)
         ConfigStore.loadFromDisk()
         return Startup.fromConfig()
     }

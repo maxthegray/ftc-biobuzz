@@ -6,9 +6,9 @@ import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.runtime.Preflight
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSubsystem
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx.Button
-import org.firstinspires.ftc.teamcode.vision.ball.BallCameraSubsystem
-import org.firstinspires.ftc.teamcode.vision.logging.SettingsChangeLog
 import org.firstinspires.ftc.teamcode.vision.apriltags.TagSightingTracker
+import org.firstinspires.ftc.teamcode.vision.ball.BallCameraSubsystem
+import org.firstinspires.ftc.teamcode.vision.diagnostics.SettingsChangeLog
 import org.firstinspires.ftc.teamcode.vision.diagnostics.VisionDiagnosticsConfig
 
 /**

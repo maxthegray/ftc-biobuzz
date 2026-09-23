@@ -347,8 +347,8 @@ Season vision code is grouped by responsibility under `vision/`:
   the turret angle at capture time; `HiveState` infers which CELL of each HIVE
   is raised from tag heights, with hysteresis and tip counts; `HiveTracker`, a
   subsystem, fuses each alliance's goal and exposes both alliances to op-modes.
-- `diagnostics/`: diagnostic configuration and saved lab records.
-- `logging/`: settings-change logging shared by cameras and diagnostics.
+- `diagnostics/`: diagnostic configuration, saved lab records, and
+  settings-change logging shared by cameras and diagnostics.
 - `archived/`: the older Limelight ball-follow controllers and their logging
   hook, used by the disabled `opmodes/archived/BallFollowTeleOp`.
 

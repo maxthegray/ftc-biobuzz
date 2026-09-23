@@ -1,11 +1,8 @@
-package org.firstinspires.ftc.teamcode.core.estimation
+package org.firstinspires.ftc.teamcode.core.subsystems.localization
 
 import com.pedropathing.math.Pose
 import java.util.Locale
 import kotlin.math.abs
-import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerConfig
-import org.firstinspires.ftc.teamcode.core.subsystems.localization.PoseHistory
-import org.firstinspires.ftc.teamcode.core.subsystems.localization.shortestAngleDelta
 import org.firstinspires.ftc.teamcode.core.util.Clock
 
 /** Outcome of a [PoseEstimator.applyCorrection] attempt. Rejections are logged via the event sink. */

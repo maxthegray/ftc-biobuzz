@@ -14,13 +14,13 @@ import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags
 import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags.Alliance
 import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags.Cell
 import org.firstinspires.ftc.teamcode.vision.apriltags.TagSightingTracker
+import org.firstinspires.ftc.teamcode.vision.diagnostics.SettingsChangeLog
 import org.firstinspires.ftc.teamcode.vision.hive.CellGoal
 import org.firstinspires.ftc.teamcode.vision.hive.GoalGeometry
 import org.firstinspires.ftc.teamcode.vision.hive.HiveConfig
 import org.firstinspires.ftc.teamcode.vision.hive.HiveTracker
 import org.firstinspires.ftc.teamcode.vision.hive.TagRow
 import org.firstinspires.ftc.teamcode.vision.hive.Vec3
-import org.firstinspires.ftc.teamcode.vision.logging.SettingsChangeLog
 
 /**
  * Stationary survey of the HIVE tags with the Limelight on a tripod (turret

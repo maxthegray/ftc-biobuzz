@@ -1,7 +1,7 @@
-package org.firstinspires.ftc.teamcode.vision.logging
+package org.firstinspires.ftc.teamcode.vision.diagnostics
 
-import org.firstinspires.ftc.teamcode.vision.ball.BallVisionConfig
 import org.firstinspires.ftc.teamcode.core.sim.FakeClock
+import org.firstinspires.ftc.teamcode.vision.ball.BallVisionConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
