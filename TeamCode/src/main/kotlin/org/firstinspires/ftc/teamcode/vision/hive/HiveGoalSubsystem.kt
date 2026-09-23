@@ -52,6 +52,10 @@ class HiveGoalSubsystem(
     var newFrameThisTick = false
         private set
 
+    /** Estimated capture time of the newest processed frame. */
+    var lastFrameCaptureNanos: Long? = null
+        private set
+
     private val goals = EnumMap<Alliance, GoalObservation>(Alliance::class.java)
     private var columns = RowColumns.EMPTY
     private var columnsFrame = -1L
@@ -87,6 +91,7 @@ class HiveGoalSubsystem(
                 framesWithoutTurretAngle++
             } else {
                 newFrameThisTick = true
+                lastFrameCaptureNanos = captureNanos
                 val frame = TagFrame(limelight.fiducials, captureNanos, turretAngle, poseAt?.invoke(captureNanos))
                 for (transition in tracker.update(frame, mount, settings)) eventSink(transition.describe())
             }

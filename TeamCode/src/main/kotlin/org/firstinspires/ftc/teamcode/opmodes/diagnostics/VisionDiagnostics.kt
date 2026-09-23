@@ -353,6 +353,8 @@ internal class LoopTimingStats {
 internal class VisionLabRecorder(
     private val opModeName: String,
     private val writer: LabRecordWriter = LabRecordWriter(),
+    /** Further ConfigStore sections to record, with their compiled defaults. */
+    private val extraSections: List<Pair<String, Map<String, Any>>> = emptyList(),
 ) : SubsystemBase("VisionLabRecord") {
 
     private var reportedWritten = 0
@@ -367,7 +369,7 @@ internal class VisionLabRecorder(
             sections = listOf(
                 VisionLabRecord.sectionFromStore("ballVision", BallVisionConfig.compiledDefaults()),
                 VisionLabRecord.sectionFromStore("visionDiagnostics", VisionDiagnosticsConfig.compiledDefaults()),
-            ),
+            ) + extraSections.map { (section, defaults) -> VisionLabRecord.sectionFromStore(section, defaults) },
             measurements = measurements,
         )
         writer.submit(VisionLabRecord.fileName(opModeName, now), contents)
