@@ -384,12 +384,6 @@ non-I/O exception in one subsystem's `logState` disables that subsystem's
 channels and records why; anything else escaping the recorder closes it. The
 loop keeps running.
 
-Retired with the migration (don't reintroduce): `commands/running` (it meant
-every scheduled command; the analyzer still reads it in old logs),
-`COMMAND STARTED/FINISHED/INTERRUPTED/FAULTED` events in `events`,
-blocked-schedule and first-default-resume events, `TRIGGER FAULT` quarantine,
-the recent-events ring, `lastcrash.txt`.
-
 ## Things AI assistants get wrong often
 
 - **There is one scheduler and it is Ivy's static `Scheduler`.** There is no

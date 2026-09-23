@@ -15,9 +15,6 @@ existing motor names and directions, and **no Foresight tuning**
 (`FORESIGHT_TUNED = false`). Until AutoTune's Foresight output is pasted in,
 manual driving works and every path, hold and turn command refuses to start.
 
-A **full APK install** is required the first time after this migration: the
-dependencies and SDK version changed.
-
 ## 0. Chassis-free framework smoke test
 
 **Framework Smoke Test** is disabled in `opmodes/archived/`. Re-enable it for
@@ -406,7 +403,7 @@ Logs from the Ivy migration until tracing print `not recorded`; logs from
 before September 2026 show their complete command sets (`commands/running`).
 Explicit events (`AUTO: …`, `COMMAND FAULT: …`, `LOCALIZER FAULT: …`,
 `LOOP CRASHED: …`) are still in `events`.
-`lastcrash.txt` is no longer written; a loop crash's stack trace is in `events`.
+A loop crash's stack trace is in `events`.
 
 ### Watching the robot on AdvantageScope's 2D field
 
