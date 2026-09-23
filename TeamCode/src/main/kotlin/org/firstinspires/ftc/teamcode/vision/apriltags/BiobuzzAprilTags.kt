@@ -114,10 +114,3 @@ object BiobuzzAprilTags {
     fun isSeasonFamily(reported: String): Boolean =
         reported.lowercase().filter { it.isLetterOrDigit() }.removeSuffix("c").endsWith(FAMILY)
 }
-
-/**
- * What these diagnostics are prepared to say about a CELL being ready for
- * scoring. Pass 1 has no evidence that establishes it, so every CELL is
- * [NOT_INFERRED] regardless of which tags are visible.
- */
-enum class HiveCellReadiness { NOT_INFERRED }

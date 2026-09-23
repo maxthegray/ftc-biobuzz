@@ -19,7 +19,6 @@ import org.firstinspires.ftc.teamcode.vision.ball.BallPreviewMode
 import org.firstinspires.ftc.teamcode.vision.ball.BallVisionConfig
 import org.firstinspires.ftc.teamcode.vision.ball.BallVisionSettings
 import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags
-import org.firstinspires.ftc.teamcode.vision.apriltags.HiveCellReadiness
 import org.firstinspires.ftc.teamcode.vision.diagnostics.LabRecordWriter
 import org.firstinspires.ftc.teamcode.vision.apriltags.TagSightingTracker
 import org.firstinspires.ftc.teamcode.vision.diagnostics.VisionDiagnosticsConfig
@@ -124,9 +123,9 @@ internal object VisionDiagnostics {
             for (cell in BiobuzzAprilTags.cells) {
                 val ids = BiobuzzAprilTags.tagsOf(cell).joinToString(",") { it.id.toString() }
                 val last = sightings.latestFor(cell)?.let { "last tag ${fmt(it.ageMs(nowNs), 0)} ms ago" } ?: "no tag seen"
-                put("${cell.stickerLabel} ($ids)", "$last; readiness ${HiveCellReadiness.NOT_INFERRED}")
+                put("${cell.stickerLabel} ($ids)", last)
             }
-            put("note", "tags identify a CELL; they do not show which CELL is up or ready")
+            put("note", "tags identify a CELL; Hive Tag Survey infers which CELL is raised")
         }
     }
 
