@@ -4,7 +4,7 @@ import kotlin.math.abs
 import kotlin.math.sign
 
 /**
- * PIDF gains. Mutable fields so a season fork can hold them in a Panels
+ * PIDF gains. Mutable fields so season code can hold them in a Panels
  * `@Configurable` object and tune live:
  *
  *  - [kP]/[kI]/[kD] — feedback on position error

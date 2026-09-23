@@ -374,7 +374,7 @@ across threads.
 
 ## Season rollover
 
-- Keep game-specific subsystems, paths and op-modes in the season fork.
+- Keep game-specific subsystems, paths and op-modes out of `core/`.
 - Set `RobotConfig.Field.SYMMETRY` from the game manual and verify the field length.
 - Change `RobotConfig.CONFIG_SCHEMA`.
 - Re-run AutoTune when the chassis, weight, wheels or odometry change.

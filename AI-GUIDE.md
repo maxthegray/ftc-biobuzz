@@ -11,17 +11,18 @@ Human documentation has three entry points:
 
 ## What this repo is
 
-BioBuzz's robot code for the current FTC season, forked from
-`maxthegray/ftc-starter` — itself built on an unmodified clone of
-`FIRST-Tech-Challenge/FtcRobotController` (now 11.2.1).
+BioBuzz's robot code for the current FTC season, built on an unmodified clone
+of `FIRST-Tech-Challenge/FtcRobotController` (now 11.2.1). It was forked from
+`maxthegray/ftc-starter`, which is legacy: nothing flows back to it, and this
+is the main repo.
 
-Season code **does** belong here. The boundary that matters is a directory one:
+The directory split is organisational:
 
-- `core/` is season- and chassis-agnostic framework. Fixes made here get
-  cherry-picked back to `ftc-starter`, so keep it free of game logic,
-  season constants, and this year's mechanism names.
+- `core/` is the framework (runtime, drive, localization, logging, the
+  Limelight adapter). Keep game logic, season constants and this year's
+  mechanism names out of it, so it carries into next season as is.
 - Everything else — `opmodes/`, `vision/`, season subsystems, `RobotConfig`,
-  `pedro/` — is this season's and never flows upstream.
+  `pedro/` — is this season's.
 
 The code currently runs on a **sensorbot**: a temporary chassis to develop
 against while the competition robot is built. The competition robot replaces

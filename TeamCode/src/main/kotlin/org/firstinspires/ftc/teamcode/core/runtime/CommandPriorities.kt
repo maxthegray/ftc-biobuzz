@@ -1,8 +1,8 @@
 package org.firstinspires.ftc.teamcode.core.runtime
 
 /**
- * Shared command priority ladder. Higher interrupts lower; gaps left so a season
- * fork can slot levels in between without renumbering.
+ * Shared command priority ladder. Higher interrupts lower; gaps left so season
+ * code can slot levels in between without renumbering.
  *
  *  - [DEFAULT] — subsystem default commands; quietly lose to explicit work.
  *  - [AUTON_ROUTINE] — autonomous routines and teleop auto-assists

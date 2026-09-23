@@ -21,7 +21,7 @@ object RobotConfig {
      * cannot win over this robot's compiled defaults.
      *
      * Bump it whenever the tuned values stop applying:
-     *  - a new season fork (last season's tuning is meaningless), and
+     *  - a new season (last season's tuning is meaningless), and
      *  - **the sensorbot → competition-robot swap**, since the Control Hub
      *    usually moves between chassis and carries its tuning file along.
      *    A light sensorbot's DriveConfig on a heavy competition robot is

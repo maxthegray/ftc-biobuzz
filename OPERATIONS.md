@@ -7,7 +7,7 @@ checklist** at the end lists what still has to be checked on hardware.
 
 ## Bring-up checklist
 
-Run this after a fresh fork, a hardware rebuild, or a framework change. Do the
+Run this after a fresh clone, a hardware rebuild, or a framework change. Do the
 steps in order, **robot on blocks until step 4.**
 
 `pedro/Constants.java` carries measured Pinpoint offsets and directions, the

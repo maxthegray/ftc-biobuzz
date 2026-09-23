@@ -6,9 +6,8 @@ AutoTune, the [Ivy](https://pedropathing.com/docs/ivy) command scheduler,
 Panels telemetry, WPILOG flight recording for AdvantageScope, and Sloth hot
 reload.
 
-Built on [`ftc-starter`](https://github.com/maxthegray/ftc-starter), a
-season-agnostic base that gets re-forked every year. That repo stays clean;
-this one is where the actual season happens.
+Originally forked from `ftc-starter`, which is now legacy; this is the main
+repo.
 
 ## Start here
 
@@ -116,8 +115,8 @@ TeamCode/src/main/
     └── opmodes/              teleop, diagnostics, skeletons, archived
 ```
 
-`core/` is season- and chassis-agnostic, and it's what gets cherry-picked back
-to `ftc-starter`. Season mechanisms go in `subsystems/`, not
+`core/` is the framework (runtime, drive, localization, logging, the Limelight
+adapter) and holds no game logic. Season mechanisms go in `subsystems/`, not
 `core/subsystems/`.
 
 ## How I work in here
@@ -140,16 +139,6 @@ replaces it in one commit:
    Control Hub is ignored instead of silently loading onto a heavier robot.
 
 Tag `sensorbot-final` before the swap.
-
-### Sending fixes back to ftc-starter
-
-```sh
-git remote add upstream https://github.com/maxthegray/ftc-starter.git
-git fetch upstream
-git cherry-pick <sha>
-```
-
-Only `core/` changes make the trip.
 
 ## Daily commands
 

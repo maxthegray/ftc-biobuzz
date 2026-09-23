@@ -21,7 +21,7 @@ import java.util.Locale
  * hot-reloadable again.
  *
  * Usage: the framework registers `DriveConfig` / `LocalizerConfig` itself
- * (see [OpModeBase]); season forks add their own in `configure()`:
+ * (see [OpModeBase]); season code adds its own in `configure()`:
  *
  * ```kotlin
  * ConfigStore.register("lift", LiftConfig, LiftConfig::resetDefaults)
@@ -37,7 +37,7 @@ import java.util.Locale
  * compiled defaults. Compiled defaults also apply for any key missing from
  * the file, so adding a new field never requires touching the file.
  * Files whose schema does not match [RobotConfig.CONFIG_SCHEMA] are ignored,
- * preventing a season fork from inheriting stale tuning by accident.
+ * preventing a new season or robot from inheriting stale tuning by accident.
  */
 object ConfigStore {
 
