@@ -8,7 +8,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class HiveStateEstimatorTest {
+class HiveStateTest {
 
     private val ms = 1_000_000L
 

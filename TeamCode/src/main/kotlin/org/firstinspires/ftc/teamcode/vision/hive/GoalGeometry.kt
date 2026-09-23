@@ -80,9 +80,9 @@ internal fun LimelightPose.tagRotation(): Rotation3 =
         Rotation3.aboutX(Math.toRadians(rollDegrees))
 
 /**
- * Pure geometry from a Limelight tag pose to the goal in robot coordinates.
- * Robot frame: x forward, y left, z up from the tiles, inches; see
- * [TurretCameraMountConfig] for the turret and lens conventions.
+ * Geometry from a Limelight tag pose to the goal in robot coordinates, using
+ * the camera mount in [HiveConfig]. Robot frame: x forward, y left, z up from
+ * the tiles, inches.
  */
 object GoalGeometry {
 
@@ -94,22 +94,23 @@ object GoalGeometry {
     fun tagFacingInCamera(pose: LimelightPose): Vec3 = pose.tagRotation().apply(Vec3(0.0, 0.0, -1.0))
 
     /** A camera-space point, inches, in the robot frame at [turretAngleRad]. */
-    fun cameraToRobot(point: Vec3, turretAngleRad: Double, mount: TurretCameraMount): Vec3 {
-        val turret = rotateCameraToTurret(point, mount) + Vec3(mount.forwardIn, mount.leftIn, mount.heightIn)
-        return rotateTurretToRobot(turret, turretAngleRad) + Vec3(mount.axisForwardIn, mount.axisLeftIn, 0.0)
+    fun cameraToRobot(point: Vec3, turretAngleRad: Double): Vec3 {
+        val turret = rotateCameraToTurret(point) +
+            Vec3(HiveConfig.cameraForwardIn, HiveConfig.cameraLeftIn, HiveConfig.cameraHeightIn)
+        return rotateTurretToRobot(turret, turretAngleRad) + Vec3(HiveConfig.axisForwardIn, HiveConfig.axisLeftIn, 0.0)
     }
 
     /** A camera-space direction in the robot frame at [turretAngleRad]. */
-    fun directionCameraToRobot(direction: Vec3, turretAngleRad: Double, mount: TurretCameraMount): Vec3 =
-        rotateTurretToRobot(rotateCameraToTurret(direction, mount), turretAngleRad)
+    fun directionCameraToRobot(direction: Vec3, turretAngleRad: Double): Vec3 =
+        rotateTurretToRobot(rotateCameraToTurret(direction), turretAngleRad)
 
     /** Turret angle that points the turret at [pointRobot], radians, CCW from the robot's front. */
-    fun turretBearingRad(pointRobot: Vec3, mount: TurretCameraMount): Double =
-        atan2(pointRobot.y - mount.axisLeftIn, pointRobot.x - mount.axisForwardIn)
+    fun turretBearingRad(pointRobot: Vec3): Double =
+        atan2(pointRobot.y - HiveConfig.axisLeftIn, pointRobot.x - HiveConfig.axisForwardIn)
 
     /** Horizontal distance from the turret axis to [pointRobot], inches. */
-    fun horizontalDistanceFromTurretIn(pointRobot: Vec3, mount: TurretCameraMount): Double =
-        hypot(pointRobot.x - mount.axisForwardIn, pointRobot.y - mount.axisLeftIn)
+    fun horizontalDistanceFromTurretIn(pointRobot: Vec3): Double =
+        hypot(pointRobot.x - HiveConfig.axisForwardIn, pointRobot.y - HiveConfig.axisLeftIn)
 
     /** Bearing of [pointRobot] from the robot's pose point, radians, CCW from the robot's front. */
     fun robotBearingRad(pointRobot: Vec3): Double = atan2(pointRobot.y, pointRobot.x)
@@ -119,14 +120,14 @@ object GoalGeometry {
         Math.toDegrees(atan2(-direction.z, hypot(direction.x, direction.y)))
 
     /** Camera (right, down, out of lens) → turret-aligned (forward, left, up), pitched then yawed. */
-    private fun rotateCameraToTurret(v: Vec3, mount: TurretCameraMount): Vec3 {
+    private fun rotateCameraToTurret(v: Vec3): Vec3 {
         val forward = v.z
         val left = -v.x
         val up = -v.y
-        val pitch = Math.toRadians(mount.pitchUpDeg)
+        val pitch = Math.toRadians(HiveConfig.cameraPitchUpDeg)
         val f1 = forward * cos(pitch) - up * sin(pitch)
         val u1 = forward * sin(pitch) + up * cos(pitch)
-        val yaw = Math.toRadians(mount.yawDeg)
+        val yaw = Math.toRadians(HiveConfig.cameraYawDeg)
         return Vec3(f1 * cos(yaw) - left * sin(yaw), f1 * sin(yaw) + left * cos(yaw), u1)
     }
 

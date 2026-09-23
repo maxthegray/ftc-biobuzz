@@ -315,9 +315,9 @@ Season mechanism skeletons live under `subsystems/`: `intake/IntakeSubsystem`,
 servo blocker; Turret owns all mechanically linked turret servos. Shooter
 will accept target RPM from `shooter/ShotModel.rpmForDistance`, a
 distance-to-speed function still to be fitted from shots at measured
-distances (it returns null until then). The turret will implement
-`turret/TurretAngleSource` from a `ScalarHistory` of its servo-encoder angle,
-so `HiveGoalSubsystem` can place each camera frame at its capture time.
+distances (it returns null until then). The turret will keep a short timestamped
+history of its servo-encoder angle and give `HiveTracker` a lookup into it, so
+each camera frame is placed at its capture time.
 
 These are unconfigured skeletons, not registered in any op-mode. Their `init`
 fails explicitly until hardware is implemented. Once CAD defines the
@@ -341,12 +341,12 @@ Season vision code is grouped by responsibility under `vision/`:
   calibration and observation freshness.
 - `apriltags/`: season tag identities, FIRST's cluster geometry, and sighting
   history.
-- `hive/`: HIVE goal tracking for the turret-mounted Limelight. `GoalGeometry`
-  places each tag's implied goal (its CELL's opening centre) on the robot
-  through `TurretCameraMountConfig` and the turret angle at capture time;
-  `HiveStateEstimator` infers which CELL of each HIVE is raised from tag
-  heights, with hysteresis and tip counts; `HiveGoalTracker` fuses each
-  alliance's goal; `HiveGoalSubsystem` exposes both alliances to op-modes.
+- `hive/`: HIVE goal tracking for the turret-mounted Limelight. `HiveConfig`
+  holds the camera mount and thresholds; `GoalGeometry` places each tag's
+  implied goal (its CELL's opening centre) on the robot through that mount and
+  the turret angle at capture time; `HiveState` infers which CELL of each HIVE
+  is raised from tag heights, with hysteresis and tip counts; `HiveTracker`, a
+  subsystem, fuses each alliance's goal and exposes both alliances to op-modes.
 - `diagnostics/`: diagnostic configuration and saved lab records.
 - `logging/`: settings-change logging shared by cameras and diagnostics.
 - `archived/`: the older Limelight ball-follow controllers and their logging

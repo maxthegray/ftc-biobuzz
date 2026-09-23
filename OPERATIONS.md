@@ -175,7 +175,7 @@ pipeline; use **pipeline 1** (`visionDiagnostics.limelightTagPipelineIndex`):
 | Standard | ID Filter | Blank for the first session, so stray tags show as `NOT A BIOBUZZ TAG`; later `30,31,…,45` |
 | Standard | Detector Downscale | Start 1–2 and record it |
 | Advanced | Full 3D | **On** — required for camera-space pose |
-| Advanced | Camera pose in robot space / field map | Leave unset; the robot code places tags itself from `turretCamera`, and the HIVES pivot |
+| Advanced | Camera pose in robot space / field map | Leave unset; the robot code places tags itself from `HiveConfig`, and the HIVES pivot |
 
 Download the pipeline file from the web interface after tuning and commit it
 next to the lab record.
@@ -316,10 +316,11 @@ Setup:
 
 1. Limelight on a tripod, upright (image not flipped), pipeline 1 as above
    with **Full 3D on**.
-2. Measure and set `turretCamera` in Panels: `heightIn` (lens centre above the
-   tiles), `pitchUpDeg` (optical axis above horizontal; a phone level on the
-   housing), `yawDeg` 0, `forwardIn`/`leftIn`/`axisForwardIn`/`axisLeftIn` 0 (the
-   tripod point is the reference). Set `measured` true. The turret angle is held
+2. Measure and set `hive` in Panels (`HiveConfig`): `cameraHeightIn` (lens
+   centre above the tiles), `cameraPitchUpDeg` (optical axis above horizontal;
+   a phone level on the housing), `cameraYawDeg` 0,
+   `cameraForwardIn`/`cameraLeftIn`/`axisForwardIn`/`axisLeftIn` 0 (the tripod
+   point is the reference). Set `mountMeasured` true. The turret angle is held
    at 0.
 3. Open **Hive Tag Survey**; *Survey Setup* must read `measured`.
 
@@ -336,7 +337,7 @@ clears the survey memory):
    the opening centre's height.
 3. **Raised vs lowered.** With both CELLs of a HIVE in view, note the tag heights
    *Tags (latest)* reports for each. Tip the HIVE and repeat. Set
-   `hiveGoal.raisedMinHeightIn` midway between the raised and lowered heights,
+   `hive.raisedMinHeightIn` midway between the raised and lowered heights,
    and keep `classificationMarginIn` well under half the gap. *HIVEs* must
    flip after a tip (event `HIVE TIP: …`) and never flip on a still HIVE.
    *faces … below horizontal* should differ between raised and lowered tags;
@@ -347,8 +348,8 @@ clears the survey memory):
 5. **Every tag.** Walk the tripod round so all 16 tags appear in *Tags
    (latest)*; save a record. `make pull-lab-records` and commit it.
 
-Robot use: `HiveGoalSubsystem` (registered after the Limelight) with the
-turret as its `TurretAngleSource`, `HiveGoalSubsystem.MATCH_SETUP` priors in
+Robot use: `HiveTracker` (registered after the Limelight) with the turret's
+measured-angle lookup as `turretAngleAt`, `HiveTracker.MATCH_SETUP` priors in
 autonomous (teleop starts unknown), and the localizer's `estimator::poseAt` and
 pose so a held goal follows the robot's motion. Autonomous can wait for a tip
 with `race(waitUntil { hive.tipCount(RED) > before }, monotonicWaitMs(…))`;
@@ -516,8 +517,8 @@ Three separate levels; passing one says nothing about the next.
 | Pinpoint unhealthy | Init Health status (`waiting for start pose` = pose write not landing), I²C cable, robot still at power-up (IMU calibration) |
 | Ball target flickers or lingers | `BallCamera/frame/ageMs`, `rate/processedFps`, `target/status`, `candidates/accepted` |
 | Tag diagnostic shows nothing | Limelight health (pipeline index/type), `Limelight/fiducial/count`, Full 3D and marker size |
-| HIVE goal missing or on the wrong CELL | `HiveGoal/<ALLIANCE>/state`, `HiveGoal/tags/heightIn` and `tags/class` against `settings/raisedMinHeightIn`, `mount/*`, `frames/withoutTurretAngle` |
-| HIVE goal spread large | `HiveGoal/tags/deviationIn` per tag: one tag far off is an outlier; all off together is the mount or rotation convention |
+| HIVE goal missing or on the wrong CELL | `Hive/<ALLIANCE>/state`, `Hive/tags/heightIn` and `tags/class` against `settings/raisedMinHeightIn`, `mount/*`, `frames/withoutTurretAngle` |
+| HIVE goal spread large | `Hive/tags/deviationIn` per tag: one tag far off is an outlier; all off together is the mount or rotation convention |
 
 - Repeated `LOOP OVERRUN` events matter; one at init/stop is usually warm-up.
 - Swap a battery below 12.0 V resting. Normal operation should not sag below ~10 V.

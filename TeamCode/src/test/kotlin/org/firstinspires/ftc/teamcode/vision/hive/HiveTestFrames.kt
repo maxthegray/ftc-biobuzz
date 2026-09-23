@@ -1,20 +1,24 @@
 package org.firstinspires.ftc.teamcode.vision.hive
 
+import com.pedropathing.math.Pose
+import com.qualcomm.robotcore.hardware.HardwareMap
+import org.firstinspires.ftc.teamcode.core.sim.FakeClock
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightFiducial
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightPose
+import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightReading
+import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSource
+import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSubsystem
 import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags
 import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags.Alliance
 import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags.Cell
 import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags.CellLocation
 
 /**
- * Synthetic Limelight fiducials for a level camera at the robot's pose point
- * on the tiles ([mount]) with the turret at 0, so camera (right, down, out)
- * = robot (−y, −z, x). Every tag squarely faces the lens.
+ * Synthetic Limelight fiducials for [HiveConfig]'s default mount: a level
+ * camera at the robot's pose point on the tiles with the turret at 0, so camera
+ * (right, down, out) = robot (−y, −z, x). Every tag squarely faces the lens.
  */
 internal object HiveTestFrames {
-
-    val mount = TurretCameraMount()
 
     /** Goal height of a raised CELL; its tags sit 7.19 in lower, well above the 43.95 in threshold. */
     const val RAISED_GOAL_HEIGHT_IN = 60.0
@@ -24,15 +28,10 @@ internal object HiveTestFrames {
 
     fun cell(alliance: Alliance, location: CellLocation) = Cell(alliance, location)
 
-    /** Tags of [cell] whose solved poses all imply a goal at [goalRobot]; [ids] limits which are visible. */
-    fun cluster(
-        cell: Cell,
-        goalRobot: Vec3,
-        ids: List<Int> = BiobuzzAprilTags.tagsOf(cell).map { it.id },
-        perturbIn: Map<Int, Vec3> = emptyMap(),
-    ): List<LimelightFiducial> {
+    /** Tags of [cell] whose solved poses all imply a goal at [goalRobot]; [perturbIn] moves single tags (camera frame). */
+    fun cluster(cell: Cell, goalRobot: Vec3, perturbIn: Map<Int, Vec3> = emptyMap()): List<LimelightFiducial> {
         val goalCam = Vec3(-goalRobot.y, -goalRobot.z, goalRobot.x)
-        return BiobuzzAprilTags.tagsOf(cell).filter { it.id in ids }.map { tag ->
+        return BiobuzzAprilTags.tagsOf(cell).map { tag ->
             val centre = goalCam +
                 Vec3(tag.offsetFromClusterCenterInches, BiobuzzAprilTags.TAG_ROW_Y_INCHES, BiobuzzAprilTags.TAG_ROW_Z_INCHES) +
                 (perturbIn[tag.id] ?: Vec3(0.0, 0.0, 0.0))
@@ -65,4 +64,80 @@ internal object HiveTestFrames {
         cameraPoseTargetSpace = null,
         cornerCount = 4,
     )
+}
+
+/** A [HiveTracker] fed through a real [LimelightSubsystem] on a fake source and clock. */
+internal class HiveRig(priors: Map<Alliance, HiveState?> = HiveTracker.MATCH_SETUP) {
+    val clock = FakeClock()
+    val source = FakeLimelightSource()
+    val limelight = LimelightSubsystem(source = source, clock = clock)
+    var turretAngle: Double? = 0.0
+    val requestedAngleTimes = ArrayList<Long>()
+
+    /** Returned both as the pose at capture and as the current pose; null means no localizer. */
+    var pose: Pose? = null
+    val events = ArrayList<String>()
+    val tracker = HiveTracker(
+        limelight,
+        { t -> requestedAngleTimes += t; turretAngle },
+        priors,
+        poseAt = { pose },
+        currentPose = { pose },
+        eventSink = events::add,
+        clock = clock,
+    )
+    private var frameTs = 100.0
+
+    init {
+        limelight.init(HardwareMap(null, null))
+        source.isConnected = true
+    }
+
+    /** One new Limelight frame, 20 ms after the previous tick. Capture time = now − age − latencies. */
+    fun frame(
+        fiducials: List<LimelightFiducial>,
+        ageMs: Long = 0L,
+        captureMs: Double = 0.0,
+        targetingMs: Double = 0.0,
+        pipeline: Int = 0,
+    ) {
+        clock.advanceMs(20.0)
+        frameTs += 20.0
+        source.reading = LimelightReading(
+            receiptTimestampMs = frameTs.toLong(),
+            ageMs = ageMs,
+            valid = fiducials.isNotEmpty(),
+            pipelineIndex = pipeline,
+            pipelineType = "pipe_fiducial",
+            captureLatencyMs = captureMs,
+            targetingLatencyMs = targetingMs,
+            limelightTimestampMs = frameTs,
+            fiducials = fiducials,
+        )
+        limelight.periodic()
+        tracker.periodic()
+    }
+
+    /** A tick with no new frame. */
+    fun idle(ms: Double) {
+        clock.advanceMs(ms)
+        limelight.periodic()
+        tracker.periodic()
+    }
+}
+
+internal class FakeLimelightSource : LimelightSource {
+    override var isRunning = false
+    override var isConnected = false
+    var reading = LimelightReading()
+
+    override fun setPollRateHz(rateHz: Int) {}
+    override fun pipelineSwitch(index: Int): Boolean = true
+    override fun start() {
+        isRunning = true
+    }
+    override fun latestReading(): LimelightReading = reading
+    override fun stop() {
+        isRunning = false
+    }
 }

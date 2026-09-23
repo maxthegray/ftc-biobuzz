@@ -9,8 +9,9 @@ import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
  *
  * The Limelight rides on the turret. Once hardware exists, read the servo
  * encoder every tick in `periodic()`, convert it to turret radians (gear ratio
- * included), add it to a `ScalarHistory` with `clock.nanos()`, and implement
- * [TurretAngleSource] from that history for `HiveGoalSubsystem`.
+ * included, CCW from the robot's front), keep a short timestamped history of
+ * it (`clock.nanos()`, interpolated like `PoseHistory`, no angle wrapping), and
+ * pass a lookup `(nanos) -> Double?` to `HiveTracker` as `turretAngleAt`.
  */
 class TurretSubsystem : SubsystemBase("Turret") {
     override fun init(hardwareMap: HardwareMap) {

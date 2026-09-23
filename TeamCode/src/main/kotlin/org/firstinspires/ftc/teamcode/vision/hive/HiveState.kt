@@ -14,6 +14,9 @@ enum class HiveState(val raised: CellLocation) {
         fun withRaised(location: CellLocation): HiveState =
             if (location == CellLocation.AUDIENCE) AUDIENCE_RAISED else FAR_RAISED
 
+        fun withLowered(location: CellLocation): HiveState =
+            if (location == CellLocation.AUDIENCE) FAR_RAISED else AUDIENCE_RAISED
+
         /**
          * Pre-match staging, manual §10.3.1 / Figure 10-2: the CELL that points
          * at a FLOWER is tilted down, leaving RED's audience CELL and BLUE's far
@@ -61,7 +64,7 @@ data class HiveTransition(
 
 /**
  * One HIVE's state from per-frame votes, with hysteresis: a state changes only
- * after [HiveGoalSettings.tipConfirmFrames] consecutive frames vote for the
+ * after [HiveConfig.tipConfirmFrames] consecutive frames vote for the
  * other state, so a single bad solve cannot fake a tip. A frame that votes for
  * the current state cancels a pending change; a frame without a vote (no tags
  * of this HIVE, or tags that disagree) leaves it pending.

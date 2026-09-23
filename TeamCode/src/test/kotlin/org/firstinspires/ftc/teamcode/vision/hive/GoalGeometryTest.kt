@@ -3,39 +3,50 @@ package org.firstinspires.ftc.teamcode.vision.hive
 import kotlin.math.PI
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightPose
 import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Before
 import org.junit.Test
 
 class GoalGeometryTest {
 
-    private val level = TurretCameraMount(heightIn = 10.0)
+    @Before
+    fun setUp() {
+        HiveConfig.resetDefaults()
+        HiveConfig.cameraHeightIn = 10.0
+    }
+
+    @After
+    fun tearDown() = HiveConfig.resetDefaults()
 
     @Test
     fun levelCameraMapsLensAxesOntoRobotAxes() {
-        assertVec(Vec3(100.0, 0.0, 10.0), GoalGeometry.cameraToRobot(Vec3(0.0, 0.0, 100.0), 0.0, level))
-        assertVec(Vec3(100.0, -10.0, 5.0), GoalGeometry.cameraToRobot(Vec3(10.0, 5.0, 100.0), 0.0, level))
+        assertVec(Vec3(100.0, 0.0, 10.0), GoalGeometry.cameraToRobot(Vec3(0.0, 0.0, 100.0), 0.0))
+        assertVec(Vec3(100.0, -10.0, 5.0), GoalGeometry.cameraToRobot(Vec3(10.0, 5.0, 100.0), 0.0))
     }
 
     @Test
     fun pitchedCameraLooksUp() {
-        val mount = level.copy(pitchUpDeg = 30.0)
-        assertVec(Vec3(86.60254, 0.0, 60.0), GoalGeometry.cameraToRobot(Vec3(0.0, 0.0, 100.0), 0.0, mount))
+        HiveConfig.cameraPitchUpDeg = 30.0
+        assertVec(Vec3(86.60254, 0.0, 60.0), GoalGeometry.cameraToRobot(Vec3(0.0, 0.0, 100.0), 0.0))
     }
 
     @Test
     fun turretAngleRotatesAboutItsAxis() {
-        val mount = level.copy(axisForwardIn = -3.0, axisLeftIn = 1.0, forwardIn = 2.0)
-        val p = GoalGeometry.cameraToRobot(Vec3(0.0, 0.0, 50.0), PI / 2, mount)
+        HiveConfig.axisForwardIn = -3.0
+        HiveConfig.axisLeftIn = 1.0
+        HiveConfig.cameraForwardIn = 2.0
+        val p = GoalGeometry.cameraToRobot(Vec3(0.0, 0.0, 50.0), PI / 2)
         assertVec(Vec3(-3.0, 1.0 + 52.0, 10.0), p)
-        assertEquals(PI / 2, GoalGeometry.turretBearingRad(p, mount), 1e-9)
-        assertEquals(52.0, GoalGeometry.horizontalDistanceFromTurretIn(p, mount), 1e-9)
+        assertEquals(PI / 2, GoalGeometry.turretBearingRad(p), 1e-9)
+        assertEquals(52.0, GoalGeometry.horizontalDistanceFromTurretIn(p), 1e-9)
     }
 
     @Test
     fun yawedCameraBearingIncludesTheYaw() {
-        val mount = level.copy(yawDeg = 10.0)
-        val p = GoalGeometry.cameraToRobot(Vec3(0.0, 0.0, 80.0), 0.25, mount)
-        assertEquals(0.25 + Math.toRadians(10.0), GoalGeometry.turretBearingRad(p, mount), 1e-9)
+        HiveConfig.cameraYawDeg = 10.0
+        val p = GoalGeometry.cameraToRobot(Vec3(0.0, 0.0, 80.0), 0.25)
+        assertEquals(0.25 + Math.toRadians(10.0), GoalGeometry.turretBearingRad(p), 1e-9)
     }
 
     @Test
