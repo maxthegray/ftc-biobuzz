@@ -34,7 +34,7 @@ On the robot:
    | `ballCamera` | goBILDA Global Shutter USB Camera (3122-0004-0001) | Webcam | Ball Tracking Test |
 
    The four motor names and `pinpoint` are defined in
-   [`RobotConfig.kt`](TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/core/runtime/RobotConfig.kt)
+   [`RobotConfig.kt`](TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/RobotConfig.kt)
    — change them there, not just on the Driver Station. `limelight` and
    `ballCamera` are defaults on `LimelightSubsystem`/`BallCameraSubsystem`
    instead, since vision hardware names aren't identity in the same sense.
@@ -83,7 +83,7 @@ and rebuild when you need it.
 | Buttons | `core/util/GamepadEx.kt`, `Trigger.kt` |
 | Drive and drive commands | `core/subsystems/drive/MecanumDriveSubsystem.kt`, `DriveConfig.kt` |
 | Localization and vision corrections | `core/subsystems/localization/` |
-| Hardware names, field size, config schema | `core/runtime/RobotConfig.kt` |
+| Hardware names, field size, config schema | `RobotConfig.kt` |
 | Pedro constants and AutoTune | `pedro/Constants.java`, `pedro/Tuning.java` |
 | Flight recorder | `core/logging/FlightRecorder.kt` |
 | Vision diagnostics | `opmodes/diagnostics/`, `vision/`, then `OPERATIONS.md` §8 |
@@ -102,6 +102,7 @@ TeamCode/src/main/
 │   ├── Tuning.java           AutoTune procedure registration
 │   └── procedures/           AutoTune procedures (copied from the Pedro Quickstart)
 └── kotlin/org/firstinspires/ftc/teamcode/
+    ├── RobotConfig.kt        hardware names, field symmetry, config schema
     ├── core/
     │   ├── control/          PIDF
     │   ├── hardware/         SRSHub
@@ -110,13 +111,14 @@ TeamCode/src/main/
     │   ├── runtime/          Robot, OpModeBase, SubsystemBase, config
     │   ├── subsystems/       drive, localization (+ latency-compensated pose correction), Limelight
     │   └── util/             gamepads, triggers, alliance, telemetry
+    ├── subsystems/           season mechanisms: intake, transfer, shooter, turret
     ├── vision/               season vision: tag catalog, HIVE goal tracking, ball camera
     └── opmodes/              teleop, diagnostics, skeletons, archived
 ```
 
-`core/` is the framework (runtime, drive, localization, logging, the Limelight
-adapter) and holds no game logic. Season mechanisms go in `subsystems/`, not
-`core/subsystems/`.
+`core/` is the framework: code that would carry into next season unchanged.
+Anything about this game or this robot goes outside it; season mechanisms go in
+`subsystems/`, not `core/subsystems/`.
 
 ## How I work in here
 
@@ -133,7 +135,7 @@ Right now this runs on a **sensorbot**, a temporary chassis. The real robot
 replaces it in one commit:
 
 1. Re-run AutoTune and replace the values in `pedro/Constants.java`.
-2. Fix the hardware names in `core/runtime/RobotConfig.kt`.
+2. Fix the hardware names in `RobotConfig.kt`.
 3. Bump `RobotConfig.CONFIG_SCHEMA`, so the sensorbot's tuning file on the
    Control Hub is ignored instead of silently loading onto a heavier robot.
 

@@ -3,15 +3,15 @@ package org.firstinspires.ftc.teamcode.core.subsystems.localization
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver.DeviceStatus
 import com.qualcomm.robotcore.hardware.I2cDeviceSynchSimple
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import org.firstinspires.ftc.teamcode.RobotConfig
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
-import org.firstinspires.ftc.teamcode.core.runtime.RobotConfig
 import org.firstinspires.ftc.teamcode.core.sim.FakeClock
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.PedroDriveFixture
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.deviceProxy
 import org.junit.Assert.*
 import org.junit.Test
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 
 class PinpointReadinessTest {
     private class Harness {

@@ -3,23 +3,23 @@ package org.firstinspires.ftc.teamcode.opmodes.diagnostics
 import com.qualcomm.hardware.limelightvision.Limelight3A
 import java.util.Locale
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName
+import org.firstinspires.ftc.teamcode.RobotConfig
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.runtime.ConfigStore
 import org.firstinspires.ftc.teamcode.core.runtime.LoopPhase
 import org.firstinspires.ftc.teamcode.core.runtime.Preflight
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
-import org.firstinspires.ftc.teamcode.core.runtime.RobotConfig
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightFiducial
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSubsystem
 import org.firstinspires.ftc.teamcode.core.util.TelemetryBag
+import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags
+import org.firstinspires.ftc.teamcode.vision.apriltags.TagSightingTracker
 import org.firstinspires.ftc.teamcode.vision.ball.BallCameraSubsystem
 import org.firstinspires.ftc.teamcode.vision.ball.BallPreviewMode
 import org.firstinspires.ftc.teamcode.vision.ball.BallVisionConfig
 import org.firstinspires.ftc.teamcode.vision.ball.BallVisionSettings
-import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags
 import org.firstinspires.ftc.teamcode.vision.diagnostics.LabRecordWriter
-import org.firstinspires.ftc.teamcode.vision.apriltags.TagSightingTracker
 import org.firstinspires.ftc.teamcode.vision.diagnostics.VisionDiagnosticsConfig
 import org.firstinspires.ftc.teamcode.vision.diagnostics.VisionLabRecord
 

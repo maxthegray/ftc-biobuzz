@@ -2,7 +2,7 @@ package org.firstinspires.ftc.teamcode.core.util
 
 import com.pedropathing.math.Pose
 import com.pedropathing.utils.Angle
-import org.firstinspires.ftc.teamcode.core.runtime.RobotConfig
+import org.firstinspires.ftc.teamcode.RobotConfig
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

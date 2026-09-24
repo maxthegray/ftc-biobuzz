@@ -47,7 +47,7 @@ def json_safe(value):
 
 
 def field_length():
-    config = ROOT / "TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/core/runtime/RobotConfig.kt"
+    config = ROOT / "TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/RobotConfig.kt"
     match = re.search(r"const val LENGTH_INCHES\s*=\s*([\d.]+)", config.read_text())
     if not match:
         raise ValueError("Could not read RobotConfig.Field.LENGTH_INCHES")

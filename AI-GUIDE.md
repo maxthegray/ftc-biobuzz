@@ -16,13 +16,16 @@ of `FIRST-Tech-Challenge/FtcRobotController` (now 11.2.1). It was forked from
 `maxthegray/ftc-starter`, which is legacy: nothing flows back to it, and this
 is the main repo.
 
-The directory split is organisational:
+The directory split is organisational. The test for `core/`: **would it carry
+into next season unchanged?** If yes it goes in `core/` (runtime, drive,
+localization, logging, the Limelight adapter); if not, it goes outside.
 
-- `core/` is the framework (runtime, drive, localization, logging, the
-  Limelight adapter). Keep game logic, season constants and this year's
-  mechanism names out of it, so it carries into next season as is.
-- Everything else — `opmodes/`, `vision/`, season subsystems, `RobotConfig`,
-  `pedro/` — is this season's.
+- Everything else — `opmodes/`, `vision/`, season subsystems, `RobotConfig.kt`
+  and `pedro/` (this robot's and season's settings, which `core/` reads) — is
+  this season's.
+- Don't add options or hooks to `core/` just to keep season code out of it.
+  Split the feature instead: device adapters in `core/`, game logic outside
+  (e.g. `LimelightSubsystem` vs `vision/hive`).
 
 The code currently runs on a **sensorbot**: a temporary chassis to develop
 against while the competition robot is built. The competition robot replaces

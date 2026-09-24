@@ -3,7 +3,7 @@ package org.firstinspires.ftc.teamcode.core.util
 import com.pedropathing.api.PoseFactory
 import com.pedropathing.math.Pose
 import com.pedropathing.utils.Angle
-import org.firstinspires.ftc.teamcode.core.runtime.RobotConfig
+import org.firstinspires.ftc.teamcode.RobotConfig
 
 /**
  * How the season's field maps RED coordinates onto BLUE. FTC alternates
