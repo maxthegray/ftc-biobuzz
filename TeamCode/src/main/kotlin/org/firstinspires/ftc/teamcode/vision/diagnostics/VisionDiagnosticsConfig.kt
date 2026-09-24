@@ -11,17 +11,14 @@ import com.bylazar.configurables.annotations.Configurable
 object VisionDiagnosticsConfig {
 
     private const val DEFAULT_RUN_BOTH_CAMERAS = false
-    private const val DEFAULT_LIMELIGHT_TAG_PIPELINE_INDEX = 1
+    private const val DEFAULT_LIMELIGHT_TAG_PIPELINE_INDEX = 0
     private const val DEFAULT_LIMELIGHT_POLL_RATE_HZ = 100
     private const val DEFAULT_LIMELIGHT_MAX_RESULT_AGE_MS = 100
 
     /** Open the Limelight and the USB camera together to compare timing under combined load. */
     @JvmField var runBothCameras: Boolean = DEFAULT_RUN_BOTH_CAMERAS
 
-    /**
-     * Limelight pipeline slot configured for AprilTags in the web interface.
-     * Slot 0 is reserved for the archived Ball Follow color pipeline.
-     */
+    /** Limelight pipeline slot configured for AprilTags in the web interface. */
     @JvmField var limelightTagPipelineIndex: Int = DEFAULT_LIMELIGHT_TAG_PIPELINE_INDEX
 
     @JvmField var limelightPollRateHz: Int = DEFAULT_LIMELIGHT_POLL_RATE_HZ

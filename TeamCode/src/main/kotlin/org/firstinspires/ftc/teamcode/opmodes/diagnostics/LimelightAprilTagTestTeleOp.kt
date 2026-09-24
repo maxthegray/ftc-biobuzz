@@ -17,7 +17,7 @@ import org.firstinspires.ftc.teamcode.vision.diagnostics.VisionDiagnosticsConfig
  * freshness, plus a per-tag sighting history. Commands no motors, applies no
  * localization corrections, and infers nothing about HIVE state.
  *
- * Pipeline slot: `visionDiagnostics.limelightTagPipelineIndex` (default 1).
+ * Pipeline slot: `visionDiagnostics.limelightTagPipelineIndex` (default 0).
  * `visionDiagnostics.runBothCameras` also opens the USB ball camera to compare
  * loop timing under both loads. Driver A (after START) saves a lab record.
  */

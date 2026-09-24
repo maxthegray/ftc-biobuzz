@@ -159,12 +159,11 @@ nothing about where the camera sits on the robot.
 
 Configure over a laptop USB connection at `http://limelight.local:5801`
 (Limelight 3A quick-start). Reaching the web interface through the Control Hub
-has not been verified here. Keep **pipeline 0** as the archived Ball Follow's yellow color
-pipeline; use **pipeline 1** (`visionDiagnostics.limelightTagPipelineIndex`):
+has not been verified here. Use **pipeline 0** (`visionDiagnostics.limelightTagPipelineIndex`):
 
 | Tab | Setting | Value |
 |---|---|---|
-| Input | Pipeline Type | Fiducial Markers |
+| Input | Pipeline Type | AprilTags |
 | Input | Resolution | Record what you choose; Limelight suggests highest for 3D, 640×480 for 2D-only |
 | Input | Exposure / Black Level / Sensor Gain | Start low exposure (motion blur), black level 0, gain 15; tune while holding a tag |
 | Standard | Family | AprilTag Classic 36h11 |
@@ -311,7 +310,7 @@ each tag implies the same goal point from a different offset. See
 
 Setup:
 
-1. Limelight on a tripod, upright (image not flipped), pipeline 1 as above
+1. Limelight on a tripod, upright (image not flipped), pipeline 0 as above
    with **Full 3D on**.
 2. Measure and set `hive` in Panels (`HiveConfig`): `cameraHeightIn` (lens
    centre above the tiles), `cameraPitchUpDeg` (optical axis above horizontal;
