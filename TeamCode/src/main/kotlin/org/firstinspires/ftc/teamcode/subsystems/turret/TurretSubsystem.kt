@@ -12,6 +12,8 @@ import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
  * included, CCW from the robot's front), keep a short timestamped history of
  * it (`clock.nanos()`, interpolated like `PoseHistory`, no angle wrapping), and
  * pass a lookup `(nanos) -> Double?` to `HiveTracker` as `turretAngleAt`.
+ * Aim at `hive.aimGoal(alliance).turretBearingRad`: the vision goal, or the
+ * odometry estimate until tags are seen. Shoot only when its source is VISION.
  */
 class TurretSubsystem : SubsystemBase("Turret") {
     override fun init(hardwareMap: HardwareMap) {

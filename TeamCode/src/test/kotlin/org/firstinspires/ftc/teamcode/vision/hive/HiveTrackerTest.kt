@@ -223,6 +223,86 @@ class HiveTrackerTest {
     }
 
     @Test
+    fun withoutTagsTheAimGoalIsTheFieldGoalPlacedWithThePose() {
+        val rig = HiveRig()
+        rig.pose = Pose(58.0, 20.0, PI / 2)
+        rig.idle(20.0)
+
+        assertNull(rig.tracker.goal(Alliance.RED))
+        val aim = rig.tracker.aimGoal(Alliance.RED)!!
+        assertEquals(GoalSource.ODOMETRY, aim.source)
+        assertEquals(CellLocation.AUDIENCE, aim.cell.location)
+        assertEquals(HiveField.CENTRE_IN - 15.8 - 20.0, aim.goalRobot.x, 1e-9)
+        assertEquals(0.0, aim.robotBearingRad, 1e-9)
+        assertEquals(HiveField.RAISED_OPENING_HEIGHT_IN, aim.heightIn, 0.0)
+        assertTrue(aim.tagIds.isEmpty())
+    }
+
+    @Test
+    fun aKnownHiveStateBeatsTheRobotsSide() {
+        val rig = HiveRig()
+        rig.pose = Pose(58.0, 120.0, 0.0)
+        rig.idle(20.0)
+        assertEquals("match setup: red audience raised", CellLocation.AUDIENCE, rig.tracker.aimGoal(Alliance.RED)!!.cell.location)
+    }
+
+    @Test
+    fun anUnknownHiveStateAimsAtTheCellOnTheRobotsSide() {
+        val rig = HiveRig(priors = emptyMap())
+        rig.pose = Pose(58.0, 120.0, 0.0)
+        rig.idle(20.0)
+        assertEquals(CellLocation.FAR, rig.tracker.aimGoal(Alliance.RED)!!.cell.location)
+        rig.pose = Pose(58.0, 20.0, 0.0)
+        rig.idle(20.0)
+        assertEquals(CellLocation.AUDIENCE, rig.tracker.aimGoal(Alliance.RED)!!.cell.location)
+    }
+
+    @Test
+    fun visionTakesOverAndOdometryReturnsAfterTheLostTimeout() {
+        val rig = HiveRig()
+        rig.pose = Pose(58.0, 20.0, PI / 2)
+        rig.frame(raised(Alliance.RED, CellLocation.AUDIENCE, 30.0, 3.0))
+
+        val seen = rig.tracker.aimGoal(Alliance.RED)!!
+        assertEquals(GoalSource.VISION, seen.source)
+        assertEquals(30.0, seen.goalRobot.x, 1e-6)
+        assertEquals(3.0, seen.goalRobot.y, 1e-6)
+
+        rig.idle(HiveConfig.lostTimeoutMs + 1.0)
+        assertEquals(GoalSource.ODOMETRY, rig.tracker.aimGoal(Alliance.RED)!!.source)
+    }
+
+    @Test
+    fun withoutAPoseThereIsNoOdometryAim() {
+        val rig = HiveRig()
+        rig.idle(20.0)
+        assertNull(rig.tracker.aimGoal(Alliance.RED))
+
+        rig.pose = Pose(Double.NaN, 20.0, 0.0)
+        rig.idle(20.0)
+        assertNull(rig.tracker.aimGoal(Alliance.RED))
+    }
+
+    @Test
+    fun logsTheAimSourceAndTheFieldGoalError() {
+        val rig = HiveRig()
+        rig.pose = Pose(58.0, 20.0, PI / 2)
+        rig.frame(raised(Alliance.RED, CellLocation.AUDIENCE, HiveField.CENTRE_IN - 15.8 - 20.0, 0.0))
+        val log = RecordingStateLog()
+        rig.tracker.logState(log)
+
+        assertEquals("VISION", log.channels["RED/aimSource"])
+        assertEquals(0.0, log.channels["RED/aimRobotBearingDeg"] as Double, 1e-6)
+        assertEquals(
+            HiveTestFrames.RAISED_GOAL_HEIGHT_IN - HiveField.RAISED_OPENING_HEIGHT_IN,
+            log.channels["RED/fieldGoalErrorIn"] as Double,
+            1e-6,
+        )
+        assertEquals("ODOMETRY", log.channels["BLUE/aimSource"])
+        assertTrue((log.channels["BLUE/fieldGoalErrorIn"] as Double).isNaN())
+    }
+
+    @Test
     fun healthNamesAnUnmeasuredMount() {
         val rig = HiveRig()
         rig.frame(raised(Alliance.RED, CellLocation.AUDIENCE, 72.0, 0.0))

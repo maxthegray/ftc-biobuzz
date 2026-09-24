@@ -3,8 +3,6 @@ package org.firstinspires.ftc.teamcode.vision.hive
 import com.pedropathing.math.Pose
 import java.util.EnumMap
 import java.util.Locale
-import kotlin.math.cos
-import kotlin.math.sin
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.isFinite
@@ -40,6 +38,15 @@ data class CellGoal(
     val heightClass: TagHeightClass,
 )
 
+/** Where a goal came from; only [VISION] is good enough to shoot at. */
+enum class GoalSource {
+    /** Seen by the Limelight, live or held for up to `lostTimeoutMs`. */
+    VISION,
+
+    /** [HiveField]'s approximate point placed with the current pose; an aim hint until tags are seen. */
+    ODOMETRY,
+}
+
 /** An alliance's goal as of now, re-projected onto the current pose when possible. */
 data class GoalObservation(
     val alliance: Alliance,
@@ -55,6 +62,7 @@ data class GoalObservation(
     val captureNanos: Long,
     val ageMs: Double,
     val reprojected: Boolean,
+    val source: GoalSource,
 )
 
 /**
@@ -77,6 +85,11 @@ data class GoalObservation(
  * teleop starts unknown (auton may have tipped a HIVE). [poseAt]/[currentPose]
  * (e.g. `localizer.estimator::poseAt`, `{ localizer.pose }`) keep a held goal in
  * field coordinates so bearings stay right while the robot moves.
+ *
+ * [aimGoal] is what aiming reads: the vision goal when there is one, otherwise
+ * [HiveField]'s point for the CELL this tracker believes is raised (or, with
+ * the state unknown, the CELL on the robot's half of the field), placed with
+ * the current pose. Nothing about past sightings is kept beyond the held goal.
  */
 class HiveTracker(
     private val limelight: LimelightSubsystem,
@@ -115,14 +128,19 @@ class HiveTracker(
     var lastFrameCaptureNanos: Long? = null
         private set
 
-    private class HeldGoal(val cellGoal: CellGoal, val captureNanos: Long, val fieldX: Double?, val fieldY: Double?)
+    private class HeldGoal(val cellGoal: CellGoal, val captureNanos: Long, val field: Vec3?)
 
     private val held = EnumMap<Alliance, HeldGoal>(Alliance::class.java)
     private val goals = EnumMap<Alliance, GoalObservation>(Alliance::class.java)
+    private val aimGoals = EnumMap<Alliance, GoalObservation>(Alliance::class.java)
     private var columns = RowColumns.EMPTY
     private var columnsFrame = -1L
 
+    /** The vision goal: seen this frame or held for up to `lostTimeoutMs`. */
     fun goal(alliance: Alliance): GoalObservation? = goals[alliance]
+
+    /** [goal], or else the [GoalSource.ODOMETRY] estimate; null only without a current pose. */
+    fun aimGoal(alliance: Alliance): GoalObservation? = aimGoals[alliance]
 
     fun state(alliance: Alliance): HiveState? = hives.getValue(alliance).state
 
@@ -155,10 +173,12 @@ class HiveTracker(
             }
         }
 
-        val nowPose = currentPose?.invoke()
+        val nowPose = currentPose?.invoke()?.takeIf { it.isFinite() }
         for (alliance in Alliance.entries) {
             val goal = project(alliance, now, nowPose)
             if (goal == null) goals.remove(alliance) else goals[alliance] = goal
+            val aim = goal ?: nowPose?.let { odometryGoal(alliance, now, it) }
+            if (aim == null) aimGoals.remove(alliance) else aimGoals[alliance] = aim
         }
     }
 
@@ -180,7 +200,8 @@ class HiveTracker(
             val state = hive.state ?: continue
             val goal = cellGoals[Cell(alliance, state.raised)] ?: continue
             if (goal.heightClass == TagHeightClass.LOWERED) continue
-            held[alliance] = HeldGoal(goal, captureNanos, fieldX(pose, goal.goalRobot), fieldY(pose, goal.goalRobot))
+            val field = pose?.takeIf { it.isFinite() }?.let { HiveField.toField(goal.goalRobot, it) }
+            held[alliance] = HeldGoal(goal, captureNanos, field)
         }
     }
 
@@ -190,16 +211,9 @@ class HiveTracker(
         if (ageMs > HiveConfig.lostTimeoutMs) return null
 
         val captured = h.cellGoal.goalRobot
-        val reproject = nowPose != null && h.fieldX != null && h.fieldY != null && nowPose.isFinite()
-        val point = if (reproject) {
-            val dx = h.fieldX!! - nowPose!!.x()
-            val dy = h.fieldY!! - nowPose.y()
-            val c = cos(nowPose.heading())
-            val s = sin(nowPose.heading())
-            Vec3(dx * c + dy * s, -dx * s + dy * c, captured.z)
-        } else {
-            captured
-        }
+        val field = h.field
+        val reproject = nowPose != null && field != null
+        val point = if (reproject) HiveField.toRobot(field!!, nowPose!!) else captured
         return GoalObservation(
             alliance = alliance,
             cell = h.cellGoal.cell,
@@ -213,6 +227,28 @@ class HiveTracker(
             captureNanos = h.captureNanos,
             ageMs = ageMs,
             reprojected = reproject,
+            source = GoalSource.VISION,
+        )
+    }
+
+    private fun odometryGoal(alliance: Alliance, nowNanos: Long, pose: Pose): GoalObservation {
+        val location = state(alliance)?.raised ?: HiveField.cellOnSide(pose.y())
+        val cell = Cell(alliance, location)
+        val point = HiveField.toRobot(HiveField.goal(cell), pose)
+        return GoalObservation(
+            alliance = alliance,
+            cell = cell,
+            goalRobot = point,
+            turretBearingRad = GoalGeometry.turretBearingRad(point),
+            robotBearingRad = GoalGeometry.robotBearingRad(point),
+            horizontalDistanceIn = GoalGeometry.horizontalDistanceFromTurretIn(point),
+            heightIn = point.z,
+            spreadIn = Double.NaN,
+            tagIds = emptyList(),
+            captureNanos = nowNanos,
+            ageMs = 0.0,
+            reprojected = false,
+            source = GoalSource.ODOMETRY,
         )
     }
 
@@ -287,12 +323,6 @@ class HiveTracker(
         return if (sorted.size % 2 == 1) sorted[mid] else (sorted[mid - 1] + sorted[mid]) / 2.0
     }
 
-    private fun fieldX(pose: Pose?, goal: Vec3): Double? =
-        pose?.takeIf { it.isFinite() }?.let { it.x() + goal.x * cos(it.heading()) - goal.y * sin(it.heading()) }
-
-    private fun fieldY(pose: Pose?, goal: Vec3): Double? =
-        pose?.takeIf { it.isFinite() }?.let { it.y() + goal.x * sin(it.heading()) + goal.y * cos(it.heading()) }
-
     override fun health(): String {
         val summary = Alliance.entries.joinToString("; ") { alliance ->
             val state = state(alliance)?.let { "${it.raised.name.lowercase(Locale.US)} up${if (stateAssumed(alliance)) " (assumed)" else ""}" }
@@ -321,6 +351,13 @@ class HiveTracker(
             log.put("$prefix/ageMs", goal?.ageMs ?: Double.NaN)
             log.put("$prefix/tagIds", goal?.tagIds?.joinToString(",") ?: "")
             log.put("$prefix/reprojected", goal?.reprojected ?: false)
+            val aim = aimGoals[alliance]
+            log.put("$prefix/aimSource", aim?.source?.name ?: "")
+            log.put("$prefix/aimTurretBearingDeg", aim?.let { Math.toDegrees(it.turretBearingRad) } ?: Double.NaN)
+            log.put("$prefix/aimRobotBearingDeg", aim?.let { Math.toDegrees(it.robotBearingRad) } ?: Double.NaN)
+            val seen = held[alliance]?.takeIf { goal != null }
+            val seenField = seen?.field
+            log.put("$prefix/fieldGoalErrorIn", seenField?.distanceTo(HiveField.goal(seen.cellGoal.cell)) ?: Double.NaN)
         }
         log.put("frames/processed", framesProcessed)
         log.put("frames/withoutTurretAngle", framesWithoutTurretAngle)

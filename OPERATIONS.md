@@ -352,6 +352,15 @@ with `race(waitUntil { hive.tipCount(RED) > before }, monotonicWaitMs(…))`;
 a tip is only seen while the camera can see that HIVE. Shooter speed comes from
 `ShotModel.rpmForDistance(goal.horizontalDistanceIn)`, which is not fitted yet.
 
+Aiming reads `hive.aimGoal(alliance)`, not `goal(alliance)`. With no vision
+goal (none seen, or lost for over `lostTimeoutMs`) it falls back to
+`HiveField`'s approximate field point for the raised CELL, placed with the
+current pose (`source = ODOMETRY`). The CELL is the one the tracker believes is
+raised, or, with the state unknown, the one on the robot's half of the field.
+The points are derived from the manual's drawings, not published coordinates:
+on a real field, `Hive/<A>/fieldGoalErrorIn` (vision goal vs `HiveField`, per
+frame) should be a few inches. Only shoot on `source = VISION`.
+
 ### Not measured yet — needed before powered ball assists
 
 - Camera mounting: height above the tiles, pitch/roll, and lateral/forward

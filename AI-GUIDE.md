@@ -328,7 +328,7 @@ reload never run.
 | `<Subsystem>/…` | any | `SubsystemBase.logState` channels |
 | `BallCamera/candidates/…` | `double[]` | every published blob of the current frame, accepted first: `xPx`, `yPx`, `radiusPx`, `areaPx`, `circularity`, `horizontalDeg`, `verticalDeg` (+ below the axis), with `rejections` (string, `accepted` or the failed filter, comma-separated) and `selectedIndex` |
 | `BallCamera/mount/…` | double/boolean | `BallVisionConfig.mount*` as recorded: `measured`, `heightIn`, `pitchDownDeg`, `forwardIn`, `leftIn`, `yawDeg` |
-| `Hive/<RED\|BLUE>/…` | mixed | `state` (`AUDIENCE_RAISED`, `FAR_RAISED`, `UNKNOWN`), `stateAssumed`, `tipCount`, and the goal: `visible`, `cell`, `turretBearingDeg`, `robotBearingDeg`, `distanceIn` (horizontal, from the turret axis), `heightIn`, `spreadIn`, `ageMs` (since estimated capture), `tagIds`, `reprojected` |
+| `Hive/<RED\|BLUE>/…` | mixed | `state` (`AUDIENCE_RAISED`, `FAR_RAISED`, `UNKNOWN`), `stateAssumed`, `tipCount`, and the goal: `visible`, `cell`, `turretBearingDeg`, `robotBearingDeg`, `distanceIn` (horizontal, from the turret axis), `heightIn`, `spreadIn`, `ageMs` (since estimated capture), `tagIds`, `reprojected`; the aim goal: `aimSource` (`VISION`/`ODOMETRY`), `aimTurretBearingDeg`, `aimRobotBearingDeg`; `fieldGoalErrorIn` (vision goal vs `HiveField`) |
 | `Hive/tags/…` | `double[]` | every season tag of the latest processed frame: `id`, `heightIn`, `class` (1 raised, −1 lowered, 0 ambiguous), `deviationIn` (implied goal's distance from its CELL's fused goal) |
 | `Hive/mount/…`, `Hive/settings/raisedMinHeightIn`, `Hive/frames/…` | mixed | `HiveConfig` camera mount and threshold as recorded; frames processed and dropped for want of a turret angle |
 | `events` | string | explicit events with their own timestamps (not sampled); strictly increasing, a same-microsecond event moves 1 µs later |
@@ -430,6 +430,9 @@ loop keeps running.
   uses tag position only, so it does not depend on it.
 - **HIVE goal offsets are FIRST's** (SDK 12.0.0 `AprilTagGameDatabase`), in
   `BiobuzzAprilTags`; don't make them tunable or re-derive them from figures.
+- **`HiveField` goal points are approximate aim hints.** Derived from the
+  manual's drawings; `aimGoal` uses them only until tags are seen. Never shoot
+  on `GoalSource.ODOMETRY`, and never use them for localization.
 - **Camera frames use the turret angle at capture time**, from
   `HiveTracker`'s `turretAngleAt` lookup, never the commanded angle.
 

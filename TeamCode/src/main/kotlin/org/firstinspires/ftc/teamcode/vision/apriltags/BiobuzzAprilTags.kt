@@ -32,6 +32,7 @@ package org.firstinspires.ftc.teamcode.vision.apriltags
  * Deliberately absent: field poses. The HIVES pivot, so a tag's field pose
  * depends on HIVE state, which `vision/hive` infers from measured tag heights.
  * A single sighting says nothing about whether its CELL is raised.
+ * `HiveField` holds approximate raised-CELL goal points, for aiming only.
  */
 object BiobuzzAprilTags {
 
