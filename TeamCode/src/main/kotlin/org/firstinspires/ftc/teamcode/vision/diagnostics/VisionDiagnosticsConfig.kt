@@ -6,8 +6,11 @@ import com.bylazar.configurables.annotations.Configurable
  * Settings shared by both vision diagnostics, persisted under
  * `visionDiagnostics`. Every field is **restart**: it decides what hardware the
  * OpMode opens.
+ *
+ * Deliberately not `@Configurable`: nothing here is tuned live, so it stays out
+ * of Panels. Change a default here, or its `visionDiagnostics.*` key in
+ * `tuning.properties`.
  */
-@Configurable
 object VisionDiagnosticsConfig {
 
     private const val DEFAULT_RUN_BOTH_CAMERAS = false

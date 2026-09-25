@@ -107,8 +107,9 @@ class BallRangeController {
  * accessors so a bad slider can't NaN the motors, and
  * [org.firstinspires.ftc.teamcode.core.runtime.ConfigStore] registration so
  * tuned values survive power cycles, installs, and hot reloads.
+ *
+ * Hidden from Panels while archived: add `@Configurable` back when re-enabling.
  */
-@Configurable
 object BallApproachConfig {
 
     private const val DEFAULT_KP = 0.02

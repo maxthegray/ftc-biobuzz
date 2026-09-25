@@ -24,12 +24,12 @@ class BallCameraSubsystemTest {
 
     @Before
     fun setUp() {
-        BallVisionConfig.resetDefaults()
+        BallCamera.resetDefaults()
     }
 
     @After
     fun tearDown() {
-        BallVisionConfig.resetDefaults()
+        BallCamera.resetDefaults()
     }
 
     private fun subsystem() = BallCameraSubsystem(backendFactory = factory, clock = clock)
@@ -57,14 +57,14 @@ class BallCameraSubsystemTest {
         assertEquals(1, backend.published.size)
         assertEquals(1, backend.cameraRequests.size)
 
-        BallVisionConfig.minCircularity = 0.8
+        BallCamera.minCircularity = 0.8
         camera.periodic()
         assertEquals(2, backend.published.size)
         assertEquals(2L, camera.settingsVersion)
         assertEquals(0.8, backend.published.last().first.filters.minCircularity, 0.0)
         assertEquals(1, backend.cameraRequests.size)
 
-        BallVisionConfig.whiteBalanceManual = true
+        BallCamera.whiteBalanceManual = true
         camera.periodic()
         assertEquals(2, backend.published.size)
         assertEquals(2, backend.cameraRequests.size)
@@ -82,11 +82,11 @@ class BallCameraSubsystemTest {
         assertEquals(1, events.size)
 
         clock.advanceMs(1500.0)
-        BallVisionConfig.channel1Min = 140
+        BallCamera.channel1Min = 140
         camera.periodic()
         assertEquals("ballVision changed (detection v2): channel1Min 130→140", events.last())
 
-        BallVisionConfig.exposureManual = false
+        BallCamera.exposureManual = false
         camera.periodic()
         assertEquals(2, events.size)
         clock.advanceMs(1100.0)
@@ -98,7 +98,7 @@ class BallCameraSubsystemTest {
     fun previewToggleReachesBothTheProcessorAndTheLiveView() {
         val camera = subsystem()
         camera.init(HardwareMap(null, null))
-        BallVisionConfig.previewEnabled = false
+        BallCamera.previewEnabled = false
         camera.periodic()
 
         val backend = opened.single()
@@ -110,8 +110,8 @@ class BallCameraSubsystemTest {
     fun restartOnlySettingsAreReportedNotApplied() {
         val camera = subsystem()
         camera.init(HardwareMap(null, null))
-        BallVisionConfig.resolutionWidth = 320
-        BallVisionConfig.resolutionHeight = 240
+        BallCamera.resolutionWidth = 320
+        BallCamera.resolutionHeight = 240
         camera.periodic()
 
         assertTrue(camera.restartRequired)
@@ -122,7 +122,7 @@ class BallCameraSubsystemTest {
 
     @Test
     fun unsupportedStreamModeFailsInitBeforeOpeningTheCamera() {
-        BallVisionConfig.streamFormat = BallVisionConfig.STREAM_YUY2
+        BallCamera.streamFormat = BallCamera.STREAM_YUY2
         try {
             subsystem().init(HardwareMap(null, null))
             error("expected HardwareConfigError")
@@ -156,8 +156,8 @@ class BallCameraSubsystemTest {
             clock.now - 10_000_000L,
             listOf(BallCandidateFilterTest.blob(area = 1.0, x = 50.0, y = 60.0), BallCandidateFilterTest.blob(x = 400.0, y = 300.0)),
         )
-        BallVisionConfig.mountHeightIn = 4.36
-        BallVisionConfig.mountMeasured = true
+        BallCamera.mountHeightIn = 4.36
+        BallCamera.mountMeasured = true
         camera.periodic()
 
         val log = RecordingStateLog()
@@ -188,11 +188,11 @@ class BallCameraSubsystemTest {
     fun resetToDefaultsFlagIsHandledOnTheRobotLoop() {
         val camera = subsystem()
         camera.init(HardwareMap(null, null))
-        BallVisionConfig.channel0Min = 99
-        BallVisionConfig.resetToDefaults = true
+        BallCamera.channel0Min = 99
+        BallCamera.resetToDefaults = true
         camera.periodic()
-        assertEquals(125, BallVisionConfig.channel0Min)
-        assertFalse(BallVisionConfig.resetToDefaults)
+        assertEquals(125, BallCamera.channel0Min)
+        assertFalse(BallCamera.resetToDefaults)
         assertEquals(125, opened.single().published.last().first.lower.c0)
     }
 

@@ -17,7 +17,7 @@ import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags
 import org.firstinspires.ftc.teamcode.vision.apriltags.TagSightingTracker
 import org.firstinspires.ftc.teamcode.vision.ball.BallCameraSubsystem
 import org.firstinspires.ftc.teamcode.vision.ball.BallPreviewMode
-import org.firstinspires.ftc.teamcode.vision.ball.BallVisionConfig
+import org.firstinspires.ftc.teamcode.vision.ball.BallCamera
 import org.firstinspires.ftc.teamcode.vision.ball.BallVisionSettings
 import org.firstinspires.ftc.teamcode.vision.diagnostics.LabRecordWriter
 import org.firstinspires.ftc.teamcode.vision.diagnostics.VisionDiagnosticsConfig
@@ -53,7 +53,7 @@ internal object VisionDiagnostics {
      */
     fun registerConfigsAndLoad(): Startup {
         ConfigStore.register("visionDiagnostics", VisionDiagnosticsConfig, VisionDiagnosticsConfig::resetDefaults)
-        ConfigStore.register("ballVision", BallVisionConfig, BallVisionConfig::resetDefaults)
+        ConfigStore.register("ballVision", BallCamera, BallCamera::resetDefaults)
         ConfigStore.loadFromDisk()
         return Startup.fromConfig()
     }
@@ -240,19 +240,19 @@ internal object VisionDiagnostics {
 
     private fun previewSection(bag: TelemetryBag) {
         bag.section("Preview") {
-            put("mode", "${BallVisionSettings.previewModeOf(BallVisionConfig.previewMode)} (enabled=${BallVisionConfig.previewEnabled})")
+            put("mode", "${BallVisionSettings.previewModeOf(BallCamera.previewMode)} (enabled=${BallCamera.previewEnabled})")
             put("view", "Control Hub HDMI or scrcpy: Robot Controller screen")
             put("change", "X cycles overlay/original/mask, B toggles rendering (after START); or Panels ballVision.previewMode 0/1/2")
         }
     }
 
     fun cyclePreviewMode() {
-        val next = (BallVisionSettings.previewModeOf(BallVisionConfig.previewMode).ordinal + 1) % BallPreviewMode.entries.size
-        BallVisionConfig.previewMode = next
+        val next = (BallVisionSettings.previewModeOf(BallCamera.previewMode).ordinal + 1) % BallPreviewMode.entries.size
+        BallCamera.previewMode = next
     }
 
     fun togglePreview() {
-        BallVisionConfig.previewEnabled = !BallVisionConfig.previewEnabled
+        BallCamera.previewEnabled = !BallCamera.previewEnabled
     }
 
     // -------------------------------------------------------------------- Timing
@@ -365,7 +365,7 @@ internal class VisionLabRecorder(
             wallClockMs = now,
             configSchema = RobotConfig.CONFIG_SCHEMA,
             sections = listOf(
-                VisionLabRecord.sectionFromStore("ballVision", BallVisionConfig.compiledDefaults()),
+                VisionLabRecord.sectionFromStore("ballVision", BallCamera.compiledDefaults()),
                 VisionLabRecord.sectionFromStore("visionDiagnostics", VisionDiagnosticsConfig.compiledDefaults()),
             ) + extraSections.map { (section, defaults) -> VisionLabRecord.sectionFromStore(section, defaults) },
             measurements = measurements,

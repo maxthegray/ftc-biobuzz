@@ -29,7 +29,9 @@ import org.firstinspires.ftc.teamcode.pedro.Constants
  *  - **Triangle (Y)** — Pedro-follows to waypoint A (24" forward by default).
  *  - **Cross (A)** — Pedro-follows back to the test origin.
  *
- * Destinations and the path speed cap are configurable in Panels. Paths keep
+ * Destinations and the path speed cap are companion fields, hidden from Panels
+ * while the skeleton is disabled: add `@Configurable` back to the class when
+ * re-enabling it to tune them live. Paths keep
  * the heading the robot had when the button was pressed; with
  * [turnToTargetHeading] the robot then turns to the target's heading. A
  * target closer than [COINCIDENT_WAYPOINT_TOLERANCE_INCHES] is not a path:
@@ -42,7 +44,6 @@ import org.firstinspires.ftc.teamcode.pedro.Constants
  */
 @Disabled
 @TeleOp(name = "Localization Test", group = "Diagnostics")
-@Configurable
 class LocalizationTestTeleOp : TeleOpBase() {
 
     companion object {

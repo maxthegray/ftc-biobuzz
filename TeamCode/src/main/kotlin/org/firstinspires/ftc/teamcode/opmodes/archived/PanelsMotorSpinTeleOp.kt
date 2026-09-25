@@ -79,9 +79,9 @@ class PanelsMotorSpinTeleOp : OpModeBase() {
 
 /**
  * Panels-tunable knobs for [PanelsMotorSpinTeleOp], persisted under the
- * `motorTest` section.
+ * `motorTest` section. Hidden from Panels while archived: add `@Configurable`
+ * back when re-enabling, or the power cannot be set.
  */
-@Configurable
 object MotorTestConfig {
 
     private const val DEFAULT_POWER = 0.0

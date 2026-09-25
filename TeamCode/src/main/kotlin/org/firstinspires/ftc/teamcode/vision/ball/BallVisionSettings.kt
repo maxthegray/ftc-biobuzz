@@ -89,7 +89,7 @@ data class StreamSettings(val width: Int, val height: Int, val format: BallStrea
 }
 
 /**
- * One validated copy of [BallVisionConfig], taken on the robot thread. Invalid
+ * One validated copy of [BallCamera], taken on the robot thread. Invalid
  * Panels input is clamped or replaced here, so downstream code never sees an
  * inverted range, an empty ROI, or an even blur kernel.
  */
@@ -103,8 +103,8 @@ data class BallVisionSettings(
         private const val MAX_KERNEL_PX = 31
         private const val FALLBACK_MAX_AGE_MS = 150.0
 
-        fun fromConfig(): BallVisionSettings = with(BallVisionConfig) {
-            val space = if (colorSpace == BallVisionConfig.COLOR_SPACE_HSV) BallColorSpace.HSV else BallColorSpace.YCRCB
+        fun fromConfig(): BallVisionSettings = with(BallCamera) {
+            val space = if (colorSpace == BallCamera.COLOR_SPACE_HSV) BallColorSpace.HSV else BallColorSpace.YCRCB
             val c0Limit = if (space == BallColorSpace.HSV) 180 else 255
             val (c0Lo, c0Hi) = orderedChannel(channel0Min, channel0Max, c0Limit)
             val (c1Lo, c1Hi) = orderedChannel(channel1Min, channel1Max, 255)
@@ -144,7 +144,7 @@ data class BallVisionSettings(
                 stream = StreamSettings(
                     width = resolutionWidth.coerceAtLeast(1),
                     height = resolutionHeight.coerceAtLeast(1),
-                    format = if (streamFormat == BallVisionConfig.STREAM_YUY2) BallStreamFormat.YUY2 else BallStreamFormat.MJPEG,
+                    format = if (streamFormat == BallCamera.STREAM_YUY2) BallStreamFormat.YUY2 else BallStreamFormat.MJPEG,
                 ),
                 maxObservationAgeMs = finiteOr(maxObservationAgeMs, FALLBACK_MAX_AGE_MS)
                     .takeIf { it > 0.0 } ?: FALLBACK_MAX_AGE_MS,
@@ -152,8 +152,8 @@ data class BallVisionSettings(
         }
 
         fun previewModeOf(code: Int): BallPreviewMode = when (code) {
-            BallVisionConfig.PREVIEW_ORIGINAL -> BallPreviewMode.ORIGINAL
-            BallVisionConfig.PREVIEW_MASK -> BallPreviewMode.MASK
+            BallCamera.PREVIEW_ORIGINAL -> BallPreviewMode.ORIGINAL
+            BallCamera.PREVIEW_MASK -> BallPreviewMode.MASK
             else -> BallPreviewMode.OVERLAY
         }
 

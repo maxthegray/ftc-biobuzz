@@ -91,7 +91,8 @@ compensation; tune on a full battery.
 
 ## 6. First framework path (capped speed)
 
-Re-enable `opmodes/skeletons/LocalizationTestTeleOp.kt`. From a clear origin:
+Re-enable `opmodes/skeletons/LocalizationTestTeleOp.kt` (and add
+`@Configurable` back to the class to tune its targets in Panels). From a clear origin:
 Y follows 24" forward, A returns; speed is capped at 30% of max velocity
 (`pathSpeedFraction`). Press the button again or move a stick to cancel.
 Pressing a button within 0.25 in of its target does nothing; with
@@ -196,8 +197,9 @@ goal, not a promise that it can take a score.
 ### Panels and the camera preview
 
 - **Panels:** robot powered, laptop on the Control Hub Wi-Fi,
-  `http://192.168.43.1:8001`. Configurables `BallVisionConfig` and
-  `VisionDiagnosticsConfig`; the same telemetry sections as the Driver Station.
+  `http://192.168.43.1:8001`. Configurables `BallCamera` and `HiveConfig`;
+  the same telemetry sections as the Driver Station. `VisionDiagnosticsConfig`
+  is deliberately not in Panels: change its defaults in code.
   Panels does not stream camera images.
 - **Preview:** it appears on the **Robot Controller** screen while either
   OpMode has the ball camera open (INIT or running). Plug an HDMI monitor into
@@ -283,7 +285,8 @@ after each step that settles something.
    processing ms, age, farthest detection). Set 320/240, halve the kernel
    sizes, restart, repeat, save a record. Area filters are frame percentages and
    carry over.
-6. **Both cameras.** `runBothCameras` true; restart **each** OpMode. Compare
+6. **Both cameras.** Set `VisionDiagnosticsConfig.runBothCameras` true in
+   code and hot reload (it is not in Panels); restart **each** OpMode. Compare
    *Timing Comparison*, processed fps, Limelight new-frame rate and ages against
    the single-camera runs, then `make debug` for loop percentiles.
 7. **Save and restart.** Stop, power-cycle, reopen Ball Tracking Test: Panels

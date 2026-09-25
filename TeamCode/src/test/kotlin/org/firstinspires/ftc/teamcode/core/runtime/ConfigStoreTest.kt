@@ -10,7 +10,7 @@ import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerConf
 import org.firstinspires.ftc.teamcode.opmodes.archived.MotorTestConfig
 import org.firstinspires.ftc.teamcode.vision.archived.BallAimConfig
 import org.firstinspires.ftc.teamcode.vision.archived.BallApproachConfig
-import org.firstinspires.ftc.teamcode.vision.ball.BallVisionConfig
+import org.firstinspires.ftc.teamcode.vision.ball.BallCamera
 import org.firstinspires.ftc.teamcode.vision.diagnostics.VisionDiagnosticsConfig
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -92,17 +92,17 @@ class ConfigStoreTest {
 
     @Test
     fun initStopSavesVisionTuningAfterHardwareStopsWithoutPersistingPoseState() {
-        val configs = listOf(BallVisionConfig, VisionDiagnosticsConfig)
+        val configs = listOf(BallCamera, VisionDiagnosticsConfig)
         val originals = configs.flatMap { config ->
             config.javaClass.declaredFields
                 .filter { Modifier.isPublic(it.modifiers) && !Modifier.isFinal(it.modifiers) }
                 .map { field -> Triple(config, field, field.get(config)) }
         }
         try {
-            ConfigStore.register("ballVision", BallVisionConfig, BallVisionConfig::resetDefaults)
+            ConfigStore.register("ballVision", BallCamera, BallCamera::resetDefaults)
             ConfigStore.register("visionDiagnostics", VisionDiagnosticsConfig, VisionDiagnosticsConfig::resetDefaults)
             ConfigStore.loadFromDisk()
-            BallVisionConfig.minCircularity = 0.6
+            BallCamera.minCircularity = 0.6
             assertTrue(ConfigStore.persistIfDirty())
             val beforeInit = tempFile.readText()
             val robot = Robot(HardwareMap(null, null))
@@ -115,9 +115,9 @@ class ConfigStoreTest {
                 }
             })
             robot.initTick()
-            BallVisionConfig.resolutionWidth = 320
-            BallVisionConfig.resolutionHeight = 240
-            BallVisionConfig.minCircularity = 0.8
+            BallCamera.resolutionWidth = 320
+            BallCamera.resolutionHeight = 240
+            BallCamera.minCircularity = 0.8
             VisionDiagnosticsConfig.runBothCameras = true
 
             robot.stop()
@@ -125,9 +125,9 @@ class ConfigStoreTest {
             assertTrue(stopped)
             assertEquals(beforeInit, diskAtStop)
             ConfigStore.loadFromDisk()
-            assertEquals(320, BallVisionConfig.resolutionWidth)
-            assertEquals(240, BallVisionConfig.resolutionHeight)
-            assertEquals(0.8, BallVisionConfig.minCircularity, 0.0)
+            assertEquals(320, BallCamera.resolutionWidth)
+            assertEquals(240, BallCamera.resolutionHeight)
+            assertEquals(0.8, BallCamera.minCircularity, 0.0)
             assertTrue(VisionDiagnosticsConfig.runBothCameras)
         } finally {
             for ((config, field, value) in originals) field.set(config, value)
@@ -443,7 +443,7 @@ class ConfigStoreTest {
     fun everyProductionTunableIsResetOnWarmInit() {
         val configs = listOf(
             DriveConfig, LocalizerConfig, BallAimConfig, BallApproachConfig, MotorTestConfig,
-            BallVisionConfig, VisionDiagnosticsConfig,
+            BallCamera, VisionDiagnosticsConfig,
         )
         val originals = configs.flatMap { config ->
             config.javaClass.declaredFields
@@ -455,7 +455,7 @@ class ConfigStoreTest {
         ConfigStore.register("ballAim", BallAimConfig, BallAimConfig::resetDefaults)
         ConfigStore.register("ballApproach", BallApproachConfig, BallApproachConfig::resetDefaults)
         ConfigStore.register("motorTest", MotorTestConfig, MotorTestConfig::resetDefaults)
-        ConfigStore.register("ballVision", BallVisionConfig, BallVisionConfig::resetDefaults)
+        ConfigStore.register("ballVision", BallCamera, BallCamera::resetDefaults)
         ConfigStore.register("visionDiagnostics", VisionDiagnosticsConfig, VisionDiagnosticsConfig::resetDefaults)
         try {
             ConfigStore.loadFromDisk()

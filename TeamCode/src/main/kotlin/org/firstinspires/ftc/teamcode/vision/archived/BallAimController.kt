@@ -126,8 +126,9 @@ class BallAimController {
  * [BallAimController] re-reads these every tick, and [PIDFController] re-reads
  * its gains on every `calculate()`, so a slider change takes effect on the next
  * control loop with no op-mode restart.
+ *
+ * Hidden from Panels while archived: add `@Configurable` back when re-enabling.
  */
-@Configurable
 object BallAimConfig {
 
     private const val DEFAULT_KP = 0.1
