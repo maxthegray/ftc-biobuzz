@@ -49,7 +49,7 @@ class FlightRecorderFieldPoseTest {
         robot.start()
         robot.loop()
         clock.advanceMs(20.0)
-        drive.pose = Pose(72.0, 72.0, Math.PI / 2)
+        drive.pose = Pose(WpiStruct.FIELD_CENTRE_INCHES, WpiStruct.FIELD_CENTRE_INCHES, Math.PI / 2)
         robot.loop()
         robot.stop()
 
@@ -64,11 +64,11 @@ class FlightRecorderFieldPoseTest {
         assertEquals(2, poses.size)
 
         // The recorder applies the season's FIELD_VIEW_QUARTER_TURNS (DECODE:
-        // +1). Pedro (8, 56) is (-64, -16) in from the centre; a quarter turn
-        // CCW puts it at FTC (+16, -64) in, and Pedro heading 0 at FTC +90°.
+        // +1, as for BIOBUZZ). A quarter turn CCW puts Pedro (8, 56) at FTC
+        // (-(56 - centre), 8 - centre), and Pedro heading 0 at FTC +90°.
         assertEquals(1, RobotConfig.Field.FIELD_VIEW_QUARTER_TURNS)
-        assertEquals(0.4064, poses[0].second[0], 1e-9)
-        assertEquals(-1.6256, poses[0].second[1], 1e-9)
+        assertEquals(-(56.0 - WpiStruct.FIELD_CENTRE_INCHES) * 0.0254, poses[0].second[0], 1e-9)
+        assertEquals((8.0 - WpiStruct.FIELD_CENTRE_INCHES) * 0.0254, poses[0].second[1], 1e-9)
         assertEquals(Math.PI / 2, poses[0].second[2], 1e-12)
 
         // Field centre encodes as the origin; the heading still turns.

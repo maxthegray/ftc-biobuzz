@@ -26,13 +26,13 @@ class AllianceTest {
     fun blueMirrorsAcrossConfiguredFieldLengthLikePedro2PoseMirror() {
         val l = RobotConfig.Field.LENGTH_INCHES
         // MIRROR symmetry = (L - x, y, pi - heading), which Pedro 2.1.1's Pose.mirror(L) produced.
-        assertPose(Pose(l - 10.0, 30.0, Math.PI), Alliance.BLUE.mirror(Pose(10.0, 30.0, 0.0)))
-        assertPose(Pose(l - 10.0, 20.0, Math.PI - 0.5), Alliance.BLUE.mirror(Pose(10.0, 20.0, 0.5)))
+        assertPose(Pose(l - 10.0, 30.0, Math.PI), Alliance.BLUE.mirror(Pose(10.0, 30.0, 0.0), FieldSymmetry.MIRROR))
+        assertPose(Pose(l - 10.0, 20.0, Math.PI - 0.5), Alliance.BLUE.mirror(Pose(10.0, 20.0, 0.5), FieldSymmetry.MIRROR))
     }
 
     @Test
     fun blueMirrorNormalizesHeading() {
-        val mirrored = Alliance.BLUE.mirror(Pose(0.0, 0.0, Math.toRadians(-45.0)))
+        val mirrored = Alliance.BLUE.mirror(Pose(0.0, 0.0, Math.toRadians(-45.0)), FieldSymmetry.MIRROR)
         assertEquals(RobotConfig.Field.LENGTH_INCHES, mirrored.x(), eps)
         assertEquals(Math.toRadians(225.0), mirrored.heading(), eps)
     }

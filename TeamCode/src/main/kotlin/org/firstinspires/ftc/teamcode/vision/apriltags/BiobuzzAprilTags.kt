@@ -19,7 +19,7 @@ package org.firstinspires.ftc.teamcode.vision.apriltags
  *    the field centre; IDs 30–33 red CELL opposite the audience, 34–37 red CELL
  *    audience side, 38–41 blue CELL audience side, 42–45 blue CELL opposite the
  *    audience. Figure 9-17 labels the opposite-audience clusters "Scoring Tags".
- * Team Update 00 (September 12, 2026) makes no AprilTag change.
+ * Team Updates 00–02 (through September 24, 2026) make no AprilTag change.
  *
  * Cluster geometry relative to the goal comes from FTC SDK 12.0.0
  * `AprilTagGameDatabase.getBioBuzzCluster`: the cluster origin is the centre

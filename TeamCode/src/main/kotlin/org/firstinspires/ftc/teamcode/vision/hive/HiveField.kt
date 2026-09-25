@@ -14,7 +14,8 @@ import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags.CellLoca
  * localization, and never a reason to shoot.
  *
  * Source: *2026-2027 FIRST Tech Challenge Competition Manual, BIOBUZZ*, V1
- * (September 12, 2026), §9.6. No coordinates are published, so these are
+ * (September 12, 2026), §9.6, unchanged for these figures through Team Update
+ * 02 (September 24, 2026). No coordinates are published, so these are
  * derived from the drawings (manual tolerance ±1 in.):
  *  - §9.6: the HIVE structure is at the centre of the FIELD.
  *  - Figure 9-10: HIVE centre to centre 25.5 in.; Figure 9-17: the red HIVE is

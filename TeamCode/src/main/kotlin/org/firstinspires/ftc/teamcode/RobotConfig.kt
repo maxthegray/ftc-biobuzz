@@ -61,8 +61,13 @@ object RobotConfig {
          * How RED coordinates map onto BLUE this season — reflection or 180°
          * rotation. Check the game manual's field drawings when the game
          * launches; getting this wrong silently breaks every BLUE auton path.
+         *
+         * BIOBUZZ is ROTATE: the red LOADING ZONE is on tile A5 and the blue
+         * on F2, the red GARDEN on A1 and the blue on F6 (manual Figures 9-2,
+         * 9-5), and the CELLs raised at setup are RED audience and BLUE far
+         * (Figure 10-2). Only a 180° rotation maps each onto the other.
          */
-        val SYMMETRY = org.firstinspires.ftc.teamcode.core.util.FieldSymmetry.MIRROR
+        val SYMMETRY = org.firstinspires.ftc.teamcode.core.util.FieldSymmetry.ROTATE
 
         /**
          * Counter-clockwise quarter turns from Pedro's axes onto the FTC field

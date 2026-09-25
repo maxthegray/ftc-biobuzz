@@ -15,7 +15,8 @@ class HiveFieldTest {
     fun blueGoalsAreRedGoalsUnderTheSeasonSymmetry() {
         for (location in CellLocation.entries) {
             val red = HiveField.goal(Cell(Alliance.RED, location))
-            val blue = HiveField.goal(Cell(Alliance.BLUE, location))
+            val opposite = if (location == CellLocation.AUDIENCE) CellLocation.FAR else CellLocation.AUDIENCE
+            val blue = HiveField.goal(Cell(Alliance.BLUE, opposite))
             val mirrored = FieldAlliance.BLUE.mirror(Pose(red.x, red.y, 0.0))
             assertEquals(blue.x, mirrored.x(), 1e-9)
             assertEquals(blue.y, mirrored.y(), 1e-9)

@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.core.logging
 
+import org.firstinspires.ftc.teamcode.RobotConfig
+
 /**
  * WPILib struct encoding for the geometry AdvantageScope's 2D Field tab draws.
  *
@@ -19,8 +21,8 @@ package org.firstinspires.ftc.teamcode.core.logging
  *  - **Metres, not inches.** AdvantageScope's internal geometry is metric
  *    (`Translation2d = [number, number] // meters`).
  *  - **Field-centre origin, not a corner.** The FTC frame puts (0, 0) at the
- *    middle of the field; Pedro's origin is a corner, so poses run 0..144
- *    inches. [FIELD_CENTRE_INCHES] is that offset.
+ *    middle of the field; Pedro's origin is a corner, so poses run 0 to
+ *    `RobotConfig.Field.LENGTH_INCHES`. [FIELD_CENTRE_INCHES] is that offset.
  *  - **A quarter-turn rotation that depends on the season.** Pedro's frame is
  *    fixed by the audience: (0, 0) is the corner on the audience's left, +X
  *    runs along the audience wall to the right, +Y runs away from the
@@ -41,8 +43,8 @@ object WpiStruct {
     /** Bytes one [encodePose2d] payload occupies: three little-endian doubles. */
     const val POSE2D_SIZE = 24
 
-    /** Half of the 12-foot FTC field, in inches — the corner-to-centre offset. */
-    const val FIELD_CENTRE_INCHES = 72.0
+    /** Half the field length, in inches — the corner-to-centre offset. */
+    const val FIELD_CENTRE_INCHES = RobotConfig.Field.LENGTH_INCHES / 2.0
 
     private const val INCHES_TO_METRES = 0.0254
     private const val QUARTER_TURN = Math.PI / 2

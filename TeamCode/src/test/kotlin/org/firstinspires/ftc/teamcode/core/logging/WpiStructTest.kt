@@ -22,10 +22,9 @@ class WpiStructTest {
 
         val values = doublesOf(buffer)
         assertEquals(3, values.size)
-        // 96 in is 24 in past the centre of a 144 in field -> 0.6096 m.
-        assertEquals(0.6096, values[0], 1e-12)
-        // 60 in is 12 in short of it -> -0.3048 m.
-        assertEquals(-0.3048, values[1], 1e-12)
+        // Inches from the field centre, in metres.
+        assertEquals((96.0 - FIELD_CENTRE_INCHES) * 0.0254, values[0], 1e-12)
+        assertEquals((60.0 - FIELD_CENTRE_INCHES) * 0.0254, values[1], 1e-12)
         // Heading is radians on both sides; with no rotation it passes through.
         assertEquals(1.25, values[2], 0.0)
     }
@@ -36,15 +35,18 @@ class WpiStructTest {
         // origin corner must land at FTC (+X, -Y) with Pedro's +X heading
         // pointing along FTC +Y.
         val corner = encode(0.0, 0.0, 0.0, quarterTurns = 1)
-        assertArrayEquals(doubleArrayOf(1.8288, -1.8288, Math.PI / 2), corner, 1e-12)
+        val half = FIELD_CENTRE_INCHES * 0.0254
+        assertArrayEquals(doubleArrayOf(half, -half, Math.PI / 2), corner, 1e-12)
 
         val pose = encode(96.0, 60.0, 1.25, quarterTurns = 1)
-        // FTC x = -(Pedro y - 72) -> +12 in; FTC y = Pedro x - 72 -> +24 in.
-        assertArrayEquals(doubleArrayOf(0.3048, 0.6096, 1.25 + Math.PI / 2), pose, 1e-12)
+        // FTC x = -(Pedro y - centre); FTC y = Pedro x - centre.
+        val ftcX = -(60.0 - FIELD_CENTRE_INCHES) * 0.0254
+        val ftcY = (96.0 - FIELD_CENTRE_INCHES) * 0.0254
+        assertArrayEquals(doubleArrayOf(ftcX, ftcY, 1.25 + Math.PI / 2), pose, 1e-12)
 
         // The usual layout (red wall on the audience's right): -1 quarter turn.
         val usual = encode(96.0, 60.0, 1.25, quarterTurns = -1)
-        assertArrayEquals(doubleArrayOf(-0.3048, -0.6096, 1.25 + 3 * Math.PI / 2), usual, 1e-12)
+        assertArrayEquals(doubleArrayOf(-ftcX, -ftcY, 1.25 + 3 * Math.PI / 2), usual, 1e-12)
 
         // Whole turns are the identity.
         assertArrayEquals(encode(96.0, 60.0, 1.25, 0), encode(96.0, 60.0, 1.25, 4), 0.0)
