@@ -309,23 +309,41 @@ bad Panels edit could hurt (see `DriveConfig`).
 
 ## Mechanisms
 
-Season mechanism skeletons live under `subsystems/`: `intake/IntakeSubsystem`,
+Season mechanisms live under `subsystems/`: `intake/IntakeSubsystem`,
 `transfer/TransferSubsystem`, `shooter/ShooterSubsystem`, and
-`turret/TurretSubsystem`. Transfer owns both the storage/feed rollers and the
-servo blocker; Turret owns all mechanically linked turret servos. Shooter
-will accept target RPM from `shooter/ShotModel.rpmForDistance`, a
-distance-to-speed function still to be fitted from shots at measured
-distances (it returns null until then). The turret will keep a short timestamped
-history of its servo-encoder angle and give `HiveTracker` a lookup into it, so
-each camera frame is placed at its capture time.
+`turret/TurretSubsystem`.
 
-These are unconfigured skeletons, not registered in any op-mode. Their `init`
-fails explicitly until hardware is implemented. Once CAD defines the
-actuators, resolve them through `DeviceReaders` in `init`, add logged Ivy
-command factories requiring the subsystem, implement reads/writes and fault/
-stop cleanup, then register in `configure()`. Replace the placeholder health
-and log channels with real mechanism state. Hardware names, motor counts,
-servo positions, turret limits and shooter tuning are intentionally unset.
+**Intake and Transfer are implemented** against placeholder hardware:
+- Names are in `RobotConfig.Intake` / `RobotConfig.Transfer`. The motor names
+  are lists, so a second motor is one more name.
+- Powers, blocker positions and the blocker travel time are in
+  `IntakeConfig` / `TransferConfig`: placeholders to tune in Panels.
+- Intake: `collect()` / `eject()`.
+- Transfer owns the middle motors and the blocker servo together, so motors
+  never push into a closed blocker:
+  - `hold()` is the default (blocker closed, motors off);
+  - `stage()` pushes balls up against the closed blocker;
+  - `feed()` opens the blocker and runs the motors only after
+    `blockerTravelMs`;
+  - `reverse()` runs the motors backwards with the blocker closed.
+- Collect-and-stage is `parallel(intake.collect(), transfer.stage())`.
+- Whoever registers them also registers `IntakeConfig` / `TransferConfig` with
+  `ConfigStore` (see their KDoc).
+- Neither is registered in any op-mode yet: the sensorbot has no such
+  hardware, and `init` throws `HardwareConfigError` for a missing device.
+- `ballStaged` is null until a ball sensor is fitted.
+
+**Shooter and Turret are still unconfigured skeletons**; their `init` fails
+explicitly.
+- Shooter will accept target RPM from `shooter/ShotModel.rpmForDistance`, a
+  distance-to-speed function still to be fitted from shots at measured
+  distances (it returns null until then).
+- Turret owns all mechanically linked turret servos. It will keep a short
+  timestamped history of its servo-encoder angle and give `HiveTracker` a
+  lookup into it, so each camera frame is placed at its capture time.
+- Once CAD defines their actuators: resolve them through `DeviceReaders` in
+  `init`, add logged Ivy command factories requiring the subsystem, implement
+  reads/writes and fault/stop cleanup, then register in `configure()`.
 
 There is no generic mechanism base class. Build each lift/arm/turret as a
 plain `SubsystemBase` against the real hardware, with `PIDFController` +

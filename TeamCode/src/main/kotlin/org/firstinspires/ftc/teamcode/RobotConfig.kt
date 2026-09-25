@@ -41,6 +41,17 @@ object RobotConfig {
         const val PINPOINT = "pinpoint"
     }
 
+    /** Intake motors; add a name when a second motor is fitted. */
+    object Intake {
+        val MOTORS = listOf("intakeMotor")
+    }
+
+    /** Middle motors that lift balls to the shooter, and the servo tab that blocks the turret entry. */
+    object Transfer {
+        val MOTORS = listOf("transferMotor")
+        const val BLOCKER_SERVO = "blockerServo"
+    }
+
     /** Game-level constants that change every season. Edit when the new game launches. */
     object Field {
         /** Distance from one end of the field to the other along the x-axis, in inches. */
