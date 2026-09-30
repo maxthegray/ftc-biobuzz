@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.vision.ball
 
 import kotlin.math.atan
+import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration
 
 /**
  * Lens intrinsics for one capture resolution, as the SDK resolved them from
@@ -96,5 +97,27 @@ data class LensReport(
 
     companion object {
         val NOT_YET_KNOWN = LensReport(CalibrationSource.NOT_YET_KNOWN, null)
+
+        /** What the SDK passed to `VisionProcessor.init` for a [width]×[height] stream. */
+        fun of(width: Int, height: Int, calibration: CameraCalibration?): LensReport {
+            if (calibration == null || calibration.isFake || calibration.isDegenerate) {
+                return LensReport(CalibrationSource.UNAVAILABLE, null)
+            }
+            val intrinsics = LensIntrinsics(
+                widthPx = width,
+                heightPx = height,
+                fx = calibration.focalLengthX.toDouble(),
+                fy = calibration.focalLengthY.toDouble(),
+                cx = calibration.principalPointX.toDouble(),
+                cy = calibration.principalPointY.toDouble(),
+                distortion = calibration.distortionCoefficients.map { it.toDouble() },
+            )
+            val scaledFrom = calibration.resolutionScaledFrom
+            return if (scaledFrom != null) {
+                LensReport(CalibrationSource.SCALED, intrinsics, "${scaledFrom.width}x${scaledFrom.height}")
+            } else {
+                LensReport(CalibrationSource.EXACT, intrinsics)
+            }
+        }
     }
 }

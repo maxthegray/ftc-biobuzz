@@ -185,103 +185,78 @@ goal, not a promise that it can take a score.
 ### Panels and the camera preview
 
 - **Panels:** robot powered, laptop on the Control Hub Wi-Fi,
-  `http://192.168.43.1:8001`. Configurables `BallCamera` and `HiveConfig`;
-  the same telemetry sections as the Driver Station. `VisionDiagnosticsConfig`
-  is deliberately not in Panels: change its defaults in code.
-  Panels does not stream camera images.
-- **Preview:** it appears on the **Robot Controller** screen while either
-  OpMode has the ball camera open (INIT or running). Plug an HDMI monitor into
-  the Control Hub, or `make connect` then `scrcpy`.
-- **Modes:** `ballVision.previewMode` 0 overlay, 1 original, 2 threshold mask;
-  after START, gamepad 1 **X** cycles modes and **B** toggles rendering
-  (`previewEnabled`). Overlay: white ROI, cyan accepted blobs, red rejected
-  blobs labelled with the failed filter, **thick magenta circle + cross +
-  `TARGET`** for the selected blob. Rendering off pauses the view and skips
-  mask/overlay work, for timing comparisons.
+  `http://192.168.43.1:8001`. Configurables `BallCameraConfig` and
+  `HiveConfig`; the same telemetry sections as the Driver Station.
+  `VisionDiagnosticsConfig` is deliberately not in Panels: change its defaults
+  in code. Panels does not stream camera images.
+- **Preview:** on the **Robot Controller** screen while either OpMode has the
+  ball camera open (INIT or running): plug an HDMI monitor into the Control
+  Hub, or `make connect` then `scrcpy`. The SDK's ColorBlobLocatorProcessor
+  outlines every blob that passed the filters. After START, gamepad 1 **B**
+  toggles rendering (`previewEnabled`); off saves CPU for timing comparisons.
 
 ### What applies live
 
-| Live (next robot loop) | Restart the OpMode |
+| Live (next robot loop) | Stop and re-init the OpMode |
 |---|---|
-| Color space, channel thresholds, ROI, blur/erode/dilate, contour mode, area/circularity/aspect/density filters, candidate count, max observation age, preview mode/rendering, exposure, gain, white balance, `resetToDefaults` | `resolutionWidth/Height`, `streamFormat`, everything in `visionDiagnostics` |
+| Area/circularity/aspect/density filters, max observation age, preview, `resetToDefaults` | Color space and channel thresholds, ROI, blur/erode/dilate, contour mode, exposure, everything in `visionDiagnostics` |
 
-A pending restart setting shows a **RESTART REQUIRED** section. Unsupported
-stream modes (anything outside goBILDA's table, e.g. 640×480 YUY2) stop INIT
-with a message instead of letting EasyOpenCV E-stop the robot.
-
-Panels writes statics on its socket thread. The robot loop copies them once per
-tick into an immutable snapshot; only snapshots reach the camera thread and the
-camera-control thread, which probes capabilities, clamps to the probed range,
-writes only changed controls, and reads back device values about once a
-second. Camera telemetry shows *requested → device* for each.
+The SDK builds the color range, region and morphology into the processor, so
+those apply at the next init; no redeploy is needed. A pending change shows a
+**RESTART REQUIRED** section. The capture resolution is fixed at 640×480 MJPEG.
 
 **Tuning in the flight log.** Both OpModes write the `visionDiagnostics`
 values as an event at init. The ball camera writes every `ballVision` value
 at init, then an event naming only the fields that changed (at most one per
-second; slider drags are merged), tagged with the detection settings version
-that frames carry in `BallCamera/frame/settingsVersion`. An edit in the last
-second before stop can be missing from the log; the tuning file and lab
-record still have it.
+second; slider drags are merged). An edit in the last second before stop can
+be missing from the log; the tuning file and lab record still have it.
 
 **Camera mount.** The `ballVision.mount*` fields record where the lens sits:
 `mountHeightIn` above the floor, `mountPitchDownDeg` below horizontal,
 `mountForwardIn`/`mountLeftIn` from the robot's pose point, `mountYawDeg` from
-its front, and `mountMeasured` once the numbers are real. Nothing on the robot uses them; they are
-logged every tick so MaxScope can place detections on the field, and each log
-keeps the geometry it was recorded with. Re-measure after moving the camera.
+its front, and `mountMeasured` once the numbers are real. Nothing on the robot
+uses them; they are logged every tick so MaxScope can place detections on the
+field. Re-measure after moving the camera.
 
 **Saved vs compiled defaults.** Each OpMode init resets `ballVision` and
 `visionDiagnostics` to their compiled defaults, then applies the keys saved in
 `/sdcard/FIRST/config/tuning.properties`. Saved keys win; missing or invalid
 keys fall back to defaults. Set `ballVision.resetToDefaults` true to reset the
 section live (it clears itself and saves), or delete the keys and restart.
-STOP saves dirty settings after hardware shutdown, including STOP during INIT;
-restart-only edits do not require pressing START to survive reinitialization.
+STOP saves dirty settings after hardware shutdown, including STOP during INIT.
 
-### Timing honesty
-
-Ball Camera telemetry separates the SDK's frame capture timestamp, processing
-start/finish, and the robot tick that first saw the frame. *Processed fps* is
-detector output from frame numbers; *received fps* is distinct frames the loop
-saw; *library fps* is EasyOpenCV's delivery rate; none is the camera's
-advertised 120 fps. Observations older than `maxObservationAgeMs` since capture
-are cleared (`CLEARED`), and a processing error never yields a target.
+**Frame age.** The SDK processor publishes no capture timestamp, so *frame
+age* is robot-clock time since the latest new frame reached the loop.
+Detections clear when it passes `maxObservationAgeMs`.
 
 ### Lab procedure
 
 Robot stationary, on blocks. Save a lab record (gamepad 1 **A** after START)
 after each step that settles something.
 
-1. **Camera image.** OVERLAY mode, one POLLEN ball ~1 m away. Set
-   `exposureManual` true and lower `exposureMicros` until a rolled ball is not
-   smeared; set `whiteBalanceManual` and a fixed `whiteBalanceKelvin` for the
-   room. Touch `gain` only if *Camera Controls → gain* shows a range. Confirm
-   *requested → device* agree and note any clamp.
-2. **Color mask.** MASK mode. Adjust `channel*Min/Max` until the ball is solid
-   white and tiles, walls, and red/blue NECTAR stay black — near, far, in
-   shadow, under the brightest light. Add a POLLEN ball and a NECTAR ball.
-3. **Region and blob filters.** OVERLAY mode. Set the ROI to where POLLEN can
-   appear. Raise `minAreaPercent` just below the farthest useful ball's area,
-   then tighten `minCircularity`, `maxAspectRatio`, `minDensity` while testing
-   two touching balls, a half-hidden ball, and a ball at the frame edge. Read
-   rejection labels in the preview and *Ball Candidates*.
-4. **Moving and multiple balls.** Roll a ball across the frame: frame status
-   stays FRESH, age stays small, the target never lingers after the ball
-   leaves. With several balls, the target is the largest accepted blob.
-   Cover the lens: the target status must drop to NONE_ACCEPTED at once.
-5. **320×240 comparison.** Record the 640×480 numbers (processed fps,
-   processing ms, age, farthest detection). Set 320/240, halve the kernel
-   sizes, restart, repeat, save a record. Area filters are frame percentages and
-   carry over.
-6. **Both cameras.** Set `VisionDiagnosticsConfig.runBothCameras` true in
+1. **Exposure.** One POLLEN ball ~1 m away. With `exposureManual` true, lower
+   `exposureMicros` until a rolled ball is not smeared; re-init after each
+   change. *Ball Camera → exposure* shows what the camera accepted.
+2. **Color range.** Adjust `channel*Min/Max`, re-init, and check the preview
+   until the ball is outlined and tiles, walls, and red/blue NECTAR are not —
+   near, far, in shadow, under the brightest light.
+3. **Region and blob filters.** Set the ROI to where POLLEN can appear
+   (re-init). Then, live: raise `minAreaPercent` just below the farthest useful
+   ball's area and tighten `minCircularity` (1.0 is a perfect circle, which a
+   traced contour rarely reaches), `maxAspectRatio`, `minDensity` while testing
+   two touching balls, a half-hidden ball, and a ball at the frame edge.
+4. **Moving and multiple balls.** Roll a ball across the frame: frame age stays
+   small and the target never lingers after the ball leaves. With several
+   balls, the target is the largest. Cover the lens: the target goes to none.
+5. **Both cameras.** Set `VisionDiagnosticsConfig.runBothCameras` true in
    code and hot reload (it is not in Panels); restart **each** OpMode. Compare
-   *Timing Comparison*, processed fps, Limelight new-frame rate and ages against
+   *Timing Comparison*, library fps, Limelight new-frame rate and ages against
    the single-camera runs, then `make debug` for loop percentiles.
-7. **Save and restart.** Stop, power-cycle, reopen Ball Tracking Test: Panels
-   and telemetry show the tuned values and *settings v1*;
+6. **Save and restart.** Stop, power-cycle, reopen Ball Tracking Test: Panels
+   and telemetry show the tuned values;
    `adb shell grep ballVision /sdcard/FIRST/config/tuning.properties`
    matches the last lab record's `[config]` lines.
-8. **Limelight tags.** Limelight AprilTag Test: hold each tag still; confirm ID
+7. **Limelight tags.** Limelight AprilTag Test: hold each tag still; confirm ID
    and meaning against its sticker, the signs of tx/ty, and |d| against a tape
    measure; record whether the cluster's four tags appear together.
 
@@ -362,12 +337,11 @@ frame) should be a few inches. Only shoot on `source = VISION`.
   controller measurement and a stopping point. No approach setpoint exists.
 - The actual processed frame rate and capture-to-robot latency under match
   load, with drive, Pinpoint, and telemetry running.
-- The OV9782 USB IDs and exposure/gain/white-balance ranges from the probe.
+- The OV9782 USB IDs.
 
 Follow-up for powered assists: a USB-camera target source with the same
 validity gates as `LimelightSubsystem`; controller updates driven by
-`BallObservation.newFrame` with `dt` taken from successive capture timestamps
-and the output held between frames; an explicit lost-target timeout; a
+`BallCameraSubsystem.newFrame`, with the output held between frames; an explicit lost-target timeout; a
 latency budget from the measurements above; and on-blocks tests before carpet.
 
 ## Logs and post-run diagnosis

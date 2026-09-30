@@ -13,9 +13,7 @@ import org.firstinspires.ftc.teamcode.core.logging.TelemetryBag
 import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags
 import org.firstinspires.ftc.teamcode.vision.apriltags.TagSightingTracker
 import org.firstinspires.ftc.teamcode.vision.ball.BallCameraSubsystem
-import org.firstinspires.ftc.teamcode.vision.ball.BallPreviewMode
 import org.firstinspires.ftc.teamcode.vision.ball.BallCameraConfig
-import org.firstinspires.ftc.teamcode.vision.ball.BallVisionSettings
 import org.firstinspires.ftc.teamcode.vision.diagnostics.VisionDiagnosticsConfig
 
 /** Wiring and telemetry shared by the Limelight AprilTag Test and Ball Tracking Test. */
@@ -63,12 +61,11 @@ internal object VisionDiagnostics {
         val pending = ArrayList<String>()
         val requested = Startup.fromConfig()
         if (requested != startup) pending += "visionDiagnostics (both cameras / Limelight pipeline, rate, age)"
-        if (camera != null && camera.restartRequired) pending += "ballVision stream ${camera.requestedStream}"
+        if (camera != null && camera.restartRequired) pending += "ballVision init settings (color, region, blur/erode/dilate, exposure)"
         if (pending.isEmpty()) return
         bag.section("RESTART REQUIRED") {
             put("changed", pending.joinToString("; "))
-            put("running", "both cameras=${startup.runBothCameras}, LL pipeline ${startup.tagPipelineIndex}" +
-                (camera?.runningStream?.let { ", camera $it" } ?: ""))
+            put("running", "both cameras=${startup.runBothCameras}, LL pipeline ${startup.tagPipelineIndex}")
         }
     }
 
@@ -136,114 +133,45 @@ internal object VisionDiagnostics {
     // --------------------------------------------------------------- Ball camera
 
     fun ballCameraSections(bag: TelemetryBag, camera: BallCameraSubsystem, detailed: Boolean) {
-        val obs = camera.observation
-        val frame = obs.frame
-        val tracker = camera.tracker
-        val lens = camera.lensReport
         bag.section("Ball Camera") {
             put("state", camera.health())
-            put("stream", "${camera.runningStream} (requested ${camera.requestedStream})")
-            put("lens calibration", lens.describe())
-            put("frame", "#${frame?.frameNumber ?: 0} ${obs.frameStatus}; settings v${frame?.settingsVersion ?: 0}/${camera.settingsVersion}")
-            put(
-                "age ms",
-                if (obs.captureTimeValid) "${fmt(obs.ageMs, 1)} since SDK capture time" else "${fmt(obs.ageMs, 1)} since publish (capture time unavailable)",
-            )
-            put("capture→publish ms", obs.captureToPublishMs, decimals = 1)
-            put("processing ms", frame?.processingMs ?: Double.NaN, decimals = 1)
-            put("publish→robot ms", obs.publishToReceiptMs, decimals = 1)
-            put("processed fps (detector)", tracker.processedFps, decimals = 1)
-            put("received fps (robot)", tracker.receivedFps, decimals = 1)
+            put("lens calibration", camera.lensReport.describe())
+            put("exposure", camera.exposureStatus)
+            put("frame age ms (robot clock)", camera.frameAgeMs, decimals = 1)
             put("library fps (delivery)", camera.libraryReportedFps, decimals = 1)
-            put("skipped / repeat ticks", "${tracker.skippedFrames} / ${tracker.repeatTicks}")
-            put("processor faults", "${camera.processorFaults}${camera.lastProcessorError?.let { " ($it)" } ?: ""}")
         }
         bag.section("Ball Target") {
-            put("status", obs.targetStatus)
-            put("coords", "image px of ${frame?.widthPx ?: 0}x${frame?.heightPx ?: 0}, origin top-left, +x right, +y down")
-            val selected = obs.selected
-            if (selected == null) {
-                put("selected", "none")
+            put("coords", "image px of ${BallCameraSubsystem.WIDTH_PX}x${BallCameraSubsystem.HEIGHT_PX}, origin top-left, +x right, +y down")
+            val t = camera.target
+            if (t == null) {
+                put("target", "none")
             } else {
-                val b = selected.blob
-                put("center px", "(${fmt(b.centroidXPx, 1)}, ${fmt(b.centroidYPx, 1)})")
-                put("radius px / area px²", "${fmt(b.enclosingRadiusPx, 1)} / ${fmt(b.contourAreaPx, 0)}")
-                put("circ / aspect / density", "${fmt(b.circularity, 2)} / ${fmt(b.aspectRatio, 2)} / ${fmt(b.density, 2)}")
-                val angles = lens.intrinsics?.rayAnglesDegrees(b.centroidXPx, b.centroidYPx)
+                put("center px", "(${fmt(t.xPx, 1)}, ${fmt(t.yPx, 1)})")
+                put("radius px / area px²", "${fmt(t.radiusPx, 1)} / ${fmt(t.areaPx, 0)}")
+                put("circ / aspect / density", "${fmt(t.circularity, 2)} / ${fmt(t.aspectRatio, 2)} / ${fmt(t.density, 2)}")
                 put(
                     "ray angle deg (lens only)",
-                    angles?.let { "h ${fmt(it.first, 2)} (+right), v ${fmt(it.second, 2)} (+down)" } ?: "unavailable: no lens calibration",
+                    if (t.horizontalDeg.isFinite()) "h ${fmt(t.horizontalDeg, 2)} (+right), v ${fmt(t.verticalDeg, 2)} (+down)" else "unavailable: no lens calibration",
                 )
             }
         }
         if (detailed) {
             bag.section("Ball Candidates") {
-                put("contours / measured / accepted", "${frame?.contourCount ?: 0} / ${frame?.selection?.evaluatedCount ?: 0} / ${frame?.selection?.acceptedCount ?: 0}")
-                obs.candidates.forEachIndexed { i, c ->
-                    val b = c.blob
-                    val mark = when {
-                        c === obs.selected -> "SELECTED"
-                        c.accepted -> "ok"
-                        else -> "rejected ${c.rejection?.label}"
-                    }
+                put("passed filters", camera.candidates.size)
+                camera.candidates.forEachIndexed { i, c ->
                     put(
                         "#$i",
-                        "$mark (${fmt(b.centroidXPx, 0)},${fmt(b.centroidYPx, 0)}) r${fmt(b.enclosingRadiusPx, 0)} " +
-                            "a${fmt(b.contourAreaPx, 0)} c${fmt(b.circularity, 2)} ar${fmt(b.aspectRatio, 1)} d${fmt(b.density, 2)}",
+                        "${if (i == 0) "TARGET" else "ok"} (${fmt(c.xPx, 0)},${fmt(c.yPx, 0)}) r${fmt(c.radiusPx, 0)} " +
+                            "a${fmt(c.areaPx, 0)} c${fmt(c.circularity, 2)} ar${fmt(c.aspectRatio, 1)} d${fmt(c.density, 2)}",
                     )
                 }
             }
-            cameraControlSection(bag, camera)
-            previewSection(bag)
-        }
-    }
-
-    private fun cameraControlSection(bag: TelemetryBag, camera: BallCameraSubsystem) {
-        val status = camera.controlStatus
-        val caps = status.capabilities
-        val req = status.requested
-        val rb = status.readback
-        bag.section("Camera Controls") {
-            put("worker", "${status.state}; ${status.deviceWrites} device writes${status.lastError?.let { "; error $it" } ?: ""}")
-            if (caps == null) {
-                put("probe", "not yet (waits for STREAMING)")
-            } else {
-                put(
-                    "exposure",
-                    if (caps.exposureSupported) "manual=${caps.manualExposureSupported} auto=${caps.autoExposureMode} " +
-                        "${caps.minExposureMicros}–${caps.maxExposureMicros} µs" else "unsupported",
-                )
-                put("gain", if (caps.gainSupported) "${caps.minGain}–${caps.maxGain}" else "unsupported")
-                put("white balance", if (caps.whiteBalanceSupported) "${caps.minWhiteBalanceKelvin}–${caps.maxWhiteBalanceKelvin} K" else "unsupported")
-                put("focus (report only)", "length=${caps.focusLengthSupported} modes=${caps.focusModes}")
-                if (caps.probeNotes.isNotEmpty()) put("probe notes", caps.probeNotes.joinToString("; "))
+            bag.section("Preview") {
+                put("enabled", BallCameraConfig.previewEnabled)
+                put("view", "Control Hub HDMI or scrcpy: Robot Controller screen; blobs that passed are outlined")
+                put("change", "B toggles rendering (after START), or Panels ballVision.previewEnabled")
             }
-            if (req != null) {
-                put(
-                    "exposure req → device",
-                    "${if (req.exposureManual) "MANUAL ${req.exposureMicros} µs" else "AUTO"} → ${rb?.exposureMode ?: "?"} ${rb?.exposureMicros ?: "?"} µs",
-                )
-                put("gain req → device", "${if (req.gain < 0) "untouched" else req.gain} → ${rb?.gain ?: "?"}")
-                put(
-                    "WB req → device",
-                    "${if (req.whiteBalanceManual) "MANUAL ${req.whiteBalanceKelvin} K" else "AUTO"} → ${rb?.whiteBalanceMode ?: "?"} ${rb?.whiteBalanceKelvin ?: "?"} K",
-                )
-            }
-            if (status.notes.isNotEmpty()) put("apply notes", status.notes.joinToString("; "))
         }
-    }
-
-    private fun previewSection(bag: TelemetryBag) {
-        bag.section("Preview") {
-            put("mode", "${BallVisionSettings.previewModeOf(BallCameraConfig.previewMode)} (enabled=${BallCameraConfig.previewEnabled})")
-            put("view", "Control Hub HDMI or scrcpy: Robot Controller screen")
-            put("change", "X cycles overlay/original/mask, B toggles rendering (after START); or Panels ballVision.previewMode 0/1/2")
-        }
-    }
-
-    fun cyclePreviewMode() {
-        val next = (BallVisionSettings.previewModeOf(BallCameraConfig.previewMode).ordinal + 1) % BallPreviewMode.entries.size
-        BallCameraConfig.previewMode = next
     }
 
     fun togglePreview() {
@@ -291,27 +219,15 @@ internal object VisionDiagnostics {
                 (s.latest.targetPoseCameraSpace?.let { "|d| ${fmt(it.distanceMeters, 3)} m" } ?: "3D unsolved")
         }
         if (camera != null) {
-            val obs = camera.observation
             val lens = camera.lensReport
-            m += "camera.stream" to camera.runningStream.toString()
             m += "camera.state" to camera.cameraState
-            m += "camera.processedFps" to fmt(camera.tracker.processedFps, 1)
-            m += "camera.receivedFps" to fmt(camera.tracker.receivedFps, 1)
             m += "camera.libraryFps" to fmt(camera.libraryReportedFps, 1)
-            m += "camera.frameAgeMs" to fmt(obs.ageMs, 1)
-            m += "camera.captureTimeValid" to obs.captureTimeValid.toString()
-            m += "camera.processingMs" to fmt(obs.frame?.processingMs ?: Double.NaN, 1)
-            m += "camera.skippedFrames" to camera.tracker.skippedFrames.toString()
-            m += "camera.processorFaults" to camera.processorFaults.toString()
+            m += "camera.frameAgeMs" to fmt(camera.frameAgeMs, 1)
+            m += "camera.exposure" to camera.exposureStatus
             m += "camera.lens" to (lens.describe() + (lens.intrinsics?.let { " fx=${it.fx} fy=${it.fy} cx=${it.cx} cy=${it.cy} k=${it.distortion}" } ?: ""))
-            m += "camera.target" to (obs.selected?.blob?.let {
-                "${obs.targetStatus} (${fmt(it.centroidXPx, 1)},${fmt(it.centroidYPx, 1)}) r=${fmt(it.enclosingRadiusPx, 1)} circ=${fmt(it.circularity, 2)}"
-            } ?: obs.targetStatus.name)
-            val status = camera.controlStatus
-            m += "controls.capabilities" to status.capabilities.toString()
-            m += "controls.requested" to status.requested.toString()
-            m += "controls.readback" to status.readback.toString()
-            m += "controls.notes" to status.notes.joinToString("; ")
+            m += "camera.target" to (camera.target?.let {
+                "(${fmt(it.xPx, 1)},${fmt(it.yPx, 1)}) r=${fmt(it.radiusPx, 1)} circ=${fmt(it.circularity, 2)}"
+            } ?: "none")
         }
         return m
     }

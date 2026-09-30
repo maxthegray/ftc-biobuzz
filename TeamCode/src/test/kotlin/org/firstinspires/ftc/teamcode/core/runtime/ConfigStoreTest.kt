@@ -116,8 +116,8 @@ class ConfigStoreTest {
                 }
             })
             robot.initTick()
-            BallCameraConfig.resolutionWidth = 320
-            BallCameraConfig.resolutionHeight = 240
+            BallCameraConfig.exposureMicros = 4000
+            BallCameraConfig.blurKernelPx = 7
             BallCameraConfig.minCircularity = 0.8
             VisionDiagnosticsConfig.runBothCameras = true
 
@@ -126,8 +126,8 @@ class ConfigStoreTest {
             assertTrue(stopped)
             assertEquals(beforeInit, diskAtStop)
             ConfigStore.loadFromDisk()
-            assertEquals(320, BallCameraConfig.resolutionWidth)
-            assertEquals(240, BallCameraConfig.resolutionHeight)
+            assertEquals(4000, BallCameraConfig.exposureMicros)
+            assertEquals(7, BallCameraConfig.blurKernelPx)
             assertEquals(0.8, BallCameraConfig.minCircularity, 0.0)
             assertTrue(VisionDiagnosticsConfig.runBothCameras)
         } finally {

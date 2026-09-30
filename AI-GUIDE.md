@@ -320,7 +320,7 @@ reload never run.
 | `battery` | double | volts |
 | `loop/totalNanos`, `loop/<phase>Nanos`, `loop/windowMax…` | int64 | loop timing and per-window peaks |
 | `<Subsystem>/…` | any | `SubsystemBase.logState` channels |
-| `BallCamera/candidates/…` | `double[]` | every published blob of the current frame, accepted first: `xPx`, `yPx`, `radiusPx`, `areaPx`, `circularity`, `horizontalDeg`, `verticalDeg` (+ below the axis), with `rejections` (string, `accepted` or the failed filter, comma-separated) and `selectedIndex` |
+| `BallCamera/candidates/…` | `double[]` | every blob that passed the filters in the current frame, largest first: `xPx`, `yPx`, `radiusPx`, `areaPx`, `circularity`, `horizontalDeg`, `verticalDeg` (+ below the axis), and `selectedIndex` (0, or −1 when none) |
 | `BallCamera/mount/…` | double/boolean | `BallCamera.mount*` as recorded: `measured`, `heightIn`, `pitchDownDeg`, `forwardIn`, `leftIn`, `yawDeg` |
 | `Hive/<RED\|BLUE>/…` | mixed | `state` (`AUDIENCE_RAISED`, `FAR_RAISED`, `UNKNOWN`), `stateAssumed`, `tipCount`, and the goal: `visible`, `cell`, `turretBearingDeg`, `robotBearingDeg`, `distanceIn` (horizontal, from the turret axis), `heightIn`, `spreadIn`, `ageMs` (since estimated capture), `tagIds`, `reprojected`; the aim goal: `aimSource` (`VISION`/`ODOMETRY`), `aimTurretBearingDeg`, `aimRobotBearingDeg`; `fieldGoalErrorIn` (vision goal vs `HiveField`) |
 | `Hive/tags/…` | `double[]` | every season tag of the latest processed frame: `id`, `heightIn`, `class` (1 raised, −1 lowered, 0 ambiguous), `deviationIn` (implied goal's distance from its CELL's fused goal) |
@@ -407,9 +407,10 @@ loop keeps running.
 - **Subsystem writes in `periodic`.** Don't.
 - **VisionPortal processors are single-use.** Build a new processor every
   run. Never let an exception leave `processFrame`.
-- **Panels values never reach camera threads directly.** Copy into an
-  immutable snapshot on the robot loop (see `BallCameraSubsystem`); only
-  `CameraControlWorker` calls blocking USB camera controls.
+- **The ball camera is the SDK's `ColorBlobLocatorProcessor`.** Its color
+  range, region and morphology are fixed when it is built (applied at init);
+  only its filters change live. Don't add a custom processor back without
+  asking.
 - **Vision timestamps are not interchangeable.** Limelight `staleness` is
   receipt age, `ts` is device clock (identity only), VisionPortal capture
   time is `System.nanoTime()`. Label which age a number is.

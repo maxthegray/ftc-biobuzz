@@ -13,13 +13,12 @@ import org.firstinspires.ftc.teamcode.vision.diagnostics.VisionLabRecorder
 import org.firstinspires.ftc.teamcode.vision.diagnostics.VisionDiagnosticsConfig
 
 /**
- * Stationary USB-camera ball diagnostic: yellow-pollen color/shape detection
- * through VisionPortal, live-tuned from Panels (`ballVision`), with a
- * Robot Controller preview of the original image, threshold mask, or detection
- * overlay. Commands no motors.
+ * Stationary USB-camera ball diagnostic: yellow-pollen detection through the
+ * SDK's ColorBlobLocatorProcessor, tuned from Panels (`ballVision`), with the
+ * detections outlined on the Robot Controller preview. Commands no motors.
  *
- * Driver controls after START: A saves a lab record, X cycles the preview
- * mode, B toggles preview rendering. The camera and preview already run during
+ * Driver controls after START: A saves a lab record, B toggles preview
+ * rendering. The camera and preview already run during
  * INIT. `visionDiagnostics.runBothCameras` also opens the Limelight.
  */
 @TeleOp(name = "Ball Tracking Test", group = "Diagnostics")
@@ -51,12 +50,11 @@ class BallTrackingTestTeleOp : OpModeBase() {
                 recorder.save(VisionDiagnostics.measurements(robot, timing, startup, limelight, sightings, ballCamera))
             },
         )
-        driver.button(Button.X).onTrue(instant(VisionDiagnostics::cyclePreviewMode))
         driver.button(Button.B).onTrue(instant(VisionDiagnostics::togglePreview))
     }
 
     override fun onStart() {
-        robot.recordEvent("Ball tracking test started; stream ${ballCamera.runningStream}; both cameras=${startup.runBothCameras}")
+        robot.recordEvent("Ball tracking test started; both cameras=${startup.runBothCameras}")
     }
 
     override fun onInitLoop() = tick()

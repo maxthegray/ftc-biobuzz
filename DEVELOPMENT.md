@@ -357,8 +357,8 @@ validate them on the mechanism.
 
 Season vision code is grouped by responsibility under `vision/`:
 
-- `ball/`: USB camera lifecycle, color/shape detection, camera settings,
-  calibration and observation freshness.
+- `ball/`: the USB ball camera on the SDK's color-blob processor, its Panels
+  settings, and lens calibration.
 - `apriltags/`: season tag identities, FIRST's cluster geometry, and sighting
   history.
 - `hive/`: HIVE goal tracking for the turret-mounted Limelight. `HiveConfig`
