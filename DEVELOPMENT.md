@@ -119,7 +119,7 @@ private fun routine(): Command = logged(
     "Score preload",
     race(
         sequential(
-            logged("Start delay", monotonicWaitMs(startDelay.millis.toDouble())),
+            logged("Start delay", monotonicWaitMs(startDelaySec * 1000.0)),
             race(
                 drive.followCommand(toScore(), name = "Drive to score"),
                 logged("Drive to score time limit", monotonicWaitMs(4_000.0)), // step timeout
@@ -286,7 +286,7 @@ Everything else is Ivy or Pedro. Each remaining helper has one job:
 | `logged`, `CommandHistory` | Command history for traced commands (Ivy has no lifecycle hooks or names) |
 | `FieldView`, `TelemetryBag` | Panels field drawing and throttled DS/Panels telemetry |
 | `ConfigStore` | Tuning that survives restarts and hot reloads |
-| `Preflight`, `MotorIO`, `LoopProfile`, `StartDelay`, `MatchTimer`, `PIDFController` | Missing-device listing, testable motors, loop timing, start delay, endgame rumble, gains |
+| `Preflight`, `MotorIO`/`ServoIO`, `LoopProfile` | Missing-device listing, testable motors and servos, loop timing |
 | `pedro/Constants.java`, `pedro/Tuning.java` | Pedro's configuration and AutoTune registration, in the Quickstart layout |
 
 ## Config objects
@@ -348,9 +348,9 @@ explicitly.
   reads/writes and fault/stop cleanup, then register in `configure()`.
 
 There is no generic mechanism base class. Build each lift/arm/turret as a
-plain `SubsystemBase` against the real hardware, with `PIDFController` +
-`PIDFGains` and the `MotorIO` seam (host tests can inject
-`SimMotorIO(clock, …)`). Add homing, soft limits or profiles only once you can
+plain `SubsystemBase` against the real hardware, through the `MotorIO` /
+`ServoIO` seam in `core/io/HardwareIO.kt` (host tests can inject
+`SimMotorIO(clock, …)`). Add closed-loop control, homing, soft limits or profiles only once you can
 validate them on the mechanism.
 
 ## Vision layout
@@ -377,18 +377,15 @@ Tests mirror these packages. The reusable Limelight device adapter stays in
 
 1. Keep Pinpoint direct on its own Control Hub I²C port. Pedro reads it inside
    `Follower.update()`.
-2. Put auxiliary I²C sensors on one SRSHub and read it inline from
-   `SRSHubSubsystem.periodic()`:
-   `val srs = robot.register(SRSHubSubsystem()); val color = srs.color(bus = 1)`.
-3. Don't background the SRSHub unless measurements prove the inline read is
-   the loop-time problem. A background thread still shares the Lynx serial
-   link with motor writes; that was tried and reverted for Pinpoint.
-
-Before changing the policy: baseline direct Pinpoint loop time from a full
-battery down to ~11 V; add the SRSHub inline and log `hub.update()` duration
-and CRC mismatches; only then consider a bounded worker, and check motor-write
-timing does not regress. Never share the SRSHub's in-place decoded objects
-across threads.
+2. For several auxiliary I²C sensors, use an SRS Hub read inline in
+   `periodic()`: in the August lab test it saved about 19 ms a loop over
+   direct I²C (`PROGRESS.md`). Its driver and subsystem were removed until a
+   sensor needs them; restore `SRSHub.java` and `SRSHubSubsystem.kt` from
+   commit `33e20b6`.
+3. Don't read sensors on a background thread unless measurements prove the
+   inline read is the loop-time problem. A background thread still shares the
+   Lynx serial link with motor writes; that was tried and reverted for
+   Pinpoint.
 
 ## Season rollover
 

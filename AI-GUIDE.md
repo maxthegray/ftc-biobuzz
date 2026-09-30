@@ -439,11 +439,12 @@ actuators in `stop()` and `onCommandFault()`, log in `logState`, register in
 `configure()`. Season mechanisms go under `teamcode/subsystems/`, not `core/`.
 There is deliberately no generic mechanism base class.
 
-## When the user asks you to add an I²C sensor (or touch SRSHub)
+## When the user asks you to add an I²C sensor
 
-Read the sensor section in `DEVELOPMENT.md` first. Pinpoint stays direct; all
-other I²C goes on one SRSHub read **inline** in `periodic()`. Do not
-background the SRSHub by default.
+Read the sensor section in `DEVELOPMENT.md` first. Pinpoint stays direct;
+several auxiliary sensors go on one SRS Hub read **inline** in `periodic()`
+(restore its driver from git history, as described there). Do not background
+sensor reads by default.
 
 ## When the user asks you to add a path or auton routine
 
@@ -453,7 +454,7 @@ paths from `Paths`, the routine as Ivy groups of drive commands, `race`
 timeouts, `deadline` markers, start gates (`FORESIGHT_TUNED`,
 `localizer.ready`, schedule accepted), stop when the routine is no longer
 scheduled. One `@Autonomous` class per alliance and routine; the BLUE copy
-overrides `initialAlliance` only. Start delay via `StartDelay` on dpad in init.
+overrides `initialAlliance` only. Start delay on dpad in init, as in the example.
 
 ## Naming op-modes
 

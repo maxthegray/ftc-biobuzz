@@ -13,7 +13,6 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous
 import com.qualcomm.robotcore.eventloop.opmode.Disabled
 import org.firstinspires.ftc.teamcode.core.logging.logged
 import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
-import org.firstinspires.ftc.teamcode.core.runtime.StartDelay
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerSubsystem
 import org.firstinspires.ftc.teamcode.core.util.Alliance
@@ -49,7 +48,8 @@ class ExampleAuto : OpModeBase() {
 
     private lateinit var drive: MecanumDriveSubsystem
     private lateinit var localizer: LocalizerSubsystem
-    private lateinit var startDelay: StartDelay
+    // Picked on dpad left/right during init, agreed with the alliance partner before the match.
+    private var startDelaySec = 0
     private var routine: Command? = null
 
     /** The BLUE copy of this file overrides this and changes nothing else. */
@@ -76,7 +76,6 @@ class ExampleAuto : OpModeBase() {
                 startingPose = start,
             ),
         )
-        startDelay = StartDelay(telemetryBag)
     }
 
     private fun outPath(): Path = line(start, out).constant(start)
@@ -90,7 +89,7 @@ class ExampleAuto : OpModeBase() {
         "Example Auto routine",
         race(
             sequential(
-                logged("Start delay", monotonicWaitMs(startDelay.millis.toDouble())),
+                logged("Start delay", monotonicWaitMs(startDelaySec * 1000.0)),
                 race(
                     deadline(
                         drive.followCommand(outPath(), name = "Drive out"),
@@ -112,7 +111,9 @@ class ExampleAuto : OpModeBase() {
     )
 
     override fun onInitLoop() {
-        startDelay.update(driver)
+        if (driver.dpadRightPressed) startDelaySec = (startDelaySec + 1).coerceAtMost(10)
+        if (driver.dpadLeftPressed) startDelaySec = (startDelaySec - 1).coerceAtLeast(0)
+        telemetryBag.section("Auto") { put("start delay s", startDelaySec) }
     }
 
     override fun onStart() {

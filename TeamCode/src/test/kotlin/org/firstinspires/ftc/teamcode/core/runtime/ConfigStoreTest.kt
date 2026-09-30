@@ -4,7 +4,6 @@ import com.bylazar.configurables.annotations.Configurable
 import com.qualcomm.robotcore.hardware.HardwareMap
 import java.io.File
 import java.lang.reflect.Modifier
-import org.firstinspires.ftc.teamcode.core.control.PIDFGains
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerConfig
 import org.firstinspires.ftc.teamcode.opmodes.archived.MotorTestConfig
@@ -19,7 +18,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-/** Stand-in for a non-primitive live holder synced from primitive config fields. */
+/** Stand-ins for non-primitive live holders synced from primitive config fields. */
+private class TestGains(@JvmField var kP: Double = 0.0, @JvmField var kV: Double = 0.0)
+
 private class TestConstraints(
     @JvmField var maxVelocity: Double,
     @JvmField var maxAcceleration: Double,
@@ -50,7 +51,7 @@ class ConfigStoreTest {
         @JvmField var maxVelocity: Double = 30.0
         @JvmField var maxAcceleration: Double = 60.0
 
-        val gains = PIDFGains()
+        val gains = TestGains()
         val constraints = TestConstraints(1.0, 1.0)
 
         fun resetDefaults() {

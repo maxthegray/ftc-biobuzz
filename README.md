@@ -38,8 +38,6 @@ On the robot:
    — change them there, not just on the Driver Station. `limelight` and
    `ballCamera` are defaults on `LimelightSubsystem`/`BallCameraSubsystem`
    instead, since vision hardware names aren't identity in the same sense.
-   `srsHub` (`SRSHubSubsystem`'s default name) is wired only in the archived
-   SRS Loop Benchmark diagnostic, not on the current sensorbot config.
 2. Do a full APK install the first time (`make install`).
 3. Work through [OPERATIONS.md](OPERATIONS.md) for bring-up and AutoTune.
    Foresight (Pedro's path follower) is **not tuned yet**: driving works, but
@@ -57,8 +55,7 @@ Enabled Driver Station op-modes:
 | Limelight AprilTag Test | AprilTag diagnostics |
 | Hive Tag Survey | HIVE tag geometry, goal and state check on a real CELL |
 
-`opmodes/archived/` holds disabled bring-up utilities (Framework Smoke Test,
-Motor Direction Test, Panels Motor Spin, SRS Loop Benchmark).
+`opmodes/archived/` holds the disabled Panels Motor Spin bring-up tool.
 `opmodes/skeletons/` holds the disabled Example Auto and Localization Test.
 Remove `@Disabled` from a specific op-mode and rebuild when you need it.
 
@@ -103,9 +100,7 @@ TeamCode/src/main/
 └── kotlin/org/firstinspires/ftc/teamcode/
     ├── RobotConfig.kt        hardware names, field symmetry, config schema
     ├── core/
-    │   ├── control/          PIDF
-    │   ├── hardware/         SRSHub
-    │   ├── io/               motor abstraction seam
+    │   ├── io/               motor and servo seam for tests
     │   ├── logging/          WPILOG writer, flight recorder, Panels field view
     │   ├── runtime/          Robot, OpModeBase, SubsystemBase, config
     │   ├── subsystems/       drive, localization (+ latency-compensated pose correction), Limelight

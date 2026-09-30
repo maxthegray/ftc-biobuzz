@@ -15,17 +15,6 @@ existing motor names and directions, and **no Foresight tuning**
 (`FORESIGHT_TUNED = false`). Until AutoTune's Foresight output is pasted in,
 manual driving works and every path, hold and turn command refuses to start.
 
-## 0. Chassis-free framework smoke test
-
-**Framework Smoke Test** is disabled in `opmodes/archived/`. Re-enable it for
-this check after a framework change or on a new Control Hub. It needs no
-configured devices and exercises lifecycle ordering, gamepad input, Ivy
-scheduling and preemption, the command-fault policy, telemetry, Panels,
-ConfigStore and WPILOG output. During init `periodic ticks` must advance while
-`write ticks` stays at zero; after start both advance. **Y** throws from a
-command: Health must show `command faults`, the default command must resume,
-and the op-mode must keep running. Its loop is paced to ~50 Hz.
-
 ## 1. Configuration names
 
 Driver Station config names: `frontLeftMotor`, `frontRightMotor`,
@@ -34,8 +23,7 @@ init (Preflight lists what's missing); a *swapped* name shows up in step 2.
 
 ## 2. Motor directions (on blocks)
 
-Either AutoTune's **Mecanum Tuner** (below) or the archived **Motor Direction
-Test** (dpad selects a motor, triggers spin it at ≤ 20%). Positive power must
+Use AutoTune's **Mecanum Tuner** (below). Positive power must
 turn each wheel robot-forward. Fix directions in `pedro/Constants.java`
 (`drivetrainConfig`), not by re-wiring.
 

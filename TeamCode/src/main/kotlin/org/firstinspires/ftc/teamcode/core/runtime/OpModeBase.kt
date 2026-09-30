@@ -9,7 +9,6 @@ import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerConfig
 import org.firstinspires.ftc.teamcode.core.util.Alliance
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx
-import org.firstinspires.ftc.teamcode.core.util.MatchTimer
 import org.firstinspires.ftc.teamcode.core.util.TelemetryBag
 
 /**
@@ -80,7 +79,7 @@ abstract class OpModeBase : LinearOpMode() {
     private var lastConfigPersistNs = Long.MIN_VALUE
     private val fieldView = FieldView()
     private var fieldViewDrive: DriveTelemetrySource? = null
-    protected val matchTimer = MatchTimer()
+    private var startNanos = 0L
     private var endgameRumbled = false
     private var telemetryFailures = 0
 
@@ -169,7 +168,7 @@ abstract class OpModeBase : LinearOpMode() {
 
     private fun updateEndgameRumble() {
         if (!endgameRumble || endgameRumbled) return
-        if (matchTimer.inEndgame()) {
+        if (robot.clock.nanos() - startNanos >= ENDGAME_START_NANOS) {
             driver.rumbleBlips(3)
             operator.rumbleBlips(3)
             endgameRumbled = true
@@ -239,7 +238,7 @@ abstract class OpModeBase : LinearOpMode() {
 
         try {
             robot.start()
-            matchTimer.start()
+            startNanos = robot.clock.nanos()
             endgameRumbled = false
             robot.recordEvent("start")
             onStart()
@@ -288,5 +287,7 @@ abstract class OpModeBase : LinearOpMode() {
         /** Resting voltage below which the init screen warns to swap the battery. */
         const val LOW_BATTERY_WARN_VOLTS = 12.0
         const val CONFIG_PERSIST_INTERVAL_NS = 1_000_000_000L
+        /** Endgame is the last 30 s of the 2:00 driver period. */
+        const val ENDGAME_START_NANOS = 90_000_000_000L
     }
 }
