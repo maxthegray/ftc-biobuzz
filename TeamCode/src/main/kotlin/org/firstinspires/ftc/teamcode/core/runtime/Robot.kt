@@ -7,10 +7,10 @@ import com.qualcomm.robotcore.util.RobotLog
 import java.io.PrintWriter
 import java.io.StringWriter
 import kotlin.math.max
-import org.firstinspires.ftc.teamcode.core.logging.CommandHistory
-import org.firstinspires.ftc.teamcode.core.logging.FlightRecorder
 import org.firstinspires.ftc.teamcode.core.Alliance
 import org.firstinspires.ftc.teamcode.core.input.GamepadEx
+import org.firstinspires.ftc.teamcode.core.logging.CommandHistory
+import org.firstinspires.ftc.teamcode.core.logging.FlightRecorder
 
 /**
  * The hardware, subsystems and loop of one op-mode run.
@@ -431,5 +431,22 @@ class LoopProfile {
         maxima.fill(0)
         maxTotalNanos = 0
         maxOverheadNanos = 0
+    }
+}
+
+/**
+ * Monotonic nanosecond time source. Everything in the runtime that measures
+ * durations ([org.firstinspires.ftc.teamcode.core.runtime.Robot],
+ * [TelemetryBag])
+ * reads time through this so JVM unit tests can substitute a controllable
+ * fake instead of `System.nanoTime()`.
+ */
+fun interface Clock {
+    fun nanos(): Long
+
+    companion object {
+        /** Production clock — delegates to [System.nanoTime]. */
+        @JvmField
+        val SYSTEM: Clock = Clock { System.nanoTime() }
     }
 }

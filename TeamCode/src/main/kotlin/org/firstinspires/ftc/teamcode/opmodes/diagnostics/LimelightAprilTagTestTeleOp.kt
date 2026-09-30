@@ -6,11 +6,8 @@ import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.runtime.Preflight
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSubsystem
 import org.firstinspires.ftc.teamcode.core.input.GamepadEx.Button
-import org.firstinspires.ftc.teamcode.vision.apriltags.TagSightingTracker
 import org.firstinspires.ftc.teamcode.vision.ball.BallCameraSubsystem
-import org.firstinspires.ftc.teamcode.vision.diagnostics.SettingsChangeLog
-import org.firstinspires.ftc.teamcode.vision.diagnostics.VisionLabRecorder
-import org.firstinspires.ftc.teamcode.vision.diagnostics.VisionDiagnosticsConfig
+import org.firstinspires.ftc.teamcode.core.logging.SettingsChangeLog
 
 /**
  * Stationary Limelight 3A AprilTag diagnostic. Reports every fiducial in each

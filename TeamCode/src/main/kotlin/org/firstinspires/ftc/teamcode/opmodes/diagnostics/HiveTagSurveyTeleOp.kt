@@ -13,9 +13,7 @@ import org.firstinspires.ftc.teamcode.opmodes.diagnostics.VisionDiagnostics.fmt
 import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags
 import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags.Alliance
 import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags.Cell
-import org.firstinspires.ftc.teamcode.vision.apriltags.TagSightingTracker
-import org.firstinspires.ftc.teamcode.vision.diagnostics.SettingsChangeLog
-import org.firstinspires.ftc.teamcode.vision.diagnostics.VisionLabRecorder
+import org.firstinspires.ftc.teamcode.core.logging.SettingsChangeLog
 import org.firstinspires.ftc.teamcode.vision.hive.CellGoal
 import org.firstinspires.ftc.teamcode.vision.hive.GoalGeometry
 import org.firstinspires.ftc.teamcode.vision.hive.HiveConfig

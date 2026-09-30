@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.vision.diagnostics
+package org.firstinspires.ftc.teamcode.opmodes.diagnostics
 
 import org.firstinspires.ftc.teamcode.vision.ball.BallCameraConfig
 import java.io.File

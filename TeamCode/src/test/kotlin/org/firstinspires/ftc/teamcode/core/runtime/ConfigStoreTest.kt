@@ -10,7 +10,7 @@ import org.firstinspires.ftc.teamcode.opmodes.archived.MotorTestConfig
 import org.firstinspires.ftc.teamcode.subsystems.intake.IntakeConfig
 import org.firstinspires.ftc.teamcode.subsystems.transfer.TransferConfig
 import org.firstinspires.ftc.teamcode.vision.ball.BallCameraConfig
-import org.firstinspires.ftc.teamcode.vision.diagnostics.VisionDiagnosticsConfig
+import org.firstinspires.ftc.teamcode.opmodes.diagnostics.VisionDiagnosticsConfig
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

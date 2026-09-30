@@ -10,12 +10,12 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.max
 import org.firstinspires.ftc.teamcode.RobotConfig
-import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveTelemetrySource
+import org.firstinspires.ftc.teamcode.core.input.GamepadEx
+import org.firstinspires.ftc.teamcode.core.runtime.Clock
 import org.firstinspires.ftc.teamcode.core.runtime.LoopPhase
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
-import org.firstinspires.ftc.teamcode.core.runtime.Clock
-import org.firstinspires.ftc.teamcode.core.input.GamepadEx
+import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveTelemetrySource
 
 /**
  * Per-op-mode WPILOG flight recorder for AdvantageScope.
@@ -448,4 +448,28 @@ class FlightRecorder private constructor(
             logs.take(excess).forEach { it.delete() }
         }
     }
+}
+
+/**
+ * Per-tick state sink a subsystem writes its log channels into — see
+ * [org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase.logState].
+ *
+ * Channel names are relative; the flight recorder prefixes them with
+ * `<subsystem name>/` and lazily creates one WPILOG entry per unique name.
+ * Keep a channel's type stable across ticks (the first put fixes it).
+ * Implementations must be cheap — this runs on the hot loop every tick.
+ */
+interface StateLog {
+    fun put(channel: String, value: Double)
+    fun put(channel: String, value: Long)
+    fun put(channel: String, value: Boolean)
+
+    /** Strings are de-duplicated: only written when the value changes. */
+    fun put(channel: String, value: String)
+
+    /**
+     * A `double[]` sample; the length may change from tick to tick. Written
+     * immediately, so a cached array can be passed again unchanged.
+     */
+    fun put(channel: String, value: DoubleArray)
 }

@@ -77,12 +77,12 @@ Remove `@Disabled` from a specific op-mode and rebuild when you need it.
 | TeleOp | `opmodes/DriveOnlyTeleOp.kt`, `opmodes/TeleOpBase.kt` (`configureTeleop()`) |
 | Autonomous | `opmodes/skeletons/ExampleAuto.kt` |
 | Buttons | `core/input/GamepadEx.kt` |
-| Drive and drive commands | `core/subsystems/drive/MecanumDriveSubsystem.kt`, `DriveConfig.kt` |
+| Drive, drive commands and `DriveConfig` | `core/subsystems/drive/MecanumDriveSubsystem.kt` |
 | Localization and vision corrections | `core/subsystems/localization/` |
 | Hardware names, field size, config schema | `RobotConfig.kt` |
 | Pedro constants and AutoTune | `pedro/Constants.java`, `pedro/Tuning.java` |
 | Flight recorder | `core/logging/FlightRecorder.kt` |
-| Vision diagnostics | `opmodes/diagnostics/`, `vision/`, then `OPERATIONS.md` §8 |
+| Vision | `vision/` (match code), `opmodes/diagnostics/` (diagnostics and lab records), then `OPERATIONS.md` §8 |
 | Diagnose a run | `make debug`, then `OPERATIONS.md` |
 
 Paths are relative to `TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/`,

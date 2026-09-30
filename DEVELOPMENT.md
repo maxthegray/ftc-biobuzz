@@ -337,7 +337,7 @@ Season mechanisms live under `subsystems/`: `intake/IntakeSubsystem`,
 
 **Shooter and Turret are still unconfigured skeletons**; their `init` fails
 explicitly.
-- Shooter will accept target RPM from `shooter/ShotModel.rpmForDistance`, a
+- Shooter will accept target RPM from `ShotModel.rpmForDistance` (in `ShooterSubsystem.kt`), a
   distance-to-speed function still to be fitted from shots at measured
   distances (it returns null until then).
 - Turret owns all mechanically linked turret servos. It will keep a short
@@ -355,23 +355,21 @@ validate them on the mechanism.
 
 ## Vision layout
 
-Season vision code is grouped by responsibility under `vision/`:
+Season vision code that runs in a match is grouped under `vision/`:
 
 - `ball/`: the USB ball camera on the SDK's color-blob processor, its Panels
   settings, and lens calibration.
-- `apriltags/`: season tag identities, FIRST's cluster geometry, and sighting
-  history.
+- `apriltags/`: season tag identities and FIRST's cluster geometry.
 - `hive/`: HIVE goal tracking for the turret-mounted Limelight. `HiveConfig`
   holds the camera mount and thresholds; `GoalGeometry` places each tag's
   implied goal (its CELL's opening centre) on the robot through that mount and
   the turret angle at capture time; `HiveState` infers which CELL of each HIVE
   is raised from tag heights, with hysteresis and tip counts; `HiveTracker`, a
   subsystem, fuses each alliance's goal and exposes both alliances to op-modes.
-- `diagnostics/`: diagnostic configuration, saved lab records, and
-  settings-change logging shared by cameras and diagnostics.
-
 Tests mirror these packages. The reusable Limelight device adapter stays in
-`core/subsystems/vision/`; diagnostic op-modes stay in `opmodes/diagnostics/`.
+`core/subsystems/vision/`. The diagnostic op-modes and their tooling (lab
+records, tag-sighting history, `VisionDiagnosticsConfig`) live together in
+`opmodes/diagnostics/`; `SettingsChangeLog` is in `core/logging/`.
 
 ## Sensors and I²C
 

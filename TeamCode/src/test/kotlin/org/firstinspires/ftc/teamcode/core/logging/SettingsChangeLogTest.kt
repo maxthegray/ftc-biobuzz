@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.vision.diagnostics
+package org.firstinspires.ftc.teamcode.core.logging
 
 import org.firstinspires.ftc.teamcode.core.sim.FakeClock
 import org.firstinspires.ftc.teamcode.vision.ball.BallCameraConfig

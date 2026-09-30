@@ -11,7 +11,7 @@ import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.runtime.Clock
 import org.firstinspires.ftc.teamcode.core.runtime.HardwareConfigError
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
-import org.firstinspires.ftc.teamcode.vision.diagnostics.SettingsChangeLog
+import org.firstinspires.ftc.teamcode.core.logging.SettingsChangeLog
 import org.firstinspires.ftc.vision.VisionPortal
 import org.firstinspires.ftc.vision.VisionProcessor
 import org.firstinspires.ftc.vision.opencv.ColorBlobLocatorProcessor

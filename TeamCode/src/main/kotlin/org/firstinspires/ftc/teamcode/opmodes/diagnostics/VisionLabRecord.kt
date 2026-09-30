@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.vision.diagnostics
+package org.firstinspires.ftc.teamcode.opmodes.diagnostics
 
 import java.io.File
 import java.text.SimpleDateFormat

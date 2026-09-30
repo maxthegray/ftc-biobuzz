@@ -1,20 +1,19 @@
 package org.firstinspires.ftc.teamcode.opmodes.diagnostics
 
+import com.bylazar.configurables.annotations.Configurable
 import com.qualcomm.hardware.limelightvision.Limelight3A
 import java.util.Locale
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName
+import org.firstinspires.ftc.teamcode.core.logging.TelemetryBag
 import org.firstinspires.ftc.teamcode.core.runtime.ConfigStore
 import org.firstinspires.ftc.teamcode.core.runtime.LoopPhase
 import org.firstinspires.ftc.teamcode.core.runtime.Preflight
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightFiducial
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSubsystem
-import org.firstinspires.ftc.teamcode.core.logging.TelemetryBag
 import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags
-import org.firstinspires.ftc.teamcode.vision.apriltags.TagSightingTracker
-import org.firstinspires.ftc.teamcode.vision.ball.BallCameraSubsystem
 import org.firstinspires.ftc.teamcode.vision.ball.BallCameraConfig
-import org.firstinspires.ftc.teamcode.vision.diagnostics.VisionDiagnosticsConfig
+import org.firstinspires.ftc.teamcode.vision.ball.BallCameraSubsystem
 
 /** Wiring and telemetry shared by the Limelight AprilTag Test and Ball Tracking Test. */
 internal object VisionDiagnostics {
@@ -251,5 +250,113 @@ internal class LoopTimingStats {
         count++
         totalNanos += loopNanos
         if (loopNanos > maxNanos) maxNanos = loopNanos
+    }
+}
+
+/**
+ * Settings shared by both vision diagnostics, persisted under
+ * `visionDiagnostics`. Every field is **restart**: it decides what hardware the
+ * OpMode opens.
+ *
+ * Deliberately not `@Configurable`: nothing here is tuned live, so it stays out
+ * of Panels. Change a default here, or its `visionDiagnostics.*` key in
+ * `tuning.properties`.
+ */
+object VisionDiagnosticsConfig {
+
+    private const val DEFAULT_RUN_BOTH_CAMERAS = false
+    private const val DEFAULT_LIMELIGHT_TAG_PIPELINE_INDEX = 0
+    private const val DEFAULT_LIMELIGHT_POLL_RATE_HZ = 100
+    private const val DEFAULT_LIMELIGHT_MAX_RESULT_AGE_MS = 100
+
+    /** Open the Limelight and the USB camera together to compare timing under combined load. */
+    @JvmField var runBothCameras: Boolean = DEFAULT_RUN_BOTH_CAMERAS
+
+    /** Limelight pipeline slot configured for AprilTags in the web interface. */
+    @JvmField var limelightTagPipelineIndex: Int = DEFAULT_LIMELIGHT_TAG_PIPELINE_INDEX
+
+    @JvmField var limelightPollRateHz: Int = DEFAULT_LIMELIGHT_POLL_RATE_HZ
+
+    /** Frames older than this since their first receipt are stale, even if duplicate polls keep arriving. */
+    @JvmField var limelightMaxResultAgeMs: Int = DEFAULT_LIMELIGHT_MAX_RESULT_AGE_MS
+
+    fun resetDefaults() {
+        runBothCameras = DEFAULT_RUN_BOTH_CAMERAS
+        limelightTagPipelineIndex = DEFAULT_LIMELIGHT_TAG_PIPELINE_INDEX
+        limelightPollRateHz = DEFAULT_LIMELIGHT_POLL_RATE_HZ
+        limelightMaxResultAgeMs = DEFAULT_LIMELIGHT_MAX_RESULT_AGE_MS
+    }
+
+    fun compiledDefaults(): Map<String, Any> = linkedMapOf(
+        "runBothCameras" to DEFAULT_RUN_BOTH_CAMERAS,
+        "limelightTagPipelineIndex" to DEFAULT_LIMELIGHT_TAG_PIPELINE_INDEX,
+        "limelightPollRateHz" to DEFAULT_LIMELIGHT_POLL_RATE_HZ,
+        "limelightMaxResultAgeMs" to DEFAULT_LIMELIGHT_MAX_RESULT_AGE_MS,
+    )
+
+    internal val safeTagPipelineIndex: Int
+        get() = if (limelightTagPipelineIndex in 0..9) limelightTagPipelineIndex else DEFAULT_LIMELIGHT_TAG_PIPELINE_INDEX
+
+    internal val safePollRateHz: Int
+        get() = if (limelightPollRateHz in 1..250) limelightPollRateHz else DEFAULT_LIMELIGHT_POLL_RATE_HZ
+
+    internal val safeMaxResultAgeMs: Long
+        get() = (if (limelightMaxResultAgeMs > 0) limelightMaxResultAgeMs else DEFAULT_LIMELIGHT_MAX_RESULT_AGE_MS).toLong()
+}
+
+/**
+ * Per-tag sighting history for the AprilTag diagnostic: when each ID was last
+ * in a fresh result and how many fresh frames contained it.
+ *
+ * Feed it only the fiducials of a fresh, matching-pipeline result, once per new
+ * device frame ([LimelightSubsystem][org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSubsystem]
+ * already clears them otherwise). Times are robot-loop nanoTime at the tick the
+ * frame was first seen — receipt time, not acquisition time.
+ */
+class TagSightingTracker {
+
+    data class Sighting(
+        val id: Int,
+        val catalogTag: BiobuzzAprilTags.Tag?,
+        val lastSeenNs: Long,
+        val framesSeen: Long,
+        val latest: LimelightFiducial,
+    ) {
+        fun ageMs(nowNs: Long): Double = (nowNs - lastSeenNs) / 1e6
+    }
+
+    private val sightings = LinkedHashMap<Int, Sighting>()
+
+    var framesObserved: Long = 0
+        private set
+
+    fun recordFrame(fiducials: List<LimelightFiducial>, nowNs: Long) {
+        framesObserved++
+        for (fiducial in fiducials) {
+            val previous = sightings[fiducial.id]
+            sightings[fiducial.id] = Sighting(
+                id = fiducial.id,
+                catalogTag = BiobuzzAprilTags.lookup(fiducial.id),
+                lastSeenNs = nowNs,
+                framesSeen = (previous?.framesSeen ?: 0L) + 1,
+                latest = fiducial,
+            )
+        }
+    }
+
+    fun sighting(id: Int): Sighting? = sightings[id]
+
+    /** Every ID ever seen this run, season catalog first then unknown IDs, ascending. */
+    fun all(): List<Sighting> = sightings.values.sortedWith(
+        compareBy<Sighting> { it.catalogTag == null }.thenBy { it.id },
+    )
+
+    /** Newest sighting of any tag on [cell], or null if none has been seen this run. */
+    fun latestFor(cell: BiobuzzAprilTags.Cell): Sighting? =
+        sightings.values.filter { it.catalogTag?.cell == cell }.maxByOrNull { it.lastSeenNs }
+
+    fun reset() {
+        sightings.clear()
+        framesObserved = 0
     }
 }
