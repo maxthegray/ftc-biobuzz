@@ -93,7 +93,7 @@ reduced trail; the coordinate readout always uses the full pose series.
   toggles this display. Multiple active commands and suspended states are
   shown as recorded; this is only the command coverage available in the log.
 - **Ball** (shown when the log has ball-tracking channels) draws where the
-  robot thinks the tracked ball is: `BallAssist/tx`/`ty`, or the USB camera's
+  robot thinks the tracked ball is: `BallAssist/tx`/`ty` (older logs), or the USB camera's
   `BallCamera/target/horizontalDeg`/`verticalDeg` (positive below the axis,
   flipped here). When the assist's ty isn't logged (aim only), the Limelight's
   own ty is used if it sees a target whose tx matches. The camera ray is

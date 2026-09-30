@@ -187,6 +187,10 @@ def handler_for(library):
                 else:
                     files = {"/": ("index.html", "text/html; charset=utf-8"),
                              "/app.js": ("app.js", "text/javascript"),
+                             "/ui.js": ("ui.js", "text/javascript"),
+                             "/layout.js": ("layout.js", "text/javascript"),
+                             "/charts.js": ("charts.js", "text/javascript"),
+                             "/field-camera.js": ("field-camera.js", "text/javascript"),
                              "/core.mjs": ("core.mjs", "text/javascript"),
                              "/theme.js": ("theme.js", "text/javascript"),
                              "/style.css": ("style.css", "text/css")}
