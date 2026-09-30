@@ -3,13 +3,10 @@ package org.firstinspires.ftc.teamcode.opmodes.diagnostics
 import com.qualcomm.hardware.limelightvision.Limelight3A
 import java.util.Locale
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName
-import org.firstinspires.ftc.teamcode.RobotConfig
-import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.runtime.ConfigStore
 import org.firstinspires.ftc.teamcode.core.runtime.LoopPhase
 import org.firstinspires.ftc.teamcode.core.runtime.Preflight
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
-import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightFiducial
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSubsystem
 import org.firstinspires.ftc.teamcode.core.util.TelemetryBag
@@ -17,11 +14,9 @@ import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags
 import org.firstinspires.ftc.teamcode.vision.apriltags.TagSightingTracker
 import org.firstinspires.ftc.teamcode.vision.ball.BallCameraSubsystem
 import org.firstinspires.ftc.teamcode.vision.ball.BallPreviewMode
-import org.firstinspires.ftc.teamcode.vision.ball.BallCamera
+import org.firstinspires.ftc.teamcode.vision.ball.BallCameraConfig
 import org.firstinspires.ftc.teamcode.vision.ball.BallVisionSettings
-import org.firstinspires.ftc.teamcode.vision.diagnostics.LabRecordWriter
 import org.firstinspires.ftc.teamcode.vision.diagnostics.VisionDiagnosticsConfig
-import org.firstinspires.ftc.teamcode.vision.diagnostics.VisionLabRecord
 
 /** Wiring and telemetry shared by the Limelight AprilTag Test and Ball Tracking Test. */
 internal object VisionDiagnostics {
@@ -53,7 +48,7 @@ internal object VisionDiagnostics {
      */
     fun registerConfigsAndLoad(): Startup {
         ConfigStore.register("visionDiagnostics", VisionDiagnosticsConfig, VisionDiagnosticsConfig::resetDefaults)
-        ConfigStore.register("ballVision", BallCamera, BallCamera::resetDefaults)
+        ConfigStore.register("ballVision", BallCameraConfig, BallCameraConfig::resetDefaults)
         ConfigStore.loadFromDisk()
         return Startup.fromConfig()
     }
@@ -240,19 +235,19 @@ internal object VisionDiagnostics {
 
     private fun previewSection(bag: TelemetryBag) {
         bag.section("Preview") {
-            put("mode", "${BallVisionSettings.previewModeOf(BallCamera.previewMode)} (enabled=${BallCamera.previewEnabled})")
+            put("mode", "${BallVisionSettings.previewModeOf(BallCameraConfig.previewMode)} (enabled=${BallCameraConfig.previewEnabled})")
             put("view", "Control Hub HDMI or scrcpy: Robot Controller screen")
             put("change", "X cycles overlay/original/mask, B toggles rendering (after START); or Panels ballVision.previewMode 0/1/2")
         }
     }
 
     fun cyclePreviewMode() {
-        val next = (BallVisionSettings.previewModeOf(BallCamera.previewMode).ordinal + 1) % BallPreviewMode.entries.size
-        BallCamera.previewMode = next
+        val next = (BallVisionSettings.previewModeOf(BallCameraConfig.previewMode).ordinal + 1) % BallPreviewMode.entries.size
+        BallCameraConfig.previewMode = next
     }
 
     fun togglePreview() {
-        BallCamera.previewEnabled = !BallCamera.previewEnabled
+        BallCameraConfig.previewEnabled = !BallCameraConfig.previewEnabled
     }
 
     // -------------------------------------------------------------------- Timing
@@ -340,67 +335,5 @@ internal class LoopTimingStats {
         count++
         totalNanos += loopNanos
         if (loopNanos > maxNanos) maxNanos = loopNanos
-    }
-}
-
-/**
- * Saves [VisionLabRecord]s from a diagnostic OpMode and reports completion in
- * telemetry and the flight log. A subsystem only so its writer thread is shut
- * down with the OpMode; it touches no hardware.
- */
-internal class VisionLabRecorder(
-    private val opModeName: String,
-    private val writer: LabRecordWriter = LabRecordWriter(),
-    /** Further ConfigStore sections to record, with their compiled defaults. */
-    private val extraSections: List<Pair<String, Map<String, Any>>> = emptyList(),
-) : SubsystemBase("VisionLabRecord") {
-
-    private var reportedWritten = 0
-    private var reportedError: String? = null
-
-    fun save(measurements: List<Pair<String, String>>) {
-        val now = System.currentTimeMillis()
-        val contents = VisionLabRecord.build(
-            opModeName = opModeName,
-            wallClockMs = now,
-            configSchema = RobotConfig.CONFIG_SCHEMA,
-            sections = listOf(
-                VisionLabRecord.sectionFromStore("ballVision", BallCamera.compiledDefaults()),
-                VisionLabRecord.sectionFromStore("visionDiagnostics", VisionDiagnosticsConfig.compiledDefaults()),
-            ) + extraSections.map { (section, defaults) -> VisionLabRecord.sectionFromStore(section, defaults) },
-            measurements = measurements,
-        )
-        writer.submit(VisionLabRecord.fileName(opModeName, now), contents)
-    }
-
-    /** Call from the robot thread each loop; records completed writes as flight-log events. */
-    fun poll(robot: Robot) {
-        val status = writer.status
-        if (status.written != reportedWritten) {
-            reportedWritten = status.written
-            robot.recordEvent("VISION LAB RECORD saved: ${status.lastFile}")
-        }
-        if (status.lastError != null && status.lastError != reportedError) {
-            reportedError = status.lastError
-            robot.recordEvent("VISION LAB RECORD failed: ${status.lastError}")
-        }
-    }
-
-    override fun health(): String {
-        val status = writer.status
-        return when {
-            status.pending > 0 -> "saving…"
-            status.lastError != null -> "last save failed: ${status.lastError}"
-            status.lastFile != null -> "saved ${status.written}: ${status.lastFile}"
-            else -> "A saves a record (after START)"
-        }
-    }
-
-    override fun logState(log: StateLog) {
-        log.put("written", writer.status.written.toLong())
-    }
-
-    override fun stop() {
-        writer.close()
     }
 }

@@ -10,22 +10,6 @@ class ShooterSubsystem : SubsystemBase("Shooter") {
         error("Shooter hardware is not configured yet")
     }
 
-    override fun periodic() {
-        // Read hardware feedback here once the mechanism is defined.
-    }
-
-    override fun writeHardware() {
-        // Apply command targets here once hardware is configured.
-    }
-
-    override fun onCommandFault() {
-        // Clear targets and halt configured actuators.
-    }
-
-    override fun stop() {
-        // Halt configured actuators immediately.
-    }
-
     override fun health(): String = "Hardware not configured"
 
     override fun logState(log: StateLog) {

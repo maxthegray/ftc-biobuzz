@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.core.runtime
 
 import com.pedropathing.ivy.Scheduler
+import com.qualcomm.hardware.lynx.LynxModule
 import com.qualcomm.robotcore.hardware.HardwareMap
 import com.qualcomm.robotcore.util.RobotLog
 import java.io.PrintWriter
@@ -28,7 +29,7 @@ class Robot(
 ) {
 
     private val subsystems = mutableListOf<SubsystemBase>()
-    val bulkRead = BulkReadManager(hardwareMap)
+    private var hubs: List<LynxModule> = emptyList()
 
     var alliance: Alliance = Alliance.RED
 
@@ -127,7 +128,8 @@ class Robot(
     /** Initialise every registered subsystem. Exceptions propagate so init fails loudly. */
     fun init() {
         initialized = true
-        bulkRead.init()
+        hubs = hardwareMap.getAll(LynxModule::class.java)
+        for (hub in hubs) hub.bulkCachingMode = LynxModule.BulkCachingMode.MANUAL
         for (s in subsystems) s.init(hardwareMap)
     }
 
@@ -163,7 +165,7 @@ class Robot(
         check(!stopped) { "Cannot loop a stopped Robot" }
         var phaseStart = clock.nanos()
 
-        bulkRead.clearCaches()
+        clearBulkCaches()
         phaseStart = mark(phaseStart, LoopPhase.CLEAR_CACHES)
 
         for (s in subsystems) s.periodic()
@@ -228,8 +230,12 @@ class Robot(
      * run and nothing is written, so the robot cannot move before start.
      */
     fun initTick() {
-        bulkRead.clearCaches()
+        clearBulkCaches()
         for (s in subsystems) s.initPeriodic()
+    }
+
+    private fun clearBulkCaches() {
+        for (hub in hubs) hub.clearBulkCache()
     }
 
     private fun mark(start: Long, phase: LoopPhase): Long {

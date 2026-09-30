@@ -1,7 +1,7 @@
 package org.firstinspires.ftc.teamcode.vision.diagnostics
 
 import org.firstinspires.ftc.teamcode.core.sim.FakeClock
-import org.firstinspires.ftc.teamcode.vision.ball.BallCamera
+import org.firstinspires.ftc.teamcode.vision.ball.BallCameraConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -71,15 +71,15 @@ class SettingsChangeLogTest {
 
     @Test
     fun valuesOfReadsTunablesInReadableForm() {
-        BallCamera.resetDefaults()
+        BallCameraConfig.resetDefaults()
         try {
-            BallCamera.minCircularity = 0.72
-            val values = SettingsChangeLog.valuesOf(BallCamera)
+            BallCameraConfig.minCircularity = 0.72
+            val values = SettingsChangeLog.valuesOf(BallCameraConfig)
             assertEquals("0.72", values["minCircularity"])
             assertEquals("130", values["channel1Min"])
-            assertEquals(BallCamera.compiledDefaults().keys, values.keys)
+            assertEquals(BallCameraConfig.compiledDefaults().keys, values.keys)
         } finally {
-            BallCamera.resetDefaults()
+            BallCameraConfig.resetDefaults()
         }
     }
 }

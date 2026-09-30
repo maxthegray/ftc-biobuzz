@@ -143,9 +143,8 @@ Semantics verified against the 1.1.1 artifact (`LibraryContractTest` pins them):
   fault policies) or `onLoop()`, not from another command's execute.
 - Groups take the union of child requirements and the max child priority;
   nothing stops two drive commands in one `parallel`. Don't do that.
-- `waitMs` uses `System.currentTimeMillis()`, which jumps when the hub's
-  wall clock is set. Use `monotonicWaitMs(ms)` (`core/util`), the same command
-  on `System.nanoTime()`; pass a `Clock` in tests.
+- Use `monotonicWaitMs(ms)` (`core/util`), not `waitMs`, which follows the
+  wall clock (**Library workarounds**); pass a `Clock` in tests.
 - There are no command names, no running-command registry and no lifecycle
   hooks. The one exception this repo adds is `logged(name, command)`
   (`core/logging/CommandHistory.kt`), a forwarding `Command` that traces its
@@ -180,17 +179,13 @@ path.with(Constants.foresightConfig.maxPathSpeed.at(0.5))
 Verified 3.0.0 behaviour to respect:
 
 - **`linear` heading runs backwards on `Paths.line` and on compound paths**
-  ([#176](https://github.com/Pedro-Pathing/PedroPathing/issues/176); see
-  **Library workarounds** for removing the workaround once fixed)
-  (t=0 gets the end heading) because the default `Curve.pathCompletion`
-  returns the fraction remaining; only `BezierCurve` overrides it. Use
-  `path.heading(linearHeading(a, b))` from `core/util` on every path kind: it
-  interpolates by distance travelled, turns the short way like Pedro's, and
-  follows alliance-mapped poses. Pedro's `Interpolator.piecewise()` breakpoints
-  have the same problem on lines and compound paths.
+  (and `piecewise` breakpoints with it). Use `path.heading(linearHeading(a, b))`
+  from `core/util` on every path kind: it interpolates by distance travelled,
+  turns the short way like Pedro's, and follows alliance-mapped poses. Cause
+  and removal: **Library workarounds**.
 - `Paths.curve` rejects fewer than three points (the docs show two).
-- `PoseFactory.mirrorX` maps heading to −h, which is not this repo's field
-  reflection (π−h). Use `Alliance.poses()` / `Alliance.mirror`.
+- Never `PoseFactory.mirrorX`; use `Alliance.poses()` / `Alliance.mirror`
+  (**Library workarounds**).
 - The follower leaves FOLLOW mode at the **parametric end** of the path (then
   HOLD with `holdEnd`, else IDLE). That is not arrival.
 - `isBusy` is only cleared by a converged or timed-out hold; with `holdEnd`
@@ -237,7 +232,8 @@ drive.pose / drive.velocity / drive.atPose(target) / drive.toggleFieldCentric()
 
 ## Lifecycle rules (enforced by Robot/OpModeBase)
 
-1. **Bulk reads are MANUAL.** Caches clear once per tick at the top.
+1. **Bulk reads are MANUAL.** `Robot` clears every hub's cache once per tick at
+   the top.
 2. **`periodic()` reads. Commands decide. `writeHardware()` flushes.**
    `initPeriodic()` (defaults to `periodic()`) runs in init; no commands run
    and nothing is written before start.
@@ -439,7 +435,8 @@ loop keeps running.
 ## When the user asks you to add a subsystem
 
 Follow `DEVELOPMENT.md` → *Add a subsystem*: extend `SubsystemBase`, resolve
-hardware in `init` through `DeviceReaders`, read in `periodic()`, flush in
+hardware in `init` with the SDK's `hardwareMap.get` (set direction, mode and
+zero-power behaviour there), read in `periodic()`, flush in
 `writeHardware()`, expose Ivy command factories that `requiring(this)`, zero
 actuators in `stop()` and `onCommandFault()`, log in `logState`, register in
 `configure()`. Season mechanisms go under `teamcode/subsystems/`, not `core/`.

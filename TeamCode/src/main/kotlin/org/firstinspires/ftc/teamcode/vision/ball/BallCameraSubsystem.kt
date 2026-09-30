@@ -45,7 +45,7 @@ fun interface BallCameraBackendFactory {
  * supplied with validated settings, and exposes one [BallObservation] per loop.
  * Commands nothing.
  *
- * Thread boundaries: Panels writes [BallCamera] statics; [periodic]
+ * Thread boundaries: Panels writes [BallCameraConfig] statics; [periodic]
  * snapshots them on the robot thread and hands immutable copies to the camera
  * thread (detection) and the control thread (exposure, white balance, gain,
  * live view). Results come back as immutable [BallFrameResult]s.
@@ -60,7 +60,7 @@ class BallCameraSubsystem(
     private val supportedStreams: List<StreamSettings> = StreamSettings.GOBILDA_3122_0004_0001_MODES,
     /** Flight-log event sink, normally `robot::recordEvent`; receives the tuning values in force. */
     eventSink: (String) -> Unit = {},
-    private val configValues: () -> Map<String, String> = { SettingsChangeLog.valuesOf(BallCamera) },
+    private val configValues: () -> Map<String, String> = { SettingsChangeLog.valuesOf(BallCameraConfig) },
 ) : SubsystemBase("BallCamera") {
 
     private val settingsLog = SettingsChangeLog("ballVision", clock, eventSink)
@@ -117,7 +117,7 @@ class BallCameraSubsystem(
 
     override fun periodic() {
         val active = backend ?: return
-        if (BallCamera.resetToDefaults) BallCamera.resetDefaults()
+        if (BallCameraConfig.resetToDefaults) BallCameraConfig.resetDefaults()
 
         val previous = settings
         val current = settingsSource()
@@ -204,12 +204,12 @@ class BallCameraSubsystem(
         log.put("controls/requestedExposureMicros", control.requested?.exposureMicros ?: -1L)
         log.put("controls/readbackExposureMicros", control.readback?.exposureMicros ?: -1L)
         log.put("controls/readbackWhiteBalanceK", (control.readback?.whiteBalanceKelvin ?: -1).toLong())
-        log.put("mount/measured", BallCamera.mountMeasured)
-        log.put("mount/heightIn", BallCamera.mountHeightIn)
-        log.put("mount/pitchDownDeg", BallCamera.mountPitchDownDeg)
-        log.put("mount/forwardIn", BallCamera.mountForwardIn)
-        log.put("mount/leftIn", BallCamera.mountLeftIn)
-        log.put("mount/yawDeg", BallCamera.mountYawDeg)
+        log.put("mount/measured", BallCameraConfig.mountMeasured)
+        log.put("mount/heightIn", BallCameraConfig.mountHeightIn)
+        log.put("mount/pitchDownDeg", BallCameraConfig.mountPitchDownDeg)
+        log.put("mount/forwardIn", BallCameraConfig.mountForwardIn)
+        log.put("mount/leftIn", BallCameraConfig.mountLeftIn)
+        log.put("mount/yawDeg", BallCameraConfig.mountYawDeg)
     }
 
     /**

@@ -39,3 +39,5 @@ object Preflight {
         )
     }
 }
+
+class HardwareConfigError(message: String, cause: Throwable? = null) : RuntimeException(message, cause)

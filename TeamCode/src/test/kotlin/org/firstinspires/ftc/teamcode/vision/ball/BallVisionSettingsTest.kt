@@ -14,10 +14,10 @@ import org.junit.Test
 class BallVisionSettingsTest {
 
     @Before
-    fun setUp() = BallCamera.resetDefaults()
+    fun setUp() = BallCameraConfig.resetDefaults()
 
     @After
-    fun tearDown() = BallCamera.resetDefaults()
+    fun tearDown() = BallCameraConfig.resetDefaults()
 
     @Test
     fun defaultsProduce640x480MjpegAndTentativeTunedSettings() {
@@ -36,20 +36,20 @@ class BallVisionSettingsTest {
 
     @Test
     fun invalidPanelsInputIsRepairedNotPassedToTheCameraThread() {
-        BallCamera.channel1Min = 200
-        BallCamera.channel1Max = 100
-        BallCamera.channel2Max = 999
-        BallCamera.colorSpace = BallCamera.COLOR_SPACE_HSV
-        BallCamera.channel0Max = 255
-        BallCamera.roiLeft = 0.8
-        BallCamera.roiRight = 0.2
-        BallCamera.blurKernelPx = 4
-        BallCamera.erodeKernelPx = -3
-        BallCamera.minAreaPercent = 5.0
-        BallCamera.maxAreaPercent = 1.0
-        BallCamera.minCircularity = Double.NaN
-        BallCamera.maxObservationAgeMs = -1.0
-        BallCamera.previewMode = 42
+        BallCameraConfig.channel1Min = 200
+        BallCameraConfig.channel1Max = 100
+        BallCameraConfig.channel2Max = 999
+        BallCameraConfig.colorSpace = BallCameraConfig.COLOR_SPACE_HSV
+        BallCameraConfig.channel0Max = 255
+        BallCameraConfig.roiLeft = 0.8
+        BallCameraConfig.roiRight = 0.2
+        BallCameraConfig.blurKernelPx = 4
+        BallCameraConfig.erodeKernelPx = -3
+        BallCameraConfig.minAreaPercent = 5.0
+        BallCameraConfig.maxAreaPercent = 1.0
+        BallCameraConfig.minCircularity = Double.NaN
+        BallCameraConfig.maxObservationAgeMs = -1.0
+        BallCameraConfig.previewMode = 42
 
         val s = BallVisionSettings.fromConfig()
         assertEquals(100, s.detection.lower.c1)
@@ -68,14 +68,14 @@ class BallVisionSettingsTest {
     @Test
     fun liveAndRestartSettingsChangeIndependently() {
         val before = BallVisionSettings.fromConfig()
-        BallCamera.exposureMicros = 2000
+        BallCameraConfig.exposureMicros = 2000
         val exposureOnly = BallVisionSettings.fromConfig()
         assertNotEquals(before.camera, exposureOnly.camera)
         assertEquals(before.detection, exposureOnly.detection)
         assertEquals(before.stream, exposureOnly.stream)
 
-        BallCamera.resolutionWidth = 320
-        BallCamera.resolutionHeight = 240
+        BallCameraConfig.resolutionWidth = 320
+        BallCameraConfig.resolutionHeight = 240
         val restart = BallVisionSettings.fromConfig()
         assertNotEquals(before.stream, restart.stream)
         assertEquals(exposureOnly.detection, restart.detection)
@@ -92,18 +92,18 @@ class BallVisionSettingsTest {
 
     @Test
     fun resetToDefaultsFlagRestoresEveryFieldAndClearsItself() {
-        BallCamera.channel0Min = 1
-        BallCamera.exposureManual = false
-        BallCamera.resetToDefaults = true
-        BallCamera.resetDefaults()
-        assertEquals(125, BallCamera.channel0Min)
-        assertTrue(BallCamera.exposureManual)
-        assertFalse(BallCamera.resetToDefaults)
+        BallCameraConfig.channel0Min = 1
+        BallCameraConfig.exposureManual = false
+        BallCameraConfig.resetToDefaults = true
+        BallCameraConfig.resetDefaults()
+        assertEquals(125, BallCameraConfig.channel0Min)
+        assertTrue(BallCameraConfig.exposureManual)
+        assertFalse(BallCameraConfig.resetToDefaults)
     }
 
     @Test
     fun compiledDefaultsListEveryTunableAndMatchTheConstantsLabRecordsNameForAdoption() {
-        assertDefaultsConsistent(BallCamera, BallCamera.compiledDefaults()) { BallCamera.resetDefaults() }
+        assertDefaultsConsistent(BallCameraConfig, BallCameraConfig.compiledDefaults()) { BallCameraConfig.resetDefaults() }
         assertDefaultsConsistent(VisionDiagnosticsConfig, VisionDiagnosticsConfig.compiledDefaults()) {
             VisionDiagnosticsConfig.resetDefaults()
         }

@@ -25,7 +25,7 @@ import com.bylazar.configurables.annotations.Configurable
  * [mountMeasured] false until the numbers come from a tape measure.
  */
 @Configurable
-object BallCamera {
+object BallCameraConfig {
 
     const val COLOR_SPACE_YCRCB = 0
     const val COLOR_SPACE_HSV = 1

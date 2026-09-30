@@ -1,11 +1,9 @@
 package org.firstinspires.ftc.teamcode.core.runtime
 
-import com.bylazar.telemetry.JoinedTelemetry
 import com.bylazar.telemetry.PanelsTelemetry
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode
 import com.qualcomm.robotcore.hardware.VoltageSensor
 import com.qualcomm.robotcore.util.RobotLog
-import org.firstinspires.ftc.robotcore.external.Telemetry
 import org.firstinspires.ftc.teamcode.core.logging.FieldView
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerConfig
@@ -35,10 +33,6 @@ abstract class OpModeBase : LinearOpMode() {
         private set
 
     lateinit var operator: GamepadEx
-        private set
-
-    /** Combined FTC Driver Station + Panels telemetry. Use [telemetryBag] for structured lines. */
-    lateinit var joinedTelemetry: Telemetry
         private set
 
     lateinit var telemetryBag: TelemetryBag
@@ -193,9 +187,6 @@ abstract class OpModeBase : LinearOpMode() {
         ConfigStore.loadFromDisk()
 
         val panels = PanelsTelemetry.telemetry
-        joinedTelemetry = JoinedTelemetry(telemetry, panels.wrapper)
-        // The bag fans out to DS + Panels itself; handing it joinedTelemetry
-        // would double-log every line on the dashboard.
         telemetryBag = TelemetryBag(telemetry, panels)
         robot.enableFlightRecorder(
             javaClass.simpleName,

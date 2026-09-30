@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode.core.subsystems.vision
 import com.qualcomm.hardware.limelightvision.Limelight3A
 import com.qualcomm.robotcore.hardware.HardwareMap
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
-import org.firstinspires.ftc.teamcode.core.runtime.DeviceReaders
 import org.firstinspires.ftc.teamcode.core.runtime.HardwareConfigError
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.util.Clock
@@ -94,7 +93,7 @@ class LimelightSubsystem(
 
     override fun init(hardwareMap: HardwareMap) {
         source = injectedSource ?: run {
-            val device = DeviceReaders.maybe(hardwareMap, hardwareName, Limelight3A::class.java)
+            val device = hardwareMap.tryGet(Limelight3A::class.java, hardwareName)
                 ?: throw HardwareConfigError(
                     "Missing Limelight3A named \"$hardwareName\" in active configuration.",
                 )

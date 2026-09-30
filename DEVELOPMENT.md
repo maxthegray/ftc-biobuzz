@@ -18,7 +18,10 @@ class IntakeSubsystem : SubsystemBase("Intake") {
     private var ballSeen = false
 
     override fun init(hardwareMap: HardwareMap) {
-        roller = RealMotorIO(DeviceReaders.motor(hardwareMap, "intakeRoller", DcMotorSimple.Direction.REVERSE))
+        roller = RealMotorIO(hardwareMap.get(DcMotorEx::class.java, "intakeRoller").apply {
+            direction = DcMotorSimple.Direction.REVERSE
+            zeroPowerBehavior = DcMotor.ZeroPowerBehavior.BRAKE
+        })
     }
 
     override fun periodic() {
@@ -284,7 +287,7 @@ Everything else is Ivy or Pedro. Each remaining helper has one job:
 | `logged`, `CommandHistory` | Command history for traced commands (Ivy has no lifecycle hooks or names) |
 | `FieldView`, `TelemetryBag` | Panels field drawing and throttled DS/Panels telemetry |
 | `ConfigStore` | Tuning that survives restarts and hot reloads |
-| `DeviceReaders`, `Preflight`, `BulkReadManager`, `MotorIO`, `LoopProfile`, `StartDelay`, `MatchTimer`, `PIDFController` | Named hardware errors, missing-device listing, manual bulk caching, testable motors, loop timing, start delay, endgame rumble, gains |
+| `Preflight`, `MotorIO`, `LoopProfile`, `StartDelay`, `MatchTimer`, `PIDFController` | Missing-device listing, testable motors, loop timing, start delay, endgame rumble, gains |
 | `pedro/Constants.java`, `pedro/Tuning.java` | Pedro's configuration and AutoTune registration, in the Quickstart layout |
 
 ## Config objects
@@ -330,7 +333,7 @@ Season mechanisms live under `subsystems/`: `intake/IntakeSubsystem`,
 - Whoever registers them also registers `IntakeConfig` / `TransferConfig` with
   `ConfigStore` (see their KDoc).
 - Neither is registered in any op-mode yet: the sensorbot has no such
-  hardware, and `init` throws `HardwareConfigError` for a missing device.
+  hardware, and `init` fails on a missing device.
 - `ballStaged` is null until a ball sensor is fitted.
 
 **Shooter and Turret are still unconfigured skeletons**; their `init` fails
@@ -341,7 +344,7 @@ explicitly.
 - Turret owns all mechanically linked turret servos. It will keep a short
   timestamped history of its servo-encoder angle and give `HiveTracker` a
   lookup into it, so each camera frame is placed at its capture time.
-- Once CAD defines their actuators: resolve them through `DeviceReaders` in
+- Once CAD defines their actuators: resolve them with `hardwareMap.get` in
   `init`, add logged Ivy command factories requiring the subsystem, implement
   reads/writes and fault/stop cleanup, then register in `configure()`.
 
@@ -367,8 +370,6 @@ Season vision code is grouped by responsibility under `vision/`:
   subsystem, fuses each alliance's goal and exposes both alliances to op-modes.
 - `diagnostics/`: diagnostic configuration, saved lab records, and
   settings-change logging shared by cameras and diagnostics.
-- `archived/`: the older Limelight ball-follow controllers and their logging
-  hook, used by the disabled `opmodes/archived/BallFollowTeleOp`.
 
 Tests mirror these packages. The reusable Limelight device adapter stays in
 `core/subsystems/vision/`; diagnostic op-modes stay in `opmodes/diagnostics/`.

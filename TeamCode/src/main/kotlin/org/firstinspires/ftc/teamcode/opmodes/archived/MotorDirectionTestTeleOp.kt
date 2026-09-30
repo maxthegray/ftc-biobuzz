@@ -4,11 +4,11 @@ import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.CommandBuilder
 import com.qualcomm.robotcore.eventloop.opmode.Disabled
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
+import com.qualcomm.robotcore.hardware.DcMotor
 import com.qualcomm.robotcore.hardware.DcMotorEx
 import com.qualcomm.robotcore.hardware.DcMotorSimple
 import com.qualcomm.robotcore.hardware.HardwareMap
 import java.util.Locale
-import org.firstinspires.ftc.teamcode.core.runtime.DeviceReaders
 import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.pedro.Constants
@@ -83,8 +83,12 @@ private class DriveMotorTestSubsystem : SubsystemBase("Drive Motor Test") {
     val selectedLabel: String get() = specs[selectedIndex].name
 
     override fun init(hardwareMap: HardwareMap) {
-        motors = specs.map {
-            DeviceReaders.motor(hardwareMap, it.name, it.direction)
+        motors = specs.map { spec ->
+            hardwareMap.get(DcMotorEx::class.java, spec.name).apply {
+                direction = spec.direction
+                zeroPowerBehavior = DcMotor.ZeroPowerBehavior.BRAKE
+                mode = DcMotor.RunMode.RUN_WITHOUT_ENCODER
+            }
         }
     }
 

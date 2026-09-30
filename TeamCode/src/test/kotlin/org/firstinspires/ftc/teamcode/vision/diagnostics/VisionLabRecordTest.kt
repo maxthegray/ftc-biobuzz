@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.vision.diagnostics
 
-import org.firstinspires.ftc.teamcode.vision.ball.BallCamera
+import org.firstinspires.ftc.teamcode.vision.ball.BallCameraConfig
 import java.io.File
 import java.util.concurrent.Executor
 import org.firstinspires.ftc.teamcode.core.runtime.ConfigStore
@@ -23,7 +23,7 @@ class VisionLabRecordTest {
         originalFile = ConfigStore.file
         ConfigStore.reset()
         ConfigStore.file = File(tempDir, "tuning.properties")
-        BallCamera.resetDefaults()
+        BallCameraConfig.resetDefaults()
         VisionDiagnosticsConfig.resetDefaults()
     }
 
@@ -31,17 +31,17 @@ class VisionLabRecordTest {
     fun tearDown() {
         ConfigStore.reset()
         ConfigStore.file = originalFile
-        BallCamera.resetDefaults()
+        BallCameraConfig.resetDefaults()
         VisionDiagnosticsConfig.resetDefaults()
         tempDir.deleteRecursively()
     }
 
     @Test
     fun recordUsesTuningFileKeysAndFlagsOnlyTunedValuesWithTheirAdoptionEdit() {
-        ConfigStore.register("ballVision", BallCamera, BallCamera::resetDefaults)
+        ConfigStore.register("ballVision", BallCameraConfig, BallCameraConfig::resetDefaults)
         ConfigStore.register("visionDiagnostics", VisionDiagnosticsConfig, VisionDiagnosticsConfig::resetDefaults)
-        BallCamera.channel1Min = 140
-        BallCamera.minCircularity = 0.72
+        BallCameraConfig.channel1Min = 140
+        BallCameraConfig.minCircularity = 0.72
         VisionDiagnosticsConfig.runBothCameras = true
 
         val text = VisionLabRecord.build(
@@ -49,7 +49,7 @@ class VisionLabRecordTest {
             wallClockMs = 0L,
             configSchema = "schema-x",
             sections = listOf(
-                VisionLabRecord.sectionFromStore("ballVision", BallCamera.compiledDefaults()),
+                VisionLabRecord.sectionFromStore("ballVision", BallCameraConfig.compiledDefaults()),
                 VisionLabRecord.sectionFromStore("visionDiagnostics", VisionDiagnosticsConfig.compiledDefaults()),
             ),
             measurements = listOf("camera.processedFps" to "87.5"),
@@ -72,10 +72,10 @@ class VisionLabRecordTest {
 
     @Test
     fun untunedRecordSaysNothingToAdopt() {
-        ConfigStore.register("ballVision", BallCamera, BallCamera::resetDefaults)
+        ConfigStore.register("ballVision", BallCameraConfig, BallCameraConfig::resetDefaults)
         val text = VisionLabRecord.build(
             "Limelight AprilTag Test", 0L, "s",
-            listOf(VisionLabRecord.sectionFromStore("ballVision", BallCamera.compiledDefaults())),
+            listOf(VisionLabRecord.sectionFromStore("ballVision", BallCameraConfig.compiledDefaults())),
             emptyList(),
         )
         assertTrue(text.contains("# nothing differs from the compiled defaults"))

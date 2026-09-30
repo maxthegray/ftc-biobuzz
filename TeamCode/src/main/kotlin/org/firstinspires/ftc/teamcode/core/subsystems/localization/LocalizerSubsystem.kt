@@ -8,7 +8,6 @@ import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver.DeviceStatus
 import com.qualcomm.robotcore.hardware.HardwareMap
 import org.firstinspires.ftc.teamcode.RobotConfig
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
-import org.firstinspires.ftc.teamcode.core.runtime.DeviceReaders
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.util.Clock
 
@@ -102,11 +101,7 @@ class LocalizerSubsystem(
         // separately for the watchdog's device-status check. It may be absent
         // in host tests.
         rawPinpoint = try {
-            DeviceReaders.maybe(
-                hardwareMap,
-                RobotConfig.Localization.PINPOINT,
-                GoBildaPinpointDriver::class.java,
-            )
+            hardwareMap.tryGet(GoBildaPinpointDriver::class.java, RobotConfig.Localization.PINPOINT)
         } catch (_: Throwable) {
             null
         }

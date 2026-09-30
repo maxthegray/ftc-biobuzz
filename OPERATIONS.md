@@ -379,8 +379,7 @@ frame) should be a few inches. Only shoot on `source = VISION`.
 Follow-up for powered assists: a USB-camera target source with the same
 validity gates as `LimelightSubsystem`; controller updates driven by
 `BallObservation.newFrame` with `dt` taken from successive capture timestamps
-and the output held between frames (the archived Ball Follow controllers still
-step every loop on loop time); an explicit lost-target timeout; a
+and the output held between frames; an explicit lost-target timeout; a
 latency budget from the measurements above; and on-blocks tests before carpet.
 
 ## Logs and post-run diagnosis

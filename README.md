@@ -58,10 +58,9 @@ Enabled Driver Station op-modes:
 | Hive Tag Survey | HIVE tag geometry, goal and state check on a real CELL |
 
 `opmodes/archived/` holds disabled bring-up utilities (Framework Smoke Test,
-Motor Direction Test, Panels Motor Spin, SRS Loop Benchmark) and the old
-Limelight Ball Follow prototype. `opmodes/skeletons/` holds the disabled
-Example Auto and Localization Test. Remove `@Disabled` from a specific op-mode
-and rebuild when you need it.
+Motor Direction Test, Panels Motor Spin, SRS Loop Benchmark).
+`opmodes/skeletons/` holds the disabled Example Auto and Localization Test.
+Remove `@Disabled` from a specific op-mode and rebuild when you need it.
 
 ## Documentation
 

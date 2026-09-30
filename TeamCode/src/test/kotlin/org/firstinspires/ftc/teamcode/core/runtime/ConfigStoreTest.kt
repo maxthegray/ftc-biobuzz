@@ -8,9 +8,9 @@ import org.firstinspires.ftc.teamcode.core.control.PIDFGains
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerConfig
 import org.firstinspires.ftc.teamcode.opmodes.archived.MotorTestConfig
-import org.firstinspires.ftc.teamcode.vision.archived.BallAimConfig
-import org.firstinspires.ftc.teamcode.vision.archived.BallApproachConfig
-import org.firstinspires.ftc.teamcode.vision.ball.BallCamera
+import org.firstinspires.ftc.teamcode.subsystems.intake.IntakeConfig
+import org.firstinspires.ftc.teamcode.subsystems.transfer.TransferConfig
+import org.firstinspires.ftc.teamcode.vision.ball.BallCameraConfig
 import org.firstinspires.ftc.teamcode.vision.diagnostics.VisionDiagnosticsConfig
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -92,17 +92,17 @@ class ConfigStoreTest {
 
     @Test
     fun initStopSavesVisionTuningAfterHardwareStopsWithoutPersistingPoseState() {
-        val configs = listOf(BallCamera, VisionDiagnosticsConfig)
+        val configs = listOf(BallCameraConfig, VisionDiagnosticsConfig)
         val originals = configs.flatMap { config ->
             config.javaClass.declaredFields
                 .filter { Modifier.isPublic(it.modifiers) && !Modifier.isFinal(it.modifiers) }
                 .map { field -> Triple(config, field, field.get(config)) }
         }
         try {
-            ConfigStore.register("ballVision", BallCamera, BallCamera::resetDefaults)
+            ConfigStore.register("ballVision", BallCameraConfig, BallCameraConfig::resetDefaults)
             ConfigStore.register("visionDiagnostics", VisionDiagnosticsConfig, VisionDiagnosticsConfig::resetDefaults)
             ConfigStore.loadFromDisk()
-            BallCamera.minCircularity = 0.6
+            BallCameraConfig.minCircularity = 0.6
             assertTrue(ConfigStore.persistIfDirty())
             val beforeInit = tempFile.readText()
             val robot = Robot(HardwareMap(null, null))
@@ -115,9 +115,9 @@ class ConfigStoreTest {
                 }
             })
             robot.initTick()
-            BallCamera.resolutionWidth = 320
-            BallCamera.resolutionHeight = 240
-            BallCamera.minCircularity = 0.8
+            BallCameraConfig.resolutionWidth = 320
+            BallCameraConfig.resolutionHeight = 240
+            BallCameraConfig.minCircularity = 0.8
             VisionDiagnosticsConfig.runBothCameras = true
 
             robot.stop()
@@ -125,9 +125,9 @@ class ConfigStoreTest {
             assertTrue(stopped)
             assertEquals(beforeInit, diskAtStop)
             ConfigStore.loadFromDisk()
-            assertEquals(320, BallCamera.resolutionWidth)
-            assertEquals(240, BallCamera.resolutionHeight)
-            assertEquals(0.8, BallCamera.minCircularity, 0.0)
+            assertEquals(320, BallCameraConfig.resolutionWidth)
+            assertEquals(240, BallCameraConfig.resolutionHeight)
+            assertEquals(0.8, BallCameraConfig.minCircularity, 0.0)
             assertTrue(VisionDiagnosticsConfig.runBothCameras)
         } finally {
             for ((config, field, value) in originals) field.set(config, value)
@@ -442,8 +442,8 @@ class ConfigStoreTest {
     @Test
     fun everyProductionTunableIsResetOnWarmInit() {
         val configs = listOf(
-            DriveConfig, LocalizerConfig, BallAimConfig, BallApproachConfig, MotorTestConfig,
-            BallCamera, VisionDiagnosticsConfig,
+            DriveConfig, LocalizerConfig, IntakeConfig, TransferConfig, MotorTestConfig,
+            BallCameraConfig, VisionDiagnosticsConfig,
         )
         val originals = configs.flatMap { config ->
             config.javaClass.declaredFields
@@ -452,10 +452,10 @@ class ConfigStoreTest {
         }
         ConfigStore.register("drive", DriveConfig, DriveConfig::resetDefaults)
         ConfigStore.register("localizer", LocalizerConfig, LocalizerConfig::resetDefaults)
-        ConfigStore.register("ballAim", BallAimConfig, BallAimConfig::resetDefaults)
-        ConfigStore.register("ballApproach", BallApproachConfig, BallApproachConfig::resetDefaults)
+        ConfigStore.register("intake", IntakeConfig, IntakeConfig::resetDefaults)
+        ConfigStore.register("transfer", TransferConfig, TransferConfig::resetDefaults)
         ConfigStore.register("motorTest", MotorTestConfig, MotorTestConfig::resetDefaults)
-        ConfigStore.register("ballVision", BallCamera, BallCamera::resetDefaults)
+        ConfigStore.register("ballVision", BallCameraConfig, BallCameraConfig::resetDefaults)
         ConfigStore.register("visionDiagnostics", VisionDiagnosticsConfig, VisionDiagnosticsConfig::resetDefaults)
         try {
             ConfigStore.loadFromDisk()

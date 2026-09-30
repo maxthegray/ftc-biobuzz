@@ -12,7 +12,6 @@ import org.firstinspires.ftc.teamcode.core.io.MotorIO
 import org.firstinspires.ftc.teamcode.core.io.RealMotorIO
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.runtime.ConfigStore
-import org.firstinspires.ftc.teamcode.core.runtime.DeviceReaders
 import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.runtime.Preflight
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
@@ -122,7 +121,7 @@ private class MotorSpinSubsystem(private val motorName: String) : SubsystemBase(
         private set
 
     override fun init(hardwareMap: HardwareMap) {
-        io = RealMotorIO(DeviceReaders.motor(hardwareMap, motorName))
+        io = RealMotorIO(hardwareMap.get(DcMotorEx::class.java, motorName))
     }
 
     override fun periodic() {

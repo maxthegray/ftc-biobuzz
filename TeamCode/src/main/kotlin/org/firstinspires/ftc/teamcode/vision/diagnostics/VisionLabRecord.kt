@@ -8,7 +8,12 @@ import java.util.concurrent.Executor
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
+import org.firstinspires.ftc.teamcode.RobotConfig
+import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.runtime.ConfigStore
+import org.firstinspires.ftc.teamcode.core.runtime.Robot
+import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
+import org.firstinspires.ftc.teamcode.vision.ball.BallCameraConfig
 
 /**
  * A reviewable text record of a vision tuning session: the live config values
@@ -149,5 +154,67 @@ class LabRecordWriter(
         fun defaultExecutor(): ExecutorService = Executors.newSingleThreadExecutor { runnable ->
             Thread(runnable, "vision-lab-record").apply { isDaemon = true }
         }
+    }
+}
+
+/**
+ * Saves [VisionLabRecord]s from a diagnostic OpMode and reports completion in
+ * telemetry and the flight log. A subsystem only so its writer thread is shut
+ * down with the OpMode; it touches no hardware.
+ */
+internal class VisionLabRecorder(
+    private val opModeName: String,
+    private val writer: LabRecordWriter = LabRecordWriter(),
+    /** Further ConfigStore sections to record, with their compiled defaults. */
+    private val extraSections: List<Pair<String, Map<String, Any>>> = emptyList(),
+) : SubsystemBase("VisionLabRecord") {
+
+    private var reportedWritten = 0
+    private var reportedError: String? = null
+
+    fun save(measurements: List<Pair<String, String>>) {
+        val now = System.currentTimeMillis()
+        val contents = VisionLabRecord.build(
+            opModeName = opModeName,
+            wallClockMs = now,
+            configSchema = RobotConfig.CONFIG_SCHEMA,
+            sections = listOf(
+                VisionLabRecord.sectionFromStore("ballVision", BallCameraConfig.compiledDefaults()),
+                VisionLabRecord.sectionFromStore("visionDiagnostics", VisionDiagnosticsConfig.compiledDefaults()),
+            ) + extraSections.map { (section, defaults) -> VisionLabRecord.sectionFromStore(section, defaults) },
+            measurements = measurements,
+        )
+        writer.submit(VisionLabRecord.fileName(opModeName, now), contents)
+    }
+
+    /** Call from the robot thread each loop; records completed writes as flight-log events. */
+    fun poll(robot: Robot) {
+        val status = writer.status
+        if (status.written != reportedWritten) {
+            reportedWritten = status.written
+            robot.recordEvent("VISION LAB RECORD saved: ${status.lastFile}")
+        }
+        if (status.lastError != null && status.lastError != reportedError) {
+            reportedError = status.lastError
+            robot.recordEvent("VISION LAB RECORD failed: ${status.lastError}")
+        }
+    }
+
+    override fun health(): String {
+        val status = writer.status
+        return when {
+            status.pending > 0 -> "saving…"
+            status.lastError != null -> "last save failed: ${status.lastError}"
+            status.lastFile != null -> "saved ${status.written}: ${status.lastFile}"
+            else -> "A saves a record (after START)"
+        }
+    }
+
+    override fun logState(log: StateLog) {
+        log.put("written", writer.status.written.toLong())
+    }
+
+    override fun stop() {
+        writer.close()
     }
 }
