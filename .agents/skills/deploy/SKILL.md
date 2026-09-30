@@ -26,7 +26,7 @@ running old code. Always classify before deploying.
 1. **Classify the pending changes.** Run:
 
    ```
-   bash .agents/skills/deploy/classify-deploy.sh
+   bash tools/classify-deploy.sh
    ```
 
    It prints `RECOMMENDATION: HOT|FULL`, a one-line `REASON`, and the deciding
@@ -56,7 +56,7 @@ running old code. Always classify before deploying.
 6. **On success, update the deploy marker** so the next run diffs from here:
 
    ```
-   git rev-parse HEAD > .agents/.last-deploy-sha
+   git rev-parse HEAD > .last-deploy-sha
    ```
 
    (Skip this if the deploy failed.)
@@ -69,8 +69,9 @@ running old code. Always classify before deploying.
 
 - Run everything from the repo root (the script `cd`s to the git toplevel
   itself, but the gradle commands assume root).
-- The marker `.agents/.last-deploy-sha` is local per-machine state and is
-  gitignored — don't commit it.
+- Both agents use the same `.last-deploy-sha` marker. It is local, gitignored
+  state. Older agent-specific markers are ignored; the first deploy after
+  this migration therefore requires a full install.
 - If `classify-deploy.sh` reports "no changes detected", there's nothing to
   push; mention that rather than deploying needlessly.
 - This skill does not tune or run op-modes — it only deploys. Selecting which

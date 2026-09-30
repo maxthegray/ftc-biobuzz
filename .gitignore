@@ -73,8 +73,10 @@ fastlane/readme.md
 # Version control
 vcs.xml
 
-# Eclipse
+# Eclipse / Java language-server local settings
 .project
+.classpath
+.settings/
 
 # lint
 lint/intermediates/
@@ -82,7 +84,8 @@ lint/generated/
 lint/outputs/
 lint/tmp/
 # lint/reports/
-# Local per-machine deploy state for the /deploy skill
+# Local per-machine deploy state (including the retired agent-specific markers)
+.last-deploy-sha
 .claude/.last-deploy-sha
 .agents/.last-deploy-sha
 __pycache__/

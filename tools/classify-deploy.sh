@@ -23,7 +23,7 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
-MARKER=".claude/.last-deploy-sha"
+MARKER=".last-deploy-sha"
 TEAMCODE_PREFIX="TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/"
 TEAMCODE_PREFIX_JAVA="TeamCode/src/main/java/org/firstinspires/ftc/teamcode/"
 
@@ -47,7 +47,7 @@ while IFS= read -r line; do
   [[ -n "$line" ]] && files+=("$line")
 done < <(collect | sort -u)
 
-# No marker yet -> first deploy against this checkout. CLAUDE.md: the first
+# No marker yet -> first deploy against this checkout. AI-GUIDE.md: the first
 # deploy of a session is a full install. Honour that regardless of diff.
 if [[ ! -f "$MARKER" ]]; then
   echo "RECOMMENDATION: FULL"
