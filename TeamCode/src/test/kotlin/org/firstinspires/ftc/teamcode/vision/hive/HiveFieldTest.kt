@@ -1,7 +1,7 @@
 package org.firstinspires.ftc.teamcode.vision.hive
 
 import com.pedropathing.math.Pose
-import org.firstinspires.ftc.teamcode.core.util.Alliance as FieldAlliance
+import org.firstinspires.ftc.teamcode.core.Alliance as FieldAlliance
 import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags.Alliance
 import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags.Cell
 import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags.CellLocation

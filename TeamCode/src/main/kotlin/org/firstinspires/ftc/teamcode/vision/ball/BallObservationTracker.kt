@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.vision.ball
 
-import org.firstinspires.ftc.teamcode.core.util.Clock
+import org.firstinspires.ftc.teamcode.core.runtime.Clock
 
 enum class BallFrameStatus { NO_FRAME_YET, FRESH, STALE, PROCESSING_ERROR }
 

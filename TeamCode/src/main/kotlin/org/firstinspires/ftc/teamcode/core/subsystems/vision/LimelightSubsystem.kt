@@ -5,7 +5,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.runtime.HardwareConfigError
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
-import org.firstinspires.ftc.teamcode.core.util.Clock
+import org.firstinspires.ftc.teamcode.core.runtime.Clock
 
 /**
  * Read-only Limelight state for commands, telemetry, and logging: color

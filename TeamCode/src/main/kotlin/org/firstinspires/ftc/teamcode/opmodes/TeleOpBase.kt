@@ -9,7 +9,7 @@ import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem.TeleopInput
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerSubsystem
-import org.firstinspires.ftc.teamcode.core.util.GamepadEx.Button
+import org.firstinspires.ftc.teamcode.core.input.GamepadEx.Button
 import org.firstinspires.ftc.teamcode.pedro.Constants
 
 /**

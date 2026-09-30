@@ -16,7 +16,7 @@ import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.logging.logged
 import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
-import org.firstinspires.ftc.teamcode.core.util.Clock
+import org.firstinspires.ftc.teamcode.core.runtime.Clock
 
 /**
  * The middle motors that lift balls to the shooter, and the servo tab

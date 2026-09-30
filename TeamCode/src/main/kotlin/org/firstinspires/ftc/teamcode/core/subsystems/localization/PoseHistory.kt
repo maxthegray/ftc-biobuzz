@@ -8,7 +8,7 @@ import kotlin.math.abs
 /**
  * Fixed-capacity pose ring buffer with no per-tick allocation.
  *
- * Timestamps are monotonic nanoseconds from [org.firstinspires.ftc.teamcode.core.util.Clock].
+ * Timestamps are monotonic nanoseconds from [org.firstinspires.ftc.teamcode.core.runtime.Clock].
  * [lookup] linearly interpolates between bracketing samples and returns null
  * when the requested timestamp is outside the retained window. Values are
  * copied into primitive arrays, so later changes to a caller's pose cannot

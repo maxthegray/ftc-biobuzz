@@ -15,7 +15,7 @@ import org.firstinspires.ftc.teamcode.core.runtime.ConfigStore
 import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.runtime.Preflight
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
-import org.firstinspires.ftc.teamcode.core.util.GamepadEx
+import org.firstinspires.ftc.teamcode.core.input.GamepadEx
 
 /**
  * Archived single-motor tuning rig; re-enable for a specific motor bring-up session.

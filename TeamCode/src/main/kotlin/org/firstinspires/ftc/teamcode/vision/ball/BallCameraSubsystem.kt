@@ -5,7 +5,7 @@ import java.util.Locale
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.runtime.HardwareConfigError
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
-import org.firstinspires.ftc.teamcode.core.util.Clock
+import org.firstinspires.ftc.teamcode.core.runtime.Clock
 import org.firstinspires.ftc.teamcode.vision.diagnostics.SettingsChangeLog
 
 /**

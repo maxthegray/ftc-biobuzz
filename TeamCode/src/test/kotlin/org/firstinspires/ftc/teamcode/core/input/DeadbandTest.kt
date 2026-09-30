@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.core.util
+package org.firstinspires.ftc.teamcode.core.input
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

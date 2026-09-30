@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.core.sim
 
-import org.firstinspires.ftc.teamcode.core.util.TelemetryBag
+import org.firstinspires.ftc.teamcode.core.logging.TelemetryBag
 
 /**
  * Records everything a [TelemetryBag] transmits, so tests can assert on the

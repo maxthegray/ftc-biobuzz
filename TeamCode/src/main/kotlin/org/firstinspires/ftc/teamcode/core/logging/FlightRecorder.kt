@@ -10,12 +10,12 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.max
 import org.firstinspires.ftc.teamcode.RobotConfig
-import org.firstinspires.ftc.teamcode.core.runtime.DriveTelemetrySource
+import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveTelemetrySource
 import org.firstinspires.ftc.teamcode.core.runtime.LoopPhase
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
-import org.firstinspires.ftc.teamcode.core.util.Clock
-import org.firstinspires.ftc.teamcode.core.util.GamepadEx
+import org.firstinspires.ftc.teamcode.core.runtime.Clock
+import org.firstinspires.ftc.teamcode.core.input.GamepadEx
 
 /**
  * Per-op-mode WPILOG flight recorder for AdvantageScope.

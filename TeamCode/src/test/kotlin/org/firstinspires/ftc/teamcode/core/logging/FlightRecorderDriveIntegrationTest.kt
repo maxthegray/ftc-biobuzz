@@ -19,7 +19,7 @@ import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsyste
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem.TeleopInput
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.PedroDriveFixture
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerSubsystem
-import org.firstinspires.ftc.teamcode.core.util.GamepadEx
+import org.firstinspires.ftc.teamcode.core.input.GamepadEx
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals

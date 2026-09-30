@@ -67,7 +67,7 @@ object RobotConfig {
          * 9-5), and the CELLs raised at setup are RED audience and BLUE far
          * (Figure 10-2). Only a 180° rotation maps each onto the other.
          */
-        val SYMMETRY = org.firstinspires.ftc.teamcode.core.util.FieldSymmetry.ROTATE
+        val SYMMETRY = org.firstinspires.ftc.teamcode.core.FieldSymmetry.ROTATE
 
         /**
          * Counter-clockwise quarter turns from Pedro's axes onto the FTC field

@@ -8,7 +8,7 @@ import org.firstinspires.ftc.teamcode.core.runtime.ConfigStore
 import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.runtime.Preflight
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSubsystem
-import org.firstinspires.ftc.teamcode.core.util.GamepadEx.Button
+import org.firstinspires.ftc.teamcode.core.input.GamepadEx.Button
 import org.firstinspires.ftc.teamcode.opmodes.diagnostics.VisionDiagnostics.fmt
 import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags
 import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags.Alliance

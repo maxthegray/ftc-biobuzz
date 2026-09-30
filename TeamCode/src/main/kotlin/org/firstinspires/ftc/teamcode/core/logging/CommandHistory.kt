@@ -5,7 +5,7 @@ import com.pedropathing.ivy.behaviors.BlockedBehavior
 import com.pedropathing.ivy.behaviors.ConflictBehavior
 import com.pedropathing.ivy.behaviors.EndCondition
 import com.pedropathing.ivy.behaviors.InterruptedBehavior
-import org.firstinspires.ftc.teamcode.core.util.Clock
+import org.firstinspires.ftc.teamcode.core.runtime.Clock
 
 /**
  * Records [command]'s runs in the flight log under [name]. Schedule, cancel,

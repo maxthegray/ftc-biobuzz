@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.core.util
+package org.firstinspires.ftc.teamcode.core.logging
 
 import com.pedropathing.math.Pose
 import com.pedropathing.math.Vector2D

@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.core.util
+package org.firstinspires.ftc.teamcode.core.input
 
 import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.Scheduler

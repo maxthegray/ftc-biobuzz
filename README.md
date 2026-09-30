@@ -76,7 +76,7 @@ Remove `@Disabled` from a specific op-mode and rebuild when you need it.
 |---|---|
 | TeleOp | `opmodes/DriveOnlyTeleOp.kt`, `opmodes/TeleOpBase.kt` (`configureTeleop()`) |
 | Autonomous | `opmodes/skeletons/ExampleAuto.kt` |
-| Buttons | `core/util/GamepadEx.kt`, `Trigger.kt` |
+| Buttons | `core/input/GamepadEx.kt` |
 | Drive and drive commands | `core/subsystems/drive/MecanumDriveSubsystem.kt`, `DriveConfig.kt` |
 | Localization and vision corrections | `core/subsystems/localization/` |
 | Hardware names, field size, config schema | `RobotConfig.kt` |
@@ -100,11 +100,12 @@ TeamCode/src/main/
 └── kotlin/org/firstinspires/ftc/teamcode/
     ├── RobotConfig.kt        hardware names, field symmetry, config schema
     ├── core/
+    │   ├── Alliance.kt       RED/BLUE and mapping poses onto the other side
+    │   ├── input/            gamepads and button bindings
     │   ├── io/               motor and servo seam for tests
-    │   ├── logging/          WPILOG writer, flight recorder, Panels field view
-    │   ├── runtime/          Robot, OpModeBase, SubsystemBase, config
+    │   ├── logging/          telemetry, WPILOG flight recorder, Panels field view
+    │   ├── runtime/          Robot, OpModeBase, SubsystemBase, saved config, clock
     │   ├── subsystems/       drive, localization (+ latency-compensated pose correction), Limelight
-    │   ├── util/             gamepads, triggers, alliance, telemetry
     │   └── workarounds/      fixes for library bugs; safe to ignore
     ├── subsystems/           season mechanisms: intake, transfer, shooter, turret
     ├── vision/               season vision: tag catalog, HIVE goal tracking, ball camera

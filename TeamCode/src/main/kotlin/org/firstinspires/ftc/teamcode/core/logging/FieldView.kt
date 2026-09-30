@@ -8,8 +8,8 @@ import com.pedropathing.math.Vector2D
 import com.qualcomm.robotcore.util.RobotLog
 import kotlin.math.cos
 import kotlin.math.sin
-import org.firstinspires.ftc.teamcode.core.runtime.DriveTelemetrySource
-import org.firstinspires.ftc.teamcode.core.util.Clock
+import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveTelemetrySource
+import org.firstinspires.ftc.teamcode.core.runtime.Clock
 
 /**
  * Live field view on the Panels dashboard for *real* op-modes (the upstream

@@ -15,7 +15,7 @@ import org.firstinspires.ftc.teamcode.core.logging.logged
 import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerSubsystem
-import org.firstinspires.ftc.teamcode.core.util.Alliance
+import org.firstinspires.ftc.teamcode.core.Alliance
 import org.firstinspires.ftc.teamcode.core.workarounds.monotonicWaitMs
 import org.firstinspires.ftc.teamcode.pedro.Constants
 
