@@ -109,7 +109,8 @@ TeamCode/src/main/
     │   ├── logging/          WPILOG writer, flight recorder, Panels field view
     │   ├── runtime/          Robot, OpModeBase, SubsystemBase, config
     │   ├── subsystems/       drive, localization (+ latency-compensated pose correction), Limelight
-    │   └── util/             gamepads, triggers, alliance, telemetry
+    │   ├── util/             gamepads, triggers, alliance, telemetry
+    │   └── workarounds/      fixes for library bugs; safe to ignore
     ├── subsystems/           season mechanisms: intake, transfer, shooter, turret
     ├── vision/               season vision: tag catalog, HIVE goal tracking, ball camera
     └── opmodes/              teleop, diagnostics, skeletons, archived
@@ -155,7 +156,7 @@ Do a full install after touching dependencies, the manifest, `res/`,
 and it fails silently.
 
 Versions are pinned on purpose: FTC SDK 11.2.1, Kotlin 2.0.21, Pedro Pathing
-3.0.0 (+ AutoTune 1.0.0), Ivy 1.1.1, Panels 0.2.4+1.0.12, Sloth 0.2.4.
+3.0.1 (+ AutoTune 1.0.0), Ivy 1.1.1, Panels 0.2.4+1.0.12, Sloth 0.2.4.
 `AI-GUIDE.md` explains the constraints that hold Sloth and the Kotlin stdlib in
 place. Check the artifact exists in its real repository before bumping any of
 them.

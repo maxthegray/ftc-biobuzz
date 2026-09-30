@@ -14,7 +14,7 @@ import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
 import org.firstinspires.ftc.teamcode.core.util.Clock
 import org.firstinspires.ftc.teamcode.core.util.GamepadEx.Button
-import org.firstinspires.ftc.teamcode.core.util.monotonicWaitMs
+import org.firstinspires.ftc.teamcode.core.workarounds.monotonicWaitMs
 
 /** Archived chassis-free runtime check; re-enable for framework or Control Hub bring-up. */
 @Disabled

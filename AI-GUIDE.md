@@ -41,8 +41,8 @@ and no robot profile switch; the last sensorbot commit gets tagged
 | FTC SDK | `org.firstinspires.ftc:*` | 11.2.1 |
 | Android Gradle Plugin / Gradle | `com.android.tools.build:gradle` | 8.7.0 / 8.9 |
 | Kotlin Android plugin | `org.jetbrains.kotlin:kotlin-gradle-plugin` | 2.0.21 |
-| Pedro Pathing core (pulled by revhub) | `com.pedropathing:core` | 3.0.0 |
-| Pedro Pathing REV hub drivetrains/localizers | `com.pedropathing:revhub` | 3.0.0 |
+| Pedro Pathing core (pulled by revhub) | `com.pedropathing:core` | 3.0.1 |
+| Pedro Pathing REV hub drivetrains/localizers | `com.pedropathing:revhub` | 3.0.1 |
 | Pedro AutoTune | `com.pedropathing:tuning` | 1.0.0 |
 | Ivy command scheduler | `com.pedropathing.ivy:core` | 1.1.1 |
 | Sloth-compatible Panels | `com.bylazar.sloth:fullpanels` | 0.2.4+1.0.12 |
@@ -51,7 +51,8 @@ and no robot profile switch; the last sensorbot commit gets tagged
 `TeamCode/build.gradle` holds two strict constraints. Keep them unless the
 whole toolchain moves together:
 
-- **Sloth strictly 0.2.4.** `tuning:1.0.0` requests Sloth 0.3.0, which needs
+- **Sloth strictly 0.2.4.** `tuning:1.0.0` requests Sloth 0.3.0 (1.0.1 requests
+  0.3.2, so tuning stays at 1.0.0 on the 3.0.1 revhub/core), which needs
   Load 0.3.0 (AGP 8.13, Kotlin 2.4 stdlib) and has no published
   Sloth-compatible Panels build. The Sinister API AutoTune calls
   (`Scanner`, `NarrowSearch`, `SinisterRegisteredOpModes`, app hooks) exists
@@ -73,7 +74,8 @@ dependencies first. Don't guess.
 ## Library workarounds (re-check on every Pedro or Ivy upgrade)
 
 Each workaround below exists because of a behaviour pinned in
-`TeamCode/src/test/kotlin/.../core/LibraryContractTest.kt`. After a version
+`TeamCode/src/test/kotlin/.../core/LibraryContractTest.kt`. Whole-file
+workarounds live in `core/workarounds/`; students can ignore that folder. After a version
 bump, run the unit tests: a failing contract test means the library changed,
 and its failure message points here. Confirm the new behaviour in the
 library's source, then do the listed cleanup in the same change. Don't just
@@ -81,15 +83,12 @@ flip the assertion.
 
 | Workaround | Library behaviour (upstream) | Contract test | When the test fails |
 |---|---|---|---|
-| `core/util/LinearHeading.kt` (`linearHeading`) | Pedro 3.0.0 `Interpolator.linear`/`longLinear`/`piecewise` use `Curve.pathCompletion`, which returns the fraction *remaining* on `Line` and `CompoundCurve`: headings run backwards and `endPose()` gets the start heading. [Pedro-Pathing/PedroPathing#176](https://github.com/Pedro-Pathing/PedroPathing/issues/176), open as of 2026-09-14 | `pedroLinearHeadingRunsBackwardsOnLinesButNotOnCurves` | Check `.linear`, `longLinear`, `piecewise` and `endPose()` on a line and a compound path. If all are fixed: replace every `.heading(linearHeading(a, b))` with `.linear(a, b)` (`git grep linearHeading`), delete `LinearHeading.kt` and `LinearHeadingTest.kt`, turn the contract test into a check that `.linear` is correct, and remove the bug notes here, in the Pedro section, `DEVELOPMENT.md` and `OPERATIONS.md` (triage row and checklist). `linearHeading` stays correct until then, so there is no hurry. |
-| `core/util/MonotonicWait.kt` (`monotonicWaitMs`) | Ivy 1.1.1 `Commands.waitMs` uses `System.currentTimeMillis()`. Not reported upstream | `ivyWaitMsIsTimedByTheWallClock` | If Ivy's wait is now monotonic: replace `monotonicWaitMs(ms)` with `waitMs(ms)`, delete the helper and `MonotonicWaitTest.kt`, update docs. Tests that need a fake clock may still want the helper. |
-| `Alliance.poses()` / `Alliance.mirror` instead of `PoseFactory.mirrorX` | `mirrorX` maps heading to −h; this field's reflection is π−h. A convention, not a bug | `pedroPoseFactoryMirrorXIsNotTheFieldReflection` | Keep `Alliance`, which also handles `FieldSymmetry.ROTATE`. Only if `mirrorX` now gives π−h, consider using it for MIRROR seasons. |
-| `MecanumDriveSubsystem.halt()` stops the drivetrain directly | Pedro 3.0.0 `Follower.stop()` changes mode only; motors update on the next `update()` | `pedroStopOnlyChangesModeUntilTheNextUpdate` | If `stop()` now zeroes motors immediately, the direct `drivetrain.stop()` is redundant but harmless. |
+| `core/workarounds/MonotonicWait.kt` (`monotonicWaitMs`) | Ivy 1.1.1 `Commands.waitMs` uses `System.currentTimeMillis()`. Not reported upstream | `ivyWaitMsIsTimedByTheWallClock` | If Ivy's wait is now monotonic: replace `monotonicWaitMs(ms)` with `waitMs(ms)`, delete the helper and `MonotonicWaitTest.kt`, update docs. Tests that need a fake clock may still want the helper. |
+| `MecanumDriveSubsystem.halt()` stops the drivetrain directly | Pedro 3.0.1 `Follower.stop()` changes mode only; motors update on the next `update()` | `pedroStopOnlyChangesModeUntilTheNextUpdate` | If `stop()` now zeroes motors immediately, the direct `drivetrain.stop()` is redundant but harmless. |
 | Drive commands instead of Ivy's `PedroCommands` (no `com.pedropathing.ivy:pedro` dependency) | Ivy 1.1.1 `follow` has no requirement and no interruption cleanup; `hold` reports no arrival | None (the artifact isn't a dependency) | On an Ivy upgrade, read `PedroCommands` in the new `ivy:pedro` sources before considering it. The drive commands also carry the logging and completion semantics. |
 | Once-per-start guards in drive commands; `LoggedCommand` ignoring unstarted or repeated ends; ABORT after `Scheduler.reset` | Ivy 1.1.1 ends unstarted group children, ends deadline children twice, forwards a lazy's end, skips `end` on reset, executes a command interrupted earlier in the tick | the `ivy…` tests | Re-check `MecanumDriveSubsystem`, `CommandHistory.kt`, `DriveCommandCancellationTest` and `CommandHistoryTest` against the new scheduler and groups. The guards stay harmless if Ivy stops doing this. |
 
-Checking upstream: `gh issue view 176 -R Pedro-Pathing/PedroPathing`, and the
-newest versions at
+Checking upstream: the newest versions are at
 `https://repo1.maven.org/maven2/com/pedropathing/<core|revhub|tuning|ivy/core>/maven-metadata.xml`.
 
 ## Optimize for the best decision, not the cheapest
@@ -109,7 +108,7 @@ stop, and ticks it once per loop. Op-modes never call `Scheduler.execute()`.
 import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.Scheduler
 import com.pedropathing.ivy.commands.Commands.*   // instant, waitUntil, infinite, lazy, conditional (not waitMs)
-import org.firstinspires.ftc.teamcode.core.util.monotonicWaitMs
+import org.firstinspires.ftc.teamcode.core.workarounds.monotonicWaitMs
 import com.pedropathing.ivy.groups.Groups.*       // sequential, parallel, race, deadline, repeat, loop
 
 Command.build()
@@ -143,7 +142,7 @@ Semantics verified against the 1.1.1 artifact (`LibraryContractTest` pins them):
   fault policies) or `onLoop()`, not from another command's execute.
 - Groups take the union of child requirements and the max child priority;
   nothing stops two drive commands in one `parallel`. Don't do that.
-- Use `monotonicWaitMs(ms)` (`core/util`), not `waitMs`, which follows the
+- Use `monotonicWaitMs(ms)` (`core/workarounds`), not `waitMs`, which follows the
   wall clock (**Library workarounds**); pass a `Clock` in tests.
 - There are no command names, no running-command registry and no lifecycle
   hooks. The one exception this repo adds is `logged(name, command)`
@@ -170,22 +169,21 @@ val p = alliance.poses()                      // PoseFactory in degrees, RED coo
 val start = p.of(8.0, 56.0, 0.0)
 val out = p.of(32.0, 56.0, 0.0)
 Paths.line(start, out).constant(start)
-Paths.line(a, b).heading(linearHeading(a, b)) // turn along a path (core/util), never .linear
+Paths.line(a, b).linear(a, b)                 // turn along a path
 Paths.curve(a, control, b).constant(a)        // ≥ 3 points
 Paths.path(first, second)                     // compound
 path.with(Constants.foresightConfig.maxPathSpeed.at(0.5))
 ```
 
-Verified 3.0.0 behaviour to respect:
+Verified 3.0.1 behaviour to respect:
 
-- **`linear` heading runs backwards on `Paths.line` and on compound paths**
-  (and `piecewise` breakpoints with it). Use `path.heading(linearHeading(a, b))`
-  from `core/util` on every path kind: it interpolates by distance travelled,
-  turns the short way like Pedro's, and follows alliance-mapped poses. Cause
-  and removal: **Library workarounds**.
+- `linear` interpolates by distance travelled on every path kind (3.0.0 ran it
+  backwards on lines and compound paths; fixed in 3.0.1, pinned by
+  `LibraryContractTest`).
 - `Paths.curve` rejects fewer than three points (the docs show two).
-- Never `PoseFactory.mirrorX`; use `Alliance.poses()` / `Alliance.mirror`
-  (**Library workarounds**).
+- `PoseFactory.mirrorX` is a reflection only. Use `Alliance.poses()` /
+  `Alliance.mirror`, which follow the season's symmetry (a rotation this
+  season).
 - The follower leaves FOLLOW mode at the **parametric end** of the path (then
   HOLD with `holdEnd`, else IDLE). That is not arrival.
 - `isBusy` is only cleared by a converged or timed-out hold; with `holdEnd`
@@ -390,10 +388,9 @@ loop keeps running.
   `robot.scheduler`, no `core/command`. Names exist only on `logged` commands.
 - **Don't use Ivy's `PedroCommands`** for driving; use the drive's commands.
 - **Parametric end ≠ arrival.** Use `holdCommand` or `atPose` when arrival matters.
-- **`linear` on `Paths.line` is backwards in Pedro 3.0.0.**
 - **Mirroring:** `Alliance.poses()` / `Alliance.mirror`, field length
   `RobotConfig.Field.LENGTH_INCHES` (**141.5**), symmetry
-  `RobotConfig.Field.SYMMETRY`. Never `PoseFactory.mirrorX`.
+  `RobotConfig.Field.SYMMETRY`. Not `PoseFactory.mirrorX`, which only reflects.
 - **Foresight constants are not tuned.** Never invent values; run AutoTune.
   The Pedro docs' example ForesightConfig numbers are another robot's.
 - **Only `Field/Robot` is rotated.** Pedro's frame (origin at the corner on

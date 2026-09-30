@@ -69,7 +69,9 @@ dependencies {
     // Pedro Pathing 3: follower, paths and Foresight (core), REV hub
     // Mecanum/Pinpoint implementations (revhub), and the AutoTune web tuner
     // (tuning, served at http://192.168.43.1:10158).
-    implementation 'com.pedropathing:revhub:3.0.0'
+    implementation 'com.pedropathing:revhub:3.0.1'
+    // tuning 1.0.1 needs Sloth 0.3.2 (see the constraint below); 1.0.0 runs on
+    // the 3.0.1 revhub/core it resolves to.
     implementation 'com.pedropathing:tuning:1.0.0'
 
     // Ivy: Pedro Pathing's command scheduler. The only scheduler in this repo.

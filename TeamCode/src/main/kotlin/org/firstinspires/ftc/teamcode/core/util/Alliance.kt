@@ -22,10 +22,6 @@ enum class FieldSymmetry {
  * Alliance side. Autonomous poses are written once in RED coordinates and
  * transformed onto BLUE with the season's [FieldSymmetry] and
  * [RobotConfig.Field.LENGTH_INCHES].
- *
- * Use [poses] instead of Pedro's `PoseFactory.mirrorX`: in Pedro 3.0.0
- * `mirrorX` maps heading to −h, which is not this repo's field reflection
- * (π−h) and turns the robot around.
  */
 enum class Alliance {
     RED,

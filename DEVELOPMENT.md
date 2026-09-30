@@ -143,7 +143,7 @@ to run if `!Constants.FORESIGHT_TUNED` or `!localizer.ready` (start pose not
 yet confirmed), `Scheduler.schedule(...)` and check `Scheduler.isScheduled(...)`. In `onLoop`, stop the op-mode once the
 routine is no longer scheduled.
 
-- **Waits:** use `monotonicWaitMs(ms)` from `core/util`, not Ivy's `waitMs`,
+- **Waits:** use `monotonicWaitMs(ms)` from `core/workarounds`, not Ivy's `waitMs`,
   which is timed by the wall clock and ends early or stalls if the hub's
   time is set mid-match.
 - **Markers** (do something part-way along a path, once):
@@ -152,12 +152,11 @@ routine is no longer scheduled.
 - **Completion:** `followCommand` ends at Pedro's *parametric end*, which is
   not arrival. Follow it with `holdCommand(pose)` when arrival matters.
   `turnToCommand` throws on timeout, which aborts the whole routine.
-- **Turning along a path:** in Pedro 3.0.0, `.linear(...)` rotates backwards
-  on `Paths.line` and compound paths. Use
-  `path.heading(linearHeading(a, b))` (`core/util`; see `backPath()` in the
+- **Turning along a path:** `.linear(a, b)` (see `backPath()` in the
   example), or `.constant(...)` to keep one heading.
 - **Alliances:** one `@Autonomous` class per alliance/routine; the BLUE copy
-  overrides `initialAlliance` only. Never use `PoseFactory.mirrorX`.
+  overrides `initialAlliance` only. Map poses with `alliance.poses()`, not
+  `PoseFactory.mirrorX`.
 - **Relocalization:** `localizer.applyCorrection(measured, timestampNanos, …)`
   with the camera frame's capture time. It is gated, blended and scaled down
   while following.
@@ -282,7 +281,7 @@ Everything else is Ivy or Pedro. Each remaining helper has one job:
 | `MecanumDriveSubsystem` | The one drive owner: stick shaping, field-centric, drive commands with requirements, interruption cleanup and measured completion |
 | `LocalizerSubsystem`, `PoseEstimator`, `PoseHistory` | Start pose written at every INIT, Pinpoint readiness/fault watchdog, latency-compensated vision corrections |
 | `GamepadEx`, `Trigger` | Deadbanded sticks, edges, and button bindings that schedule Ivy commands (Ivy has none) |
-| `Alliance` | RED→BLUE transform with the season's symmetry (Pedro's `mirrorX` uses a different heading convention) |
+| `Alliance` | RED→BLUE transform with the season's symmetry (mirror or rotate; Pedro's `mirrorX` only mirrors) |
 | `FlightRecorder`, `WpiLogWriter`, `WpiStruct`, `StateLog` | WPILOG files for AdvantageScope |
 | `logged`, `CommandHistory` | Command history for traced commands (Ivy has no lifecycle hooks or names) |
 | `FieldView`, `TelemetryBag` | Panels field drawing and throttled DS/Panels telemetry |

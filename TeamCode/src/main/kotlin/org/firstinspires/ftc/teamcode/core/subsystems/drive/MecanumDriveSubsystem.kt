@@ -182,10 +182,6 @@ class MecanumDriveSubsystem(
     /**
      * Follow [path] to its parametric end. With [holdEnd] Pedro then holds the
      * end pose; otherwise it idles. Interruption stops the follower.
-     *
-     * Pedro 3.0.0 runs `linear(...)` heading interpolation backwards on
-     * `Paths.line` and compound paths; use
-     * [org.firstinspires.ftc.teamcode.core.util.linearHeading] instead.
      */
     fun followCommand(path: Path, holdEnd: Boolean = false, name: String = "Drive follow"): Command {
         var running = false

@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode.core
 
 import com.pedropathing.api.Paths
-import com.pedropathing.api.PoseFactory
 import com.pedropathing.follower.Follower
 import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.Scheduler
@@ -24,7 +23,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * Behaviour of the published Ivy 1.1.1 and Pedro Pathing 3.0.0 artifacts that
+ * Behaviour of the published Ivy 1.1.1 and Pedro Pathing 3.0.1 artifacts that
  * this repo's design depends on or works around. A library upgrade that
  * changes any of these fails here, naming the assumption to revisit.
  * AI-GUIDE.md → Library workarounds says what to clean up for each one.
@@ -152,29 +151,29 @@ class LibraryContractTest {
     }
 
     @Test
-    fun pedroLinearHeadingRunsBackwardsOnLinesButNotOnCurves() {
-        // Why paths use core/util linearHeading (LinearHeadingTest).
-        // Pedro-Pathing/PedroPathing#176.
+    fun pedroLinearHeadingTurnsForwardOnEveryPathKind() {
+        // Pedro-Pathing/PedroPathing#176, fixed in 3.0.1. A failure here means
+        // `.linear` runs backwards again on lines or compound paths.
         val a = Pose(0.0, 0.0, 0.0)
-        val b = Pose(48.0, 0.0, Math.PI / 2)
+        val m = Pose(24.0, 0.0)
+        val b = Pose(24.0, 72.0, Math.PI / 2)
         val line = Paths.line(a, b).linear(a, b)
-        val fixed = "$CHANGED Pedro linear heading on lines, #176 (linearHeading)"
-        assertEquals(fixed, Math.PI / 2, line.heading(0.0), 1e-9)
-        assertEquals(fixed, 0.0, line.heading(1.0), 1e-9)
+        assertEquals(0.0, line.heading(0.0), 1e-9)
+        assertEquals(Math.PI / 4, line.heading(0.5), 1e-9)
+        assertEquals(Math.PI / 2, line.endPose().heading(), 1e-9)
+
+        // 24 in then 72 in: interpolated by distance, so a quarter turn's
+        // eighth at the join, a quarter of the way along.
+        val compound = Paths.path(Paths.line(a, m).constant(0.0), Paths.line(m, b).constant(0.0)).linear(a, b)
+        assertEquals(0.0, compound.heading(0.0), 1e-9)
+        assertEquals(Math.PI / 8, compound.heading(0.25), 1e-9)
+        assertEquals(Math.PI / 2, compound.endPose().heading(), 1e-9)
 
         val curve = Paths.curve(a, Pose(24.0, 0.0), b).linear(a, b)
         assertEquals(0.0, curve.heading(0.0), 1e-9)
         assertEquals(Math.PI / 2, curve.heading(1.0), 1e-9)
 
         assertThrows(IllegalArgumentException::class.java) { Paths.curve(a, b) }
-    }
-
-    @Test
-    fun pedroPoseFactoryMirrorXIsNotTheFieldReflection() {
-        // Why Alliance.poses() maps with Alliance.mirror instead.
-        val mirrored = PoseFactory.radians().mirrorX(70.75).of(10.0, 20.0, 0.3)
-        assertEquals(131.5, mirrored.x(), 1e-9)
-        assertEquals("$CHANGED PoseFactory.mirrorX heading (Alliance.poses)", 2 * Math.PI - 0.3, mirrored.heading(), 1e-9)
     }
 
     @Test

@@ -17,8 +17,7 @@ import org.firstinspires.ftc.teamcode.core.runtime.StartDelay
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerSubsystem
 import org.firstinspires.ftc.teamcode.core.util.Alliance
-import org.firstinspires.ftc.teamcode.core.util.linearHeading
-import org.firstinspires.ftc.teamcode.core.util.monotonicWaitMs
+import org.firstinspires.ftc.teamcode.core.workarounds.monotonicWaitMs
 import org.firstinspires.ftc.teamcode.pedro.Constants
 
 /**
@@ -28,9 +27,7 @@ import org.firstinspires.ftc.teamcode.pedro.Constants
  *  - Poses are written once in RED coordinates through [Alliance.poses]
  *    (degrees); BLUE gets them mirrored. Bare headings go through
  *    [Alliance.mirror].
- *  - Paths come from Pedro's `Paths` API. Turning along a path uses
- *    [linearHeading]: Pedro 3.0.0's own `.linear(...)` runs backwards on a
- *    `line` and on compound paths.
+ *  - Paths come from Pedro's `Paths` API; `.linear(a, b)` turns along a path.
  *  - The routine is plain Ivy composition: `sequential`, `race` for timeouts,
  *    `deadline` for a mid-path marker that fires once and is dropped if the
  *    path ends first. Waits and timeouts use [monotonicWaitMs], never Ivy's
@@ -84,7 +81,7 @@ class ExampleAuto : OpModeBase() {
 
     private fun outPath(): Path = line(start, out).constant(start)
 
-    private fun backPath(): Path = line(outTurned, start).heading(linearHeading(outTurned, start))
+    private fun backPath(): Path = line(outTurned, start).linear(outTurned, start)
 
     // Named steps show up in commands/events and commands/active. The drive
     // factories are already logged (pass `name`); other steps are wrapped with

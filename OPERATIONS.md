@@ -512,8 +512,7 @@ Three separate levels; passing one says nothing about the next.
 | All mechanisms twitched off / auto stopped mid-routine | `COMMAND FAULT` event and Health `command faults`; the `FAIL` record in `commands/events` names the traced command and phase |
 | Auto did the wrong step / stopped early | `commands/events` and `commands/active` around the moment (only `logged` steps appear); FINISH of a hold may be its timeout |
 | Path "finished" short of the target | `follow/translationalErrorIn` at the end; follow ends at the parametric end, add `holdCommand` |
-| Robot rotated the wrong way along a line | `.linear(...)` on `Paths.line` or a compound path (Pedro 3.0.0); use `linearHeading` |
-| Auton wrong only when mirrored | Headings not through `Alliance.mirror`, or `PoseFactory.mirrorX` used |
+| Auton wrong only on BLUE | Headings not through `Alliance.mirror`, or `PoseFactory.mirrorX` used (it reflects; this season rotates) |
 | Paths refuse to start | `FORESIGHT_TUNED` false, or `ROBOT_CENTRIC_FALLBACK` after a localizer fault |
 | Auton drifted | `follow/translationalErrorIn`: small error means localization; large means following |
 | Sudden pose jump | `pose correction applied` events and correction gates |
@@ -554,7 +553,7 @@ Record results in `PROGRESS.md`.
 - [ ] Foresight Tuner completes; output pasted; `FORESIGHT_TUNED = true`.
       No path, hold or turn is run on the robot before this.
 - [ ] Tests → Hold resists pushing; Line and Curve repeat without drift.
-- [ ] A `Paths.line(a, b).heading(linearHeading(a, b))` path (Example Auto's
+- [ ] A `Paths.line(a, b).linear(a, b)` path (Example Auto's
       return leg) starts at a's heading and ends at b's, on RED and BLUE.
 
 **Driving and turning**
