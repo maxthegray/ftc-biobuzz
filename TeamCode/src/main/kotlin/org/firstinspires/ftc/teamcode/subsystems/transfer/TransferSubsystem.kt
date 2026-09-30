@@ -47,11 +47,14 @@ class TransferSubsystem(
     var blockerOpen: Boolean = false
         private set
 
-    private var blockerOpenedAtNs = 0L
+    private var blockerOpenedAtNs: Long? = null
 
-    /** Open for at least [TransferConfig.blockerTravelMs]. */
+    /** At least [TransferConfig.blockerTravelMs] since writing the servo's open position. */
     val blockerSettled: Boolean
-        get() = blockerOpen && (clock.nanos() - blockerOpenedAtNs) / 1e6 >= TransferConfig.safeBlockerTravelMs
+        get() {
+            val openedAtNs = blockerOpenedAtNs ?: return false
+            return blockerOpen && (clock.nanos() - openedAtNs) / 1e6 >= TransferConfig.safeBlockerTravelMs
+        }
 
     /** A ball waiting against the blocker; null until a sensor is fitted. */
     val ballStaged: Boolean? = null
@@ -70,6 +73,9 @@ class TransferSubsystem(
         hw.blocker.setPosition(
             if (blockerOpen) TransferConfig.safeBlockerOpenPosition else TransferConfig.safeBlockerClosedPosition,
         )
+        if (blockerOpen && blockerOpenedAtNs == null) {
+            blockerOpenedAtNs = clock.nanos()
+        }
     }
 
     fun hold(): Command = transferCommand("Transfer hold", CommandPriorities.DEFAULT) {
@@ -87,7 +93,7 @@ class TransferSubsystem(
     fun feed(priority: Int = CommandPriorities.DRIVER_ACTION): Command = transferCommand("Transfer feed", priority) {
         if (!blockerOpen) {
             blockerOpen = true
-            blockerOpenedAtNs = clock.nanos()
+            blockerOpenedAtNs = null
         }
         motorPower = if (blockerSettled) TransferConfig.safeFeedPower else 0.0
     }
@@ -121,6 +127,7 @@ class TransferSubsystem(
     private fun makeSafe() {
         motorPower = 0.0
         blockerOpen = false
+        blockerOpenedAtNs = null
     }
 
     override fun onCommandFault() = makeSafe()
