@@ -56,18 +56,41 @@ open class TwoTipAutoRed : OpModeBase() {
     /** A mechanism step that doesn't exist yet: waits [ms] and shows up in the log under [name]. */
     private fun standIn(name: String, ms: Double): Command = logged(name, monotonicWaitMs(ms))
 
+    // Planned, not built yet:
+    //  - The turret tracks the HIVE all match as its default command, so the
+    //    Limelight always sees which CELL is raised.
+    //  - Wrap everything before parking in a race with a 25 s timer, then park
+    //    from wherever the robot is (lazy path from drive.pose).
+    //  - Wrap the whole routine in a race with a 29 s timer.
     private fun buildRoutine(): Command = sequential(
+        // Fire all 4 preloads at the starting CELL; it already holds 3 NECTAR, so 3 POLLEN tip it.
+        // Later: aim the turret, spin the flywheel to ShotModel speed, feed until empty.
         standIn("Fire preloads", 2000.0),
+
+        // Sweep the GARDEN along the audience wall with the intake running.
+        // Later: race the path with "intake full" (needs a ball sensor) so it stops at 4 balls.
         drive.followCommand(line(start, gardenEnd).constant(start)),
         standIn("Intake GARDEN", 500.0),
+
+        // Later: wait up to 1 s for the camera to see the HIVE, then branch:
+        //  - starting CELL still raised (preloads didn't tip it): fire the GARDEN load at it from
+        //    here, then cross;
+        //  - tipped, or never seen: cross, then fire at the far CELL (what runs now).
         drive.followCommand(
             curve(gardenEnd, poses.of(26.0, 40.0, 0.0), poses.of(24.0, 108.0, 0.0), farShot).linear(gardenEnd, farShot),
             holdEnd = true,
         ),
         standIn("Fire GARDEN load", 2000.0),
+
+        // Drive into the far-wall FLOWER and empty its 4 POLLEN into the intake.
+        // Later: the FLOWER mechanism, with a time limit so a jam can't eat the auto.
         drive.followCommand(line(farShot, flower).constant(flower), holdEnd = true),
         standIn("Empty FLOWER", 2500.0),
+
+        // Fire from the same spot at the far CELL: 8 POLLEN in total there, so tip #2.
         standIn("Fire FLOWER load", 2000.0),
+
+        // Park partly in the LOADING ZONE without touching the wall (PARK + LEAVE).
         drive.followCommand(curve(flower, poses.of(30.0, 126.0, 0.0), park).constant(flower), holdEnd = true),
     )
 
