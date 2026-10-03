@@ -1,0 +1,91 @@
+package org.firstinspires.ftc.teamcode.opmodes
+
+import com.pedropathing.api.Paths.curve
+import com.pedropathing.api.Paths.line
+import com.pedropathing.ivy.Command
+import com.pedropathing.ivy.Scheduler
+import com.pedropathing.ivy.groups.Groups.sequential
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous
+import com.qualcomm.robotcore.eventloop.opmode.Disabled
+import org.firstinspires.ftc.teamcode.core.Alliance
+import org.firstinspires.ftc.teamcode.core.logging.logged
+import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
+import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
+import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerSubsystem
+import org.firstinspires.ftc.teamcode.core.workarounds.monotonicWaitMs
+import org.firstinspires.ftc.teamcode.pedro.Constants
+
+/**
+ * Skeleton of the two-tip auto (route: `BiobuzzRedAuto.pp` in the Pedro
+ * visualizer). RED coordinates; BLUE is the season's 180° rotation.
+ *
+ * Drives the real route; every mechanism step is a named [standIn] wait.
+ * Kept this simple on purpose until TeleOp works and the robot is built.
+ */
+@Disabled
+@Autonomous(name = "Two Tip RED", group = "Match")
+open class TwoTipAutoRed : OpModeBase() {
+
+    private lateinit var drive: MecanumDriveSubsystem
+    private lateinit var localizer: LocalizerSubsystem
+    private var routine: Command? = null
+
+    override val initialAlliance: Alliance get() = Alliance.RED
+
+    // Poses (x, y, heading°) in RED coordinates.
+    private val poses get() = alliance.poses()
+    private val start get() = poses.of(48.0, 9.0, 180.0)
+    private val gardenEnd get() = poses.of(10.0, 10.0, 180.0)
+    private val farShot get() = poses.of(48.0, 124.0, 90.0)
+    private val flower get() = poses.of(48.0, 129.0, 90.0)
+    private val park get() = poses.of(16.0, 106.0, 90.0)
+
+    override fun configure() {
+        val follower = Constants.create(hardwareMap)
+        drive = robot.register(MecanumDriveSubsystem(follower))
+        localizer = robot.register(
+            LocalizerSubsystem(
+                follower,
+                isFollowing = drive::isFollowing,
+                onFault = { routine?.let(Scheduler::cancel) },
+                startingPose = start,
+            ),
+        )
+    }
+
+    /** A mechanism step that doesn't exist yet: waits [ms] and shows up in the log under [name]. */
+    private fun standIn(name: String, ms: Double): Command = logged(name, monotonicWaitMs(ms))
+
+    private fun buildRoutine(): Command = sequential(
+        standIn("Fire preloads", 2000.0),
+        drive.followCommand(line(start, gardenEnd).constant(start)),
+        standIn("Intake GARDEN", 500.0),
+        drive.followCommand(
+            curve(gardenEnd, poses.of(26.0, 40.0, 0.0), poses.of(24.0, 108.0, 0.0), farShot).linear(gardenEnd, farShot),
+            holdEnd = true,
+        ),
+        standIn("Fire GARDEN load", 2000.0),
+        drive.followCommand(line(farShot, flower).constant(flower), holdEnd = true),
+        standIn("Empty FLOWER", 2500.0),
+        standIn("Fire FLOWER load", 2000.0),
+        drive.followCommand(curve(flower, poses.of(30.0, 126.0, 0.0), park).constant(flower), holdEnd = true),
+    )
+
+    override fun onStart() {
+        if (!Constants.FORESIGHT_TUNED || !localizer.ready) {
+            requestOpModeStop()
+            return
+        }
+        routine = buildRoutine().also(Scheduler::schedule)
+    }
+
+    override fun onLoop() {
+        if (routine?.let(Scheduler::isScheduled) == false) requestOpModeStop()
+    }
+}
+
+@Disabled
+@Autonomous(name = "Two Tip BLUE", group = "Match")
+class TwoTipAutoBlue : TwoTipAutoRed() {
+    override val initialAlliance: Alliance get() = Alliance.BLUE
+}
