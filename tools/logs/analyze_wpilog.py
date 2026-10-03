@@ -2,8 +2,8 @@
 """Post-match one-pager for the flight recorder's WPILOG files.
 
 Usage:
-    python3 tools/analyze_wpilog.py [file.wpilog ...]
-    python3 tools/analyze_wpilog.py --json [--channel battery,Lift/outputPower] [file ...]
+    python3 tools/logs/analyze_wpilog.py [file.wpilog ...]
+    python3 tools/logs/analyze_wpilog.py --json [--channel battery,Lift/outputPower] [file ...]
 
 --json emits a compact machine-readable diagnostic bundle (the same metrics as
 the text one-pager, plus a channel manifest and the full event timeline) for

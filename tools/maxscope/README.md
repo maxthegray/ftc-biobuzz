@@ -19,7 +19,7 @@ refresh the run library. The viewer does not connect to the robot.
 Alternate directory or port:
 
 ```sh
-python3 tools/log_viewer.py --logs /path/to/logs --port 8010
+python3 tools/maxscope/log_viewer.py --logs /path/to/logs --port 8010
 ```
 
 ## Coordinates
@@ -155,14 +155,14 @@ in milliseconds; pose heading remains radians.
 
 ## Development
 
-`tools/log_viewer.py` serves the UI and reuses `analyze_wpilog.py`. Browser
+`tools/maxscope/log_viewer.py` serves the UI and reuses `analyze_wpilog.py`. Browser
 code is plain ES modules and Canvas; reload after edits. The server binds
 only to `127.0.0.1`, exposes an allowlist of assets, and accepts same-origin
 local requests. No cloud hosting or build step is needed.
 
 ```sh
-python3 -m unittest tools/test_analyze_wpilog.py tools/test_log_viewer.py
-node --test tools/viewer/core.test.mjs
+python3 -m unittest tools/logs/test_analyze_wpilog.py tools/maxscope/test_log_viewer.py
+node --test tools/maxscope/viewer/core.test.mjs
 ```
 
 Node is needed only for the browser-math unit tests. Python integration tests

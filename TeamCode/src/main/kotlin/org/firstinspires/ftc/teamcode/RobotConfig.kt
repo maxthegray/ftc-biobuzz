@@ -79,7 +79,7 @@ object RobotConfig {
          * the red wall is on the audience's left (DECODE 2025-26, where +X
          * points at the audience) and −1 when it is on the right (the usual
          * layout). Display only: paths, start poses and `Alliance` stay in
-         * Pedro's frame. Verify with the axis check in OPERATIONS.md.
+         * Pedro's frame. Verify with the axis check in dutchdocs/OPERATIONS.md.
          */
         const val FIELD_VIEW_QUARTER_TURNS = 1
     }

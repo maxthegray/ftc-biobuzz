@@ -230,7 +230,7 @@ Pedro `pose` in inches/radians: origin at the audience-left corner, +X right,
 is needed. Robot logging remains compatible with both viewers.
 
 The first draft runs locally with Python 3.10+ and no extra dependencies.
-See [MaxScope](tools/viewer/README.md) for controls, limits and tests.
+See [MaxScope](../tools/maxscope/README.md) for controls, limits and tests.
 
 ## Download a WPILOG and open it in AdvantageScope
 

@@ -6,8 +6,8 @@ Read this entire file before changing code.
 Human documentation has three entry points:
 
 - `README.md` — setup and repository map
-- `DEVELOPMENT.md` — student workflows: subsystems, buttons, autos, logging
-- `OPERATIONS.md` — hardware bring-up, AutoTune, logs, diagnosis, validation
+- `dutchdocs/DEVELOPMENT.md` — student workflows: subsystems, buttons, autos, logging
+- `dutchdocs/OPERATIONS.md` — hardware bring-up, AutoTune, logs, diagnosis, validation
 
 ## What this repo is
 
@@ -432,7 +432,7 @@ loop keeps running.
 
 ## When the user asks you to add a subsystem
 
-Follow `DEVELOPMENT.md` → *Add a subsystem*: extend `SubsystemBase`, resolve
+Follow `dutchdocs/DEVELOPMENT.md` → *Add a subsystem*: extend `SubsystemBase`, resolve
 hardware in `init` with the SDK's `hardwareMap.get` (set direction, mode and
 zero-power behaviour there), read in `periodic()`, flush in
 `writeHardware()`, expose Ivy command factories that `requiring(this)`, zero
@@ -442,7 +442,7 @@ There is deliberately no generic mechanism base class.
 
 ## When the user asks you to add an I²C sensor
 
-Read the sensor section in `DEVELOPMENT.md` first. Pinpoint stays direct;
+Read the sensor section in `dutchdocs/DEVELOPMENT.md` first. Pinpoint stays direct;
 several auxiliary sensors go on one SRS Hub read **inline** in `periodic()`
 (restore its driver from git history, as described there). Do not background
 sensor reads by default.
@@ -491,7 +491,7 @@ No team or season prefix. `"Match"` or `"Diagnostics"` groups. Title Case, no
   iteration, including `pedro/Constants.java`.
 
 Logs: `make debug` (newest Auto + TeleOp, JSON bundle), `make pull-logs`,
-`make analyze`. `tools/analyze_wpilog.py` reports `commandHistoryCoverage`:
+`make analyze`. `tools/logs/analyze_wpilog.py` reports `commandHistoryCoverage`:
 `"all scheduled"` (pre-Ivy logs, `commands/running`), `"none"` (Ivy logs before
 command tracing) or `"instrumented"` (current logs, `logged` commands only,
 with `commandExecutions`, `commandFailures`, `commandActive` and
@@ -502,7 +502,7 @@ hypotheses and the one channel or reproduction that decides it.
 
 When the user is plugged into the hub and reports a match problem, run
 **`make debug`**, anchor on the stated symptom, and drill into channels with
-`python3 tools/analyze_wpilog.py --json --channel <name,name> robot-logs/<file>`.
+`python3 tools/logs/analyze_wpilog.py --json --channel <name,name> robot-logs/<file>`.
 The auton run is usually the second pulled file. For "what was it doing":
 read `commandFailures`, then the `commandExecutions` overlapping the symptom
 time, then `--channel commands/active,driveMode,pose` around it. State the
@@ -513,5 +513,5 @@ coverage: an absent command may simply be unlogged.
 ```
 JAVA_HOME="/Users/maximilianreich/Library/Java/JavaVirtualMachines/corretto-17.0.13/Contents/Home" \
   ./gradlew :TeamCode:testDebugUnitTest :TeamCode:assembleDebug
-python3 -m unittest tools/test_analyze_wpilog.py
+python3 -m unittest tools/logs/test_analyze_wpilog.py tools/maxscope/test_log_viewer.py
 ```

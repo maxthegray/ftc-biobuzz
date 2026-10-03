@@ -7,15 +7,17 @@ import hashlib
 import json
 import math
 import re
+import sys
 import tempfile
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-import analyze_wpilog
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "logs"))
+import analyze_wpilog  # noqa: E402
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 ASSETS = Path(__file__).with_name("viewer")
 MAX_UPLOAD = 256 * 1024 * 1024
 PLAYBACK_CHANNELS = ("pose", "driveMode", "gamepad1/axes", "gamepad1/buttons",

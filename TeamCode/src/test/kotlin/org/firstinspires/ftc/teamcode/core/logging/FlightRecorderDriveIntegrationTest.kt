@@ -33,10 +33,10 @@ import org.junit.Test
  * The flight recorder attached to the real Robot loop, Ivy, and the Pedro 3
  * drive: a teleop → path → driver takeover → command fault session produces a
  * WPILOG that decodes with the channels, units, transforms and timestamps
- * AdvantageScope layouts and `tools/analyze_wpilog.py` rely on.
+ * AdvantageScope layouts and `tools/logs/analyze_wpilog.py` rely on.
  *
  * Set `WPILOG_SAMPLE_DIR` to keep that session's log for AdvantageScope and
- * the analyzer (see OPERATIONS.md, "Flight recorder validation").
+ * the analyzer (see dutchdocs/OPERATIONS.md, "Flight recorder validation").
  */
 class FlightRecorderDriveIntegrationTest {
 

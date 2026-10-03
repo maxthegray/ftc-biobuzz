@@ -5,7 +5,7 @@
 # op-mode name contains each prefix. If one side is missing, fill from the
 # next-newest distinct log instead of dragging all 30 over the link.
 #
-# Usage: tools/pull-latest-logs.sh [HUB_IP] [HUB_PORT]
+# Usage: tools/logs/pull-latest-logs.sh [HUB_IP] [HUB_PORT]
 set -eu
 
 HUB_IP="${1:-192.168.43.1}"

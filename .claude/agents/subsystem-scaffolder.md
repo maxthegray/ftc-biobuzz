@@ -5,7 +5,7 @@ tools: Read, Write, Edit, Glob, Grep
 model: sonnet
 ---
 
-Read `AI-GUIDE.md` completely, then `DEVELOPMENT.md` → Add a subsystem and
+Read `AI-GUIDE.md` completely, then `dutchdocs/DEVELOPMENT.md` → Add a subsystem and
 Config objects. Those documents own the lifecycle, Ivy, tuning, and safety
 rules; do not introduce another framework or repeat the contract here.
 

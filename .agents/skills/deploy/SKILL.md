@@ -26,7 +26,7 @@ running old code. Always classify before deploying.
 1. **Classify the pending changes.** Run:
 
    ```
-   bash tools/classify-deploy.sh
+   bash tools/deploy/classify-deploy.sh
    ```
 
    It prints `RECOMMENDATION: HOT|FULL`, a one-line `REASON`, and the deciding

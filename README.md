@@ -39,7 +39,7 @@ On the robot:
    `ballCamera` are defaults on `LimelightSubsystem`/`BallCameraSubsystem`
    instead, since vision hardware names aren't identity in the same sense.
 2. Do a full APK install the first time (`make install`).
-3. Work through [OPERATIONS.md](OPERATIONS.md) for bring-up and AutoTune.
+3. Work through [OPERATIONS.md](dutchdocs/OPERATIONS.md) for bring-up and AutoTune.
    Foresight (Pedro's path follower) is **not tuned yet**: driving works, but
    paths refuse to run until AutoTune's output is in `pedro/Constants.java`.
 
@@ -61,11 +61,11 @@ Remove `@Disabled` from a specific op-mode and rebuild when you need it.
 
 ## Documentation
 
-- [DEVELOPMENT.md](DEVELOPMENT.md) — add a subsystem, bind a button, write an
+- [DEVELOPMENT.md](dutchdocs/DEVELOPMENT.md) — add a subsystem, bind a button, write an
   auto, log a value, open a log in AdvantageScope
-- [OPERATIONS.md](OPERATIONS.md) — bring-up, AutoTune, logs, symptoms, and the
+- [OPERATIONS.md](dutchdocs/OPERATIONS.md) — bring-up, AutoTune, logs, symptoms, and the
   physical validation checklist
-- [PROGRESS.md](PROGRESS.md) — notes from lab testing, with numbers
+- [PROGRESS.md](dutchdocs/PROGRESS.md) — notes from lab testing, with numbers
 - [AI-GUIDE.md](AI-GUIDE.md) — the full framework contract, written for AI assistants
 
 `AGENTS.md` and `CLAUDE.md` just point at the AI guide.
@@ -82,8 +82,8 @@ Remove `@Disabled` from a specific op-mode and rebuild when you need it.
 | Hardware names, field size, config schema | `RobotConfig.kt` |
 | Pedro constants and AutoTune | `pedro/Constants.java`, `pedro/Tuning.java` |
 | Flight recorder | `core/logging/FlightRecorder.kt` |
-| Vision | `vision/` (match code), `opmodes/diagnostics/` (diagnostics and lab records), then `OPERATIONS.md` §8 |
-| Diagnose a run | `make debug`, then `OPERATIONS.md` |
+| Vision | `vision/` (match code), `opmodes/diagnostics/` (diagnostics and lab records), then `dutchdocs/OPERATIONS.md` §8 |
+| Diagnose a run | `make debug`, then `dutchdocs/OPERATIONS.md` |
 
 Paths are relative to `TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/`,
 except `pedro/`, which lives under the Java source root

@@ -58,16 +58,16 @@ pull-lab-records: ## Pull vision lab records into ./lab-records for review
 	adb pull /sdcard/FIRST/lab-records/. lab-records/
 
 analyze: pull-logs ## Pull logs and print a one-page summary of the newest match log
-	python3 tools/analyze_wpilog.py
+	python3 tools/logs/analyze_wpilog.py
 
 analyze-last: ## Summarize the newest already-pulled log (no adb needed)
-	python3 tools/analyze_wpilog.py
+	python3 tools/logs/analyze_wpilog.py
 
 viewer: ## Open the offline MaxScope server at http://127.0.0.1:8008
-	python3 tools/log_viewer.py
+	python3 tools/maxscope/log_viewer.py
 
 debug: ## Pull only the newest match log(s) and emit a JSON diagnostic bundle
-	@tools/pull-latest-logs.sh $(HUB_IP) $(HUB_PORT)
-	@python3 tools/analyze_wpilog.py --json
+	@tools/logs/pull-latest-logs.sh $(HUB_IP) $(HUB_PORT)
+	@python3 tools/logs/analyze_wpilog.py --json
 
 .PHONY: help build test clean install hot connect disconnect devices reset-adb logs logs-all pull-logs pull-lab-records analyze analyze-last viewer debug

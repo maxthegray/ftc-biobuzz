@@ -8,9 +8,9 @@ holds the Pedro Pathing files copied from its Quickstart: `pedro/Constants.java`
 Start at the repo root:
 
 - [README.md](../../../../../../../../README.md): setup and repository map.
-- [DEVELOPMENT.md](../../../../../../../../DEVELOPMENT.md): subsystems,
+- [DEVELOPMENT.md](../../../../../../../../dutchdocs/DEVELOPMENT.md): subsystems,
   commands, config, autonomous routines, and sensors.
-- [OPERATIONS.md](../../../../../../../../OPERATIONS.md): physical bring-up,
+- [OPERATIONS.md](../../../../../../../../dutchdocs/OPERATIONS.md): physical bring-up,
   Pedro tuning, logging, and diagnosis.
 
 FTC SDK sample op-modes are still available under the `FtcRobotController`

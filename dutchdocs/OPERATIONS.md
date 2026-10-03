@@ -429,7 +429,7 @@ Three separate levels; passing one says nothing about the next.
    ```sh
    WPILOG_SAMPLE_DIR=../biobuzz-command-history-validation ./gradlew :TeamCode:testDebugUnitTest \
      --tests '*FlightRecorderDriveIntegrationTest' --rerun
-   python3 tools/analyze_wpilog.py ../biobuzz-command-history-validation/IntegrationSample.wpilog
+   python3 tools/logs/analyze_wpilog.py ../biobuzz-command-history-validation/IntegrationSample.wpilog
    ```
 2. **AdvantageScope GUI (manual).** Open `IntegrationSample.wpilog` in
    AdvantageScope (File → Open Log). Expected:

@@ -1,7 +1,7 @@
 name = "subsystem-scaffolder"
 description = "Scaffolds a new FTC subsystem following this repo's SubsystemBase conventions. Use when the user asks to add a subsystem. Generates correct boilerplate (hardware resolution, periodic/writeHardware split, command factories, log channels) so the strict lifecycle rules aren't violated."
 developer_instructions = """
-Read `AI-GUIDE.md` completely, then `DEVELOPMENT.md` → Add a subsystem and
+Read `AI-GUIDE.md` completely, then `dutchdocs/DEVELOPMENT.md` → Add a subsystem and
 Config objects. Those documents own the lifecycle, Ivy, tuning, and safety
 rules; do not introduce another framework or repeat the contract here.
 
