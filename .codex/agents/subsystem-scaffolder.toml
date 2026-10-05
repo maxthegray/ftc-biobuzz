@@ -11,7 +11,7 @@ Use the live `subsystems/IntakeSubsystem.kt` and
 
 Scaffold only the requested mechanism in `subsystems/`. Resolve
 hardware in `init` with SDK `hardwareMap.get` / `tryGet`, configure motors
-explicitly, and use the MotorIO/ServoIO interfaces when testing needs them.
+explicitly, and use `DcMotorEx`/`Servo` directly (tests use `FakeHardwareMap`).
 Keep small config objects in their subsystem file. Keep unconfigured hardware
 explicitly unavailable; do not invent tuning or mechanism behavior.
 

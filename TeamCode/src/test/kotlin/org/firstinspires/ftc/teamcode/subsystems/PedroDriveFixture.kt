@@ -11,13 +11,10 @@ import com.pedropathing.math.Pose
 import com.pedropathing.math.Vector2D
 import com.pedropathing.math.Velocity
 import com.pedropathing.revhub.drivetrains.Mecanum
-import com.qualcomm.robotcore.hardware.DcMotor
-import com.qualcomm.robotcore.hardware.DcMotorEx
-import com.qualcomm.robotcore.hardware.DcMotorSimple
-import com.qualcomm.robotcore.hardware.HardwareMap
-import java.lang.reflect.Proxy
 import org.firstinspires.ftc.teamcode.RobotConfig
 import org.firstinspires.ftc.teamcode.core.sim.FakeClock
+import org.firstinspires.ftc.teamcode.core.sim.FakeHardwareMap
+import org.firstinspires.ftc.teamcode.core.sim.MotorProbe
 import org.firstinspires.ftc.teamcode.pedro.Constants
 
 /**
@@ -30,15 +27,7 @@ internal class PedroDriveFixture(
     /** Pass the previous run's probe to model the same Pinpoint across op-modes. */
     val localizer: OdometryProbe = OdometryProbe(),
 ) {
-    // SDK tryGet checks the Android device type (and loads native RobotCore).
-    // Keep device registration real; replace only that host-incompatible lookup.
-    val hardwareMap = object : HardwareMap(null, null) {
-        override fun <T> get(type: Class<out T>, name: String): T =
-            requireNotNull(tryGet(type, name)) { "Missing device $name" }
-
-        override fun <T> tryGet(type: Class<out T>, name: String): T? =
-            allDevicesMap[name]?.firstOrNull { type.isInstance(it) }?.let(type::cast)
-    }
+    val hardwareMap = FakeHardwareMap()
 
     /** In mixer order: front left, front right, back left, back right. */
     val motors = List(4) { MotorProbe() }
@@ -64,29 +53,6 @@ internal class PedroDriveFixture(
 
     fun clearWrites() = motors.forEach { it.writes.clear() }
     fun powers(): DoubleArray = motors.map { it.power }.toDoubleArray()
-
-    class MotorProbe {
-        var power = 0.0
-        var direction = DcMotorSimple.Direction.FORWARD
-        var zeroPowerBehavior = DcMotor.ZeroPowerBehavior.UNKNOWN
-        val writes = mutableListOf<Double>()
-        val device = deviceProxy(DcMotorEx::class.java) { name, args ->
-            when (name) {
-                "getPower" -> power
-                "setPower" -> {
-                    power = args[0] as Double
-                    check(power.isFinite() && power in -1.0..1.0) { "Invalid motor power: $power" }
-                    writes += power
-                    null
-                }
-                "getDirection" -> direction
-                "setDirection" -> { direction = args[0] as DcMotorSimple.Direction; null }
-                "setZeroPowerBehavior" -> { zeroPowerBehavior = args[0] as DcMotor.ZeroPowerBehavior; null }
-                "getCurrent" -> 0.0
-                else -> null
-            }
-        }
-    }
 
     /**
      * A Pinpoint as Pedro's PinpointLocalizer sees it: the device keeps its
@@ -163,18 +129,3 @@ internal fun testForesightConfig(): ForesightConfig = ForesightConfig { c ->
     c.naturalForwardDeceleration.set(80.0)
     c.naturalStrafeDeceleration.set(90.0)
 }
-
-internal fun <T : Any> deviceProxy(type: Class<T>, call: (String, Array<out Any?>) -> Any?): T =
-    requireNotNull(type.cast(Proxy.newProxyInstance(type.classLoader, arrayOf(type)) { proxy, method, args ->
-        when (method.name) {
-            "hashCode" -> System.identityHashCode(proxy)
-            "equals" -> proxy === args?.get(0)
-            "toString", "getDeviceName", "getConnectionInfo" -> type.simpleName
-            else -> call(method.name, args ?: emptyArray()) ?: when (method.returnType) {
-                java.lang.Boolean.TYPE -> false
-                java.lang.Integer.TYPE -> 0
-                java.lang.Double.TYPE -> 0.0
-                else -> null
-            }
-        }
-    }))

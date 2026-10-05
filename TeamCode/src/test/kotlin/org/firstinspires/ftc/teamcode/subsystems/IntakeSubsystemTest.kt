@@ -1,10 +1,10 @@
 package org.firstinspires.ftc.teamcode.subsystems
 
 import com.pedropathing.ivy.Scheduler
-import com.qualcomm.robotcore.hardware.HardwareMap
+import org.firstinspires.ftc.teamcode.RobotConfig
 import org.firstinspires.ftc.teamcode.core.sim.ConfigSnapshot
-import org.firstinspires.ftc.teamcode.core.sim.FakeClock
-import org.firstinspires.ftc.teamcode.core.sim.SimMotorIO
+import org.firstinspires.ftc.teamcode.core.sim.FakeHardwareMap
+import org.firstinspires.ftc.teamcode.core.sim.MotorProbe
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -12,14 +12,15 @@ import org.junit.Test
 
 class IntakeSubsystemTest {
     private val savedConfig = ConfigSnapshot(IntakeConfig)
-    private val clock = FakeClock()
-    private val motors = listOf(SimMotorIO(clock), SimMotorIO(clock))
-    private val intake = IntakeSubsystem { motors }
+    private val motors = RobotConfig.Intake.MOTORS.map { MotorProbe() }
+    private val intake = IntakeSubsystem()
 
     @Before
     fun setUp() {
         Scheduler.reset()
-        intake.init(HardwareMap(null, null))
+        val hardwareMap = FakeHardwareMap()
+        RobotConfig.Intake.MOTORS.forEachIndexed { i, name -> hardwareMap.put(name, motors[i].device) }
+        intake.init(hardwareMap)
     }
 
     @After
@@ -38,17 +39,17 @@ class IntakeSubsystemTest {
         val collect = intake.collect()
         Scheduler.schedule(collect)
         tick()
-        motors.forEach { assertEquals(IntakeConfig.collectPower, it.lastPower, 0.0) }
+        motors.forEach { assertEquals(IntakeConfig.collectPower, it.power, 0.0) }
 
         Scheduler.schedule(intake.eject())
         tick()
-        motors.forEach { assertEquals(IntakeConfig.ejectPower, it.lastPower, 0.0) }
+        motors.forEach { assertEquals(IntakeConfig.ejectPower, it.power, 0.0) }
 
         Scheduler.reset()
         Scheduler.schedule(collect)
         Scheduler.cancel(collect)
         intake.writeHardware()
-        motors.forEach { assertEquals(0.0, it.lastPower, 0.0) }
+        motors.forEach { assertEquals(0.0, it.power, 0.0) }
     }
 
     @Test
@@ -57,12 +58,12 @@ class IntakeSubsystemTest {
         tick()
         intake.onCommandFault()
         intake.writeHardware()
-        motors.forEach { assertEquals(0.0, it.lastPower, 0.0) }
+        motors.forEach { assertEquals(0.0, it.power, 0.0) }
 
         Scheduler.reset()
         Scheduler.schedule(intake.collect())
         tick()
         intake.stop()
-        motors.forEach { assertEquals(0.0, it.lastPower, 0.0) }
+        motors.forEach { assertEquals(0.0, it.power, 0.0) }
     }
 }

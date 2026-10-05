@@ -23,7 +23,7 @@ Layout (flat on purpose; don't add one-file folders):
 - `vision/`: season vision logic (tag catalog, HIVE tracking, ball camera).
 - `opmodes/`: teleop and autos, plus `diagnostics/` and `skeletons/`.
 - `core/`: the framework students don't touch (`Robot`, `OpModeBase`,
-  `SubsystemBase`, `GamepadEx`, `Alliance`, `HardwareIO`, `MonotonicWait`) and
+  `SubsystemBase`, `GamepadEx`, `Alliance`, `MonotonicWait`) and
   `core/logging/`.
 - Device adapters stay separate from game logic (e.g. `LimelightSubsystem`
   vs `vision/HiveTracker`). At season rollover keep `core/`, the drive,

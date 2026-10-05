@@ -63,15 +63,15 @@ Create `subsystems/IntakeSubsystem.kt`:
 
 ```kotlin
 class IntakeSubsystem : SubsystemBase("Intake") {
-    private lateinit var roller: MotorIO
+    private lateinit var roller: DcMotorEx
     private var rollerPower = 0.0
     private var ballSeen = false
 
     override fun init(hardwareMap: HardwareMap) {
-        roller = RealMotorIO(hardwareMap.get(DcMotorEx::class.java, "intakeRoller").apply {
+        roller = hardwareMap.get(DcMotorEx::class.java, "intakeRoller").apply {
             direction = DcMotorSimple.Direction.REVERSE
             zeroPowerBehavior = DcMotor.ZeroPowerBehavior.BRAKE
-        })
+        }
     }
 
     override fun periodic() {
@@ -79,7 +79,7 @@ class IntakeSubsystem : SubsystemBase("Intake") {
     }
 
     override fun writeHardware() {
-        roller.setPower(rollerPower) // the one place motor power is written
+        roller.power = rollerPower // the one place motor power is written
     }
 
     fun grab(): Command = logged( // named in the flight log's command history
@@ -92,7 +92,7 @@ class IntakeSubsystem : SubsystemBase("Intake") {
     )
 
     override fun onCommandFault() { rollerPower = 0.0 }
-    override fun stop() { rollerPower = 0.0; roller.setPower(0.0) }
+    override fun stop() { rollerPower = 0.0; roller.power = 0.0 }
 
     override fun logState(log: StateLog) {
         log.put("rollerPower", rollerPower)
@@ -314,7 +314,7 @@ Everything else is Ivy or Pedro. Each remaining helper has one job:
 | `FlightRecorder`, `WpiLogWriter`, `WpiStruct`, `StateLog` | WPILOG files for AdvantageScope |
 | `logged`, `CommandHistory` | Command history for traced commands (Ivy has no lifecycle hooks or names) |
 | `FieldView`, `TelemetryBag` | Panels field drawing and throttled DS/Panels telemetry |
-| `Preflight`, `MotorIO`/`ServoIO`, `LoopProfile` | Missing-device listing, testable motors and servos, loop timing |
+| `Preflight`, `LoopProfile` | Missing-device listing, loop timing |
 | `pedro/Constants.java`, `pedro/Tuning.java` | Pedro's configuration and AutoTune registration, in the Quickstart layout |
 
 ## Config objects
@@ -369,9 +369,9 @@ explicitly.
   reads/writes and fault/stop cleanup, then register in `configure()`.
 
 There is no generic mechanism base class. Build each lift/arm/turret as a
-plain `SubsystemBase` against the real hardware, through the `MotorIO` /
-`ServoIO` seam in `core/HardwareIO.kt` (host tests can inject
-`SimMotorIO(clock, …)`). Add closed-loop control, homing, soft limits or profiles only once you can
+plain `SubsystemBase` using the SDK's `DcMotorEx` and `Servo` directly. Unit
+tests put fake devices (`MotorProbe`, `ServoProbe` in `test/…/core/sim/`)
+into a `FakeHardwareMap`. Add closed-loop control, homing, soft limits or profiles only once you can
 validate them on the mechanism.
 
 ## Vision layout

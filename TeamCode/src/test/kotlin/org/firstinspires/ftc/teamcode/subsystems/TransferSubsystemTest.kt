@@ -2,12 +2,12 @@ package org.firstinspires.ftc.teamcode.subsystems
 
 import com.pedropathing.ivy.Scheduler
 import com.pedropathing.ivy.behaviors.EndCondition
-import com.qualcomm.robotcore.hardware.HardwareMap
-import org.firstinspires.ftc.teamcode.core.ServoIO
+import org.firstinspires.ftc.teamcode.RobotConfig
 import org.firstinspires.ftc.teamcode.core.sim.ConfigSnapshot
 import org.firstinspires.ftc.teamcode.core.sim.FakeClock
-import org.firstinspires.ftc.teamcode.core.sim.FakeServoIO
-import org.firstinspires.ftc.teamcode.core.sim.SimMotorIO
+import org.firstinspires.ftc.teamcode.core.sim.FakeHardwareMap
+import org.firstinspires.ftc.teamcode.core.sim.MotorProbe
+import org.firstinspires.ftc.teamcode.core.sim.ServoProbe
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -18,14 +18,19 @@ import org.junit.Test
 class TransferSubsystemTest {
     private val savedConfig = ConfigSnapshot(TransferConfig)
     private val clock = FakeClock()
-    private val motors = listOf(SimMotorIO(clock), SimMotorIO(clock))
-    private val blocker = FakeServoIO()
-    private val transfer = TransferSubsystem(clock) { TransferSubsystem.Hardware(motors, blocker) }
+    private val motors = RobotConfig.Transfer.MOTORS.map { MotorProbe() }
+    private val blocker = ServoProbe()
+    private val transfer = TransferSubsystem(clock)
+
+    private fun hardwareWith(blocker: ServoProbe) = FakeHardwareMap().apply {
+        RobotConfig.Transfer.MOTORS.forEachIndexed { i, name -> put(name, motors[i].device) }
+        put(RobotConfig.Transfer.BLOCKER_SERVO, blocker.device)
+    }
 
     @Before
     fun setUp() {
         Scheduler.reset()
-        transfer.init(HardwareMap(null, null))
+        transfer.init(hardwareWith(blocker))
     }
 
     @After
@@ -41,8 +46,8 @@ class TransferSubsystemTest {
     }
 
     private fun assertSafe() {
-        motors.forEach { assertEquals(0.0, it.lastPower, 0.0) }
-        assertEquals(TransferConfig.blockerClosedPosition, blocker.lastPosition, 0.0)
+        motors.forEach { assertEquals(0.0, it.power, 0.0) }
+        assertEquals(TransferConfig.blockerClosedPosition, blocker.position, 0.0)
     }
 
     @Test
@@ -56,8 +61,8 @@ class TransferSubsystemTest {
     fun stagingPushesBallsAgainstTheClosedBlocker() {
         Scheduler.schedule(transfer.stage())
         tick()
-        motors.forEach { assertEquals(TransferConfig.stagePower, it.lastPower, 0.0) }
-        assertEquals(TransferConfig.blockerClosedPosition, blocker.lastPosition, 0.0)
+        motors.forEach { assertEquals(TransferConfig.stagePower, it.power, 0.0) }
+        assertEquals(TransferConfig.blockerClosedPosition, blocker.position, 0.0)
     }
 
     @Test
@@ -65,16 +70,16 @@ class TransferSubsystemTest {
         val feed = transfer.feed()
         Scheduler.schedule(feed)
         tick(0.0)
-        assertEquals(TransferConfig.blockerOpenPosition, blocker.lastPosition, 0.0)
-        motors.forEach { assertEquals(0.0, it.lastPower, 0.0) }
+        assertEquals(TransferConfig.blockerOpenPosition, blocker.position, 0.0)
+        motors.forEach { assertEquals(0.0, it.power, 0.0) }
 
         tick(TransferConfig.blockerTravelMs - 1.0)
         assertFalse(transfer.blockerSettled)
-        motors.forEach { assertEquals(0.0, it.lastPower, 0.0) }
+        motors.forEach { assertEquals(0.0, it.power, 0.0) }
 
         tick(1.0)
         assertTrue(transfer.blockerSettled)
-        motors.forEach { assertEquals(TransferConfig.feedPower, it.lastPower, 0.0) }
+        motors.forEach { assertEquals(TransferConfig.feedPower, it.power, 0.0) }
 
         Scheduler.cancel(feed)
         transfer.writeHardware()
@@ -88,33 +93,26 @@ class TransferSubsystemTest {
         clock.advanceMs(TransferConfig.blockerTravelMs + 50.0)
         Scheduler.execute()
         assertFalse(transfer.blockerSettled)
-        assertEquals(TransferConfig.blockerClosedPosition, blocker.lastPosition, 0.0)
+        assertEquals(TransferConfig.blockerClosedPosition, blocker.position, 0.0)
 
         transfer.writeHardware()
-        assertEquals(TransferConfig.blockerOpenPosition, blocker.lastPosition, 0.0)
-        motors.forEach { assertEquals(0.0, it.lastPower, 0.0) }
+        assertEquals(TransferConfig.blockerOpenPosition, blocker.position, 0.0)
+        motors.forEach { assertEquals(0.0, it.power, 0.0) }
 
         tick(TransferConfig.blockerTravelMs - 1.0)
         assertFalse(transfer.blockerSettled)
-        motors.forEach { assertEquals(0.0, it.lastPower, 0.0) }
+        motors.forEach { assertEquals(0.0, it.power, 0.0) }
 
         tick(1.0)
         assertTrue(transfer.blockerSettled)
-        motors.forEach { assertEquals(TransferConfig.feedPower, it.lastPower, 0.0) }
+        motors.forEach { assertEquals(TransferConfig.feedPower, it.power, 0.0) }
     }
 
     @Test
     fun theTravelTimerStartsAfterTheServoWriteReturns() {
-        val slowBlocker = object : ServoIO {
-            override val lastPosition: Double get() = blocker.lastPosition
-
-            override fun setPosition(position: Double) {
-                if (position != lastPosition) clock.advanceMs(TransferConfig.blockerTravelMs)
-                blocker.setPosition(position)
-            }
-        }
-        val slowTransfer = TransferSubsystem(clock) { TransferSubsystem.Hardware(motors, slowBlocker) }
-        slowTransfer.init(HardwareMap(null, null))
+        val slowBlocker = ServoProbe { from, to -> if (to != from) clock.advanceMs(TransferConfig.blockerTravelMs) }
+        val slowTransfer = TransferSubsystem(clock)
+        slowTransfer.init(hardwareWith(slowBlocker))
         Scheduler.schedule(slowTransfer.feed())
         Scheduler.execute()
         slowTransfer.writeHardware()
@@ -123,12 +121,12 @@ class TransferSubsystemTest {
         clock.advanceMs(TransferConfig.blockerTravelMs - 1.0)
         Scheduler.execute()
         slowTransfer.writeHardware()
-        motors.forEach { assertEquals(0.0, it.lastPower, 0.0) }
+        motors.forEach { assertEquals(0.0, it.power, 0.0) }
 
         clock.advanceMs(1.0)
         Scheduler.execute()
         slowTransfer.writeHardware()
-        motors.forEach { assertEquals(TransferConfig.feedPower, it.lastPower, 0.0) }
+        motors.forEach { assertEquals(TransferConfig.feedPower, it.power, 0.0) }
     }
 
     @Test
@@ -137,16 +135,16 @@ class TransferSubsystemTest {
         Scheduler.schedule(feed)
         tick(0.0)
         tick(TransferConfig.blockerTravelMs)
-        motors.forEach { assertEquals(TransferConfig.feedPower, it.lastPower, 0.0) }
+        motors.forEach { assertEquals(TransferConfig.feedPower, it.power, 0.0) }
         Scheduler.cancel(feed)
         Scheduler.schedule(transfer.feed())
         tick(0.0)
-        motors.forEach { assertEquals(0.0, it.lastPower, 0.0) }
+        motors.forEach { assertEquals(0.0, it.power, 0.0) }
 
         tick(TransferConfig.blockerTravelMs - 1.0)
-        motors.forEach { assertEquals(0.0, it.lastPower, 0.0) }
+        motors.forEach { assertEquals(0.0, it.power, 0.0) }
         tick(1.0)
-        motors.forEach { assertEquals(TransferConfig.feedPower, it.lastPower, 0.0) }
+        motors.forEach { assertEquals(TransferConfig.feedPower, it.power, 0.0) }
     }
 
     @Test
@@ -156,7 +154,7 @@ class TransferSubsystemTest {
         tick()
         transfer.feed().end(EndCondition.INTERRUPTED)
         tick()
-        motors.forEach { assertEquals(TransferConfig.stagePower, it.lastPower, 0.0) }
+        motors.forEach { assertEquals(TransferConfig.stagePower, it.power, 0.0) }
     }
 
     @Test
@@ -172,7 +170,7 @@ class TransferSubsystemTest {
         Scheduler.schedule(transfer.reverse())
         tick()
         transfer.stop()
-        motors.forEach { assertEquals(0.0, it.lastPower, 0.0) }
+        motors.forEach { assertEquals(0.0, it.power, 0.0) }
         assertFalse(transfer.blockerOpen)
     }
 }

@@ -8,8 +8,6 @@ import com.qualcomm.robotcore.hardware.DcMotorEx
 import com.qualcomm.robotcore.hardware.DcMotorSimple
 import com.qualcomm.robotcore.hardware.HardwareMap
 import org.firstinspires.ftc.teamcode.RobotConfig
-import org.firstinspires.ftc.teamcode.core.MotorIO
-import org.firstinspires.ftc.teamcode.core.RealMotorIO
 import org.firstinspires.ftc.teamcode.core.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.logging.logged
@@ -19,21 +17,25 @@ import org.firstinspires.ftc.teamcode.core.logging.logged
  * positive collects. Collecting while the transfer stages balls is
  * `parallel(intake.collect(), transfer.stage())`, which requires both.
  */
-class IntakeSubsystem(
-    private val openMotors: (HardwareMap) -> List<MotorIO> = { realMotors(it) },
-) : SubsystemBase("Intake") {
+class IntakeSubsystem : SubsystemBase("Intake") {
 
-    private var motors: List<MotorIO> = emptyList()
+    private var motors: List<DcMotorEx> = emptyList()
 
     var power: Double = 0.0
         private set
 
     override fun init(hardwareMap: HardwareMap) {
-        motors = openMotors(hardwareMap)
+        motors = RobotConfig.Intake.MOTORS.map { name ->
+            hardwareMap.get(DcMotorEx::class.java, name).apply {
+                direction = if (name in REVERSED) DcMotorSimple.Direction.REVERSE else DcMotorSimple.Direction.FORWARD
+                zeroPowerBehavior = DcMotor.ZeroPowerBehavior.BRAKE
+                mode = DcMotor.RunMode.RUN_WITHOUT_ENCODER
+            }
+        }
     }
 
     override fun writeHardware() {
-        motors.forEach { it.setPower(power) }
+        motors.forEach { it.power = power }
     }
 
     /** Runs the intake until interrupted. */
@@ -51,25 +53,16 @@ class IntakeSubsystem(
 
     override fun stop() {
         power = 0.0
-        motors.forEach { it.setPower(0.0) }
+        motors.forEach { it.power = 0.0 }
     }
 
     override fun logState(log: StateLog) {
         log.put("power", power)
     }
 
-    companion object {
+    private companion object {
         /** Motor names whose positive power runs against collecting. */
-        private val REVERSED = emptySet<String>()
-
-        private fun realMotors(hardwareMap: HardwareMap): List<MotorIO> = RobotConfig.Intake.MOTORS.map { name ->
-            val motorDirection = if (name in REVERSED) DcMotorSimple.Direction.REVERSE else DcMotorSimple.Direction.FORWARD
-            RealMotorIO(hardwareMap.get(DcMotorEx::class.java, name).apply {
-                direction = motorDirection
-                zeroPowerBehavior = DcMotor.ZeroPowerBehavior.BRAKE
-                mode = DcMotor.RunMode.RUN_WITHOUT_ENCODER
-            })
-        }
+        val REVERSED = emptySet<String>()
     }
 }
 

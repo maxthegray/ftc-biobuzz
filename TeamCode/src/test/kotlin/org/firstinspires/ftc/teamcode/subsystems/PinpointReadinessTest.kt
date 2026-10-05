@@ -8,6 +8,7 @@ import java.nio.ByteOrder
 import org.firstinspires.ftc.teamcode.RobotConfig
 import org.firstinspires.ftc.teamcode.core.Robot
 import org.firstinspires.ftc.teamcode.core.sim.FakeClock
+import org.firstinspires.ftc.teamcode.core.sim.deviceProxy
 import org.junit.Assert.*
 import org.junit.Test
 

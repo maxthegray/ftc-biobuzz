@@ -10,10 +10,6 @@ import com.qualcomm.robotcore.hardware.HardwareMap
 import com.qualcomm.robotcore.hardware.Servo
 import org.firstinspires.ftc.teamcode.RobotConfig
 import org.firstinspires.ftc.teamcode.core.Clock
-import org.firstinspires.ftc.teamcode.core.MotorIO
-import org.firstinspires.ftc.teamcode.core.RealMotorIO
-import org.firstinspires.ftc.teamcode.core.RealServoIO
-import org.firstinspires.ftc.teamcode.core.ServoIO
 import org.firstinspires.ftc.teamcode.core.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.logging.logged
@@ -32,14 +28,10 @@ import org.firstinspires.ftc.teamcode.core.logging.logged
  *
  * Collecting while staging is `parallel(intake.collect(), transfer.stage())`.
  */
-class TransferSubsystem(
-    private val clock: Clock = Clock.SYSTEM,
-    private val openHardware: (HardwareMap) -> Hardware = { realHardware(it) },
-) : SubsystemBase("Transfer") {
+class TransferSubsystem(private val clock: Clock = Clock.SYSTEM) : SubsystemBase("Transfer") {
 
-    class Hardware(val motors: List<MotorIO>, val blocker: ServoIO)
-
-    private var hardware: Hardware? = null
+    private var motors: List<DcMotorEx> = emptyList()
+    private var blocker: Servo? = null
 
     var motorPower: Double = 0.0
         private set
@@ -65,15 +57,19 @@ class TransferSubsystem(
     }
 
     override fun init(hardwareMap: HardwareMap) {
-        hardware = openHardware(hardwareMap)
+        motors = RobotConfig.Transfer.MOTORS.map { name ->
+            hardwareMap.get(DcMotorEx::class.java, name).apply {
+                direction = if (name in REVERSED) DcMotorSimple.Direction.REVERSE else DcMotorSimple.Direction.FORWARD
+                zeroPowerBehavior = DcMotor.ZeroPowerBehavior.BRAKE
+                mode = DcMotor.RunMode.RUN_WITHOUT_ENCODER
+            }
+        }
+        blocker = hardwareMap.get(Servo::class.java, RobotConfig.Transfer.BLOCKER_SERVO)
     }
 
     override fun writeHardware() {
-        val hw = hardware ?: return
-        hw.motors.forEach { it.setPower(motorPower) }
-        hw.blocker.setPosition(
-            if (blockerOpen) TransferConfig.blockerOpenPosition else TransferConfig.blockerClosedPosition,
-        )
+        motors.forEach { it.power = motorPower }
+        blocker?.position = if (blockerOpen) TransferConfig.blockerOpenPosition else TransferConfig.blockerClosedPosition
         if (blockerOpen && blockerOpenedAtNs == null) {
             blockerOpenedAtNs = clock.nanos()
         }
@@ -118,31 +114,19 @@ class TransferSubsystem(
 
     override fun stop() {
         makeSafe()
-        hardware?.motors?.forEach { it.setPower(0.0) }
+        motors.forEach { it.power = 0.0 }
     }
 
     override fun logState(log: StateLog) {
         log.put("motorPower", motorPower)
         log.put("blockerOpen", blockerOpen)
         log.put("blockerSettled", blockerSettled)
-        log.put("blockerPosition", hardware?.blocker?.lastPosition ?: Double.NaN)
+        log.put("blockerPosition", blocker?.position ?: Double.NaN)
     }
 
-    companion object {
+    private companion object {
         /** Motor names whose positive power runs balls down instead of up. */
-        private val REVERSED = emptySet<String>()
-
-        private fun realHardware(hardwareMap: HardwareMap) = Hardware(
-            motors = RobotConfig.Transfer.MOTORS.map { name ->
-                val motorDirection = if (name in REVERSED) DcMotorSimple.Direction.REVERSE else DcMotorSimple.Direction.FORWARD
-                RealMotorIO(hardwareMap.get(DcMotorEx::class.java, name).apply {
-                    direction = motorDirection
-                    zeroPowerBehavior = DcMotor.ZeroPowerBehavior.BRAKE
-                    mode = DcMotor.RunMode.RUN_WITHOUT_ENCODER
-                })
-            },
-            blocker = RealServoIO(hardwareMap.get(Servo::class.java, RobotConfig.Transfer.BLOCKER_SERVO)),
-        )
+        val REVERSED = emptySet<String>()
     }
 }
 
