@@ -80,3 +80,5 @@ internal fun shortestAngleDelta(from: Double, to: Double): Double {
     val delta = Angle.normalizeSigned(to - from)
     return if (abs(delta + PI) < 1e-12) PI else delta
 }
+
+internal fun Pose.isFinite(): Boolean = x().isFinite() && y().isFinite() && heading().isFinite()

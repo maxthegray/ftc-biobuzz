@@ -13,48 +13,24 @@ import org.firstinspires.ftc.teamcode.core.runtime.Clock
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 
 /**
- * Read-only façade over the [Follower]'s localizer, plus the
- * external-correction seam (vision, wall snaps) via [PoseEstimator].
+ * The robot's pose, read from the Pinpoint through Pedro's [Follower], plus
+ * the checks that make it trustworthy in a match.
  *
- * Pedro's Follower owns the real localizer (the Pinpoint, configured in
- * [org.firstinspires.ftc.teamcode.pedro.Constants]).
- * This subsystem exists so higher-level code can query pose/velocity and
- * inject corrections without reaching into follower internals — and so that
- * scheduler commands can declare a localisation requirement.
+ * **Fresh start pose every run.** [init] writes [startingPose] (an auto passes
+ * its field start pose) to the Pinpoint. The device can still report a sample
+ * from before the write, so [ready] stays false until a read confirms the pose
+ * (it is written again until then, and gives up as a fault after 5 s). Nothing
+ * carries over between op-modes, and the IMU is never recalibrated.
  *
- * **Registration order matters:** register this *after* the drive subsystem
- * (enforced by [registerAfter]). The pose history is sampled in
- * [writeHardware], immediately after `MecanumDriveSubsystem.writeHardware()`
- * runs `Follower.update()` — so each sample carries the timestamp the pose
- * was actually measured. Sampling in `periodic()` would timestamp the
- * *previous* tick's pose with this tick's clock, skewing every
- * latency-compensated correction by one loop period.
+ * **Watchdog.** [periodic] trips on a non-finite pose, a pose frozen while a
+ * path is being followed, or a bad Pinpoint status. A trip latches [fault]
+ * and calls [onFault] once: teleop falls back to robot-centric sticks, an auto
+ * cancels its routine and stops.
  *
- * Wire [isFollowing] (typically `drive::isFollowing`) and accepted
- * corrections are scaled by [LocalizerConfig.followingBlendScale] while a
- * path is running — see [PoseEstimator] for why.
- *
- * **Fresh localization every run.** [init] writes [startingPose] (zero unless
- * the op-mode configures a field start pose) to the Pinpoint, so nothing the
- * device still holds from a previous op-mode survives. A read that disagrees
- * with the start pose before one has confirmed it (the device can report a
- * pre-reset sample) re-writes it; [ready] stays false until a read confirms it,
- * and the start pose is abandoned as a fault after five seconds. The pose is
- * only written, never recalibrated: the IMU keeps its power-up calibration.
- * There is no pose carryover between op-modes.
- *
- * A runtime **watchdog** ([periodic]) catches the localizer dying mid-match
- * — the failure everything downstream silently trusts not to happen. It trips
- * on a non-finite pose, on a pose frozen bit-identical for
- * [LocalizerConfig.frozenPoseTicks] ticks while a path is being followed, or
- * on a non-READY Pinpoint device status (checked ~1 Hz during the run, only
- * when the raw Pinpoint is in the hardware map). [initPeriodic] refreshes
- * odometry without actuator writes and allows up to five seconds for initial
- * NOT_READY/CALIBRATING status; [ready] gates autonomous startup.
- * A trip latches [fault], surfaces in
- * [health] and the flight log, and fires [onFault] once — wire the policy
- * there (teleop: break the path, driver keeps stick control; auton: cancel
- * the routine and stop, because driving blind is worse than parking).
+ * **Pose history** for vision latency compensation ([poseAt]) is sampled in
+ * [writeHardware], right after the drive's `Follower.update()`, so each sample
+ * is stamped when it was measured. That is why this must be registered after
+ * the drive ([registerAfter]).
  */
 class LocalizerSubsystem(
     private val follower: Follower,
@@ -66,15 +42,8 @@ class LocalizerSubsystem(
     val startingPose: Pose = Pose.zero(),
 ) : SubsystemBase("Localizer") {
 
-    val estimator = PoseEstimator(
-        currentPose = { pose },
-        applyPose = { setPose(it) },
-        clock = clock,
-        onEvent = onEvent,
-        isFollowing = isFollowing,
-    )
+    private val history = PoseHistory()
 
-    /** Enforced by Robot.register — see the class doc's registration-order contract. */
     override val registerAfter: Class<out SubsystemBase>
         get() = org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem::class.java
 
@@ -230,11 +199,12 @@ class LocalizerSubsystem(
     }
 
     override fun writeHardware() {
-        // Not a hardware write — this runs here (after the drive subsystem's
-        // Follower.update()) so the sample timestamp matches when the pose
-        // was measured. See the class doc.
-        estimator.sample(clock.nanos(), pose)
+        // Not a hardware write: this is the first point after Follower.update().
+        history.add(clock.nanos(), pose)
     }
+
+    /** The pose at a past [Clock] time, interpolated; null outside the last 512 samples (a few seconds). */
+    fun poseAt(timestampNanos: Long): Pose? = history.lookup(timestampNanos)
 
     /** Field pose: inches, radians. */
     val pose: Pose get() = follower.pose()
@@ -246,31 +216,6 @@ class LocalizerSubsystem(
     fun setPose(p: Pose) {
         follower.setPose(p)
     }
-
-    /**
-     * Apply a delayed field-pose measurement while preserving motion since
-     * [timestampNanos] — see [PoseEstimator.applyCorrection] for gating,
-     * blending, axis weights, and the during-follow policy.
-     */
-    fun applyCorrection(
-        measured: Pose,
-        timestampNanos: Long,
-        maxAgeNanos: Long = 500_000_000,
-        blend: Double = LocalizerConfig.correctionBlend,
-        maxJumpInches: Double = LocalizerConfig.maxCorrectionInches,
-        maxJumpRadians: Double = LocalizerConfig.maxCorrectionRadians,
-        translationWeight: Double = 1.0,
-        headingWeight: Double = 1.0,
-    ): CorrectionResult = estimator.applyCorrection(
-        measured = measured,
-        timestampNanos = timestampNanos,
-        maxAgeNanos = maxAgeNanos,
-        blend = blend,
-        maxJumpInches = maxJumpInches,
-        maxJumpRadians = maxJumpRadians,
-        translationWeight = translationWeight,
-        headingWeight = headingWeight,
-    )
 
     private companion object {
         const val STATUS_INTERVAL_NS = 1_000_000_000L
@@ -287,16 +232,7 @@ class LocalizerSubsystem(
 /** Localizer tuning, live-editable in Panels; copy values you want to keep into this file. */
 @Configurable
 object LocalizerConfig {
-    /** Fraction of each accepted correction applied (0..1); 1 snaps onto the measurement. */
-    @JvmField var correctionBlend = 0.5
-
-    /** Corrections that would move the pose farther than this are rejected as outliers. */
-    @JvmField var maxCorrectionInches = 12.0
-    @JvmField var maxCorrectionRadians = Math.toRadians(30.0)
-
-    /** Blend multiplier while following a path, so a correction can't jerk the drive mid-path. */
-    @JvmField var followingBlendScale = 0.25
-
+    /** Off switch in case the watchdog ever false-trips. */
     @JvmField var watchdogEnabled = true
 
     /**

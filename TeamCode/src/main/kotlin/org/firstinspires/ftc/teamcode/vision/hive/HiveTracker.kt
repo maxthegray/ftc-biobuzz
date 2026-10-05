@@ -83,7 +83,7 @@ data class GoalObservation(
  * robot's front) at a past `Clock` time, never the commanded angle; null when
  * unknown, which drops the frame. Pass [priors] = [MATCH_SETUP] in autonomous;
  * teleop starts unknown (auton may have tipped a HIVE). [poseAt]/[currentPose]
- * (e.g. `localizer.estimator::poseAt`, `{ localizer.pose }`) keep a held goal in
+ * (e.g. `localizer::poseAt`, `{ localizer.pose }`) keep a held goal in
  * field coordinates so bearings stay right while the robot moves.
  *
  * [aimGoal] is what aiming reads: the vision goal when there is one, otherwise

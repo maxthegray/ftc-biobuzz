@@ -104,7 +104,7 @@ TeamCode/src/main/
     │   ├── io/               motor and servo seam for tests
     │   ├── logging/          telemetry, WPILOG flight recorder, Panels field view
     │   ├── runtime/          Robot, OpModeBase, SubsystemBase, saved config, clock
-    │   ├── subsystems/       drive, localization (+ latency-compensated pose correction), Limelight
+    │   ├── subsystems/       drive, localization (+ pose history for camera latency), Limelight
     │   └── workarounds/      fixes for library bugs; safe to ignore
     ├── subsystems/           season mechanisms: intake, transfer, shooter, turret
     ├── vision/               season vision: tag catalog, HIVE goal tracking, ball camera

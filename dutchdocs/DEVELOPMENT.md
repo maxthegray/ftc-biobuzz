@@ -157,9 +157,8 @@ routine is no longer scheduled.
 - **Alliances:** one `@Autonomous` class per alliance/routine; the BLUE copy
   overrides `initialAlliance` only. Map poses with `alliance.poses()`, not
   `PoseFactory.mirrorX`.
-- **Relocalization:** `localizer.applyCorrection(measured, timestampNanos, …)`
-  with the camera frame's capture time. It is gated, blended and scaled down
-  while following.
+- **Where was the robot when the camera saw that?** `localizer.poseAt(captureNanos)`
+  interpolates the last few seconds of poses.
 
 ## Log a value
 
@@ -279,7 +278,7 @@ Everything else is Ivy or Pedro. Each remaining helper has one job:
 | `core/runtime/Robot`, `OpModeBase` | Loop order (bulk reads → reads → input → commands → writes → telemetry → log), init lockout, Ivy reset, fault policy, shutdown order |
 | `SubsystemBase` | The read/write/stop/log lifecycle and passive default commands |
 | `MecanumDriveSubsystem` | The one drive owner: stick shaping, field-centric, drive commands with requirements, interruption cleanup and measured completion |
-| `LocalizerSubsystem`, `PoseEstimator`, `PoseHistory` | Start pose written at every INIT, Pinpoint readiness/fault watchdog, latency-compensated vision corrections |
+| `LocalizerSubsystem`, `PoseHistory` | Start pose written at every INIT, Pinpoint readiness/fault watchdog, pose history for camera latency |
 | `GamepadEx`, `Trigger` | Deadbanded sticks, edges, and button bindings that schedule Ivy commands (Ivy has none) |
 | `Alliance` | RED→BLUE transform with the season's symmetry (mirror or rotate; Pedro's `mirrorX` only mirrors) |
 | `FlightRecorder`, `WpiLogWriter`, `WpiStruct`, `StateLog` | WPILOG files for AdvantageScope |
