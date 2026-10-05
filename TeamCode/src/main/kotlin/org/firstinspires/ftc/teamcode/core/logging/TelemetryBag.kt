@@ -102,11 +102,7 @@ class TelemetryBag internal constructor(
                 action(sink)
             } catch (t: Throwable) {
                 enabledSinks[i] = false
-                try {
-                    RobotLog.ee("TelemetryBag", t, "Telemetry sink disabled")
-                } catch (_: Throwable) {
-                    // Host-side tests stub Android logging.
-                }
+                RobotLog.ee("TelemetryBag", t, "Telemetry sink disabled")
             }
         }
     }

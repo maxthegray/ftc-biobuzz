@@ -55,10 +55,7 @@ class FieldView(
         } catch (t: Throwable) {
             failures++
             if (failures == MAX_FAILURES) {
-                try {
-                    RobotLog.ee("FieldView", t, "Field view disabled after $failures failures")
-                } catch (_: Throwable) {
-                }
+                RobotLog.ee("FieldView", t, "Field view disabled after $failures failures")
             }
         }
     }

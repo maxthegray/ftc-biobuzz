@@ -265,11 +265,7 @@ class Robot(
         commandFaultCount++
         lastCommandFault = e
         val message = "COMMAND FAULT: ${e.javaClass.simpleName}: ${e.message} (commands cleared, subsystems halted)"
-        try {
-            RobotLog.ee("Robot", e, "$message (#$commandFaultCount)")
-        } catch (_: Throwable) {
-            // Host-side tests stub Android logging.
-        }
+        RobotLog.ee("Robot", e, "$message (#$commandFaultCount)")
         val now = clock.nanos()
         if (message != lastCommandFaultMessage || throttle(lastCommandFaultEventNs, now)) {
             lastCommandFaultMessage = message
@@ -281,11 +277,7 @@ class Robot(
     private fun recordTelemetryFault(t: Throwable) {
         telemetryFaultCount++
         if (telemetryFaultCount <= 5) {
-            try {
-                RobotLog.ee("Robot", t, "Telemetry fault contained (#$telemetryFaultCount)")
-            } catch (_: Throwable) {
-                // Host-side tests stub Android logging.
-            }
+            RobotLog.ee("Robot", t, "Telemetry fault contained (#$telemetryFaultCount)")
         }
         val now = clock.nanos()
         if (throttle(lastTelemetryFaultEventNs, now)) {
@@ -296,11 +288,7 @@ class Robot(
 
     private fun recordRecorderFault(t: Throwable) {
         recorderFaultCount++
-        try {
-            RobotLog.ee("Robot", t, "Flight recorder fault contained")
-        } catch (_: Throwable) {
-            // Host-side tests stub Android logging.
-        }
+        RobotLog.ee("Robot", t, "Flight recorder fault contained")
         try {
             flightRecorder?.close()
         } catch (_: Throwable) {

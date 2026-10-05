@@ -233,11 +233,7 @@ class FlightRecorder private constructor(
                         "SUBSYSTEM LOGGING DISABLED: ${subsystem.name}: " +
                             "${t.javaClass.simpleName}: ${t.message}"
                     writer.appendString(events, message, ts)
-                    try {
-                        RobotLog.ee("FlightRecorder", t, message)
-                    } catch (_: Throwable) {
-                        // Host-side tests stub Android logging.
-                    }
+                    RobotLog.ee("FlightRecorder", t, message)
                 }
             }
         }
@@ -384,11 +380,7 @@ class FlightRecorder private constructor(
 
     private fun disable(t: Throwable) {
         enabled = false
-        try {
-            RobotLog.ee("FlightRecorder", t, "Flight recorder disabled")
-        } catch (_: Throwable) {
-            // Logging must stay best-effort on host and robot.
-        }
+        RobotLog.ee("FlightRecorder", t, "Flight recorder disabled")
         try {
             writer.close()
         } catch (_: Throwable) {
@@ -420,10 +412,7 @@ class FlightRecorder private constructor(
                 clock,
             ).also { it.event("init $opModeClassName") }
         } catch (t: Throwable) {
-            try {
-                RobotLog.ee("FlightRecorder", t, "Failed to open flight recorder")
-            } catch (_: Throwable) {
-            }
+            RobotLog.ee("FlightRecorder", t, "Failed to open flight recorder")
             null
         }
 
