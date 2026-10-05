@@ -7,6 +7,56 @@ the drivetrain, directly. `AI-GUIDE.md` has the full contract.
 
 Paths below are relative to `TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/`.
 
+## How the code thinks
+
+**A subsystem is one mechanism**: the intake, the transfer, the drive. It
+owns its motors and sensors, and nothing else touches them. It keeps a
+*target*, like `power = 0.0`.
+
+**A command is something a subsystem is doing**: "run the intake", "drive
+this path", "hold the blocker closed". A command has four parts, all
+optional:
+
+```kotlin
+Command.build()
+    .requiring(intake)        // which subsystem it uses
+    .setStart { }             // once, when it starts
+    .setExecute { }           // every loop while it runs
+    .setDone { false }        // when true, it finishes (default: never)
+    .setEnd { }               // once, when it finishes or gets replaced
+```
+
+Most mechanism commands are "do this until something else takes over", and
+Ivy has a shortcut for that:
+
+```kotlin
+infinite { power = 1.0 }.requiring(this).setEnd { power = 0.0 }
+```
+
+**One command per subsystem at a time, and the newest one wins.** Press the
+eject button while the intake is collecting: the collect command ends (its
+`setEnd` sets the power to 0), and eject starts. That's all of the conflict
+handling. The single exception is the drive's localizer-fault fallback,
+which nothing can replace.
+
+**A default command is what a subsystem does when nothing else is using
+it**: stick driving for the drive, "blocker closed" for the transfer. It
+comes back by itself when the other command ends.
+
+**Every loop runs in the same order:**
+
+1. Each subsystem reads its sensors (`periodic()`).
+2. Button bindings start and stop commands.
+3. Every running command updates its subsystem's target.
+4. Each subsystem writes its target to the hardware (`writeHardware()`).
+
+So the rule is: **subsystems read and write, commands decide.** A command
+never touches a motor; it sets the target, and the subsystem writes it.
+
+**Autos are commands too**, glued together: `sequential(a, b, c)` runs one
+after another, `parallel(a, b)` runs them together, and `race(a, b)` stops
+both when either finishes (that's how a timeout works).
+
 ## Add a subsystem
 
 Create `subsystems/<area>/IntakeSubsystem.kt` (season code never goes in `core/`):
@@ -36,7 +86,6 @@ class IntakeSubsystem : SubsystemBase("Intake") {
         "Intake grab",
         Command.build()
             .requiring(this)
-            .setPriority(CommandPriorities.DRIVER_ACTION)
             .setStart { rollerPower = 1.0 }
             .setDone { ballSeen }
             .setEnd { rollerPower = 0.0 }, // only ever makes the roller safe
@@ -59,32 +108,14 @@ Rules:
 
 - `periodic()` reads, commands decide, `writeHardware()` writes.
 - Every command that touches the subsystem says `requiring(this)`, so Ivy
-  lets only one of them run. Reset per-run state in `setStart`; use
-  `Commands.lazy { … }` when the command depends on state known only when it
-  starts.
-- End handlers run on natural end and on interruption, **not** when the
-  op-mode stops or a command faults. `stop()` and `onCommandFault()` are what
+  lets only one of them run. Use `Commands.lazy { … }` when the command
+  depends on state known only when it starts.
+- `setEnd` runs when the command finishes or is replaced, but **not** when
+  the op-mode stops or a command crashes: `stop()` and `onCommandFault()`
   make the mechanism safe then.
-- An end handler can also run for a command that **never started** (a later
-  step of a cancelled `sequential`) and can run **twice** (a `deadline`
-  child). Write it so that is harmless: set targets to zero or reset state,
-  never start a motor or log "done" there. If cleanup must match a real
-  run, set a flag in `setStart`:
-
-  ```kotlin
-  fun spitOut(): Command {
-      var running = false
-      return Command.build()
-          .requiring(this)
-          .setStart { running = true; rollerPower = -0.5 }
-          .setDone { !ballSeen }
-          .setEnd {
-              if (running) lastSpitOut = it // counts only runs that happened
-              running = false
-              rollerPower = 0.0
-          }
-  }
-  ```
+- Only make things safe in `setEnd` (power to 0, blocker closed). Ivy can
+  run it for a command that never started, or twice, so it must not start
+  anything or count anything. AI-GUIDE.md shows the pattern if you need to.
 - Bench rigs without the drivetrain override `requiredDevices`:
   `get() = listOf(Preflight.Requirement("liftMotor", DcMotorEx::class.java))`.
 
@@ -250,13 +281,12 @@ See [MaxScope](../tools/maxscope/README.md) for controls, limits and tests.
    every traced command running then. `make analyze` lists each execution
    with start, end and outcome, and failures first.
 
-## Commands, priorities and faults
+## Commands and faults
 
-- Ladder: defaults `0` < autos and assists `10` < driver actions `20` <
-  overrides `30`. A command is blocked by a strictly higher priority holder;
-  equal priority takes over.
-- A default command never takes over from an explicit command of equal
-  priority; it resumes when the subsystem is free.
+- The newest command for a subsystem replaces the running one. Don't set
+  priorities; the localizer-fault fallback is the only command with one.
+- A default command never replaces a running command; it comes back when the
+  subsystem is free.
 - **If a command throws an `Exception`** (for example `error("…")` or
   `require(...)`), the robot clears every command, halts every subsystem
   (`onCommandFault()`), records `COMMAND FAULT` in the log, and keeps looping

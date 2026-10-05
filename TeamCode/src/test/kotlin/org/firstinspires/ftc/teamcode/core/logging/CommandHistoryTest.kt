@@ -19,7 +19,6 @@ import com.qualcomm.robotcore.hardware.HardwareMap
 import java.io.File
 import java.io.IOException
 import java.io.UncheckedIOException
-import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.sim.FakeClock
@@ -92,7 +91,7 @@ class CommandHistoryTest {
         val b = logged("Hold", armCommand())
         Scheduler.schedule(b)
         tick()
-        val c = logged("Override", armCommand().setPriority(CommandPriorities.DRIVER_OVERRIDE))
+        val c = logged("Override", armCommand())
         Scheduler.schedule(c)
         tick()
         Scheduler.cancel(c)
@@ -319,7 +318,7 @@ class CommandHistoryTest {
         Scheduler.schedule(low)
         tick()
         var urgentDone = false
-        Scheduler.schedule(logged("Urgent", armCommand { urgentDone }.setPriority(CommandPriorities.DRIVER_ACTION)))
+        Scheduler.schedule(logged("Urgent", armCommand { urgentDone }))
         tick()
         urgentDone = true
         repeat(3) { tick() }

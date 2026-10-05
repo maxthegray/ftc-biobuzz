@@ -4,7 +4,6 @@ import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.Scheduler
 import com.pedropathing.ivy.behaviors.EndCondition
 import java.io.File
-import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem.TeleopInput
@@ -34,7 +33,6 @@ class CommandFaultContractTest {
 
         fun raise(execute: () -> Unit = {}): Command = Command.build()
             .requiring(this)
-            .setPriority(CommandPriorities.DRIVER_ACTION)
             .setExecute { target = 0.6; execute() }
             .setEnd { ends += it; target = 0.0 }
 

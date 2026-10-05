@@ -9,7 +9,6 @@ import com.pedropathing.ivy.commands.Commands.waitUntil
 import com.pedropathing.ivy.groups.Groups.deadline
 import com.pedropathing.ivy.groups.Groups.sequential
 import com.pedropathing.math.Pose
-import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem.TeleopInput
 import org.junit.Assert.assertArrayEquals
@@ -39,7 +38,6 @@ class DriveCommandCancellationTest {
     }
 
     private fun assist(name: String = "assist") = drive.teleopCommand(
-        priority = CommandPriorities.AUTON_ROUTINE,
         onStart = { events += "$name start" },
         onEnd = { events += "$name end $it" },
     ) { TeleopInput(1.0, 0.0, 0.0) }
@@ -86,7 +84,7 @@ class DriveCommandCancellationTest {
     @Test
     fun anAssistInterruptedEarlierInTheSameTickDoesNotStageDriving() {
         var takeOver = false
-        val override = Command.build().requiring(drive).setPriority(CommandPriorities.DRIVER_OVERRIDE)
+        val override = Command.build().requiring(drive)
         // Runs before the assist in Ivy's order and interrupts it from inside execute.
         Scheduler.schedule(infinite { if (takeOver) Scheduler.schedule(override) })
         val victim = assist()
@@ -104,7 +102,7 @@ class DriveCommandCancellationTest {
 
     @Test
     fun aLazyEndedBeforeStartDoesNotCleanUpItsPreviousCommandAgain() {
-        val stepped = lazy { assist("lazy") }.requiring(drive).setPriority(CommandPriorities.AUTON_ROUTINE)
+        val stepped = lazy { assist("lazy") }.requiring(drive)
         Scheduler.schedule(stepped)
         tick()
         Scheduler.cancel(stepped)

@@ -12,7 +12,6 @@ import java.io.File
 import java.io.IOException
 import java.io.UncheckedIOException
 import kotlin.math.abs
-import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
@@ -124,14 +123,14 @@ class FlightRecorderDriveIntegrationTest {
         s.hardware.localizer.measuredPose = Pose(20.0, 57.0, 0.0)
         repeat(3) { s.tick() }
 
-        val takeover = s.drive.teleopCommand(priority = CommandPriorities.DRIVER_OVERRIDE, name = "Driver takeover") { TeleopInput(0.0, 0.0, 0.0) }
+        val takeover = s.drive.teleopCommand(name = "Driver takeover") { TeleopInput(0.0, 0.0, 0.0) }
         s.tick { Scheduler.schedule(takeover) }
         s.hardware.localizer.measuredPose = Pose(30.0, 50.0, Math.toRadians(30.0))
         s.tick { Scheduler.cancel(takeover) }
 
         val bad: Command = logged(
             "Faulty step",
-            Command.build().requiring(s.drive).setPriority(CommandPriorities.DRIVER_ACTION).setExecute { error("boom") },
+            Command.build().requiring(s.drive).setExecute { error("boom") },
         )
         s.tick { Scheduler.schedule(bad) }
         s.robot.recordEvent("marker")

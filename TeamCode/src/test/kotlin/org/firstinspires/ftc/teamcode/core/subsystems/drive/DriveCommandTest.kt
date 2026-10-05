@@ -10,7 +10,6 @@ import com.pedropathing.ivy.groups.Groups.race
 import com.pedropathing.ivy.groups.Groups.sequential
 import com.pedropathing.math.Pose
 import kotlin.math.PI
-import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem.TeleopInput
 import org.firstinspires.ftc.teamcode.core.workarounds.monotonicWaitMs
@@ -118,7 +117,7 @@ class DriveCommandTest {
         Scheduler.schedule(follow)
         h.tick()
 
-        val takeover = h.drive.teleopCommand(priority = CommandPriorities.DRIVER_OVERRIDE) {
+        val takeover = h.drive.teleopCommand {
             TeleopInput(0.0, 0.0, 0.0, turnPower = 0.4)
         }
         Scheduler.schedule(takeover)

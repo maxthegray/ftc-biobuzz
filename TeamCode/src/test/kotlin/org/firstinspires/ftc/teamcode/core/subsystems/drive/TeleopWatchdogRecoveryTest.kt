@@ -6,7 +6,6 @@ import com.pedropathing.ivy.behaviors.EndCondition
 import com.pedropathing.ivy.groups.Groups.sequential
 import com.pedropathing.math.Pose
 import com.qualcomm.robotcore.hardware.DcMotorSimple.Direction
-import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem.TeleopInput
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.LocalizerSubsystem
@@ -95,7 +94,7 @@ class TeleopWatchdogRecoveryTest {
     fun faultPreemptsAGroupedAssistAndAPathAndBlocksReentry() {
         val h = Harness()
         var ended: EndCondition? = null
-        val assist = h.drive.teleopCommand(priority = CommandPriorities.AUTON_ROUTINE, onEnd = { ended = it }) {
+        val assist = h.drive.teleopCommand(onEnd = { ended = it }) {
             TeleopInput(0.0, 0.0, 0.0, turnPower = 0.2)
         }
         val group = sequential(assist)

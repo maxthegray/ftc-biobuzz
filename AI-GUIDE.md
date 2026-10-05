@@ -113,11 +113,12 @@ import com.pedropathing.ivy.groups.Groups.*       // sequential, parallel, race,
 
 Command.build()
     .requiring(subsystem)
-    .setPriority(CommandPriorities.DRIVER_ACTION)
     .setStart { }             // once, immediately inside schedule()
     .setExecute { }           // every tick
-    .setDone { false }        // checked after execute at top level
+    .setDone { false }        // checked after execute at top level; default false
     .setEnd { condition -> }  // NATURALLY or INTERRUPTED
+
+infinite { power = 1.0 }.requiring(this).setEnd { power = 0.0 }  // run until replaced
 
 Scheduler.schedule(cmd); Scheduler.cancel(cmd); Scheduler.isScheduled(cmd)
 ```
@@ -149,13 +150,16 @@ Semantics verified against the 1.1.1 artifact (`LibraryContractTest` pins them):
   (`core/logging/CommandHistory.kt`), a forwarding `Command` that traces its
   lifecycle into the flight log (see **Command history**).
 
-Priority ladder (`CommandPriorities`): defaults `0` < auton routines and
-assists `10` < driver actions `20` < overrides `30`. Keep priorities ≥ 0.
+**No priorities.** Every command uses Ivy's default priority 0, so the newest
+command for a subsystem replaces the running one. The only exception is
+`robotCentricFallbackCommand` at `Int.MAX_VALUE`, which nothing can replace.
+Don't add priorities or a priority ladder; students should only have to
+know "newest wins".
 
 Default commands: `subsystem.defaultCommand = builder`. The setter sets
 `ConflictBehavior.CANCEL`, and `Robot` schedules it only when it is not
-already scheduled, so a default never preempts an explicit command of equal
-priority, while explicit commands at priority ≥ 0 still preempt the default.
+already scheduled, so a default never replaces a running command, and any
+explicit command replaces the default.
 
 ## Pedro Pathing 3 (geometry, paths, follower)
 
@@ -209,11 +213,11 @@ interruption cleanup (a cancelled path keeps driving), and `hold` reports
 nothing about arrival.
 
 ```kotlin
-drive.teleopCommand(priority = 0) { TeleopInput(fwd, strafe, turn, precision, turnPower, forwardPower) }
+drive.teleopCommand { TeleopInput(fwd, strafe, turn, precision, turnPower, forwardPower) }
 drive.followCommand(path, holdEnd = false)       // ends when Pedro leaves FOLLOW (parametric end)
 drive.holdCommand(pose, timeoutMs = 2000.0)      // ends on measured arrival, or timeout (bounded wait)
 drive.turnToCommand(radians, timeoutMs = 2000.0) // ends on measured heading; timeout THROWS
-drive.robotCentricFallbackCommand { input }      // localizer-fault policy, priority Int.MAX_VALUE
+drive.robotCentricFallbackCommand { input }      // localizer-fault policy; the only prioritized command
 drive.pathProgress()                             // latched 0..1 over all segments, for markers
 drive.pose / drive.velocity / drive.atPose(target) / drive.toggleFieldCentric()
 ```

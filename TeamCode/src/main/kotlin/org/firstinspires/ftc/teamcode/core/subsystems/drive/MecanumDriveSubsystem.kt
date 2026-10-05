@@ -6,6 +6,7 @@ import com.pedropathing.drivetrain.DrivePowers
 import com.pedropathing.follower.Follower
 import com.pedropathing.follower.ManualDrive
 import com.pedropathing.ivy.Command
+import com.pedropathing.ivy.CommandBuilder
 import com.pedropathing.ivy.behaviors.EndCondition
 import com.pedropathing.math.Pose
 import com.pedropathing.math.Vector2D
@@ -20,7 +21,6 @@ import org.firstinspires.ftc.teamcode.RobotConfig
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.logging.logged
 import org.firstinspires.ftc.teamcode.core.runtime.Clock
-import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.shortestAngleDelta
 
@@ -99,27 +99,26 @@ class MecanumDriveSubsystem(
 
     /**
      * Stick-driven manual drive: [DriveConfig] curve, scaling, precision and
-     * field-centric selection. Assists reuse it with a higher [priority] and
-     * the [TeleopInput.turnPower]/[TeleopInput.forwardPower] overrides.
+     * field-centric selection. Assists reuse it with the
+     * [TeleopInput.turnPower]/[TeleopInput.forwardPower] overrides.
      */
     fun teleopCommand(
-        priority: Int = CommandPriorities.DEFAULT,
         onStart: () -> Unit = {},
         onEnd: (EndCondition) -> Unit = {},
         name: String = "Drive teleop",
         input: () -> TeleopInput,
-    ): Command {
+    ): Command = logged(name, teleop(onStart, onEnd, input))
+
+    private fun teleop(onStart: () -> Unit, onEnd: (EndCondition) -> Unit, input: () -> TeleopInput): CommandBuilder {
         var running = false
-        val command = Command.build()
+        return Command.build()
             .requiring(this)
-            .setPriority(priority)
             .setStart {
                 running = true
                 onStart()
             }
             // Ivy still executes a command interrupted earlier in the same tick.
             .setExecute { if (running) stageTeleop(input()) }
-            .setDone { false }
             .setEnd { endCondition ->
                 if (running) {
                     running = false
@@ -128,17 +127,16 @@ class MecanumDriveSubsystem(
                     onEnd(endCondition)
                 }
             }
-        return logged(name, command)
     }
 
     /**
-     * Localizer fault recovery: owns drive for the rest of the run at the
-     * highest priority, preempting any path or assist, with raw driver sticks
-     * in the robot frame. Make it the default command too so nothing reclaims
-     * the drive.
+     * Localizer fault recovery: raw driver sticks in the robot frame for the
+     * rest of the run. It is the one command with a priority: the highest, so
+     * it replaces any path or assist and nothing can take the drive back.
+     * Make it the default command too.
      */
     fun robotCentricFallbackCommand(name: String = "Drive robot-centric fallback", input: () -> TeleopInput): Command =
-        teleopCommand(priority = Int.MAX_VALUE, onStart = { odometryFallback = true }, name = name, input = input)
+        logged(name, teleop(onStart = { odometryFallback = true }, onEnd = {}, input = input).setPriority(Int.MAX_VALUE))
 
     private fun stageTeleop(i: TeleopInput) {
         val scale = DriveConfig.teleopPowerScale *
@@ -174,7 +172,6 @@ class MecanumDriveSubsystem(
         var running = false
         val command = Command.build()
             .requiring(this)
-            .setPriority(CommandPriorities.DRIVER_ACTION)
             .setStart {
                 running = true
                 requirePathControl("follow")
@@ -205,7 +202,6 @@ class MecanumDriveSubsystem(
         var running = false
         val command = Command.build()
             .requiring(this)
-            .setPriority(CommandPriorities.DRIVER_ACTION)
             .setStart {
                 running = true
                 requirePathControl("hold")
@@ -238,7 +234,6 @@ class MecanumDriveSubsystem(
         var running = false
         val command = Command.build()
             .requiring(this)
-            .setPriority(CommandPriorities.DRIVER_ACTION)
             .setStart {
                 running = true
                 requirePathControl("turnTo")

@@ -22,11 +22,10 @@ import org.firstinspires.ftc.teamcode.core.logging.StateLog
 abstract class SubsystemBase(val name: String) {
 
     /**
-     * Ivy command [Robot] schedules whenever this subsystem is free. Assigning
-     * one sets its [ConflictBehavior] to CANCEL (through a [LoggedCommand] to the
-     * builder it wraps), so a default never preempts an explicit command of
-     * equal priority; explicit commands at [CommandPriorities.DEFAULT] or above
-     * still preempt the default.
+     * Ivy command [Robot] schedules whenever this subsystem is free. Any other
+     * command that requires the subsystem replaces it, and it comes back when
+     * that command ends. (Assigning one sets its [ConflictBehavior] to CANCEL,
+     * which is what stops it replacing a running command.)
      */
     var defaultCommand: Command? = null
         set(value) {
@@ -88,21 +87,3 @@ abstract class SubsystemBase(val name: String) {
     override fun toString(): String = "Subsystem($name)"
 }
 
-/**
- * Shared command priority ladder. Higher interrupts lower; gaps left so season
- * code can slot levels in between without renumbering.
- *
- *  - [DEFAULT] — subsystem default commands; quietly lose to explicit work.
- *  - [AUTON_ROUTINE] — autonomous routines and teleop auto-assists
- *    (auto-aim, auto-align). Interrupt defaults only.
- *  - [DRIVER_ACTION] — direct driver-triggered actions. Deliberately above
- *    [AUTON_ROUTINE] so a driver input always wins over an assist.
- *  - [DRIVER_OVERRIDE] — panic / manual-override bindings that must preempt
- *    everything (e.g. "stop the lift NOW").
- */
-object CommandPriorities {
-    const val DEFAULT: Int = 0
-    const val AUTON_ROUTINE: Int = 10
-    const val DRIVER_ACTION: Int = 20
-    const val DRIVER_OVERRIDE: Int = 30
-}

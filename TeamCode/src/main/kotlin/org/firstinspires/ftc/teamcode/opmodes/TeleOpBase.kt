@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode.opmodes
 import com.pedropathing.ivy.Scheduler
 import com.pedropathing.ivy.commands.Commands.instant
 import org.firstinspires.ftc.teamcode.core.logging.logged
-import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
@@ -31,7 +30,7 @@ import org.firstinspires.ftc.teamcode.pedro.Constants
  * robot-centric sticks that bypass odometry; paths, holds and turns refuse.
  *
  * Subclass contract: register season subsystems and trigger bindings in
- * [configureTeleop]. The drive default resumes after any higher-priority
+ * [configureTeleop]. The drive default resumes after any other
  * drive command ends; there is nothing to call from [onLoop].
  */
 abstract class TeleOpBase : OpModeBase() {
@@ -75,9 +74,7 @@ abstract class TeleOpBase : OpModeBase() {
             // pose under a live path controller would command a large jerk.
             logged(
                 "Reset heading",
-                instant { localizer.setPose(drive.pose.withHeading(0.0)) }
-                    .requiring(drive)
-                    .setPriority(CommandPriorities.DRIVER_ACTION),
+                instant { localizer.setPose(drive.pose.withHeading(0.0)) }.requiring(drive),
             ),
         )
         (driver.button(Button.BACK) and driver.button(Button.B)).onTrue(

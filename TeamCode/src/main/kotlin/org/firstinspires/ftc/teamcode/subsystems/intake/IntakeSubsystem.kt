@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.subsystems.intake
 
 import com.bylazar.configurables.annotations.Configurable
 import com.pedropathing.ivy.Command
+import com.pedropathing.ivy.commands.Commands.infinite
 import com.qualcomm.robotcore.hardware.DcMotor
 import com.qualcomm.robotcore.hardware.DcMotorEx
 import com.qualcomm.robotcore.hardware.DcMotorSimple
@@ -11,7 +12,6 @@ import org.firstinspires.ftc.teamcode.core.io.MotorIO
 import org.firstinspires.ftc.teamcode.core.io.RealMotorIO
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.logging.logged
-import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 
 /**
@@ -37,22 +37,13 @@ class IntakeSubsystem(
     }
 
     /** Runs the intake until interrupted. */
-    fun collect(priority: Int = CommandPriorities.DRIVER_ACTION): Command =
-        spin("Intake collect", priority) { IntakeConfig.collectPower }
+    fun collect(): Command = spin("Intake collect") { IntakeConfig.collectPower }
 
     /** Runs the intake backwards until interrupted, to spit a ball out or clear a jam. */
-    fun eject(priority: Int = CommandPriorities.DRIVER_ACTION): Command =
-        spin("Intake eject", priority) { IntakeConfig.ejectPower }
+    fun eject(): Command = spin("Intake eject") { IntakeConfig.ejectPower }
 
-    private fun spin(name: String, priority: Int, target: () -> Double): Command = logged(
-        name,
-        Command.build()
-            .requiring(this)
-            .setPriority(priority)
-            .setExecute { power = target() }
-            .setDone { false }
-            .setEnd { power = 0.0 },
-    )
+    private fun spin(name: String, target: () -> Double): Command =
+        logged(name, infinite { power = target() }.requiring(this).setEnd { power = 0.0 })
 
     override fun onCommandFault() {
         power = 0.0

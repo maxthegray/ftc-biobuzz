@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.subsystems.transfer
 
 import com.bylazar.configurables.annotations.Configurable
 import com.pedropathing.ivy.Command
+import com.pedropathing.ivy.commands.Commands.infinite
 import com.qualcomm.robotcore.hardware.DcMotor
 import com.qualcomm.robotcore.hardware.DcMotorEx
 import com.qualcomm.robotcore.hardware.DcMotorSimple
@@ -14,7 +15,6 @@ import org.firstinspires.ftc.teamcode.core.io.RealServoIO
 import org.firstinspires.ftc.teamcode.core.io.ServoIO
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.logging.logged
-import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.runtime.Clock
 
@@ -79,19 +79,19 @@ class TransferSubsystem(
         }
     }
 
-    fun hold(): Command = transferCommand("Transfer hold", CommandPriorities.DEFAULT) {
+    fun hold(): Command = transferCommand("Transfer hold") {
         blockerOpen = false
         motorPower = 0.0
     }
 
     /** Pushes balls up against the closed blocker until interrupted. */
-    fun stage(priority: Int = CommandPriorities.DRIVER_ACTION): Command = transferCommand("Transfer stage", priority) {
+    fun stage(): Command = transferCommand("Transfer stage") {
         blockerOpen = false
         motorPower = TransferConfig.stagePower
     }
 
     /** Opens the blocker and, once it is clear, feeds balls into the turret until interrupted. */
-    fun feed(priority: Int = CommandPriorities.DRIVER_ACTION): Command = transferCommand("Transfer feed", priority) {
+    fun feed(): Command = transferCommand("Transfer feed") {
         if (!blockerOpen) {
             blockerOpen = true
             blockerOpenedAtNs = null
@@ -100,20 +100,13 @@ class TransferSubsystem(
     }
 
     /** Runs the middle motors backwards with the blocker closed until interrupted. */
-    fun reverse(priority: Int = CommandPriorities.DRIVER_ACTION): Command = transferCommand("Transfer reverse", priority) {
+    fun reverse(): Command = transferCommand("Transfer reverse") {
         blockerOpen = false
         motorPower = TransferConfig.reversePower
     }
 
-    private fun transferCommand(name: String, priority: Int, apply: () -> Unit): Command = logged(
-        name,
-        Command.build()
-            .requiring(this)
-            .setPriority(priority)
-            .setExecute { apply() }
-            .setDone { false }
-            .setEnd { makeSafe() },
-    )
+    private fun transferCommand(name: String, apply: () -> Unit): Command =
+        logged(name, infinite { apply() }.requiring(this).setEnd { makeSafe() })
 
     private fun makeSafe() {
         motorPower = 0.0

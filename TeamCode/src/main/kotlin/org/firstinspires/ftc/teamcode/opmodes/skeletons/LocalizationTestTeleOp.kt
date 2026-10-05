@@ -11,7 +11,6 @@ import com.qualcomm.robotcore.eventloop.opmode.Disabled
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import kotlin.math.abs
 import org.firstinspires.ftc.teamcode.core.logging.logged
-import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem.TeleopInput
@@ -127,10 +126,9 @@ class LocalizationTestTeleOp : TeleOpBase() {
                 Pose(returnX, returnY, Math.toRadians(returnHeadingDegrees))
             },
         )
-        // Moving a stick takes the drive back at driver-action priority, which
-        // interrupts the path through Ivy's requirements.
+        // Moving a stick takes the drive back: the newest drive command wins.
         driver.trigger { stickMoved() }.whileTrue(
-            drive.teleopCommand(priority = CommandPriorities.DRIVER_ACTION, name = "Driver takeover") {
+            drive.teleopCommand(name = "Driver takeover") {
                 TeleopInput(driver.leftStickY, driver.leftStickX, driver.rightStickX, driver.rightTrigger > 0.1)
             },
         )

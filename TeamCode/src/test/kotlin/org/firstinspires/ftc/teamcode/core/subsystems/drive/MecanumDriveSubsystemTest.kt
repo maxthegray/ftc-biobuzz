@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode.core.subsystems.drive
 import com.pedropathing.ivy.Scheduler
 import com.pedropathing.math.Pose
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
-import org.firstinspires.ftc.teamcode.core.runtime.CommandPriorities
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem.TeleopInput
 import org.junit.Assert.assertArrayEquals
@@ -144,11 +143,11 @@ class MecanumDriveSubsystemTest {
     }
 
     @Test
-    fun higherPriorityDriveCommandTakesOverAndDefaultResumes() {
+    fun anotherDriveCommandTakesOverAndDefaultResumes() {
         val h = Harness()
         h.input = TeleopInput(0.5, 0.0, 0.0)
         h.tick()
-        val assist = h.drive.teleopCommand(priority = CommandPriorities.AUTON_ROUTINE) {
+        val assist = h.drive.teleopCommand {
             TeleopInput(0.0, 0.0, 0.0, turnPower = 0.3)
         }
         Scheduler.schedule(assist)

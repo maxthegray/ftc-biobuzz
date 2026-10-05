@@ -94,12 +94,11 @@ class RobotLoopTest {
     }
 
     @Test
-    fun priorityActionInterruptsDefaultAndDefaultResumesWhenFree() {
+    fun actionInterruptsDefaultAndDefaultResumesWhenFree() {
         var defaultStarts = 0
         subsystem.defaultCommand = Command.build().requiring(subsystem).setStart { defaultStarts++ }
         val action = Command.build()
             .requiring(subsystem)
-            .setPriority(CommandPriorities.DRIVER_ACTION)
             .setDone { true }
 
         robot.start()
@@ -142,10 +141,10 @@ class RobotLoopTest {
     }
 
     @Test
-    fun defaultResumesAfterPriorityActionIsCancelled() {
+    fun defaultResumesAfterActionIsCancelled() {
         var defaultStarts = 0
         subsystem.defaultCommand = Command.build().requiring(subsystem).setStart { defaultStarts++ }
-        val action = Command.build().requiring(subsystem).setPriority(CommandPriorities.DRIVER_ACTION)
+        val action = Command.build().requiring(subsystem)
 
         robot.start()
         robot.loop()
