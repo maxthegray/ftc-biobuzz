@@ -20,7 +20,7 @@ import org.firstinspires.ftc.teamcode.vision.BallCameraConfig
  * adopt each one), and the measurements that justify them.
  *
  * Records land in `/sdcard/FIRST/lab-records/` and are meant to be pulled
- * (`make pull-lab-records`), annotated, and committed under `lab-records/`.
+ * (`adb pull /sdcard/FIRST/lab-records/. lab-records/`), annotated, and committed under `lab-records/`.
  */
 object VisionLabRecord {
 

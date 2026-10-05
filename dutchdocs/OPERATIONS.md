@@ -252,7 +252,7 @@ after each step that settles something.
    and meaning against its sticker, the signs of tx/ty, and |d| against a tape
    measure; record whether the cluster's four tags appear together.
 
-Then `make pull-lab-records`, fill in the header, and commit the record.
+Then `adb pull /sdcard/FIRST/lab-records/. lab-records/`, fill in the header, and commit the record.
 Adopt tuned values by setting the fields listed under
 **[adopt into the code]** in their config objects.
 
@@ -299,7 +299,7 @@ clears the survey memory):
    audience CELL raised, BLUE far CELL raised (`HiveState.matchSetup`, the
    autonomous prior). If not, fix `matchSetup`.
 5. **Every tag.** Walk the tripod round so all 16 tags appear in *Tags
-   (latest)*; save a record. `make pull-lab-records` and commit it.
+   (latest)*; save a record. `adb pull /sdcard/FIRST/lab-records/. lab-records/` and commit it.
 
 Robot use: `HiveTracker` (registered after the Limelight) with the turret's
 measured-angle lookup as `turretAngleAt`, `HiveTracker.MATCH_SETUP` priors in

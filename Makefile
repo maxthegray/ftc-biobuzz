@@ -28,9 +28,6 @@ test: ## Run all host tests (TeamCode, log tools, MaxScope)
 	@if command -v node >/dev/null 2>&1; then node --test tools/maxscope/viewer/core.test.mjs; \
 	else echo "node not found; skipping MaxScope JS tests"; fi
 
-clean: ## gradle clean
-	$(GRADLE) clean
-
 ## --- Deploy --------------------------------------------------------------
 
 deploy: ## Deploy, picking full install or hot reload from what changed
@@ -45,23 +42,21 @@ hot: ## Force a Sloth hot reload (~1s, teamcode only)
 	@$(HUB)
 	$(GRADLE) deploySloth
 
-## --- Robot output ------------------------------------------------------
+## --- Robot ---------------------------------------------------------------
 
-logcat: ## Stream live robot output (RobotCore / OpMode / crashes)
+connect: ## Wait until a Control Hub is connected (USB or Wi-Fi)
+	@$(HUB) && echo "Control Hub connected"
+
+scrcpy: ## Mirror the Control Hub's screen
 	@$(HUB)
-	adb logcat -s RobotCore:* OpMode:* System.err:*
+	scrcpy
 
 ## --- Flight logs ---------------------------------------------------------
 
 pull-logs: ## Pull the newest N logs into ./robot-logs (`make pull-logs 5`; default all 30)
 	@tools/logs/pull-logs.sh "$(N)" $(HUB_IP) $(HUB_PORT)
 
-pull-lab-records: ## Pull vision lab records into ./lab-records for review
-	@$(HUB)
-	mkdir -p lab-records
-	adb pull /sdcard/FIRST/lab-records/. lab-records/
-
 viewer: ## Open MaxScope at http://127.0.0.1:8008 to browse and summarize logs
 	python3 tools/maxscope/log_viewer.py
 
-.PHONY: help build test clean deploy install hot logcat pull-logs pull-lab-records viewer
+.PHONY: help build test deploy install hot connect scrcpy pull-logs viewer
