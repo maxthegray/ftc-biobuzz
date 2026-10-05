@@ -10,44 +10,20 @@ import org.firstinspires.ftc.robotcore.external.Telemetry
 import org.firstinspires.ftc.teamcode.core.runtime.Clock
 
 /**
- * Owns the per-tick telemetry buffer. One [TelemetryBag] is shared between
- * the FTC Driver Station telemetry and the Panels dashboard telemetry so
- * op-modes only log things once.
- *
- * Usage from inside an op-mode's `onLoop`:
+ * Telemetry for the Driver Station and Panels at once. `OpModeBase` flushes it
+ * every loop; it only sends every [transmitIntervalMs] (20 Hz), because nobody
+ * reads faster and sending is slow. Values are formatted when sent.
  *
  * ```kotlin
  * telemetryBag.section("Drive") {
  *     put("pose", drive.pose)
- *     put("loopHz", robot.loopHz)
- *     put("isBusy", drive.isFollowing)
+ *     put("speed", speed, decimals = 1)
  * }
  * ```
  *
- * The base [org.firstinspires.ftc.teamcode.core.runtime.OpModeBase] calls
- * [flush] at the end of every loop — don't call it manually unless you know
- * what you are doing.
- *
- * ## Loop-time behaviour
- *
- * [flush] is called every tick but only *transmits* every [transmitIntervalMs]
- * (default 50 ms ≈ 20 Hz). Pushing the Panels websocket and rebuilding the
- * Driver Station telemetry at the full loop rate is pure overhead — nobody can
- * read a dashboard at 100+ Hz — and the periodic transmission shows up as a
- * loop-time spike. Between transmissions, [put] only stores a value reference,
- * so string formatting also runs at the throttled rate, not per tick.
- *
- * Section maps, [Section] wrappers, and the per-key [FormattedDouble] holders
- * are all reused across ticks, so a steady-state loop allocates effectively
- * nothing here — fewer young-gen allocations means fewer GC pauses, which is
- * what actually destabilises loop times on the Control Hub.
- *
- * Semantics: section entries are "current state" — repeated [put]s with the
- * same key overwrite, and the latest value at transmit time is the one sent.
- * [line] entries are "events" — they accumulate across the throttle window so
- * nothing logged between transmissions is dropped. A sink that throws is
- * disabled for the rest of the op-mode without blocking other sinks, and the
- * buffers are cleared even when transmission fails.
+ * A section key keeps its latest value; [line]s pile up until sent. A sink
+ * that throws is switched off for the rest of the op-mode, so a Panels
+ * failure can't take the Driver Station's telemetry with it.
  */
 class TelemetryBag internal constructor(
     private val sinks: List<Sink>,
@@ -59,82 +35,62 @@ class TelemetryBag internal constructor(
         panels: TelemetryManager,
         transmitIntervalMs: Double = 50.0,
     ) : this(
-        listOf(TelemetrySink(dsTelemetry), PanelsSink(panels)),
+        listOf(
+            object : Sink {
+                override fun addLine(text: String) { dsTelemetry.addLine(text) }
+                override fun addData(key: String, value: String) { dsTelemetry.addData(key, value) }
+                override fun update() { dsTelemetry.update() }
+            },
+            object : Sink {
+                override fun addLine(text: String) { panels.addLine(text) }
+                override fun addData(key: String, value: String) { panels.addData(key, value) }
+                override fun update() { panels.update() }
+            },
+        ),
         transmitIntervalMs,
         Clock.SYSTEM,
     )
 
-    /** One transmission target. Production sinks adapt the DS [Telemetry] and Panels. */
     interface Sink {
         fun addLine(text: String)
         fun addData(key: String, value: String)
         fun update()
     }
 
-    private class TelemetrySink(private val telemetry: Telemetry) : Sink {
-        override fun addLine(text: String) { telemetry.addLine(text) }
-        override fun addData(key: String, value: String) { telemetry.addData(key, value) }
-        override fun update() { telemetry.update() }
-    }
-
-    private class PanelsSink(private val panels: TelemetryManager) : Sink {
-        override fun addLine(text: String) { panels.addLine(text) }
-        override fun addData(key: String, value: String) { panels.addData(key, value) }
-        override fun update() { panels.update() }
-    }
-
     private val transmitIntervalNs = (transmitIntervalMs * 1_000_000.0).toLong()
     private var lastTransmitNs = Long.MIN_VALUE
     private val enabledSinks = BooleanArray(sinks.size) { true }
+    private val sections = linkedMapOf<String, LinkedHashMap<String, Any?>>()
+    private val lines = mutableListOf<String>()
 
-    private val sections = linkedMapOf<String, SectionData>()
-    private val loose = mutableListOf<String>()
-
-    /**
-     * Open a section. Repeated keys within a section overwrite — so this is
-     * safe to call multiple times per loop with the same section name.
-     */
     fun section(name: String, block: Section.() -> Unit) {
-        val data = sections.getOrPut(name) { SectionData() }
-        data.section.block()
+        Section(sections.getOrPut(name) { LinkedHashMap() }).block()
     }
 
-    /** Append a free-form line. These are flushed below the structured sections. */
+    /** A free-form line, sent below the sections. */
     fun line(text: String) {
-        loose += text
+        lines += text
     }
 
-    /**
-     * Called once per loop by [org.firstinspires.ftc.teamcode.core.runtime.OpModeBase].
-     * Transmits to the Driver Station and Panels only once every
-     * [transmitIntervalNs]; on throttled ticks it returns immediately, leaving
-     * the accumulated state to be overwritten by the next [section] / [line]
-     * calls and sent on the next real transmission.
-     *
-     * @return true when telemetry was actually transmitted.
-     */
+    /** Sends everything if [transmitIntervalMs] has passed; returns true when it did. */
     fun flush(): Boolean {
         val now = clock.nanos()
         if (lastTransmitNs != Long.MIN_VALUE && now - lastTransmitNs < transmitIntervalNs) return false
         lastTransmitNs = now
-
         try {
-            for ((name, data) in sections) {
-                if (data.entries.isEmpty()) continue
+            for ((name, entries) in sections) {
+                if (entries.isEmpty()) continue
                 forEachSink { it.addLine("== $name ==") }
-                for ((k, v) in data.entries) {
-                    val formatted = formatValue(v)
-                    forEachSink { it.addData(k, formatted) }
+                for ((key, value) in entries) {
+                    val text = formatValue(value)
+                    forEachSink { it.addData(key, text) }
                 }
             }
-            for (text in loose) {
-                forEachSink { it.addLine(text) }
-            }
+            for (text in lines) forEachSink { it.addLine(text) }
             forEachSink { it.update() }
         } finally {
-            // Reuse the section/entry maps — clear contents, not the structure.
-            for (data in sections.values) data.entries.clear()
-            loose.clear()
+            for (entries in sections.values) entries.clear()
+            lines.clear()
         }
         return true
     }
@@ -155,58 +111,27 @@ class TelemetryBag internal constructor(
         }
     }
 
-    /** A section's reused entry map plus the reused [Section] wrapper over it. */
-    private class SectionData {
-        val entries = LinkedHashMap<String, Any?>()
-        val section = Section(entries)
-    }
-
     class Section internal constructor(private val entries: LinkedHashMap<String, Any?>) {
-        /** Store a value as-is; it is formatted at transmit time, not now. */
         fun put(key: String, value: Any?) {
-            if (value is Double) {
-                // Route through the holder-reusing path so a boxed Double never
-                // replaces a reusable FormattedDouble for the same key.
-                put(key, value, decimals = 3)
-            } else {
-                entries[key] = value
-            }
+            entries[key] = value
         }
 
-        /**
-         * Store a double with a decimal-place hint. The [FormattedDouble] holder
-         * is reused across ticks — after the first loop this allocates nothing.
-         */
         fun put(key: String, value: Double, decimals: Int = 3) {
-            val existing = entries[key]
-            if (existing is FormattedDouble) {
-                existing.value = value
-                existing.decimals = decimals
-            } else {
-                entries[key] = FormattedDouble(value, decimals)
-            }
+            entries[key] = Decimal(value, decimals)
         }
     }
 
-    /** Mutable, reused holder for a deferred-format double. */
-    private class FormattedDouble(var value: Double, var decimals: Int)
+    private class Decimal(val value: Double, val decimals: Int)
 
     companion object {
-        // Locale pinned so output never switches to comma decimals on a
-        // non-US-locale JVM (host-side tests, hub locale changes).
+        // Locale pinned so a hub or laptop locale can't switch to comma decimals.
         internal fun formatValue(value: Any?): String = when (value) {
             null -> "null"
-            is FormattedDouble -> "%.${value.decimals}f".format(Locale.US, value.value)
-            is Pose -> "(%.2f, %.2f, %.1f°)".format(
-                Locale.US,
-                value.x(),
-                value.y(),
-                Math.toDegrees(value.heading()),
-            )
+            is Decimal -> "%.${value.decimals}f".format(Locale.US, value.value)
+            is Pose -> "(%.2f, %.2f, %.1f°)".format(Locale.US, value.x(), value.y(), Math.toDegrees(value.heading()))
             is Velocity -> "(%.2f, %.2f, %.1f°/s)".format(Locale.US, value.vx, value.vy, Math.toDegrees(value.omega))
             is Vector2D -> "(%.2f, %.2f)".format(Locale.US, value.x(), value.y())
-            is Double -> "%.3f".format(Locale.US, value)
-            is Float -> "%.3f".format(Locale.US, value)
+            is Double, is Float -> "%.3f".format(Locale.US, value)
             else -> value.toString()
         }
     }

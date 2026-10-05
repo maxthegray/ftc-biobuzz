@@ -65,12 +65,6 @@ abstract class OpModeBase : LinearOpMode() {
     /** Called every tick during the main loop. */
     protected open fun onLoop() {}
 
-    /** Set false to suppress the auto-published "Loop" telemetry section. */
-    protected open val publishLoopTelemetry: Boolean get() = true
-
-    /** Set false for op-modes that want to own all health telemetry themselves. */
-    protected open val publishHealthTelemetry: Boolean get() = true
-
     /** Set false to suppress the live robot/path drawing on the Panels field view. */
     protected open val publishFieldView: Boolean get() = true
 
@@ -86,39 +80,22 @@ abstract class OpModeBase : LinearOpMode() {
     private var endgameRumbled = false
     private var telemetryFailures = 0
 
-    private fun publishLoopProfile() {
-        if (!publishLoopTelemetry) return
+    /** The phase breakdown is in the flight log; `make analyze` reports it. */
+    private fun publishLoopTiming() {
         val p = robot.profile
         telemetryBag.section("Loop") {
-            // total/hz lag one tick: this runs before the tick's total is known.
             put("hz", robot.loopHz, decimals = 1)
-            put("count", robot.loopCount)
-            put("total ms", p.totalNanos / 1e6, decimals = 2)
-            put("total max ms", p.maxTotalNanos / 1e6, decimals = 2)
-            for (phase in LoopPhase.entries) {
-                put("${phase.label} ms", p[phase] / 1e6, decimals = 2)
-                put("${phase.label} max ms", p.max(phase) / 1e6, decimals = 2)
-            }
-            put("overhead ms", p.overheadNanos / 1e6, decimals = 2)
-            put("overhead max ms", p.maxOverheadNanos / 1e6, decimals = 2)
+            put("max ms", p.maxTotalNanos / 1e6, decimals = 1)
         }
     }
 
     /** Telemetry must never stop the robot: a Panels hiccup is logged and swallowed. */
-    private fun safeFlush(): Boolean = try {
-        telemetryBag.flush()
-    } catch (t: Throwable) {
-        telemetryFailures++
-        if (telemetryFailures <= 5) RobotLog.ee(logTag, t, "Telemetry flush failed ($telemetryFailures)")
-        false
-    }
-
     private inline fun safeTelemetry(block: () -> Unit) {
         try {
             block()
         } catch (t: Throwable) {
             telemetryFailures++
-            if (telemetryFailures <= 5) RobotLog.ee(logTag, t, "Init telemetry failed ($telemetryFailures)")
+            if (telemetryFailures <= 5) RobotLog.ee(logTag, t, "Telemetry failed ($telemetryFailures)")
         }
     }
 
@@ -152,7 +129,6 @@ abstract class OpModeBase : LinearOpMode() {
     }
 
     private fun publishHealth(includeInitOnly: Boolean) {
-        if (!publishHealthTelemetry) return
         telemetryBag.section("Health") {
             if (!cachedVoltage.isNaN()) put("battery V", cachedVoltage, decimals = 2)
             if (robot.commandFaultCount > 0) {
@@ -212,8 +188,8 @@ abstract class OpModeBase : LinearOpMode() {
                     refreshVoltage()
                     publishHealth(includeInitOnly = true)
                     if (publishFieldView) fieldView.draw(fieldViewDrive)
+                    telemetryBag.flush()
                 }
-                safeFlush()
                 sleep(20)
             }
         } catch (t: Throwable) {
@@ -250,10 +226,10 @@ abstract class OpModeBase : LinearOpMode() {
                     },
                     telemetry = {
                         refreshVoltage()
-                        publishLoopProfile()
+                        publishLoopTiming()
                         publishHealth(includeInitOnly = false)
                         if (publishFieldView) fieldView.draw(fieldViewDrive)
-                        if (safeFlush()) robot.profile.resetMaxima()
+                        if (telemetryBag.flush()) robot.profile.resetMaxima()
                     },
                 )
             }

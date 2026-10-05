@@ -18,24 +18,12 @@ import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveTelemetrySource
 
 /**
- * Per-op-mode WPILOG flight recorder for AdvantageScope.
- *
- * Continuous channels (pose, velocity, drive mode, follow errors, gamepads,
- * loop timing, battery, subsystem [StateLog] channels) are *sampled* at no
- * more than 100 Hz. `events` keeps each explicit [event]'s own timestamp,
- * except that an event in the same microsecond as the previous one is moved
- * 1 µs later: AdvantageScope keeps one string per timestamp, and would
- * otherwise hide, for example, `LOOP CRASHED` behind the `stop` after it.
- * Commands wrapped with [logged] are traced by [CommandHistory]: every start,
- * finish, interruption, suspension, failure and abort goes to `commands/events`
- * with its own timestamp, and `commands/active` holds the traced executions
- * open after it, so commands shorter than a sample still appear. Only traced
- * commands appear; `commands/lost` counts records dropped from the bounded queue.
- * Timing-window maxima preserve loop spikes between samples.
- *
- * I/O failures permanently disable the recorder for this op-mode. A non-I/O
- * exception from one subsystem's [SubsystemBase.logState] disables only that
- * subsystem's channels and records why. The loop keeps running either way.
+ * One WPILOG file per op-mode run, for AdvantageScope and `make analyze`.
+ * Pose, gamepads, loop timing, battery and every subsystem's [StateLog]
+ * channels are sampled at up to 100 Hz; `events` and the command history keep
+ * their own timestamps. A full SD card or other I/O error turns the recorder
+ * off for the run; a subsystem whose `logState` throws loses only its own
+ * channels. The robot keeps running either way.
  */
 class FlightRecorder private constructor(
     private val writer: WpiLogWriter,
