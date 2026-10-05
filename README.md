@@ -1,149 +1,33 @@
 # ftc-biobuzz
 
-Robot code for BioBuzz's FTC season — a mecanum robot with goBILDA Pinpoint
-localization, [Pedro Pathing 3](https://pedropathing.com/docs/pathing) with
-AutoTune, the [Ivy](https://pedropathing.com/docs/ivy) command scheduler,
-Panels telemetry, WPILOG flight recording for AdvantageScope, and Sloth hot
-reload.
+BioBuzz's FTC robot code, built with Pedro Pathing, Ivy, Panels, and Sloth.
 
-Originally forked from `ftc-starter`, which is now legacy; this is the main
-repo.
+## Quick start
 
-## Start here
-
-On your machine (JDK 17):
-
-```sh
-make test
-make build
-```
-
-On the robot:
-
-1. Name every device in the Driver Station "Configure Robot" screen exactly
-   as below — Preflight fails at init with the missing name otherwise:
-
-   | Name | Device | Type | Used by |
-   |---|---|---|---|
-   | `frontLeftMotor` | drive motor | Motor | Drive Only, and every op-mode (drivetrain) |
-   | `frontRightMotor` | drive motor | Motor | Drive Only, and every op-mode (drivetrain) |
-   | `backLeftMotor` | drive motor | Motor | Drive Only, and every op-mode (drivetrain) |
-   | `backRightMotor` | drive motor | Motor | Drive Only, and every op-mode (drivetrain) |
-   | `pinpoint` | goBILDA Pinpoint | I2C, `GoBildaPinpointDriver` | Drive Only, and every op-mode (localization) |
-   | `limelight` | Limelight 3A | Ethernet device | Limelight AprilTag Test |
-   | `ballCamera` | goBILDA Global Shutter USB Camera (3122-0004-0001) | Webcam | Ball Tracking Test |
-
-   The four motor names and `pinpoint` are defined in
-   [`RobotConfig.kt`](TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/RobotConfig.kt)
-   — change them there, not just on the Driver Station. `limelight` and
-   `ballCamera` are defaults on `LimelightSubsystem`/`BallCameraSubsystem`
-   instead, since vision hardware names aren't identity in the same sense.
-2. Do a full APK install the first time (`make install`).
-3. Work through [OPERATIONS.md](dutchdocs/OPERATIONS.md) for bring-up and AutoTune.
-   Foresight (Pedro's path follower) is **not tuned yet**: driving works, but
-   paths refuse to run until AutoTune's output is in `pedro/Constants.java`.
-
-While the robot is on: Panels at `http://192.168.43.1:8001`, AutoTune at
-`http://192.168.43.1:10158`.
-
-Enabled Driver Station op-modes:
-
-| OpMode | Purpose |
-|---|---|
-| Drive Only | Manual driving and drivetrain checks |
-| Ball Tracking Test | USB ball camera tuning and diagnostics |
-| Limelight AprilTag Test | AprilTag diagnostics |
-| Hive Tag Survey | HIVE tag geometry, goal and state check on a real CELL |
-
-`opmodes/skeletons/` holds the disabled Example Auto and Localization Test.
-Remove `@Disabled` from a specific op-mode and rebuild when you need it.
-
-## Documentation
-
-- [DEVELOPMENT.md](dutchdocs/DEVELOPMENT.md) — add a subsystem, bind a button, write an
-  auto, log a value, open a log in AdvantageScope
-- [OPERATIONS.md](dutchdocs/OPERATIONS.md) — bring-up, AutoTune, logs, symptoms, and the
-  physical validation checklist
-- [PROGRESS.md](dutchdocs/PROGRESS.md) — notes from lab testing, with numbers
-- [AI-GUIDE.md](AI-GUIDE.md) — the full framework contract, written for AI assistants
-
-`AGENTS.md` and `CLAUDE.md` just point at the AI guide.
-
-## Main files
-
-| Task | Start here |
-|---|---|
-| TeleOp | `opmodes/DriveOnlyTeleOp.kt`, `opmodes/TeleOpBase.kt` (`configureTeleop()`) |
-| Autonomous | `opmodes/skeletons/ExampleAuto.kt` |
-| Buttons | `core/GamepadEx.kt` |
-| Drive, drive commands and `DriveConfig` | `subsystems/MecanumDriveSubsystem.kt` |
-| Localization | `subsystems/LocalizerSubsystem.kt` |
-| Hardware names, field size | `RobotConfig.kt` |
-| Pedro constants and AutoTune | `pedro/Constants.java`, `pedro/Tuning.java` |
-| Flight recorder | `core/logging/FlightRecorder.kt` |
-| Vision | `vision/` (match code), `opmodes/diagnostics/` (diagnostics and lab records), then `dutchdocs/OPERATIONS.md` §8 |
-| Diagnose a run | `make debug`, then `dutchdocs/OPERATIONS.md` |
-
-Paths are relative to `TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/`,
-except `pedro/`, which lives under the Java source root
-(`TeamCode/src/main/java/org/firstinspires/ftc/teamcode/`).
-
-## Repository map
-
-```text
-TeamCode/src/main/
-├── java/org/firstinspires/ftc/teamcode/pedro/
-│   ├── Constants.java        Pedro 3 drivetrain, Pinpoint and Foresight config
-│   ├── Tuning.java           AutoTune procedure registration
-│   └── procedures/           AutoTune procedures (copied from the Pedro Quickstart)
-└── kotlin/org/firstinspires/ftc/teamcode/
-    ├── RobotConfig.kt        hardware names, field symmetry
-    ├── subsystems/           every mechanism: drive, localizer, Limelight, intake, transfer, shooter, turret
-    ├── vision/               tag catalog, HIVE goal tracking, ball camera
-    ├── opmodes/              teleop and autos; diagnostics/ and skeletons/
-    └── core/                 the framework: Robot, OpModeBase, SubsystemBase, gamepads, Alliance
-        └── logging/          telemetry, WPILOG flight recorder, Panels field view
-```
-
-`core/` is plumbing you shouldn't need to touch. Everything you work on day to
-day is in `subsystems/`, `vision/` and `opmodes/`.
-
-## How I work in here
-
-Small things go straight to `master`; branch when something would leave the
-robot undrivable for a while. Tag at every competition:
-
-```sh
-git tag -a quals-2026-11-14 -m "what ran at quals"
-```
-
-### The sensorbot
-
-Right now this runs on a **sensorbot**, a temporary chassis. The real robot
-replaces it in one commit:
-
-1. Re-run AutoTune and replace the values in `pedro/Constants.java`.
-2. Fix the hardware names in `RobotConfig.kt`.
-3. Re-check `DriveConfig` on the heavier robot.
-
-Tag `sensorbot-final` before the swap.
-
-## Daily commands
+Requires JDK 17.
 
 ```sh
 make test       # host tests
 make build      # debug APK
 make install    # full APK install
-make hot        # TeamCode-only Sloth reload
-make debug      # newest match logs + JSON diagnosis
+make hot        # TeamCode hot reload
+make debug      # pull and analyze recent match logs
 ```
 
-Do a full install after touching dependencies, the manifest, `res/`,
-`@Pinned` classes, or anything outside TeamCode — Sloth won't pick those up,
-and it fails silently.
+Use `make install` for the first deploy of a session and after changing
+dependencies, the manifest, resources, or files outside TeamCode. Follow the
+[operations guide](dutchdocs/OPERATIONS.md) for hardware setup and AutoTune.
+Paths require Foresight tuning before they can run.
 
-Versions are pinned on purpose: FTC SDK 11.2.1, Kotlin 2.0.21, Pedro Pathing
-3.0.1 (+ AutoTune 1.0.0), Ivy 1.1.1, Panels 0.2.4+1.0.12, Sloth 0.2.4.
-`AI-GUIDE.md` explains the constraints that hold Sloth and the Kotlin stdlib in
-place. Check the artifact exists in its real repository before bumping any of
-them.
+## Code
+
+- [TeamCode](TeamCode/src/main/) — robot code; `opmodes/`, `subsystems/`, and
+  `vision/` under Kotlin, Pedro configuration under Java
+- [core](TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/core/) — shared framework
+
+## Docs
+
+- [Development](dutchdocs/DEVELOPMENT.md) — subsystems, controls, autos, logging
+- [Operations](dutchdocs/OPERATIONS.md) — hardware, tuning, diagnostics
+- [Progress](dutchdocs/PROGRESS.md) — lab notes
+- [AI guide](AI-GUIDE.md) — framework contract for coding assistants
