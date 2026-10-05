@@ -479,14 +479,16 @@ No team or season prefix. `"Match"` or `"Diagnostics"` groups. Title Case, no
 
 ## Workflow
 
+`make deploy` chooses between these two from what changed since the last deploy.
+
 - **Full install** (`make install`): first deploy of a session, and after
   changing `@Pinned` classes, dependencies, the manifest, `res/`, or anything
   outside TeamCode.
 - **Hot reload** (`make hot`, `./gradlew deploySloth`): ordinary TeamCode
   iteration, including `pedro/Constants.java`.
 
-Logs: `make debug` (newest Auto + TeleOp, JSON bundle), `make pull-logs`,
-`make analyze`. `tools/logs/analyze_wpilog.py` reports `commandHistoryCoverage`:
+Logs: `make debug` (newest log as a JSON bundle), `make analyze` (same as
+text), `make pull-logs` (all 30 logs the hub keeps). `tools/logs/analyze_wpilog.py` reports `commandHistoryCoverage`:
 `"all scheduled"` (pre-Ivy logs, `commands/running`), `"none"` (Ivy logs before
 command tracing) or `"instrumented"` (current logs, `logged` commands only,
 with `commandExecutions`, `commandFailures`, `commandActive` and

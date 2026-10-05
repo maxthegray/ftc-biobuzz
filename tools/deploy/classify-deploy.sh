@@ -10,14 +10,14 @@
 #   - any source outside the teamcode package (e.g. the FtcRobotController
 #     module) — Sloth won't touch it
 #
-# Output (stdout), consumed by SKILL.md:
+# Output (stdout), consumed by deploy.sh (`make deploy`):
 #   RECOMMENDATION: HOT | FULL
 #   REASON: <one line>
 #   FILES:
 #   <changed file>  -> <hot|FULL: why>
 #
 # This script DECIDES ONLY. It never runs gradle and never writes the marker;
-# the skill procedure does that after a successful deploy.
+# deploy.sh does that after a successful deploy.
 # Portable to bash 3.2 (macOS default) — no mapfile/readarray.
 
 set -euo pipefail
