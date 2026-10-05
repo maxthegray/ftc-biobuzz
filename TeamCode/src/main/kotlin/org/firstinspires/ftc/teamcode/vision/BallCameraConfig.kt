@@ -1,12 +1,12 @@
 package org.firstinspires.ftc.teamcode.vision
 
 import com.bylazar.configurables.annotations.Configurable
-import org.firstinspires.ftc.teamcode.core.logging.SettingsChangeLog
 
 /**
  * Panels-tunable settings for the USB ball camera. Tentative values from the
  * September 18, 2026 tuning session. Panels edits last until the app restarts
- * or a hot reload; a lab record lists what you changed, so copy those values here.
+ * or a hot reload; copy values worth keeping here. The flight log records every
+ * live change (MaxScope shows them).
  *
  * Fields marked **init** are built into the SDK's ColorBlobLocatorProcessor
  * when the OpMode initializes: edit them in Panels, then stop and re-init.
@@ -89,7 +89,4 @@ object BallCameraConfig {
 
     /** True once the mount values above describe the camera as mounted. */
     @JvmField var mountMeasured = false
-
-    /** Values as compiled, captured before anything can edit them; lab records flag what differs. */
-    val compiledDefaults: Map<String, String> = SettingsChangeLog.valuesOf(this)
 }

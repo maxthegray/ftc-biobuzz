@@ -14,16 +14,14 @@ import org.firstinspires.ftc.teamcode.vision.BallCameraSubsystem
  * SDK's ColorBlobLocatorProcessor, tuned from Panels (`ballVision`), with the
  * detections outlined on the Robot Controller preview. Commands no motors.
  *
- * Driver controls after START: A saves a lab record, B toggles preview
- * rendering. The camera and preview already run during
- * INIT. `visionDiagnostics.runBothCameras` also opens the Limelight.
+ * Driver B toggles preview rendering. The camera and preview already run
+ * during INIT. `visionDiagnostics.runBothCameras` also opens the Limelight.
  */
 @TeleOp(name = "Ball Tracking Test", group = "Diagnostics")
 class BallTrackingTestTeleOp : OpModeBase() {
 
     private lateinit var startup: VisionDiagnostics.Startup
     private lateinit var ballCamera: BallCameraSubsystem
-    private lateinit var recorder: VisionLabRecorder
     private var limelight: LimelightSubsystem? = null
     private val sightings = TagSightingTracker()
     private val timing = LoopTimingStats()
@@ -41,12 +39,6 @@ class BallTrackingTestTeleOp : OpModeBase() {
             Preflight.check(hardwareMap, listOf(VisionDiagnostics.limelightRequirement))
             limelight = robot.register(VisionDiagnostics.limelight(startup))
         }
-        recorder = robot.register(VisionLabRecorder("Ball Tracking Test"))
-        driver.button(Button.A).onTrue(
-            instant {
-                recorder.save(VisionDiagnostics.measurements(robot, timing, startup, limelight, sightings, ballCamera))
-            },
-        )
         driver.button(Button.B).onTrue(instant(VisionDiagnostics::togglePreview))
     }
 
@@ -67,7 +59,6 @@ class BallTrackingTestTeleOp : OpModeBase() {
         if (ll != null && ll.newFrameThisTick && ll.resultFresh && ll.pipelineMatches) {
             sightings.recordFrame(ll.fiducials, now)
         }
-        recorder.poll(robot)
         VisionDiagnostics.restartSection(telemetryBag, startup, ballCamera)
         VisionDiagnostics.ballCameraSections(telemetryBag, ballCamera, detailed = true)
         ll?.let { VisionDiagnostics.limelightSections(telemetryBag, it, sightings, now, detailed = false) }

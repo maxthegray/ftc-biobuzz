@@ -290,9 +290,7 @@ Tunables are `@Configurable` objects with plain `@JvmField var`s initialised
 in code (`@JvmField var targetRpm = 3200.0`). Panels edits them live; nothing
 is persisted, so an app restart or Sloth reload restores the code's values and
 the code is the only source of tuning. No `DEFAULT_*` constants, reset
-functions or clamping getters. Vision configs end with
-`val compiledDefaults = SettingsChangeLog.valuesOf(this)` so lab records can
-flag tuned values. `DriveConfig.brakeOnTeleop` is copied into Pedro's `manualBrakeMode` when the
+functions or clamping getters. `DriveConfig.brakeOnTeleop` is copied into Pedro's `manualBrakeMode` when the
 follower is created (next init).
 
 There are no `@Pinned` classes. Don't pin config objects. Ivy's

@@ -78,8 +78,6 @@ class SettingsChangeLogTest {
             val values = SettingsChangeLog.valuesOf(BallCameraConfig)
             assertEquals("0.72", values["minCircularity"])
             assertEquals("130", values["channel1Min"])
-            assertEquals(BallCameraConfig.compiledDefaults.keys, values.keys)
-            assertEquals("1.0", BallCameraConfig.compiledDefaults["minCircularity"])
         } finally {
             saved.restore()
         }

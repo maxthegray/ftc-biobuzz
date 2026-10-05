@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode.vision
 
 import com.bylazar.configurables.annotations.Configurable
-import org.firstinspires.ftc.teamcode.core.logging.SettingsChangeLog
 
 /**
  * HIVE tracking settings, live-editable in Panels: where the Limelight sits on
@@ -60,7 +59,4 @@ object HiveConfig {
 
     /** Consecutive agreeing frames required to change a HIVE's state. */
     @JvmField var tipConfirmFrames = 3
-
-    /** Values as compiled, captured before anything can edit them; lab records flag what differs. */
-    val compiledDefaults: Map<String, String> = SettingsChangeLog.valuesOf(this)
 }

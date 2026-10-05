@@ -162,8 +162,7 @@ has not been verified here. Use **pipeline 0** (`visionDiagnostics.limelightTagP
 | Advanced | Full 3D | **On** — required for camera-space pose |
 | Advanced | Camera pose in robot space / field map | Leave unset; the robot code places tags itself from `HiveConfig`, and the HIVES pivot |
 
-Download the pipeline file from the web interface after tuning and commit it
-next to the lab record.
+Download the pipeline file from the web interface after tuning and commit it.
 
 Units reported: `tx`/`ty` degrees from the crosshair, as the Limelight reports
 them (tx positive right; Limelight's JSON spec says ty positive down — confirm
@@ -209,7 +208,7 @@ those apply at the next init; no redeploy is needed. A pending change shows a
 values as an event at init. The ball camera writes every `ballVision` value
 at init, then an event naming only the fields that changed (at most one per
 second; slider drags are merged). An edit in the last second before stop can
-be missing from the log; a lab record still has it.
+be missing from the log.
 
 **Camera mount.** The `ballVision.mount*` fields record where the lens sits:
 `mountHeightIn` above the floor, `mountPitchDownDeg` below horizontal,
@@ -219,7 +218,8 @@ uses them; they are logged every tick so MaxScope can place detections on the
 field. Re-measure after moving the camera.
 
 **Panels edits are not saved.** They last until the app restarts or a hot
-reload. Save a lab record before either; it lists every value you changed.
+reload. Copy values worth keeping into the config object before either; the
+flight log (MaxScope) shows every value you changed.
 
 **Frame age.** The SDK processor publishes no capture timestamp, so *frame
 age* is robot-clock time since the latest new frame reached the loop.
@@ -227,8 +227,8 @@ Detections clear when it passes `maxObservationAgeMs`.
 
 ### Lab procedure
 
-Robot stationary, on blocks. Save a lab record (gamepad 1 **A** after START)
-after each step that settles something.
+Robot stationary, on blocks. Note the values after each step that settles
+something.
 
 1. **Exposure.** One POLLEN ball ~1 m away. With `exposureManual` true, lower
    `exposureMicros` until a rolled ball is not smeared; re-init after each
@@ -252,9 +252,7 @@ after each step that settles something.
    and meaning against its sticker, the signs of tx/ty, and |d| against a tape
    measure; record whether the cluster's four tags appear together.
 
-Then `adb pull /sdcard/FIRST/lab-records/. lab-records/`, fill in the header, and commit the record.
-Adopt tuned values by setting the fields listed under
-**[adopt into the code]** in their config objects.
+Then copy the tuned values into their config objects and commit.
 
 ### Hive Tag Survey (real CELL and field)
 
@@ -277,8 +275,7 @@ Setup:
    at 0.
 3. Open **Hive Tag Survey**; *Survey Setup* must read `measured`.
 
-Procedure (save a lab record with **A** after START once each step settles; **B**
-clears the survey memory):
+Procedure (**B** clears the survey memory):
 
 1. **One CELL head-on.** Aim at your raised CELL from 1.5–2.5 m. *CELL Goals*
    spread under ~1 in with all four tags used. A consistent spread that grows
@@ -299,7 +296,7 @@ clears the survey memory):
    audience CELL raised, BLUE far CELL raised (`HiveState.matchSetup`, the
    autonomous prior). If not, fix `matchSetup`.
 5. **Every tag.** Walk the tripod round so all 16 tags appear in *Tags
-   (latest)*; save a record. `adb pull /sdcard/FIRST/lab-records/. lab-records/` and commit it.
+   (latest)*; note any that disagree.
 
 Robot use: `HiveTracker` (registered after the Limelight) with the turret's
 measured-angle lookup as `turretAngleAt`, `HiveTracker.MATCH_SETUP` priors in

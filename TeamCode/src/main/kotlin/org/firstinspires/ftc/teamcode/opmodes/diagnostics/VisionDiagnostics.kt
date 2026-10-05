@@ -7,7 +7,6 @@ import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName
 import org.firstinspires.ftc.teamcode.core.LoopPhase
 import org.firstinspires.ftc.teamcode.core.Preflight
 import org.firstinspires.ftc.teamcode.core.Robot
-import org.firstinspires.ftc.teamcode.core.logging.SettingsChangeLog
 import org.firstinspires.ftc.teamcode.core.logging.TelemetryBag
 import org.firstinspires.ftc.teamcode.subsystems.LimelightFiducial
 import org.firstinspires.ftc.teamcode.subsystems.LimelightSubsystem
@@ -176,49 +175,6 @@ internal object VisionDiagnostics {
         }
     }
 
-    // ---------------------------------------------------------------- Lab record
-
-    fun measurements(
-        robot: Robot,
-        timing: LoopTimingStats,
-        startup: Startup,
-        limelight: LimelightSubsystem?,
-        sightings: TagSightingTracker?,
-        camera: BallCameraSubsystem?,
-    ): List<Pair<String, String>> {
-        val m = ArrayList<Pair<String, String>>()
-        m += "camerasOpen" to if (startup.runBothCameras) "both" else "one"
-        m += "loop.count" to timing.count.toString()
-        m += "loop.meanMs" to fmt(timing.meanMs, 2)
-        m += "loop.maxMs" to fmt(timing.maxMs, 2)
-        m += "loop.note" to "percentiles: open this run's WPILOG in MaxScope"
-        if (limelight != null) {
-            m += "limelight.pipeline" to "${limelight.activePipelineIndex} ${limelight.pipelineType} (expected ${limelight.pipelineIndex})"
-            m += "limelight.newFramesHz" to fmt(limelight.resultRateHz, 1)
-            m += "limelight.receiptAgeMs" to limelight.resultAgeMs.toString()
-            m += "limelight.frameAgeMs" to fmt(limelight.frameAgeMs, 1)
-            m += "limelight.estimatedCaptureAgeMs" to fmt(limelight.estimatedCaptureAgeMs, 1)
-            m += "limelight.staleTicks" to limelight.staleTickCount.toString()
-        }
-        sightings?.all()?.forEach { s ->
-            m += "tag.${s.id}" to "${s.catalogTag?.meaning ?: "unknown"}; ${s.framesSeen}/${sightings.framesObserved} frames; " +
-                "last tx ${fmt(s.latest.txDegrees, 2)} ty ${fmt(s.latest.tyDegrees, 2)}; " +
-                (s.latest.targetPoseCameraSpace?.let { "|d| ${fmt(it.distanceMeters, 3)} m" } ?: "3D unsolved")
-        }
-        if (camera != null) {
-            val lens = camera.lensReport
-            m += "camera.state" to camera.cameraState
-            m += "camera.libraryFps" to fmt(camera.libraryReportedFps, 1)
-            m += "camera.frameAgeMs" to fmt(camera.frameAgeMs, 1)
-            m += "camera.exposure" to camera.exposureStatus
-            m += "camera.lens" to (lens.describe() + (lens.intrinsics?.let { " fx=${it.fx} fy=${it.fy} cx=${it.cx} cy=${it.cy} k=${it.distortion}" } ?: ""))
-            m += "camera.target" to (camera.target?.let {
-                "(${fmt(it.xPx, 1)},${fmt(it.yPx, 1)}) r=${fmt(it.radiusPx, 1)} circ=${fmt(it.circularity, 2)}"
-            } ?: "none")
-        }
-        return m
-    }
-
     fun fmt(value: Double, decimals: Int): String =
         if (value.isFinite()) "%.${decimals}f".format(Locale.US, value) else value.toString()
 }
@@ -257,9 +213,6 @@ object VisionDiagnosticsConfig {
 
     /** Frames older than this since their first receipt are stale, even if duplicate polls keep arriving. */
     @JvmField var limelightMaxResultAgeMs = 100
-
-    /** Values as compiled, captured before anything can edit them; lab records flag what differs. */
-    val compiledDefaults: Map<String, String> = SettingsChangeLog.valuesOf(this)
 }
 
 /**

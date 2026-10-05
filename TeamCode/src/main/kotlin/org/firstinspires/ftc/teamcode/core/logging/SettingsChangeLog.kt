@@ -12,7 +12,7 @@ import org.firstinspires.ftc.teamcode.core.Clock
  * limited to one per [minIntervalMs]; edits inside the window are merged and
  * written when it expires, and an edit reverted inside the window writes
  * nothing. An edit made in the last [minIntervalMs] before stop may therefore
- * be missing from the log; the tuning file and lab record still hold it.
+ * be missing from the log.
  */
 class SettingsChangeLog(
     private val section: String,

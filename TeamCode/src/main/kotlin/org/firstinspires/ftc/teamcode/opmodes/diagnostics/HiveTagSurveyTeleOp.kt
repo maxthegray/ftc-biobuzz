@@ -29,8 +29,7 @@ import org.firstinspires.ftc.teamcode.vision.Vec3
  * an inch checks the camera mount, FIRST's cluster geometry and the Limelight's
  * rotation convention together. Commands no motors.
  *
- * Driver A (after START) saves a lab record of everything seen this run;
- * B clears the survey memory.
+ * Driver B clears the survey memory.
  */
 @TeleOp(name = "Hive Tag Survey", group = "Diagnostics")
 class HiveTagSurveyTeleOp : OpModeBase() {
@@ -38,7 +37,6 @@ class HiveTagSurveyTeleOp : OpModeBase() {
     private lateinit var startup: VisionDiagnostics.Startup
     private lateinit var limelight: LimelightSubsystem
     private lateinit var hive: HiveTracker
-    private lateinit var recorder: VisionLabRecorder
     private val survey = HiveSurveyMemory()
     private val sightings = TagSightingTracker()
 
@@ -52,10 +50,6 @@ class HiveTagSurveyTeleOp : OpModeBase() {
         robot.recordEvent(SettingsChangeLog.describe("hive", HiveConfig))
         limelight = robot.register(VisionDiagnostics.limelight(startup))
         hive = robot.register(HiveTracker(limelight, { 0.0 }, eventSink = robot::recordEvent, clock = robot.clock))
-        recorder = robot.register(
-            VisionLabRecorder("Hive Tag Survey", extraSections = listOf(HiveConfig to HiveConfig.compiledDefaults)),
-        )
-        driver.button(Button.A).onTrue(instant { recorder.save(survey.measurements(hive, robot.clock.nanos())) })
         driver.button(Button.B).onTrue(
             instant {
                 survey.reset()
@@ -78,7 +72,6 @@ class HiveTagSurveyTeleOp : OpModeBase() {
             sightings.recordFrame(limelight.fiducials, now)
         }
         if (hive.newFrameThisTick) hive.lastFrameCaptureNanos?.let { survey.record(hive, it) }
-        recorder.poll(robot)
 
         VisionDiagnostics.restartSection(telemetryBag, startup, null)
         VisionDiagnostics.limelightSections(telemetryBag, limelight, sightings, now, detailed = false)
@@ -123,15 +116,15 @@ class HiveTagSurveyTeleOp : OpModeBase() {
             put("3", "Each CELL: spread < ~1 in, all four tags agree (else rotation convention)")
             put("4", "Tape-measure tripod → CELL opening centre; compare horizontal")
             put("5", "Tip each HIVE; note tag heights both ways; set hive.raisedMinHeightIn between")
-            put("6", "A saves a lab record (after START); B clears")
+            put("6", "B clears the survey memory")
         }
     }
 }
 
 /**
  * The survey's memory: the latest row of every season tag and the latest fused
- * goal of every CELL seen this run, so a lab record can list all 16 tags even
- * when they were surveyed from different spots. Times are frame capture times.
+ * goal of every CELL seen this run, so telemetry lists all 16 tags even when
+ * they were surveyed from different spots. Times are frame capture times.
  */
 internal class HiveSurveyMemory {
 
@@ -152,25 +145,6 @@ internal class HiveSurveyMemory {
     fun reset() {
         tags.clear()
         cells.clear()
-    }
-
-    /** `[measured]` lines for a lab record: HIVE states, every CELL, every tag. */
-    fun measurements(hive: HiveTracker, nowNanos: Long): List<Pair<String, String>> {
-        val m = ArrayList<Pair<String, String>>()
-        for (alliance in Alliance.entries) {
-            val state = hive.state(alliance)?.name ?: "UNKNOWN"
-            m += "hive.${alliance.name}" to "$state${if (hive.stateAssumed(alliance)) " (assumed)" else ""}; tips ${hive.tipCount(alliance)}"
-        }
-        for (cell in BiobuzzAprilTags.cells) {
-            val seen = cells[cell]
-            m += "cell.${cell.stickerLabel.replace(' ', '_')}" to
-                (seen?.let { describeCell(it.value) + "; ${ago(nowNanos, it.captureNanos)}" } ?: "not seen")
-        }
-        for (tag in BiobuzzAprilTags.tags) {
-            val seen = tags[tag.id]
-            m += "tag.${tag.id}" to (seen?.let { describeTag(it.value) + "; ${ago(nowNanos, it.captureNanos)}" } ?: "${tag.meaning}; not seen")
-        }
-        return m
     }
 }
 

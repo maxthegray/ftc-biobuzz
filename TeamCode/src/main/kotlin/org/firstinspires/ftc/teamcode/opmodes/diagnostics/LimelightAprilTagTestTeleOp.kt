@@ -1,8 +1,6 @@
 package org.firstinspires.ftc.teamcode.opmodes.diagnostics
 
-import com.pedropathing.ivy.commands.Commands.instant
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
-import org.firstinspires.ftc.teamcode.core.GamepadEx.Button
 import org.firstinspires.ftc.teamcode.core.OpModeBase
 import org.firstinspires.ftc.teamcode.core.Preflight
 import org.firstinspires.ftc.teamcode.core.logging.SettingsChangeLog
@@ -17,14 +15,13 @@ import org.firstinspires.ftc.teamcode.vision.BallCameraSubsystem
  *
  * Pipeline slot: `visionDiagnostics.limelightTagPipelineIndex` (default 0).
  * `visionDiagnostics.runBothCameras` also opens the USB ball camera to compare
- * loop timing under both loads. Driver A (after START) saves a lab record.
+ * loop timing under both loads.
  */
 @TeleOp(name = "Limelight AprilTag Test", group = "Diagnostics")
 class LimelightAprilTagTestTeleOp : OpModeBase() {
 
     private lateinit var startup: VisionDiagnostics.Startup
     private lateinit var limelight: LimelightSubsystem
-    private lateinit var recorder: VisionLabRecorder
     private var ballCamera: BallCameraSubsystem? = null
     private val sightings = TagSightingTracker()
     private val timing = LoopTimingStats()
@@ -42,12 +39,6 @@ class LimelightAprilTagTestTeleOp : OpModeBase() {
             Preflight.check(hardwareMap, listOf(VisionDiagnostics.ballCameraRequirement))
             ballCamera = robot.register(BallCameraSubsystem(eventSink = robot::recordEvent))
         }
-        recorder = robot.register(VisionLabRecorder("Limelight AprilTag Test"))
-        driver.button(Button.A).onTrue(
-            instant {
-                recorder.save(VisionDiagnostics.measurements(robot, timing, startup, limelight, sightings, ballCamera))
-            },
-        )
     }
 
     override fun onStart() {
@@ -66,7 +57,6 @@ class LimelightAprilTagTestTeleOp : OpModeBase() {
         if (limelight.newFrameThisTick && limelight.resultFresh && limelight.pipelineMatches) {
             sightings.recordFrame(limelight.fiducials, now)
         }
-        recorder.poll(robot)
         VisionDiagnostics.restartSection(telemetryBag, startup, ballCamera)
         VisionDiagnostics.limelightSections(telemetryBag, limelight, sightings, now, detailed = true)
         ballCamera?.let { VisionDiagnostics.ballCameraSections(telemetryBag, it, detailed = false) }
@@ -76,7 +66,6 @@ class LimelightAprilTagTestTeleOp : OpModeBase() {
             put("2", "Hold one tag still; ID and meaning must match the sticker")
             put("3", "Move left/right: tx sign; up/down: ty sign; note both")
             put("4", "Tape-measure camera→tag; compare |d|")
-            put("5", "A saves a lab record (after START); stop normally")
         }
     }
 }
