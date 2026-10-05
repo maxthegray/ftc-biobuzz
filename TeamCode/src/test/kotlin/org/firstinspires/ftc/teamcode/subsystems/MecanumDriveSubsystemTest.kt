@@ -54,6 +54,32 @@ class MecanumDriveSubsystemTest {
     }
 
     @Test
+    fun invalidExponentsFallBackToLinearDriveAndStopOnCenteredSticks() {
+        val original = DriveConfig.inputExponent
+        val h = Harness()
+        try {
+            for (exponent in doubleArrayOf(0.0, -0.0, -1.0, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY)) {
+                DriveConfig.inputExponent = 2.0
+                h.input = TeleopInput(-0.4, 0.3, -0.2)
+                h.tick()
+
+                DriveConfig.inputExponent = exponent
+                h.input = TeleopInput(0.0, 0.0, 0.0)
+                h.tick()
+                assertArrayEquals("Centered sticks with exponent $exponent", DoubleArray(4), h.hardware.powers(), 1e-9)
+
+                h.input = TeleopInput(-0.4, 0.3, -0.2)
+                h.tick()
+                assertArrayEquals("Linear fallback with exponent $exponent", wheels(-0.4, -0.3, 0.2), h.hardware.powers(), 1e-9)
+                assertEquals(0, h.robot.commandFaultCount)
+            }
+        } finally {
+            DriveConfig.inputExponent = original
+            Scheduler.reset()
+        }
+    }
+
+    @Test
     fun stickConventionsMapToPedroAxes() {
         val h = Harness()
         h.drive.toggleFieldCentric()

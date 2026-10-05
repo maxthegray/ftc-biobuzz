@@ -140,7 +140,7 @@ class MecanumDriveSubsystem(
     private fun stageTeleop(i: TeleopInput) {
         val scale = DriveConfig.teleopPowerScale *
             (if (i.precision) DriveConfig.precisionPowerScale else 1.0)
-        val exp = DriveConfig.inputExponent
+        val exp = DriveConfig.inputExponent.takeIf { it.isFinite() && it > 0.0 } ?: 1.0
         val forward = i.forwardPower?.asDirectPower() ?: (i.forward.curve(exp) * scale)
         // FTC sticks use +x right/CW turn; Pedro uses +lateral left/CCW-positive heading.
         var strafe = -i.strafe.curve(exp) * scale
