@@ -8,8 +8,8 @@ import com.pedropathing.math.Vector2D
 import com.qualcomm.robotcore.util.RobotLog
 import kotlin.math.cos
 import kotlin.math.sin
-import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveTelemetrySource
-import org.firstinspires.ftc.teamcode.core.runtime.Clock
+import org.firstinspires.ftc.teamcode.core.Clock
+import org.firstinspires.ftc.teamcode.subsystems.DriveTelemetrySource
 
 /**
  * Live field view on the Panels dashboard for *real* op-modes (the upstream
@@ -23,7 +23,7 @@ import org.firstinspires.ftc.teamcode.core.runtime.Clock
  * at loop rate is pure overhead. Drawing must never stop the robot: any
  * failure is counted, and the view disables itself after a few, mirroring
  * the telemetry-flush policy in
- * [org.firstinspires.ftc.teamcode.core.runtime.OpModeBase].
+ * [org.firstinspires.ftc.teamcode.core.OpModeBase].
  */
 class FieldView(
     redrawIntervalMs: Double = 100.0,

@@ -1,8 +1,8 @@
 package org.firstinspires.ftc.teamcode.core.logging
 
-import org.firstinspires.ftc.teamcode.core.sim.FakeClock
-import org.firstinspires.ftc.teamcode.vision.ball.BallCameraConfig
 import org.firstinspires.ftc.teamcode.core.sim.ConfigSnapshot
+import org.firstinspires.ftc.teamcode.core.sim.FakeClock
+import org.firstinspires.ftc.teamcode.vision.BallCameraConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

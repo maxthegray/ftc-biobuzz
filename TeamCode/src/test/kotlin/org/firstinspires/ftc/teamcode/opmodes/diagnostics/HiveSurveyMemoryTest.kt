@@ -1,13 +1,13 @@
 package org.firstinspires.ftc.teamcode.opmodes.diagnostics
 
-import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags.Alliance
-import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags.Cell
-import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags.CellLocation
-import org.firstinspires.ftc.teamcode.vision.hive.HiveConfig
-import org.firstinspires.ftc.teamcode.vision.hive.HiveRig
-import org.firstinspires.ftc.teamcode.vision.hive.HiveTestFrames.lowered
-import org.firstinspires.ftc.teamcode.vision.hive.HiveTestFrames.raised
 import org.firstinspires.ftc.teamcode.core.sim.ConfigSnapshot
+import org.firstinspires.ftc.teamcode.vision.BiobuzzAprilTags.Alliance
+import org.firstinspires.ftc.teamcode.vision.BiobuzzAprilTags.Cell
+import org.firstinspires.ftc.teamcode.vision.BiobuzzAprilTags.CellLocation
+import org.firstinspires.ftc.teamcode.vision.HiveConfig
+import org.firstinspires.ftc.teamcode.vision.HiveRig
+import org.firstinspires.ftc.teamcode.vision.HiveTestFrames.lowered
+import org.firstinspires.ftc.teamcode.vision.HiveTestFrames.raised
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull

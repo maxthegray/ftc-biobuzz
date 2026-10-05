@@ -4,10 +4,10 @@ import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.Scheduler
 import com.pedropathing.ivy.behaviors.EndCondition
 import java.io.File
-import org.firstinspires.ftc.teamcode.core.runtime.Robot
-import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
-import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem.TeleopInput
-import org.firstinspires.ftc.teamcode.core.subsystems.drive.PedroDriveFixture
+import org.firstinspires.ftc.teamcode.core.Robot
+import org.firstinspires.ftc.teamcode.core.SubsystemBase
+import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem.TeleopInput
+import org.firstinspires.ftc.teamcode.subsystems.PedroDriveFixture
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals

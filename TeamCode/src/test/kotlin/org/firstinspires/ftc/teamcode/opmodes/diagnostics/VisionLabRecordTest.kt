@@ -1,9 +1,9 @@
 package org.firstinspires.ftc.teamcode.opmodes.diagnostics
 
-import org.firstinspires.ftc.teamcode.vision.ball.BallCameraConfig
 import java.io.File
 import java.util.concurrent.Executor
 import org.firstinspires.ftc.teamcode.core.sim.ConfigSnapshot
+import org.firstinspires.ftc.teamcode.vision.BallCameraConfig
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

@@ -1,7 +1,7 @@
 package org.firstinspires.ftc.teamcode.opmodes.diagnostics
 
-import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightFiducial
-import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags
+import org.firstinspires.ftc.teamcode.subsystems.LimelightFiducial
+import org.firstinspires.ftc.teamcode.vision.BiobuzzAprilTags
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue

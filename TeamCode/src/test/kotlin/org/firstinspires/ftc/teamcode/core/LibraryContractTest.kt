@@ -14,7 +14,7 @@ import com.pedropathing.ivy.commands.Commands.waitUntil
 import com.pedropathing.ivy.groups.Groups.deadline
 import com.pedropathing.ivy.groups.Groups.sequential
 import com.pedropathing.math.Pose
-import org.firstinspires.ftc.teamcode.core.subsystems.drive.PedroDriveFixture
+import org.firstinspires.ftc.teamcode.subsystems.PedroDriveFixture
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows

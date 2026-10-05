@@ -4,8 +4,8 @@ import com.pedropathing.ivy.Scheduler
 import com.pedropathing.ivy.commands.Commands.infinite
 import com.qualcomm.robotcore.hardware.HardwareMap
 import java.io.File
-import org.firstinspires.ftc.teamcode.core.runtime.Robot
-import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
+import org.firstinspires.ftc.teamcode.core.Robot
+import org.firstinspires.ftc.teamcode.core.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.sim.FakeClock
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

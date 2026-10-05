@@ -5,7 +5,7 @@ import com.pedropathing.ivy.behaviors.BlockedBehavior
 import com.pedropathing.ivy.behaviors.ConflictBehavior
 import com.pedropathing.ivy.behaviors.EndCondition
 import com.pedropathing.ivy.behaviors.InterruptedBehavior
-import org.firstinspires.ftc.teamcode.core.runtime.Clock
+import org.firstinspires.ftc.teamcode.core.Clock
 
 /**
  * Records [command]'s runs in the flight log under [name]. Schedule, cancel,
@@ -31,7 +31,7 @@ fun logged(name: String, command: Command): Command =
  * its previous command) and a second `end` (a `deadline` child) record nothing;
  * `loop`/`repeat` restart the same instance, which is a new execution; a
  * SUSPENDED command resumes through `execute` without a new `start`; and
- * `Scheduler.reset` skips `end`, so [Robot][org.firstinspires.ftc.teamcode.core.runtime.Robot]
+ * `Scheduler.reset` skips `end`, so [Robot][org.firstinspires.ftc.teamcode.core.Robot]
  * closes what is left with ABORT.
  */
 class LoggedCommand internal constructor(val name: String, val command: Command) : Command {
@@ -87,7 +87,7 @@ class LoggedCommand internal constructor(val name: String, val command: Command)
 }
 
 /**
- * The one record of traced command executions for the current [Robot][org.firstinspires.ftc.teamcode.core.runtime.Robot].
+ * The one record of traced command executions for the current [Robot][org.firstinspires.ftc.teamcode.core.Robot].
  * Like Ivy's scheduler it is static and single-threaded (the robot loop).
  *
  * The open executions are the truth; every lifecycle change is timestamped on

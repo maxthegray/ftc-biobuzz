@@ -11,12 +11,12 @@ import com.qualcomm.robotcore.eventloop.opmode.Disabled
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import kotlin.math.abs
 import org.firstinspires.ftc.teamcode.core.logging.logged
-import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
-import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem
-import org.firstinspires.ftc.teamcode.core.subsystems.drive.MecanumDriveSubsystem.TeleopInput
-import org.firstinspires.ftc.teamcode.core.subsystems.localization.shortestAngleDelta
 import org.firstinspires.ftc.teamcode.opmodes.TeleOpBase
 import org.firstinspires.ftc.teamcode.pedro.Constants
+import org.firstinspires.ftc.teamcode.subsystems.DriveConfig
+import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem
+import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem.TeleopInput
+import org.firstinspires.ftc.teamcode.subsystems.shortestAngleDelta
 
 /**
  * Teleop for testing localization consistency over time.

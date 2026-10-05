@@ -13,7 +13,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.RobotConfig;
-import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig;
+import org.firstinspires.ftc.teamcode.subsystems.DriveConfig;
 
 /**
  * Pedro Pathing 3 constants for this robot, in the layout AutoTune generates

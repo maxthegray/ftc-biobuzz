@@ -6,10 +6,10 @@ import com.pedropathing.math.Velocity
 import com.qualcomm.robotcore.hardware.HardwareMap
 import java.io.File
 import org.firstinspires.ftc.teamcode.RobotConfig
-import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveTelemetrySource
-import org.firstinspires.ftc.teamcode.core.runtime.Robot
-import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
+import org.firstinspires.ftc.teamcode.core.Robot
+import org.firstinspires.ftc.teamcode.core.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.sim.FakeClock
+import org.firstinspires.ftc.teamcode.subsystems.DriveTelemetrySource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test

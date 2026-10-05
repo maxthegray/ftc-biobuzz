@@ -1,8 +1,8 @@
 package org.firstinspires.ftc.teamcode.core.sim
 
 import kotlin.math.exp
-import org.firstinspires.ftc.teamcode.core.io.MotorIO
-import org.firstinspires.ftc.teamcode.core.runtime.Clock
+import org.firstinspires.ftc.teamcode.core.Clock
+import org.firstinspires.ftc.teamcode.core.MotorIO
 
 /**
  * First-order motor model for host tests: commanded power drives the

@@ -8,11 +8,11 @@ import java.util.concurrent.Executor
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
-import org.firstinspires.ftc.teamcode.core.logging.StateLog
+import org.firstinspires.ftc.teamcode.core.Robot
+import org.firstinspires.ftc.teamcode.core.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.logging.SettingsChangeLog
-import org.firstinspires.ftc.teamcode.core.runtime.Robot
-import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
-import org.firstinspires.ftc.teamcode.vision.ball.BallCameraConfig
+import org.firstinspires.ftc.teamcode.core.logging.StateLog
+import org.firstinspires.ftc.teamcode.vision.BallCameraConfig
 
 /**
  * A reviewable text record of a vision tuning session: the live config values,

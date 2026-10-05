@@ -2,12 +2,12 @@ package org.firstinspires.ftc.teamcode.opmodes.diagnostics
 
 import com.pedropathing.ivy.commands.Commands.instant
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
-import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
-import org.firstinspires.ftc.teamcode.core.runtime.Preflight
-import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSubsystem
-import org.firstinspires.ftc.teamcode.core.input.GamepadEx.Button
-import org.firstinspires.ftc.teamcode.vision.ball.BallCameraSubsystem
+import org.firstinspires.ftc.teamcode.core.GamepadEx.Button
+import org.firstinspires.ftc.teamcode.core.OpModeBase
+import org.firstinspires.ftc.teamcode.core.Preflight
 import org.firstinspires.ftc.teamcode.core.logging.SettingsChangeLog
+import org.firstinspires.ftc.teamcode.subsystems.LimelightSubsystem
+import org.firstinspires.ftc.teamcode.vision.BallCameraSubsystem
 
 /**
  * Stationary USB-camera ball diagnostic: yellow-pollen detection through the

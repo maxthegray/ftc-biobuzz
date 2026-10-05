@@ -16,16 +16,18 @@ of `FIRST-Tech-Challenge/FtcRobotController` (now 11.2.1). It was forked from
 `maxthegray/ftc-starter`, which is legacy: nothing flows back to it, and this
 is the main repo.
 
-The directory split is organisational. The test for `core/`: **would it carry
-into next season unchanged?** If yes it goes in `core/` (runtime, drive,
-localization, logging, the Limelight adapter); if not, it goes outside.
+Layout (flat on purpose; don't add one-file folders):
 
-- Everything else — `opmodes/`, `vision/`, season subsystems, `RobotConfig.kt`
-  and `pedro/` (this robot's and season's settings, which `core/` reads) — is
-  this season's.
-- Don't add options or hooks to `core/` just to keep season code out of it.
-  Split the feature instead: device adapters in `core/`, game logic outside
-  (e.g. `LimelightSubsystem` vs `vision/hive`).
+- `subsystems/`: every mechanism, season or not (drive, localizer, Limelight,
+  intake, transfer, shooter, turret).
+- `vision/`: season vision logic (tag catalog, HIVE tracking, ball camera).
+- `opmodes/`: teleop and autos, plus `diagnostics/` and `skeletons/`.
+- `core/`: the framework students don't touch (`Robot`, `OpModeBase`,
+  `SubsystemBase`, `GamepadEx`, `Alliance`, `HardwareIO`, `MonotonicWait`) and
+  `core/logging/`.
+- Device adapters stay separate from game logic (e.g. `LimelightSubsystem`
+  vs `vision/HiveTracker`). At season rollover keep `core/`, the drive,
+  localizer and Limelight; replace the rest.
 
 The code currently runs on a **sensorbot**: a temporary chassis to develop
 against while the competition robot is built. The competition robot replaces
@@ -74,8 +76,8 @@ dependencies first. Don't guess.
 ## Library workarounds (re-check on every Pedro or Ivy upgrade)
 
 Each workaround below exists because of a behaviour pinned in
-`TeamCode/src/test/kotlin/.../core/LibraryContractTest.kt`. Whole-file
-workarounds live in `core/workarounds/`; students can ignore that folder. After a version
+`TeamCode/src/test/kotlin/.../core/LibraryContractTest.kt`. The whole-file
+workaround is `core/MonotonicWait.kt`. After a version
 bump, run the unit tests: a failing contract test means the library changed,
 and its failure message points here. Confirm the new behaviour in the
 library's source, then do the listed cleanup in the same change. Don't just
@@ -83,7 +85,7 @@ flip the assertion.
 
 | Workaround | Library behaviour (upstream) | Contract test | When the test fails |
 |---|---|---|---|
-| `core/workarounds/MonotonicWait.kt` (`monotonicWaitMs`) | Ivy 1.1.1 `Commands.waitMs` uses `System.currentTimeMillis()`. Not reported upstream | `ivyWaitMsIsTimedByTheWallClock` | If Ivy's wait is now monotonic: replace `monotonicWaitMs(ms)` with `waitMs(ms)`, delete the helper and `MonotonicWaitTest.kt`, update docs. Tests that need a fake clock may still want the helper. |
+| `core/MonotonicWait.kt` (`monotonicWaitMs`) | Ivy 1.1.1 `Commands.waitMs` uses `System.currentTimeMillis()`. Not reported upstream | `ivyWaitMsIsTimedByTheWallClock` | If Ivy's wait is now monotonic: replace `monotonicWaitMs(ms)` with `waitMs(ms)`, delete the helper and `MonotonicWaitTest.kt`, update docs. Tests that need a fake clock may still want the helper. |
 | `MecanumDriveSubsystem.halt()` stops the drivetrain directly | Pedro 3.0.1 `Follower.stop()` changes mode only; motors update on the next `update()` | `pedroStopOnlyChangesModeUntilTheNextUpdate` | If `stop()` now zeroes motors immediately, the direct `drivetrain.stop()` is redundant but harmless. |
 | Drive commands instead of Ivy's `PedroCommands` (no `com.pedropathing.ivy:pedro` dependency) | Ivy 1.1.1 `follow` has no requirement and no interruption cleanup; `hold` reports no arrival | None (the artifact isn't a dependency) | On an Ivy upgrade, read `PedroCommands` in the new `ivy:pedro` sources before considering it. The drive commands also carry the logging and completion semantics. |
 | Once-per-start guards in drive commands; `LoggedCommand` ignoring unstarted or repeated ends; ABORT after `Scheduler.reset` | Ivy 1.1.1 ends unstarted group children, ends deadline children twice, forwards a lazy's end, skips `end` on reset, executes a command interrupted earlier in the tick | the `ivy…` tests | Re-check `MecanumDriveSubsystem`, `CommandHistory.kt`, `DriveCommandCancellationTest` and `CommandHistoryTest` against the new scheduler and groups. The guards stay harmless if Ivy stops doing this. |
@@ -108,7 +110,7 @@ stop, and ticks it once per loop. Op-modes never call `Scheduler.execute()`.
 import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.Scheduler
 import com.pedropathing.ivy.commands.Commands.*   // instant, waitUntil, infinite, lazy, conditional (not waitMs)
-import org.firstinspires.ftc.teamcode.core.workarounds.monotonicWaitMs
+import org.firstinspires.ftc.teamcode.core.monotonicWaitMs
 import com.pedropathing.ivy.groups.Groups.*       // sequential, parallel, race, deadline, repeat, loop
 
 Command.build()
@@ -143,7 +145,7 @@ Semantics verified against the 1.1.1 artifact (`LibraryContractTest` pins them):
   fault policies) or `onLoop()`, not from another command's execute.
 - Groups take the union of child requirements and the max child priority;
   nothing stops two drive commands in one `parallel`. Don't do that.
-- Use `monotonicWaitMs(ms)` (`core/workarounds`), not `waitMs`, which follows the
+- Use `monotonicWaitMs(ms)` (`core/MonotonicWait.kt`), not `waitMs`, which follows the
   wall clock (**Library workarounds**); pass a `Clock` in tests.
 - There are no command names, no running-command registry and no lifecycle
   hooks. The one exception this repo adds is `logged(name, command)`
@@ -431,7 +433,7 @@ hardware in `init` with the SDK's `hardwareMap.get` (set direction, mode and
 zero-power behaviour there), read in `periodic()`, flush in
 `writeHardware()`, expose Ivy command factories that `requiring(this)`, zero
 actuators in `stop()` and `onCommandFault()`, log in `logState`, register in
-`configure()`. Season mechanisms go under `teamcode/subsystems/`, not `core/`.
+`configure()`. Every mechanism goes in `subsystems/`.
 There is deliberately no generic mechanism base class.
 
 ## When the user asks you to add an I²C sensor

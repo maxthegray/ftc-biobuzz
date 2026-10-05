@@ -7,7 +7,7 @@ import com.pedropathing.math.Velocity
 import com.qualcomm.robotcore.util.RobotLog
 import java.util.Locale
 import org.firstinspires.ftc.robotcore.external.Telemetry
-import org.firstinspires.ftc.teamcode.core.runtime.Clock
+import org.firstinspires.ftc.teamcode.core.Clock
 
 /**
  * Telemetry for the Driver Station and Panels at once. `OpModeBase` flushes it

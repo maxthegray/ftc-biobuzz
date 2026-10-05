@@ -9,11 +9,11 @@ Read `AI-GUIDE.md` completely, then `dutchdocs/DEVELOPMENT.md` → Add a subsyst
 Config objects. Those documents own the lifecycle, Ivy, tuning, and safety
 rules; do not introduce another framework or repeat the contract here.
 
-Use the live `subsystems/intake/IntakeSubsystem.kt` and
-`subsystems/transfer/TransferSubsystem.kt` as examples. Paths are relative to
+Use the live `subsystems/IntakeSubsystem.kt` and
+`subsystems/TransferSubsystem.kt` as examples. Paths are relative to
 `TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/`.
 
-Scaffold only the requested mechanism under `subsystems/<area>/`. Resolve
+Scaffold only the requested mechanism in `subsystems/`. Resolve
 hardware in `init` with SDK `hardwareMap.get` / `tryGet`, configure motors
 explicitly, and use the MotorIO/ServoIO interfaces when testing needs them.
 Keep small config objects in their subsystem file. Keep unconfigured hardware

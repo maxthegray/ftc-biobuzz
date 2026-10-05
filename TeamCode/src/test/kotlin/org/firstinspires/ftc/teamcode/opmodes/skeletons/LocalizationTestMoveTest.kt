@@ -4,10 +4,10 @@ import com.pedropathing.api.Paths
 import com.pedropathing.ivy.Scheduler
 import com.pedropathing.ivy.commands.Commands.infinite
 import com.pedropathing.math.Pose
-import org.firstinspires.ftc.teamcode.core.runtime.Robot
-import org.firstinspires.ftc.teamcode.core.subsystems.drive.PedroDriveFixture
+import org.firstinspires.ftc.teamcode.core.Robot
 import org.firstinspires.ftc.teamcode.opmodes.skeletons.LocalizationTestTeleOp.Companion.COINCIDENT_WAYPOINT_TOLERANCE_INCHES
 import org.firstinspires.ftc.teamcode.opmodes.skeletons.LocalizationTestTeleOp.Companion.moveCommand
+import org.firstinspires.ftc.teamcode.subsystems.PedroDriveFixture
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

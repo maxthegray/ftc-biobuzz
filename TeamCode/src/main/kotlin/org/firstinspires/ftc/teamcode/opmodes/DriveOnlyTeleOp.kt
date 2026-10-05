@@ -1,7 +1,7 @@
 package org.firstinspires.ftc.teamcode.opmodes
 
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
-import org.firstinspires.ftc.teamcode.core.subsystems.drive.DriveConfig
+import org.firstinspires.ftc.teamcode.subsystems.DriveConfig
 
 /**
  *  Just driving teleop, copy and paste where needed

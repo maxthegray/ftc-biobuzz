@@ -59,7 +59,7 @@ both when either finishes (that's how a timeout works).
 
 ## Add a subsystem
 
-Create `subsystems/<area>/IntakeSubsystem.kt` (season code never goes in `core/`):
+Create `subsystems/IntakeSubsystem.kt`:
 
 ```kotlin
 class IntakeSubsystem : SubsystemBase("Intake") {
@@ -174,7 +174,7 @@ to run if `!Constants.FORESIGHT_TUNED` or `!localizer.ready` (start pose not
 yet confirmed), `Scheduler.schedule(...)` and check `Scheduler.isScheduled(...)`. In `onLoop`, stop the op-mode once the
 routine is no longer scheduled.
 
-- **Waits:** use `monotonicWaitMs(ms)` from `core/workarounds`, not Ivy's `waitMs`,
+- **Waits:** use `monotonicWaitMs(ms)` from `core/`, not Ivy's `waitMs`,
   which is timed by the wall clock and ends early or stalls if the hub's
   time is set mid-match.
 - **Markers** (do something part-way along a path, once):
@@ -305,7 +305,7 @@ Everything else is Ivy or Pedro. Each remaining helper has one job:
 
 | Helper | Why it exists |
 |---|---|
-| `core/runtime/Robot`, `OpModeBase` | Loop order (bulk reads → reads → input → commands → writes → telemetry → log), init lockout, Ivy reset, fault policy, shutdown order |
+| `core/Robot`, `OpModeBase` | Loop order (bulk reads → reads → input → commands → writes → telemetry → log), init lockout, Ivy reset, fault policy, shutdown order |
 | `SubsystemBase` | The read/write/stop/log lifecycle and passive default commands |
 | `MecanumDriveSubsystem` | The one drive owner: stick shaping, field-centric, drive commands with requirements, interruption cleanup and measured completion |
 | `LocalizerSubsystem`, `PoseHistory` | Start pose written at every INIT, Pinpoint readiness/fault watchdog, pose history for camera latency |
@@ -335,9 +335,8 @@ tuned. Don't `@Pinned` config objects.
 
 ## Mechanisms
 
-Season mechanisms live under `subsystems/`: `intake/IntakeSubsystem`,
-`transfer/TransferSubsystem`, `shooter/ShooterSubsystem`, and
-`turret/TurretSubsystem`.
+Season mechanisms live in `subsystems/` next to the drive: `IntakeSubsystem`,
+`TransferSubsystem`, `ShooterSubsystem` and `TurretSubsystem`.
 
 **Intake and Transfer are implemented** against placeholder hardware:
 - Names are in `RobotConfig.Intake` / `RobotConfig.Transfer`. The motor names
@@ -371,25 +370,25 @@ explicitly.
 
 There is no generic mechanism base class. Build each lift/arm/turret as a
 plain `SubsystemBase` against the real hardware, through the `MotorIO` /
-`ServoIO` seam in `core/io/HardwareIO.kt` (host tests can inject
+`ServoIO` seam in `core/HardwareIO.kt` (host tests can inject
 `SimMotorIO(clock, …)`). Add closed-loop control, homing, soft limits or profiles only once you can
 validate them on the mechanism.
 
 ## Vision layout
 
-Season vision code that runs in a match is grouped under `vision/`:
+Season vision code that runs in a match is in `vision/`:
 
-- `ball/`: the USB ball camera on the SDK's color-blob processor, its Panels
+- `BallCamera*`, `LensIntrinsics`: the USB ball camera on the SDK's color-blob processor, its Panels
   settings, and lens calibration.
-- `apriltags/`: season tag identities and FIRST's cluster geometry.
-- `hive/`: HIVE goal tracking for the turret-mounted Limelight. `HiveConfig`
+- `BiobuzzAprilTags`: season tag identities and FIRST's cluster geometry.
+- `Hive*`, `GoalGeometry`: HIVE goal tracking for the turret-mounted Limelight. `HiveConfig`
   holds the camera mount and thresholds; `GoalGeometry` places each tag's
   implied goal (its CELL's opening centre) on the robot through that mount and
   the turret angle at capture time; `HiveState` infers which CELL of each HIVE
   is raised from tag heights, with hysteresis and tip counts; `HiveTracker`, a
   subsystem, fuses each alliance's goal and exposes both alliances to op-modes.
-Tests mirror these packages. The reusable Limelight device adapter stays in
-`core/subsystems/vision/`. The diagnostic op-modes and their tooling (lab
+Tests mirror these packages. The reusable Limelight device adapter is
+`subsystems/LimelightSubsystem.kt`. The diagnostic op-modes and their tooling (lab
 records, tag-sighting history, `VisionDiagnosticsConfig`) live together in
 `opmodes/diagnostics/`; `SettingsChangeLog` is in `core/logging/`.
 
@@ -409,6 +408,6 @@ records, tag-sighting history, `VisionDiagnosticsConfig`) live together in
 
 ## Season rollover
 
-- Keep game-specific subsystems, paths and op-modes out of `core/`.
+- Keep `core/`, the drive, localizer and Limelight; replace the season's mechanisms, vision and op-modes.
 - Set `RobotConfig.Field.SYMMETRY` from the game manual and verify the field length.
 - Re-run AutoTune when the chassis, weight, wheels or odometry change.

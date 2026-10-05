@@ -4,16 +4,16 @@ import com.bylazar.configurables.annotations.Configurable
 import com.qualcomm.hardware.limelightvision.Limelight3A
 import java.util.Locale
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName
-import org.firstinspires.ftc.teamcode.core.logging.TelemetryBag
+import org.firstinspires.ftc.teamcode.core.LoopPhase
+import org.firstinspires.ftc.teamcode.core.Preflight
+import org.firstinspires.ftc.teamcode.core.Robot
 import org.firstinspires.ftc.teamcode.core.logging.SettingsChangeLog
-import org.firstinspires.ftc.teamcode.core.runtime.LoopPhase
-import org.firstinspires.ftc.teamcode.core.runtime.Preflight
-import org.firstinspires.ftc.teamcode.core.runtime.Robot
-import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightFiducial
-import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSubsystem
-import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags
-import org.firstinspires.ftc.teamcode.vision.ball.BallCameraConfig
-import org.firstinspires.ftc.teamcode.vision.ball.BallCameraSubsystem
+import org.firstinspires.ftc.teamcode.core.logging.TelemetryBag
+import org.firstinspires.ftc.teamcode.subsystems.LimelightFiducial
+import org.firstinspires.ftc.teamcode.subsystems.LimelightSubsystem
+import org.firstinspires.ftc.teamcode.vision.BallCameraConfig
+import org.firstinspires.ftc.teamcode.vision.BallCameraSubsystem
+import org.firstinspires.ftc.teamcode.vision.BiobuzzAprilTags
 
 /** Wiring and telemetry shared by the Limelight AprilTag Test and Ball Tracking Test. */
 internal object VisionDiagnostics {
@@ -267,7 +267,7 @@ object VisionDiagnosticsConfig {
  * in a fresh result and how many fresh frames contained it.
  *
  * Feed it only the fiducials of a fresh, matching-pipeline result, once per new
- * device frame ([LimelightSubsystem][org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSubsystem]
+ * device frame ([LimelightSubsystem]
  * already clears them otherwise). Times are robot-loop nanoTime at the tick the
  * frame was first seen — receipt time, not acquisition time.
  */

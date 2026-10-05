@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.core.sim
 
-import org.firstinspires.ftc.teamcode.core.io.ServoIO
+import org.firstinspires.ftc.teamcode.core.ServoIO
 
 /** [ServoIO] that records what was written. */
 class FakeServoIO : ServoIO {

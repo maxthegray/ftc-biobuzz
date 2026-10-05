@@ -4,21 +4,21 @@ import com.pedropathing.ivy.commands.Commands.instant
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import java.util.Locale
 import java.util.TreeMap
-import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
-import org.firstinspires.ftc.teamcode.core.runtime.Preflight
-import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSubsystem
-import org.firstinspires.ftc.teamcode.core.input.GamepadEx.Button
-import org.firstinspires.ftc.teamcode.opmodes.diagnostics.VisionDiagnostics.fmt
-import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags
-import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags.Alliance
-import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags.Cell
+import org.firstinspires.ftc.teamcode.core.GamepadEx.Button
+import org.firstinspires.ftc.teamcode.core.OpModeBase
+import org.firstinspires.ftc.teamcode.core.Preflight
 import org.firstinspires.ftc.teamcode.core.logging.SettingsChangeLog
-import org.firstinspires.ftc.teamcode.vision.hive.CellGoal
-import org.firstinspires.ftc.teamcode.vision.hive.GoalGeometry
-import org.firstinspires.ftc.teamcode.vision.hive.HiveConfig
-import org.firstinspires.ftc.teamcode.vision.hive.HiveTracker
-import org.firstinspires.ftc.teamcode.vision.hive.TagRow
-import org.firstinspires.ftc.teamcode.vision.hive.Vec3
+import org.firstinspires.ftc.teamcode.opmodes.diagnostics.VisionDiagnostics.fmt
+import org.firstinspires.ftc.teamcode.subsystems.LimelightSubsystem
+import org.firstinspires.ftc.teamcode.vision.BiobuzzAprilTags
+import org.firstinspires.ftc.teamcode.vision.BiobuzzAprilTags.Alliance
+import org.firstinspires.ftc.teamcode.vision.BiobuzzAprilTags.Cell
+import org.firstinspires.ftc.teamcode.vision.CellGoal
+import org.firstinspires.ftc.teamcode.vision.GoalGeometry
+import org.firstinspires.ftc.teamcode.vision.HiveConfig
+import org.firstinspires.ftc.teamcode.vision.HiveTracker
+import org.firstinspires.ftc.teamcode.vision.TagRow
+import org.firstinspires.ftc.teamcode.vision.Vec3
 
 /**
  * Stationary survey of the HIVE tags with the Limelight on a tripod (turret

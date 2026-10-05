@@ -1,7 +1,7 @@
 package org.firstinspires.ftc.teamcode.core.logging
 
 import java.lang.reflect.Modifier
-import org.firstinspires.ftc.teamcode.core.runtime.Clock
+import org.firstinspires.ftc.teamcode.core.Clock
 
 /**
  * Records a config section's values as flight-log events so a WPILOG alone

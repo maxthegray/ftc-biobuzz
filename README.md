@@ -75,10 +75,10 @@ Remove `@Disabled` from a specific op-mode and rebuild when you need it.
 |---|---|
 | TeleOp | `opmodes/DriveOnlyTeleOp.kt`, `opmodes/TeleOpBase.kt` (`configureTeleop()`) |
 | Autonomous | `opmodes/skeletons/ExampleAuto.kt` |
-| Buttons | `core/input/GamepadEx.kt` |
-| Drive, drive commands and `DriveConfig` | `core/subsystems/drive/MecanumDriveSubsystem.kt` |
-| Localization and vision corrections | `core/subsystems/localization/` |
-| Hardware names, field size, config schema | `RobotConfig.kt` |
+| Buttons | `core/GamepadEx.kt` |
+| Drive, drive commands and `DriveConfig` | `subsystems/MecanumDriveSubsystem.kt` |
+| Localization | `subsystems/LocalizerSubsystem.kt` |
+| Hardware names, field size | `RobotConfig.kt` |
 | Pedro constants and AutoTune | `pedro/Constants.java`, `pedro/Tuning.java` |
 | Flight recorder | `core/logging/FlightRecorder.kt` |
 | Vision | `vision/` (match code), `opmodes/diagnostics/` (diagnostics and lab records), then `dutchdocs/OPERATIONS.md` §8 |
@@ -97,23 +97,16 @@ TeamCode/src/main/
 │   ├── Tuning.java           AutoTune procedure registration
 │   └── procedures/           AutoTune procedures (copied from the Pedro Quickstart)
 └── kotlin/org/firstinspires/ftc/teamcode/
-    ├── RobotConfig.kt        hardware names, field symmetry, config schema
-    ├── core/
-    │   ├── Alliance.kt       RED/BLUE and mapping poses onto the other side
-    │   ├── input/            gamepads and button bindings
-    │   ├── io/               motor and servo seam for tests
-    │   ├── logging/          telemetry, WPILOG flight recorder, Panels field view
-    │   ├── runtime/          Robot, OpModeBase, SubsystemBase, saved config, clock
-    │   ├── subsystems/       drive, localization (+ pose history for camera latency), Limelight
-    │   └── workarounds/      fixes for library bugs; safe to ignore
-    ├── subsystems/           season mechanisms: intake, transfer, shooter, turret
-    ├── vision/               season vision: tag catalog, HIVE goal tracking, ball camera
-    └── opmodes/              teleop, diagnostics, skeletons
+    ├── RobotConfig.kt        hardware names, field symmetry
+    ├── subsystems/           every mechanism: drive, localizer, Limelight, intake, transfer, shooter, turret
+    ├── vision/               tag catalog, HIVE goal tracking, ball camera
+    ├── opmodes/              teleop and autos; diagnostics/ and skeletons/
+    └── core/                 the framework: Robot, OpModeBase, SubsystemBase, gamepads, Alliance
+        └── logging/          telemetry, WPILOG flight recorder, Panels field view
 ```
 
-`core/` is the framework: code that would carry into next season unchanged.
-Anything about this game or this robot goes outside it; season mechanisms go in
-`subsystems/`, not `core/subsystems/`.
+`core/` is plumbing you shouldn't need to touch. Everything you work on day to
+day is in `subsystems/`, `vision/` and `opmodes/`.
 
 ## How I work in here
 
