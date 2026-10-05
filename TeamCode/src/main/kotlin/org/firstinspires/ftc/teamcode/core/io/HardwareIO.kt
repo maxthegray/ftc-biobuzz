@@ -5,10 +5,8 @@ import com.qualcomm.robotcore.hardware.DcMotorEx
 import com.qualcomm.robotcore.hardware.Servo
 
 /**
- * The hardware boundary for a single motor + encoder. Subsystems read and
- * write through this interface instead of holding a [DcMotorEx] directly, so
- * the same subsystem code runs against real hardware ([RealMotorIO]), a
- * physics stand-in ([SimMotorIO]) in host tests, or a recorded log (replay).
+ * A motor and its encoder. Subsystems hold this instead of a [DcMotorEx] so
+ * unit tests can swap in a simulated motor ([RealMotorIO] is the real one).
  *
  * Contract: reads are cheap (bulk-cache backed on real hardware) and happen
  * in `periodic()`; [setPower] is the only output and happens in

@@ -25,35 +25,22 @@ import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.subsystems.localization.shortestAngleDelta
 
 /**
- * The one owner of the drivetrain. Every drive command below is a normal Ivy
- * command that requires this subsystem, so the scheduler lets exactly one
- * drive the robot, and every one stops the follower when interrupted.
+ * The one owner of the drivetrain. Every drive command requires this
+ * subsystem, so exactly one drives the robot, and every one stops the
+ * follower when interrupted (Ivy's own `PedroCommands.follow` doesn't).
+ * [Follower.update] runs once per tick, in [writeHardware], after commands
+ * have decided what to do.
  *
- * Why not Ivy's `PedroCommands`: in Ivy 1.1.1 `follow` has no requirement and
- * no interruption cleanup (a cancelled path keeps driving), and `hold` is an
- * instant command that reports nothing about arrival.
+ * When each command ends:
+ *  - [followCommand]: when Pedro reaches the path's parametric end. That is
+ *    not arrival; Pedro then holds or idles.
+ *  - [holdCommand]: on measured arrival within [DriveConfig] tolerances, or
+ *    after its timeout (a bounded wait, not a failure).
+ *  - [turnToCommand]: on measured heading; its timeout throws, which aborts
+ *    the routine.
  *
- * [Follower.update] runs exactly once per tick, in [writeHardware], after
- * commands have decided what the follower should do. Teleop input is staged
- * by [teleopCommand] and applied there.
- *
- * Every drive command cleans up at most once per start. Ivy 1.1.1 also ends
- * group children that never started (a cancelled `sequential`, a `lazy`
- * forwarding to its previous command) and ends a `deadline` child twice;
- * those ends do nothing here, so they cannot stop the follower or fire
- * `onEnd` again.
- *
- * Every factory returns a [logged] command named by its `name` argument, so
- * manual driving, paths, holds, turns and the fallback appear in
- * `commands/events` without extra code. Schedule and cancel that instance.
- *
- * Completion semantics:
- *  - [followCommand] ends when Pedro leaves FOLLOW mode: the parametric end of
- *    the path. That is not arrival; Pedro then holds or idles.
- *  - [holdCommand] ends on measured arrival within [DriveConfig] tolerances,
- *    or after its timeout (a bounded wait, not a failure).
- *  - [turnToCommand] ends on measured heading within tolerance; its timeout
- *    throws, which aborts the routine.
+ * Each command cleans up at most once per start, because Ivy 1.1.1 can end
+ * a command that never started, or end one twice (AI-GUIDE.md).
  */
 class MecanumDriveSubsystem(
     val follower: Follower,

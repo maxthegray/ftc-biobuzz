@@ -377,19 +377,9 @@ enum class LoopPhase(val label: String) {
 }
 
 /**
- * Per-tick breakdown of where [Robot.loop] spends its time. One instance is
- * owned by [Robot] and overwritten in place every tick — no per-loop
- * allocation. Latest durations and rolling maxima are nanoseconds, indexed
- * by [LoopPhase].
- *
- * The phase durations sum to the time spent *inside* [Robot.loop]; the
- * remainder up to [totalNanos] is [overheadNanos] — loop dispatch and
- * whatever the FTC event loop steals between ticks.
- *
- * This exists to answer "which phase owns the loop time?" with data instead
- * of guesswork. Surface it via telemetry while diagnosing loop speed; ignore
- * it once the loop is healthy. Latest values show the most recent tick;
- * maxima retain spikes until telemetry publishes them ([resetMaxima]).
+ * How long each [LoopPhase] of the latest tick took, and the peaks since
+ * [resetMaxima], in nanoseconds. The flight recorder logs it; `make analyze`
+ * reports which phase owns the loop time.
  */
 class LoopProfile {
 
