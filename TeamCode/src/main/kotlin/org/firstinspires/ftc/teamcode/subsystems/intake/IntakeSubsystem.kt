@@ -44,25 +44,15 @@ class IntakeSubsystem(
     fun eject(priority: Int = CommandPriorities.DRIVER_ACTION): Command =
         spin("Intake eject", priority) { IntakeConfig.ejectPower }
 
-    private fun spin(name: String, priority: Int, target: () -> Double): Command {
-        var running = false
-        return logged(
-            name,
-            Command.build()
-                .requiring(this)
-                .setPriority(priority)
-                .setStart {
-                    running = true
-                    power = target()
-                }
-                .setExecute { if (running) power = target() }
-                .setDone { false }
-                .setEnd {
-                    if (running) power = 0.0
-                    running = false
-                },
-        )
-    }
+    private fun spin(name: String, priority: Int, target: () -> Double): Command = logged(
+        name,
+        Command.build()
+            .requiring(this)
+            .setPriority(priority)
+            .setExecute { power = target() }
+            .setDone { false }
+            .setEnd { power = 0.0 },
+    )
 
     override fun onCommandFault() {
         power = 0.0

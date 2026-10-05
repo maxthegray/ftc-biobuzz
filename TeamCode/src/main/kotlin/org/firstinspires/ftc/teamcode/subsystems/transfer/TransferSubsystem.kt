@@ -105,25 +105,15 @@ class TransferSubsystem(
         motorPower = TransferConfig.reversePower
     }
 
-    private fun transferCommand(name: String, priority: Int, apply: () -> Unit): Command {
-        var running = false
-        return logged(
-            name,
-            Command.build()
-                .requiring(this)
-                .setPriority(priority)
-                .setStart {
-                    running = true
-                    apply()
-                }
-                .setExecute { if (running) apply() }
-                .setDone { false }
-                .setEnd {
-                    if (running) makeSafe()
-                    running = false
-                },
-        )
-    }
+    private fun transferCommand(name: String, priority: Int, apply: () -> Unit): Command = logged(
+        name,
+        Command.build()
+            .requiring(this)
+            .setPriority(priority)
+            .setExecute { apply() }
+            .setDone { false }
+            .setEnd { makeSafe() },
+    )
 
     private fun makeSafe() {
         motorPower = 0.0
