@@ -8,18 +8,16 @@ import java.util.concurrent.Executor
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
-import org.firstinspires.ftc.teamcode.RobotConfig
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
-import org.firstinspires.ftc.teamcode.core.runtime.ConfigStore
+import org.firstinspires.ftc.teamcode.core.logging.SettingsChangeLog
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
 import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
 import org.firstinspires.ftc.teamcode.vision.ball.BallCameraConfig
 
 /**
- * A reviewable text record of a vision tuning session: the live config values
- * exactly as ConfigStore would persist them, which of them differ from the
- * compiled defaults (with the constant edit that would adopt each one), and
- * the measurements that justify them.
+ * A reviewable text record of a vision tuning session: the live config values,
+ * which of them differ from the compiled values (with the edit that would
+ * adopt each one), and the measurements that justify them.
  *
  * Records land in `/sdcard/FIRST/lab-records/` and are meant to be pulled
  * (`make pull-lab-records`), annotated, and committed under `lab-records/`.
@@ -27,19 +25,14 @@ import org.firstinspires.ftc.teamcode.vision.ball.BallCameraConfig
 object VisionLabRecord {
 
     data class ConfigSection(
-        val section: String,
-        /** Field name → value, as registered in ConfigStore. */
+        /** The config object's name, e.g. `BallCameraConfig`. */
+        val name: String,
         val current: Map<String, String>,
-        val compiledDefaults: Map<String, Any>,
+        val compiledDefaults: Map<String, String>,
     )
 
-    fun sectionFromStore(section: String, compiledDefaults: Map<String, Any>): ConfigSection {
-        val prefix = "$section."
-        val current = ConfigStore.snapshot()
-            .filterKeys { it.startsWith(prefix) }
-            .mapKeys { it.key.removePrefix(prefix) }
-        return ConfigSection(section, current, compiledDefaults)
-    }
+    fun section(config: Any, compiledDefaults: Map<String, String>) =
+        ConfigSection(config.javaClass.simpleName, SettingsChangeLog.valuesOf(config), compiledDefaults)
 
     fun fileName(opModeName: String, wallClockMs: Long): String {
         val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date(wallClockMs))
@@ -50,7 +43,6 @@ object VisionLabRecord {
     fun build(
         opModeName: String,
         wallClockMs: Long,
-        configSchema: String,
         sections: List<ConfigSection>,
         measurements: List<Pair<String, String>>,
     ): String = buildString {
@@ -58,36 +50,32 @@ object VisionLabRecord {
         appendLine("# BIOBUZZ vision lab record")
         appendLine("# OpMode: $opModeName")
         appendLine("# Control Hub wall clock: $stamp (check it; the hub clock is often wrong)")
-        appendLine("# Config schema: $configSchema")
         appendLine("# Fill in before committing:")
         appendLine("#   who / where / lighting:")
         appendLine("#   what was verified (balls, distances, motion):")
-        appendLine("#   accept as compiled defaults? (yes/no, why):")
+        appendLine("#   accept into the code? (yes/no, why):")
         appendLine()
 
         val adoptions = ArrayList<String>()
         for (section in sections) {
-            appendLine("[config ${section.section}]  # key=value exactly as in tuning.properties")
+            appendLine("[config ${section.name}]")
             for ((field, value) in section.current) {
                 val default = section.compiledDefaults[field]
-                val tuned = default != null && ConfigStore.formatValue(default) != value
-                append("${section.section}.$field=$value")
-                if (tuned) {
-                    append("    # TUNED; compiled default ${readable(default, ConfigStore.formatValue(default))}")
-                    adoptions += "${section.section}: DEFAULT_${upperSnake(field)} = ${readable(default, value)}"
-                } else if (default == null) {
-                    append("    # no compiled default listed")
+                append("${section.name}.$field=$value")
+                if (default != null && default != value) {
+                    append("    # TUNED; compiled value $default")
+                    adoptions += "${section.name}.$field = $value"
                 }
                 appendLine()
             }
             appendLine()
         }
 
-        appendLine("[adopt as compiled defaults]")
+        appendLine("[adopt into the code]")
         if (adoptions.isEmpty()) {
-            appendLine("# nothing differs from the compiled defaults")
+            appendLine("# nothing differs from the compiled values")
         } else {
-            appendLine("# edit these private constants, then delete the matching keys from tuning.properties")
+            appendLine("# set these field initializers in the config objects")
             for (line in adoptions) appendLine(line)
         }
         appendLine()
@@ -95,16 +83,6 @@ object VisionLabRecord {
         appendLine("[measured]")
         for ((key, value) in measurements) appendLine("$key=$value")
     }
-
-    /** Values are persisted with full precision; show them in their shortest form. */
-    private fun readable(typeHint: Any?, raw: String): String = when (typeHint) {
-        is Double -> raw.toDoubleOrNull()?.toString() ?: raw
-        is Float -> raw.toFloatOrNull()?.toString() ?: raw
-        else -> raw
-    }
-
-    internal fun upperSnake(camel: String): String =
-        camel.replace(Regex("([a-z0-9])([A-Z])"), "$1_$2").uppercase(Locale.US)
 }
 
 data class LabRecordStatus(
@@ -165,8 +143,8 @@ class LabRecordWriter(
 internal class VisionLabRecorder(
     private val opModeName: String,
     private val writer: LabRecordWriter = LabRecordWriter(),
-    /** Further ConfigStore sections to record, with their compiled defaults. */
-    private val extraSections: List<Pair<String, Map<String, Any>>> = emptyList(),
+    /** Further config objects to record, with their compiled values. */
+    private val extraSections: List<Pair<Any, Map<String, String>>> = emptyList(),
 ) : SubsystemBase("VisionLabRecord") {
 
     private var reportedWritten = 0
@@ -177,11 +155,10 @@ internal class VisionLabRecorder(
         val contents = VisionLabRecord.build(
             opModeName = opModeName,
             wallClockMs = now,
-            configSchema = RobotConfig.CONFIG_SCHEMA,
             sections = listOf(
-                VisionLabRecord.sectionFromStore("ballVision", BallCameraConfig.compiledDefaults()),
-                VisionLabRecord.sectionFromStore("visionDiagnostics", VisionDiagnosticsConfig.compiledDefaults()),
-            ) + extraSections.map { (section, defaults) -> VisionLabRecord.sectionFromStore(section, defaults) },
+                VisionLabRecord.section(BallCameraConfig, BallCameraConfig.compiledDefaults),
+                VisionLabRecord.section(VisionDiagnosticsConfig, VisionDiagnosticsConfig.compiledDefaults),
+            ) + extraSections.map { (config, defaults) -> VisionLabRecord.section(config, defaults) },
             measurements = measurements,
         )
         writer.submit(VisionLabRecord.fileName(opModeName, now), contents)

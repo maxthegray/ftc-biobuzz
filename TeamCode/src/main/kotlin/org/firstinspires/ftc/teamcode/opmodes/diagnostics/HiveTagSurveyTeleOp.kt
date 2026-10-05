@@ -4,7 +4,6 @@ import com.pedropathing.ivy.commands.Commands.instant
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import java.util.Locale
 import java.util.TreeMap
-import org.firstinspires.ftc.teamcode.core.runtime.ConfigStore
 import org.firstinspires.ftc.teamcode.core.runtime.OpModeBase
 import org.firstinspires.ftc.teamcode.core.runtime.Preflight
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightSubsystem
@@ -49,13 +48,12 @@ class HiveTagSurveyTeleOp : OpModeBase() {
     override val endgameRumble: Boolean get() = false
 
     override fun configure() {
-        ConfigStore.register("hive", HiveConfig, HiveConfig::resetDefaults)
-        startup = VisionDiagnostics.registerConfigsAndLoad()
+        startup = VisionDiagnostics.Startup.fromConfig()
         robot.recordEvent(SettingsChangeLog.describe("hive", HiveConfig))
         limelight = robot.register(VisionDiagnostics.limelight(startup))
         hive = robot.register(HiveTracker(limelight, { 0.0 }, eventSink = robot::recordEvent, clock = robot.clock))
         recorder = robot.register(
-            VisionLabRecorder("Hive Tag Survey", extraSections = listOf("hive" to HiveConfig.compiledDefaults())),
+            VisionLabRecorder("Hive Tag Survey", extraSections = listOf(HiveConfig to HiveConfig.compiledDefaults)),
         )
         driver.button(Button.A).onTrue(instant { recorder.save(survey.measurements(hive, robot.clock.nanos())) })
         driver.button(Button.B).onTrue(

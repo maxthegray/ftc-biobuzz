@@ -3,21 +3,22 @@ package org.firstinspires.ftc.teamcode.vision.hive
 import kotlin.math.PI
 import org.firstinspires.ftc.teamcode.core.subsystems.vision.LimelightPose
 import org.firstinspires.ftc.teamcode.vision.apriltags.BiobuzzAprilTags
+import org.firstinspires.ftc.teamcode.core.sim.ConfigSnapshot
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 
 class GoalGeometryTest {
+    private val savedConfig = ConfigSnapshot(HiveConfig)
 
     @Before
     fun setUp() {
-        HiveConfig.resetDefaults()
         HiveConfig.cameraHeightIn = 10.0
     }
 
     @After
-    fun tearDown() = HiveConfig.resetDefaults()
+    fun tearDown() = savedConfig.restore()
 
     @Test
     fun levelCameraMapsLensAxesOntoRobotAxes() {

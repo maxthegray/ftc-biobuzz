@@ -55,7 +55,6 @@ Enabled Driver Station op-modes:
 | Limelight AprilTag Test | AprilTag diagnostics |
 | Hive Tag Survey | HIVE tag geometry, goal and state check on a real CELL |
 
-`opmodes/archived/` holds the disabled Panels Motor Spin bring-up tool.
 `opmodes/skeletons/` holds the disabled Example Auto and Localization Test.
 Remove `@Disabled` from a specific op-mode and rebuild when you need it.
 
@@ -109,7 +108,7 @@ TeamCode/src/main/
     │   └── workarounds/      fixes for library bugs; safe to ignore
     ├── subsystems/           season mechanisms: intake, transfer, shooter, turret
     ├── vision/               season vision: tag catalog, HIVE goal tracking, ball camera
-    └── opmodes/              teleop, diagnostics, skeletons, archived
+    └── opmodes/              teleop, diagnostics, skeletons
 ```
 
 `core/` is the framework: code that would carry into next season unchanged.
@@ -132,8 +131,7 @@ replaces it in one commit:
 
 1. Re-run AutoTune and replace the values in `pedro/Constants.java`.
 2. Fix the hardware names in `RobotConfig.kt`.
-3. Bump `RobotConfig.CONFIG_SCHEMA`, so the sensorbot's tuning file on the
-   Control Hub is ignored instead of silently loading onto a heavier robot.
+3. Re-check `DriveConfig` on the heavier robot.
 
 Tag `sensorbot-final` before the swap.
 

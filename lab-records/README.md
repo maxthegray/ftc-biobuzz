@@ -9,5 +9,5 @@ verified, whether to adopt). Commit the Limelight pipeline file downloaded from
 its web interface alongside the matching record.
 
 A record is evidence, not configuration: nothing reads these files. Adopting
-values means editing the `DEFAULT_*` constants named under
-`[adopt as compiled defaults]` in a reviewed commit.
+values means setting the config fields listed under `[adopt into the code]`
+in a reviewed commit.

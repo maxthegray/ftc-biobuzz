@@ -4,12 +4,14 @@ import com.pedropathing.ivy.Scheduler
 import com.qualcomm.robotcore.hardware.HardwareMap
 import org.firstinspires.ftc.teamcode.core.sim.FakeClock
 import org.firstinspires.ftc.teamcode.core.sim.SimMotorIO
+import org.firstinspires.ftc.teamcode.core.sim.ConfigSnapshot
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 
 class IntakeSubsystemTest {
+    private val savedConfig = ConfigSnapshot(IntakeConfig)
     private val clock = FakeClock()
     private val motors = listOf(SimMotorIO(clock), SimMotorIO(clock))
     private val intake = IntakeSubsystem { motors }
@@ -17,14 +19,13 @@ class IntakeSubsystemTest {
     @Before
     fun setUp() {
         Scheduler.reset()
-        IntakeConfig.resetDefaults()
         intake.init(HardwareMap(null, null))
     }
 
     @After
     fun tearDown() {
         Scheduler.reset()
-        IntakeConfig.resetDefaults()
+        savedConfig.restore()
     }
 
     private fun tick() {

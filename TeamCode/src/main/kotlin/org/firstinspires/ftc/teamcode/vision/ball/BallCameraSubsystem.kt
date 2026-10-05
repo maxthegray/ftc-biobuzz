@@ -184,7 +184,6 @@ class BallCameraSubsystem(
     override fun periodic() {
         val active = portal ?: return
         val blobProcessor = processor ?: return
-        if (BallCameraConfig.resetToDefaults) BallCameraConfig.resetDefaults()
         logTuningChanges()
         applyFilters(blobProcessor)
         if (appliedPreview != BallCameraConfig.previewEnabled) {

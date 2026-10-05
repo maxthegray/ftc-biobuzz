@@ -31,8 +31,6 @@ import org.firstinspires.ftc.teamcode.core.runtime.Clock
  * Every command closes the blocker and stops the motors when it ends.
  *
  * Collecting while staging is `parallel(intake.collect(), transfer.stage())`.
- * Whoever registers it also registers the settings:
- * `ConfigStore.register("transfer", TransferConfig, TransferConfig::resetDefaults)`.
  */
 class TransferSubsystem(
     private val clock: Clock = Clock.SYSTEM,
@@ -56,7 +54,7 @@ class TransferSubsystem(
     val blockerSettled: Boolean
         get() {
             val openedAtNs = blockerOpenedAtNs ?: return false
-            return blockerOpen && (clock.nanos() - openedAtNs) / 1e6 >= TransferConfig.safeBlockerTravelMs
+            return blockerOpen && (clock.nanos() - openedAtNs) / 1e6 >= TransferConfig.blockerTravelMs
         }
 
     /** A ball waiting against the blocker; null until a sensor is fitted. */
@@ -74,7 +72,7 @@ class TransferSubsystem(
         val hw = hardware ?: return
         hw.motors.forEach { it.setPower(motorPower) }
         hw.blocker.setPosition(
-            if (blockerOpen) TransferConfig.safeBlockerOpenPosition else TransferConfig.safeBlockerClosedPosition,
+            if (blockerOpen) TransferConfig.blockerOpenPosition else TransferConfig.blockerClosedPosition,
         )
         if (blockerOpen && blockerOpenedAtNs == null) {
             blockerOpenedAtNs = clock.nanos()
@@ -89,7 +87,7 @@ class TransferSubsystem(
     /** Pushes balls up against the closed blocker until interrupted. */
     fun stage(priority: Int = CommandPriorities.DRIVER_ACTION): Command = transferCommand("Transfer stage", priority) {
         blockerOpen = false
-        motorPower = TransferConfig.safeStagePower
+        motorPower = TransferConfig.stagePower
     }
 
     /** Opens the blocker and, once it is clear, feeds balls into the turret until interrupted. */
@@ -98,13 +96,13 @@ class TransferSubsystem(
             blockerOpen = true
             blockerOpenedAtNs = null
         }
-        motorPower = if (blockerSettled) TransferConfig.safeFeedPower else 0.0
+        motorPower = if (blockerSettled) TransferConfig.feedPower else 0.0
     }
 
     /** Runs the middle motors backwards with the blocker closed until interrupted. */
     fun reverse(priority: Int = CommandPriorities.DRIVER_ACTION): Command = transferCommand("Transfer reverse", priority) {
         blockerOpen = false
-        motorPower = TransferConfig.safeReversePower
+        motorPower = TransferConfig.reversePower
     }
 
     private fun transferCommand(name: String, priority: Int, apply: () -> Unit): Command {
@@ -165,51 +163,15 @@ class TransferSubsystem(
     }
 }
 
-/**
- * Middle-motor powers and blocker servo settings, persisted under `transfer`.
- * Placeholders until the transfer is built: tune in Panels.
- */
+/** Transfer motor powers and blocker servo settings, live-editable in Panels. Placeholders until it's built. */
 @Configurable
 object TransferConfig {
+    @JvmField var stagePower = 0.4
+    @JvmField var feedPower = 1.0
+    @JvmField var reversePower = -0.6
+    @JvmField var blockerClosedPosition = 0.0
+    @JvmField var blockerOpenPosition = 0.5
 
-    private const val DEFAULT_STAGE_POWER = 0.4
-    private const val DEFAULT_FEED_POWER = 1.0
-    private const val DEFAULT_REVERSE_POWER = -0.6
-    private const val DEFAULT_BLOCKER_CLOSED_POSITION = 0.0
-    private const val DEFAULT_BLOCKER_OPEN_POSITION = 0.5
-    private const val DEFAULT_BLOCKER_TRAVEL_MS = 150.0
-
-    /** Pushes balls up against the closed blocker. */
-    @JvmField var stagePower: Double = DEFAULT_STAGE_POWER
-
-    /** Pushes balls past the open blocker into the turret. */
-    @JvmField var feedPower: Double = DEFAULT_FEED_POWER
-
-    @JvmField var reversePower: Double = DEFAULT_REVERSE_POWER
-
-    @JvmField var blockerClosedPosition: Double = DEFAULT_BLOCKER_CLOSED_POSITION
-    @JvmField var blockerOpenPosition: Double = DEFAULT_BLOCKER_OPEN_POSITION
-
-    /** Time for the blocker to swing open; a feed runs no motors before it has passed. */
-    @JvmField var blockerTravelMs: Double = DEFAULT_BLOCKER_TRAVEL_MS
-
-    fun resetDefaults() {
-        stagePower = DEFAULT_STAGE_POWER
-        feedPower = DEFAULT_FEED_POWER
-        reversePower = DEFAULT_REVERSE_POWER
-        blockerClosedPosition = DEFAULT_BLOCKER_CLOSED_POSITION
-        blockerOpenPosition = DEFAULT_BLOCKER_OPEN_POSITION
-        blockerTravelMs = DEFAULT_BLOCKER_TRAVEL_MS
-    }
-
-    internal val safeStagePower: Double get() = power(stagePower, DEFAULT_STAGE_POWER)
-    internal val safeFeedPower: Double get() = power(feedPower, DEFAULT_FEED_POWER)
-    internal val safeReversePower: Double get() = power(reversePower, DEFAULT_REVERSE_POWER)
-    internal val safeBlockerClosedPosition: Double get() = position(blockerClosedPosition, DEFAULT_BLOCKER_CLOSED_POSITION)
-    internal val safeBlockerOpenPosition: Double get() = position(blockerOpenPosition, DEFAULT_BLOCKER_OPEN_POSITION)
-    internal val safeBlockerTravelMs: Double
-        get() = if (blockerTravelMs.isFinite() && blockerTravelMs >= 0.0) blockerTravelMs else DEFAULT_BLOCKER_TRAVEL_MS
-
-    private fun power(value: Double, default: Double) = if (value.isFinite()) value.coerceIn(-1.0, 1.0) else default
-    private fun position(value: Double, default: Double) = if (value.isFinite()) value.coerceIn(0.0, 1.0) else default
+    /** How long the blocker takes to swing clear after it is told to open. */
+    @JvmField var blockerTravelMs = 150.0
 }

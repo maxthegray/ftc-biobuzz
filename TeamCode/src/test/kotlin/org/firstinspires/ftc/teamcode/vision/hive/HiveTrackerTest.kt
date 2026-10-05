@@ -10,6 +10,7 @@ import org.firstinspires.ftc.teamcode.vision.hive.HiveTestFrames.cluster
 import org.firstinspires.ftc.teamcode.vision.hive.HiveTestFrames.fiducial
 import org.firstinspires.ftc.teamcode.vision.hive.HiveTestFrames.lowered
 import org.firstinspires.ftc.teamcode.vision.hive.HiveTestFrames.raised
+import org.firstinspires.ftc.teamcode.core.sim.ConfigSnapshot
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -21,15 +22,15 @@ import org.junit.Before
 import org.junit.Test
 
 class HiveTrackerTest {
+    private val savedConfig = ConfigSnapshot(HiveConfig)
 
     @Before
     fun setUp() {
-        HiveConfig.resetDefaults()
         HiveConfig.tipConfirmFrames = 2
     }
 
     @After
-    fun tearDown() = HiveConfig.resetDefaults()
+    fun tearDown() = savedConfig.restore()
 
     @Test
     fun fourTagsOfTheRaisedCellFuseIntoItsOpeningCentre() {

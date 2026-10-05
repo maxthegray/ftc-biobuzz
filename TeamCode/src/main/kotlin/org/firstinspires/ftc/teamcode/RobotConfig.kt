@@ -14,21 +14,6 @@ package org.firstinspires.ftc.teamcode
  */
 object RobotConfig {
 
-    /**
-     * Identifies which robot the on-hub tuning file belongs to. ConfigStore
-     * ignores `/sdcard/FIRST/config/tuning.properties` when its recorded
-     * schema differs from this string, so values tuned for a different robot
-     * cannot win over this robot's compiled defaults.
-     *
-     * Bump it whenever the tuned values stop applying:
-     *  - a new season (last season's tuning is meaningless), and
-     *  - **the sensorbot → competition-robot swap**, since the Control Hub
-     *    usually moves between chassis and carries its tuning file along.
-     *    A light sensorbot's DriveConfig on a heavy competition robot is
-     *    silently wrong, not an error.
-     */
-    const val CONFIG_SCHEMA = "biobuzz-sensorbot-v1"
-
     object Drive {
         const val FRONT_LEFT_MOTOR = "frontLeftMotor"
         const val FRONT_RIGHT_MOTOR = "frontRightMotor"

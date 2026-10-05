@@ -18,9 +18,6 @@ import org.firstinspires.ftc.teamcode.core.runtime.SubsystemBase
  * Intake motors ([RobotConfig.Intake.MOTORS]), all driven at one power;
  * positive collects. Collecting while the transfer stages balls is
  * `parallel(intake.collect(), transfer.stage())`, which requires both.
- *
- * Whoever registers it also registers the settings:
- * `ConfigStore.register("intake", IntakeConfig, IntakeConfig::resetDefaults)`.
  */
 class IntakeSubsystem(
     private val openMotors: (HardwareMap) -> List<MotorIO> = { realMotors(it) },
@@ -41,11 +38,11 @@ class IntakeSubsystem(
 
     /** Runs the intake until interrupted. */
     fun collect(priority: Int = CommandPriorities.DRIVER_ACTION): Command =
-        spin("Intake collect", priority) { IntakeConfig.safeCollectPower }
+        spin("Intake collect", priority) { IntakeConfig.collectPower }
 
     /** Runs the intake backwards until interrupted, to spit a ball out or clear a jam. */
     fun eject(priority: Int = CommandPriorities.DRIVER_ACTION): Command =
-        spin("Intake eject", priority) { IntakeConfig.safeEjectPower }
+        spin("Intake eject", priority) { IntakeConfig.ejectPower }
 
     private fun spin(name: String, priority: Int, target: () -> Double): Command {
         var running = false
@@ -95,26 +92,9 @@ class IntakeSubsystem(
     }
 }
 
-/**
- * Intake powers, persisted under `intake`. Placeholders until the intake is
- * built: tune in Panels.
- */
+/** Intake powers, live-editable in Panels. Placeholders until the intake is built. */
 @Configurable
 object IntakeConfig {
-
-    private const val DEFAULT_COLLECT_POWER = 1.0
-    private const val DEFAULT_EJECT_POWER = -0.6
-
-    @JvmField var collectPower: Double = DEFAULT_COLLECT_POWER
-    @JvmField var ejectPower: Double = DEFAULT_EJECT_POWER
-
-    fun resetDefaults() {
-        collectPower = DEFAULT_COLLECT_POWER
-        ejectPower = DEFAULT_EJECT_POWER
-    }
-
-    internal val safeCollectPower: Double get() = power(collectPower, DEFAULT_COLLECT_POWER)
-    internal val safeEjectPower: Double get() = power(ejectPower, DEFAULT_EJECT_POWER)
-
-    private fun power(value: Double, default: Double) = if (value.isFinite()) value.coerceIn(-1.0, 1.0) else default
+    @JvmField var collectPower = 1.0
+    @JvmField var ejectPower = -0.6
 }

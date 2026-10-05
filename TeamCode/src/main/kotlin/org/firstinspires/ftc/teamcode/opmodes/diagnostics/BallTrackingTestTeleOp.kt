@@ -34,7 +34,7 @@ class BallTrackingTestTeleOp : OpModeBase() {
     override val endgameRumble: Boolean get() = false
 
     override fun configure() {
-        startup = VisionDiagnostics.registerConfigsAndLoad()
+        startup = VisionDiagnostics.Startup.fromConfig()
         robot.recordEvent(SettingsChangeLog.describe("visionDiagnostics", VisionDiagnosticsConfig))
         ballCamera = robot.register(BallCameraSubsystem(eventSink = robot::recordEvent))
         if (startup.runBothCameras) {

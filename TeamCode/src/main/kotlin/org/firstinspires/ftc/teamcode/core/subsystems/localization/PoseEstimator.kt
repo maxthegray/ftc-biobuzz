@@ -74,9 +74,9 @@ class PoseEstimator(
         measured: Pose,
         timestampNanos: Long,
         maxAgeNanos: Long = 500_000_000,
-        blend: Double = LocalizerConfig.safeCorrectionBlend,
-        maxJumpInches: Double = LocalizerConfig.safeMaxCorrectionInches,
-        maxJumpRadians: Double = LocalizerConfig.safeMaxCorrectionRadians,
+        blend: Double = LocalizerConfig.correctionBlend,
+        maxJumpInches: Double = LocalizerConfig.maxCorrectionInches,
+        maxJumpRadians: Double = LocalizerConfig.maxCorrectionRadians,
         translationWeight: Double = 1.0,
         headingWeight: Double = 1.0,
     ): CorrectionResult {
@@ -127,7 +127,7 @@ class PoseEstimator(
             return CorrectionResult.REJECTED_JUMP
         }
 
-        val followScale = if (isFollowing()) LocalizerConfig.safeFollowingBlendScale else 1.0
+        val followScale = if (isFollowing()) LocalizerConfig.followingBlendScale else 1.0
         val b = blend.coerceIn(0.0, 1.0) * followScale
         val bTranslation = b * wTranslation
         val bHeading = b * wHeading

@@ -3,7 +3,7 @@ package org.firstinspires.ftc.teamcode.opmodes.diagnostics
 import org.firstinspires.ftc.teamcode.vision.ball.BallCameraConfig
 import java.io.File
 import java.util.concurrent.Executor
-import org.firstinspires.ftc.teamcode.core.runtime.ConfigStore
+import org.firstinspires.ftc.teamcode.core.sim.ConfigSnapshot
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -15,31 +15,28 @@ import org.junit.Test
 class VisionLabRecordTest {
 
     private lateinit var tempDir: File
-    private var originalFile: File? = null
+    private val savedBall = ConfigSnapshot(BallCameraConfig)
+    private val savedDiagnostics = ConfigSnapshot(VisionDiagnosticsConfig)
 
     @Before
     fun setUp() {
         tempDir = createTempDirectory()
-        originalFile = ConfigStore.file
-        ConfigStore.reset()
-        ConfigStore.file = File(tempDir, "tuning.properties")
-        BallCameraConfig.resetDefaults()
-        VisionDiagnosticsConfig.resetDefaults()
     }
 
     @After
     fun tearDown() {
-        ConfigStore.reset()
-        ConfigStore.file = originalFile
-        BallCameraConfig.resetDefaults()
-        VisionDiagnosticsConfig.resetDefaults()
+        savedBall.restore()
+        savedDiagnostics.restore()
         tempDir.deleteRecursively()
     }
 
+    private fun sections() = listOf(
+        VisionLabRecord.section(BallCameraConfig, BallCameraConfig.compiledDefaults),
+        VisionLabRecord.section(VisionDiagnosticsConfig, VisionDiagnosticsConfig.compiledDefaults),
+    )
+
     @Test
-    fun recordUsesTuningFileKeysAndFlagsOnlyTunedValuesWithTheirAdoptionEdit() {
-        ConfigStore.register("ballVision", BallCameraConfig, BallCameraConfig::resetDefaults)
-        ConfigStore.register("visionDiagnostics", VisionDiagnosticsConfig, VisionDiagnosticsConfig::resetDefaults)
+    fun recordFlagsOnlyTunedValuesWithTheirAdoptionEdit() {
         BallCameraConfig.channel1Min = 140
         BallCameraConfig.minCircularity = 0.72
         VisionDiagnosticsConfig.runBothCameras = true
@@ -47,38 +44,24 @@ class VisionLabRecordTest {
         val text = VisionLabRecord.build(
             opModeName = "Ball Tracking Test",
             wallClockMs = 0L,
-            configSchema = "schema-x",
-            sections = listOf(
-                VisionLabRecord.sectionFromStore("ballVision", BallCameraConfig.compiledDefaults()),
-                VisionLabRecord.sectionFromStore("visionDiagnostics", VisionDiagnosticsConfig.compiledDefaults()),
-            ),
+            sections = sections(),
             measurements = listOf("camera.processedFps" to "87.5"),
         )
         val lines = text.lines()
 
-        assertTrue(lines.any { it.startsWith("ballVision.channel1Min=140") && "TUNED; compiled default 130" in it })
-        assertTrue(lines.any { it.startsWith("ballVision.minCircularity=") && "compiled default 1.0" in it })
-        assertTrue(lines.any { it.startsWith("ballVision.channel1Max=170") && "TUNED" !in it })
-        assertTrue("ballVision: DEFAULT_CHANNEL1_MIN = 140" in lines)
-        assertTrue("ballVision: DEFAULT_MIN_CIRCULARITY = 0.72" in lines)
-        assertTrue("visionDiagnostics: DEFAULT_RUN_BOTH_CAMERAS = true" in lines)
+        assertTrue(lines.any { it.startsWith("BallCameraConfig.channel1Min=140") && "TUNED; compiled value 130" in it })
+        assertTrue(lines.any { it.startsWith("BallCameraConfig.minCircularity=0.72") && "compiled value 1.0" in it })
+        assertTrue(lines.any { it.startsWith("BallCameraConfig.channel1Max=170") && "TUNED" !in it })
+        assertTrue("BallCameraConfig.channel1Min = 140" in lines)
+        assertTrue("BallCameraConfig.minCircularity = 0.72" in lines)
+        assertTrue("VisionDiagnosticsConfig.runBothCameras = true" in lines)
         assertTrue("camera.processedFps=87.5" in lines)
-        assertTrue(text.contains("Config schema: schema-x"))
-
-        // Keys in the record are exactly what ConfigStore persists, so a tuned file can be diffed against it.
-        val persisted = ConfigStore.snapshot()
-        assertEquals(persisted["ballVision.channel1Min"], "140")
     }
 
     @Test
     fun untunedRecordSaysNothingToAdopt() {
-        ConfigStore.register("ballVision", BallCameraConfig, BallCameraConfig::resetDefaults)
-        val text = VisionLabRecord.build(
-            "Limelight AprilTag Test", 0L, "s",
-            listOf(VisionLabRecord.sectionFromStore("ballVision", BallCameraConfig.compiledDefaults())),
-            emptyList(),
-        )
-        assertTrue(text.contains("# nothing differs from the compiled defaults"))
+        val text = VisionLabRecord.build("Limelight AprilTag Test", 0L, sections(), emptyList())
+        assertTrue(text.contains("# nothing differs from the compiled values"))
         assertFalse(text.contains("TUNED"))
     }
 

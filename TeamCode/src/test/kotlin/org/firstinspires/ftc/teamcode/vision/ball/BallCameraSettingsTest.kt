@@ -1,19 +1,17 @@
 package org.firstinspires.ftc.teamcode.vision.ball
 
 import org.firstinspires.ftc.vision.opencv.ColorBlobLocatorProcessor.BlobCriteria
+import org.firstinspires.ftc.teamcode.core.sim.ConfigSnapshot
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
-import org.junit.Before
 import org.junit.Test
 
 class BallCameraSettingsTest {
-
-    @Before
-    fun setUp() = BallCameraConfig.resetDefaults()
+    private val savedConfig = ConfigSnapshot(BallCameraConfig)
 
     @After
-    fun tearDown() = BallCameraConfig.resetDefaults()
+    fun tearDown() = savedConfig.restore()
 
     @Test
     fun defaultsBuildTheTunedYCrCbRangeOverTheWholeFrame() {

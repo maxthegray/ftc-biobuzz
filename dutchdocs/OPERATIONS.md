@@ -199,7 +199,7 @@ goal, not a promise that it can take a score.
 
 | Live (next robot loop) | Stop and re-init the OpMode |
 |---|---|
-| Area/circularity/aspect/density filters, max observation age, preview, `resetToDefaults` | Color space and channel thresholds, ROI, blur/erode/dilate, contour mode, exposure, everything in `visionDiagnostics` |
+| Area/circularity/aspect/density filters, max observation age, preview | Color space and channel thresholds, ROI, blur/erode/dilate, contour mode, exposure, everything in `visionDiagnostics` |
 
 The SDK builds the color range, region and morphology into the processor, so
 those apply at the next init; no redeploy is needed. A pending change shows a
@@ -209,7 +209,7 @@ those apply at the next init; no redeploy is needed. A pending change shows a
 values as an event at init. The ball camera writes every `ballVision` value
 at init, then an event naming only the fields that changed (at most one per
 second; slider drags are merged). An edit in the last second before stop can
-be missing from the log; the tuning file and lab record still have it.
+be missing from the log; a lab record still has it.
 
 **Camera mount.** The `ballVision.mount*` fields record where the lens sits:
 `mountHeightIn` above the floor, `mountPitchDownDeg` below horizontal,
@@ -218,12 +218,8 @@ its front, and `mountMeasured` once the numbers are real. Nothing on the robot
 uses them; they are logged every tick so MaxScope can place detections on the
 field. Re-measure after moving the camera.
 
-**Saved vs compiled defaults.** Each OpMode init resets `ballVision` and
-`visionDiagnostics` to their compiled defaults, then applies the keys saved in
-`/sdcard/FIRST/config/tuning.properties`. Saved keys win; missing or invalid
-keys fall back to defaults. Set `ballVision.resetToDefaults` true to reset the
-section live (it clears itself and saves), or delete the keys and restart.
-STOP saves dirty settings after hardware shutdown, including STOP during INIT.
+**Panels edits are not saved.** They last until the app restarts or a hot
+reload. Save a lab record before either; it lists every value you changed.
 
 **Frame age.** The SDK processor publishes no capture timestamp, so *frame
 age* is robot-clock time since the latest new frame reached the loop.
@@ -249,21 +245,16 @@ after each step that settles something.
    small and the target never lingers after the ball leaves. With several
    balls, the target is the largest. Cover the lens: the target goes to none.
 5. **Both cameras.** Set `VisionDiagnosticsConfig.runBothCameras` true in
-   code and hot reload (it is not in Panels); restart **each** OpMode. Compare
+   Panels and restart **each** OpMode. Compare
    *Timing Comparison*, library fps, Limelight new-frame rate and ages against
    the single-camera runs, then `make debug` for loop percentiles.
-6. **Save and restart.** Stop, power-cycle, reopen Ball Tracking Test: Panels
-   and telemetry show the tuned values;
-   `adb shell grep ballVision /sdcard/FIRST/config/tuning.properties`
-   matches the last lab record's `[config]` lines.
-7. **Limelight tags.** Limelight AprilTag Test: hold each tag still; confirm ID
+6. **Limelight tags.** Limelight AprilTag Test: hold each tag still; confirm ID
    and meaning against its sticker, the signs of tx/ty, and |d| against a tape
    measure; record whether the cluster's four tags appear together.
 
 Then `make pull-lab-records`, fill in the header, and commit the record.
-Adopt tuned values by editing the `DEFAULT_*` constants listed under
-**[adopt as compiled defaults]** and deleting those keys from the hub's
-tuning file.
+Adopt tuned values by setting the fields listed under
+**[adopt into the code]** in their config objects.
 
 ### Hive Tag Survey (real CELL and field)
 

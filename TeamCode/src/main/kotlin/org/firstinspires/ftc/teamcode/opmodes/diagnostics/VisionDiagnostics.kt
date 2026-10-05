@@ -5,7 +5,7 @@ import com.qualcomm.hardware.limelightvision.Limelight3A
 import java.util.Locale
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName
 import org.firstinspires.ftc.teamcode.core.logging.TelemetryBag
-import org.firstinspires.ftc.teamcode.core.runtime.ConfigStore
+import org.firstinspires.ftc.teamcode.core.logging.SettingsChangeLog
 import org.firstinspires.ftc.teamcode.core.runtime.LoopPhase
 import org.firstinspires.ftc.teamcode.core.runtime.Preflight
 import org.firstinspires.ftc.teamcode.core.runtime.Robot
@@ -31,23 +31,11 @@ internal object VisionDiagnostics {
         companion object {
             fun fromConfig() = Startup(
                 runBothCameras = VisionDiagnosticsConfig.runBothCameras,
-                tagPipelineIndex = VisionDiagnosticsConfig.safeTagPipelineIndex,
-                pollRateHz = VisionDiagnosticsConfig.safePollRateHz,
-                maxResultAgeMs = VisionDiagnosticsConfig.safeMaxResultAgeMs,
+                tagPipelineIndex = VisionDiagnosticsConfig.limelightTagPipelineIndex,
+                pollRateHz = VisionDiagnosticsConfig.limelightPollRateHz,
+                maxResultAgeMs = VisionDiagnosticsConfig.limelightMaxResultAgeMs.toLong(),
             )
         }
-    }
-
-    /**
-     * Registers both vision config sections and loads them now, because
-     * `configure()` decides which cameras to open from them; OpModeBase's own
-     * load runs only after `configure()` returns.
-     */
-    fun registerConfigsAndLoad(): Startup {
-        ConfigStore.register("visionDiagnostics", VisionDiagnosticsConfig, VisionDiagnosticsConfig::resetDefaults)
-        ConfigStore.register("ballVision", BallCameraConfig, BallCameraConfig::resetDefaults)
-        ConfigStore.loadFromDisk()
-        return Startup.fromConfig()
     }
 
     fun limelight(startup: Startup) = LimelightSubsystem(
@@ -254,54 +242,24 @@ internal class LoopTimingStats {
 }
 
 /**
- * Settings shared by both vision diagnostics, persisted under
- * `visionDiagnostics`. Every field is **restart**: it decides what hardware the
- * OpMode opens.
- *
- * Deliberately not `@Configurable`: nothing here is tuned live, so it stays out
- * of Panels. Change a default here, or its `visionDiagnostics.*` key in
- * `tuning.properties`.
+ * Settings shared by the vision diagnostics. Every field is **restart**: it
+ * decides what hardware the OpMode opens, so edit it in Panels and re-init.
  */
+@Configurable
 object VisionDiagnosticsConfig {
-
-    private const val DEFAULT_RUN_BOTH_CAMERAS = false
-    private const val DEFAULT_LIMELIGHT_TAG_PIPELINE_INDEX = 0
-    private const val DEFAULT_LIMELIGHT_POLL_RATE_HZ = 100
-    private const val DEFAULT_LIMELIGHT_MAX_RESULT_AGE_MS = 100
-
     /** Open the Limelight and the USB camera together to compare timing under combined load. */
-    @JvmField var runBothCameras: Boolean = DEFAULT_RUN_BOTH_CAMERAS
+    @JvmField var runBothCameras = false
 
     /** Limelight pipeline slot configured for AprilTags in the web interface. */
-    @JvmField var limelightTagPipelineIndex: Int = DEFAULT_LIMELIGHT_TAG_PIPELINE_INDEX
+    @JvmField var limelightTagPipelineIndex = 0
 
-    @JvmField var limelightPollRateHz: Int = DEFAULT_LIMELIGHT_POLL_RATE_HZ
+    @JvmField var limelightPollRateHz = 100
 
     /** Frames older than this since their first receipt are stale, even if duplicate polls keep arriving. */
-    @JvmField var limelightMaxResultAgeMs: Int = DEFAULT_LIMELIGHT_MAX_RESULT_AGE_MS
+    @JvmField var limelightMaxResultAgeMs = 100
 
-    fun resetDefaults() {
-        runBothCameras = DEFAULT_RUN_BOTH_CAMERAS
-        limelightTagPipelineIndex = DEFAULT_LIMELIGHT_TAG_PIPELINE_INDEX
-        limelightPollRateHz = DEFAULT_LIMELIGHT_POLL_RATE_HZ
-        limelightMaxResultAgeMs = DEFAULT_LIMELIGHT_MAX_RESULT_AGE_MS
-    }
-
-    fun compiledDefaults(): Map<String, Any> = linkedMapOf(
-        "runBothCameras" to DEFAULT_RUN_BOTH_CAMERAS,
-        "limelightTagPipelineIndex" to DEFAULT_LIMELIGHT_TAG_PIPELINE_INDEX,
-        "limelightPollRateHz" to DEFAULT_LIMELIGHT_POLL_RATE_HZ,
-        "limelightMaxResultAgeMs" to DEFAULT_LIMELIGHT_MAX_RESULT_AGE_MS,
-    )
-
-    internal val safeTagPipelineIndex: Int
-        get() = if (limelightTagPipelineIndex in 0..9) limelightTagPipelineIndex else DEFAULT_LIMELIGHT_TAG_PIPELINE_INDEX
-
-    internal val safePollRateHz: Int
-        get() = if (limelightPollRateHz in 1..250) limelightPollRateHz else DEFAULT_LIMELIGHT_POLL_RATE_HZ
-
-    internal val safeMaxResultAgeMs: Long
-        get() = (if (limelightMaxResultAgeMs > 0) limelightMaxResultAgeMs else DEFAULT_LIMELIGHT_MAX_RESULT_AGE_MS).toLong()
+    /** Values as compiled, captured before anything can edit them; lab records flag what differs. */
+    val compiledDefaults: Map<String, String> = SettingsChangeLog.valuesOf(this)
 }
 
 /**

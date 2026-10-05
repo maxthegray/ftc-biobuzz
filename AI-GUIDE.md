@@ -30,7 +30,7 @@ localization, logging, the Limelight adapter); if not, it goes outside.
 The code currently runs on a **sensorbot**: a temporary chassis to develop
 against while the competition robot is built. The competition robot replaces
 it in place — re-run AutoTune into `pedro/Constants.java`, update
-`RobotConfig`, bump `RobotConfig.CONFIG_SCHEMA`. There is no sensorbot branch
+`RobotConfig`, re-check `DriveConfig`. There is no sensorbot branch
 and no robot profile switch; the last sensorbot commit gets tagged
 `sensorbot-final`.
 
@@ -272,31 +272,21 @@ drive.pose / drive.velocity / drive.atPose(target) / drive.toggleFieldCentric()
 9. **Shutdown.** `Robot.stop()` stops every subsystem first, then runs the
    crash-report callback, clears Ivy without end handlers (so cleanup cannot
    re-energize hardware), closes the recorder (the last logged pose is the
-   last real one), and saves dirty config. Nothing else carries over. `stop()` must zero actuators and
+   last real one). Nothing carries over. `stop()` must zero actuators and
    avoid storage I/O.
 
-## Config persistence (ConfigStore) + Sloth hot reload + Panels
+## Config objects + Sloth hot reload + Panels
 
 Use the Sloth-compatible `com.bylazar.sloth:fullpanels` artifact; plain
 `com.bylazar:fullpanels` does not track Sloth's replacement classes.
 
-Panels writes `@Configurable` statics, which die with the process and are
-re-initialised by Sloth reloads. `ConfigStore` (`core/runtime/`) persists
-registered objects to `/sdcard/FIRST/config/tuning.properties` (~1 Hz when
-dirty, atomically) and reloads them at every op-mode init.
-
-`OpModeBase` registers `DriveConfig` and `LocalizerConfig`. Season code
-registers its own in `configure()`:
-
-```kotlin
-ConfigStore.register("lift", LiftConfig, LiftConfig::resetDefaults)
-```
-
-Only public `@JvmField` mutable primitive/String fields persist, keyed
-`<section>.<field>`. Each config supplies `resetDefaults()` from compiled
-constants; never capture live values. Every load resets before applying
-overrides. Bump `RobotConfig.CONFIG_SCHEMA` when tuned values stop applying.
-`DriveConfig.brakeOnTeleop` is copied into Pedro's `manualBrakeMode` when the
+Tunables are `@Configurable` objects with plain `@JvmField var`s initialised
+in code (`@JvmField var targetRpm = 3200.0`). Panels edits them live; nothing
+is persisted, so an app restart or Sloth reload restores the code's values and
+the code is the only source of tuning. No `DEFAULT_*` constants, reset
+functions or clamping getters. Vision configs end with
+`val compiledDefaults = SettingsChangeLog.valuesOf(this)` so lab records can
+flag tuned values. `DriveConfig.brakeOnTeleop` is copied into Pedro's `manualBrakeMode` when the
 follower is created (next init).
 
 There are no `@Pinned` classes. Don't pin config objects. Ivy's
@@ -461,8 +451,7 @@ overrides `initialAlliance` only. Start delay on dpad in init, as in the example
 
 Currently enabled: Drive Only, Ball Tracking Test, Limelight AprilTag Test,
 Hive Tag Survey.
-AutoTune is a web page, not a Driver Station op-mode. `opmodes/archived/` and
-`opmodes/skeletons/` hold `@Disabled` op-modes; keep them disabled unless the
+AutoTune is a web page, not a Driver Station op-mode. `opmodes/skeletons/` holds `@Disabled` op-modes; keep them disabled unless the
 user asks.
 
 No team or season prefix. `"Match"` or `"Diagnostics"` groups. Title Case, no

@@ -285,29 +285,24 @@ Everything else is Ivy or Pedro. Each remaining helper has one job:
 | `FlightRecorder`, `WpiLogWriter`, `WpiStruct`, `StateLog` | WPILOG files for AdvantageScope |
 | `logged`, `CommandHistory` | Command history for traced commands (Ivy has no lifecycle hooks or names) |
 | `FieldView`, `TelemetryBag` | Panels field drawing and throttled DS/Panels telemetry |
-| `ConfigStore` | Tuning that survives restarts and hot reloads |
 | `Preflight`, `MotorIO`/`ServoIO`, `LoopProfile` | Missing-device listing, testable motors and servos, loop timing |
 | `pedro/Constants.java`, `pedro/Tuning.java` | Pedro's configuration and AutoTune registration, in the Quickstart layout |
 
 ## Config objects
 
-Live-tunable values go in an `@Configurable` object with `@JvmField` vars,
-registered in `configure()`:
+Live-tunable values go in an `@Configurable` object with `@JvmField` vars:
 
 ```kotlin
 @Configurable
 object ShooterConfig {
-    private const val DEFAULT_TARGET_RPM = 3200.0
-    @JvmField var targetRpm: Double = DEFAULT_TARGET_RPM
-    fun resetDefaults() { targetRpm = DEFAULT_TARGET_RPM }
+    @JvmField var targetRpm = 3200.0
 }
-ConfigStore.register("shooter", ShooterConfig, ShooterConfig::resetDefaults)
 ```
 
-Values persist to `/sdcard/FIRST/config/tuning.properties` and survive power
-cycles, installs and hot reloads. Don't `@Pinned` config objects. Keep
-`resetDefaults()` covering every field. Add `safe*` clamping getters where a
-bad Panels edit could hurt (see `DriveConfig`).
+Panels edits these while the robot runs. **They are not saved**: an app
+restart or hot reload puts back what is in the code. When a value is right,
+type it into the file. The code is always the truth about how the robot is
+tuned. Don't `@Pinned` config objects.
 
 ## Mechanisms
 
@@ -329,8 +324,6 @@ Season mechanisms live under `subsystems/`: `intake/IntakeSubsystem`,
     `blockerTravelMs`;
   - `reverse()` runs the motors backwards with the blocker closed.
 - Collect-and-stage is `parallel(intake.collect(), transfer.stage())`.
-- Whoever registers them also registers `IntakeConfig` / `TransferConfig` with
-  `ConfigStore` (see their KDoc).
 - Neither is registered in any op-mode yet: the sensorbot has no such
   hardware, and `init` fails on a missing device.
 - `ballStaged` is null until a ball sensor is fitted.
@@ -389,5 +382,4 @@ records, tag-sighting history, `VisionDiagnosticsConfig`) live together in
 
 - Keep game-specific subsystems, paths and op-modes out of `core/`.
 - Set `RobotConfig.Field.SYMMETRY` from the game manual and verify the field length.
-- Change `RobotConfig.CONFIG_SCHEMA`.
 - Re-run AutoTune when the chassis, weight, wheels or odometry change.

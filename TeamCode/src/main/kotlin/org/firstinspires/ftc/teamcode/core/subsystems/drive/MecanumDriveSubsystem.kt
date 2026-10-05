@@ -81,7 +81,7 @@ class MecanumDriveSubsystem(
         val forwardPower: Double? = null,
     )
 
-    /** Per-op-mode driver state, seeded from the persisted tuning default. */
+    /** Per-op-mode driver state, seeded from [DriveConfig.fieldCentricDefault]. */
     var fieldCentric: Boolean = DriveConfig.fieldCentricDefault
         private set
 
@@ -154,9 +154,9 @@ class MecanumDriveSubsystem(
         teleopCommand(priority = Int.MAX_VALUE, onStart = { odometryFallback = true }, name = name, input = input)
 
     private fun stageTeleop(i: TeleopInput) {
-        val scale = DriveConfig.safeTeleopPowerScale *
-            (if (i.precision) DriveConfig.safePrecisionPowerScale else 1.0)
-        val exp = DriveConfig.safeInputExponent
+        val scale = DriveConfig.teleopPowerScale *
+            (if (i.precision) DriveConfig.precisionPowerScale else 1.0)
+        val exp = DriveConfig.inputExponent
         val forward = i.forwardPower?.asDirectPower() ?: (i.forward.curve(exp) * scale)
         // FTC sticks use +x right/CW turn; Pedro uses +lateral left/CCW-positive heading.
         var strafe = -i.strafe.curve(exp) * scale
@@ -263,7 +263,7 @@ class MecanumDriveSubsystem(
                 val heading = pose.heading()
                 check(heading.isFinite()) { "turnTo lost its heading measurement" }
                 val error = abs(shortestAngleDelta(heading, radians))
-                val reached = updateCount > updatesAtStart && error < DriveConfig.safeHoldToleranceRadians
+                val reached = updateCount > updatesAtStart && error < DriveConfig.holdToleranceRadians
                 check(reached || (clock.nanos() - startNs) / 1e6 < timeoutMs) {
                     "turnTo timed out after $timeoutMs ms; heading error ${Math.toDegrees(error)} deg"
                 }
@@ -289,16 +289,12 @@ class MecanumDriveSubsystem(
     /** True while Pedro is following a path. */
     val isFollowing: Boolean get() = follower.following()
 
-    /** True if the robot is moving faster than [DriveConfig.stoppedVelocityThreshold]. */
-    val isMoving: Boolean
-        get() = hypot(velocity.vx, velocity.vy) >= DriveConfig.safeStoppedVelocityThreshold
-
     /** Whether the measured pose is within the configured hold tolerance of [target]. */
     fun atPose(target: Pose): Boolean {
         val current = pose
-        return abs(target.x() - current.x()) < DriveConfig.safeHoldToleranceInches &&
-            abs(target.y() - current.y()) < DriveConfig.safeHoldToleranceInches &&
-            abs(shortestAngleDelta(current.heading(), target.heading())) < DriveConfig.safeHoldToleranceRadians
+        return abs(target.x() - current.x()) < DriveConfig.holdToleranceInches &&
+            abs(target.y() - current.y()) < DriveConfig.holdToleranceInches &&
+            abs(shortestAngleDelta(current.heading(), target.heading())) < DriveConfig.holdToleranceRadians
     }
 
     fun toggleFieldCentric() {
@@ -471,97 +467,28 @@ interface DriveTelemetrySource {
 }
 
 /**
- * Runtime drive tuning knobs: driver feel, teleop scaling, brake behaviour and
- * the arrival tolerances drive commands measure against.
- *
- * Physical and Pedro constants (motor names and directions, Pinpoint offsets,
- * Foresight tuning) live in [org.firstinspires.ftc.teamcode.pedro.Constants].
- *
- * These are `var`s so Panels can mutate them live. Tuned values are persisted
- * by [org.firstinspires.ftc.teamcode.core.runtime.ConfigStore] and restored at
- * every op-mode init, so they survive power cycles, full installs, and Sloth
- * hot reloads without `@Pinned`.
+ * Drive tuning, live-editable in Panels. Panels edits last until the app
+ * restarts or a hot reload; copy values you want to keep into this file.
+ * Pedro constants (motor directions, Pinpoint offsets, Foresight) live in
+ * [org.firstinspires.ftc.teamcode.pedro.Constants].
  */
 @Configurable
 object DriveConfig {
+    /** Stick curve exponent for forward, strafe and turn: 1 linear, 2 squared, 3 cubic. */
+    @JvmField var inputExponent = 2.0
 
-    private const val DEFAULT_INPUT_EXPONENT = 2.0
-    private const val DEFAULT_TELEOP_POWER_SCALE = 1.0
-    private const val DEFAULT_PRECISION_POWER_SCALE = 0.35
-    private const val DEFAULT_STOPPED_VELOCITY_THRESHOLD = 0.5
-    private const val DEFAULT_HOLD_TOLERANCE_INCHES = 1.0
-    private val DEFAULT_HOLD_TOLERANCE_RADIANS = Math.toRadians(2.0)
+    /** Multiplier on every teleop motion input. */
+    @JvmField var teleopPowerScale = 1.0
 
-    /**
-     * Exponent for the stick input curve applied to forward, strafe, and turn.
-     * 1.0 = linear, 2.0 = squared (smooth at low speed), 3.0 = cubic.
-     * Sign is always preserved so the robot still drives in the correct direction.
-     * Mutate live via Panels / FTC Dashboard.
-     */
-    @JvmField var inputExponent: Double = DEFAULT_INPUT_EXPONENT
+    /** Multiplier while the precision trigger is held. */
+    @JvmField var precisionPowerScale = 0.35
 
-    /** Overall multiplier applied to every teleop motion input. */
-    @JvmField var teleopPowerScale: Double = DEFAULT_TELEOP_POWER_SCALE
+    @JvmField var fieldCentricDefault = true
 
-    /** Multiplier applied while the precision-mode trigger is held. */
-    @JvmField var precisionPowerScale: Double = DEFAULT_PRECISION_POWER_SCALE
+    /** Brake when the sticks are released. Read when the follower is created, so it applies at the next init. */
+    @JvmField var brakeOnTeleop = true
 
-    /** Field-centric state copied into each drive subsystem at op-mode init. */
-    @JvmField var fieldCentricDefault: Boolean = true
-
-    /**
-     * When true, manual driving uses brake mode: motors actively hold when
-     * commanded zero. Applied to Pedro's `MecanumConfig.manualBrakeMode` when
-     * the follower is created, so a change takes effect at the next op-mode init.
-     */
-    @JvmField var brakeOnTeleop: Boolean = true
-
-    /** Inches-per-second below which [MecanumDriveSubsystem.isMoving] reports false. */
-    @JvmField var stoppedVelocityThreshold: Double = DEFAULT_STOPPED_VELOCITY_THRESHOLD
-
-    /** Default tolerances used when holding a pose at the end of an auton path. */
-    @JvmField var holdToleranceInches: Double = DEFAULT_HOLD_TOLERANCE_INCHES
-
-    /** Default heading tolerance (radians) for pose holds. */
-    @JvmField var holdToleranceRadians: Double = DEFAULT_HOLD_TOLERANCE_RADIANS
-
-    fun resetDefaults() {
-        inputExponent = DEFAULT_INPUT_EXPONENT
-        teleopPowerScale = DEFAULT_TELEOP_POWER_SCALE
-        precisionPowerScale = DEFAULT_PRECISION_POWER_SCALE
-        fieldCentricDefault = true
-        brakeOnTeleop = true
-        stoppedVelocityThreshold = DEFAULT_STOPPED_VELOCITY_THRESHOLD
-        holdToleranceInches = DEFAULT_HOLD_TOLERANCE_INCHES
-        holdToleranceRadians = DEFAULT_HOLD_TOLERANCE_RADIANS
-    }
-
-    internal val safeInputExponent: Double
-        get() = finiteAtLeast(inputExponent, min = Double.MIN_VALUE, fallback = 1.0)
-
-    internal val safeTeleopPowerScale: Double
-        get() = finiteAtLeast(teleopPowerScale, min = 0.0, fallback = 0.0)
-
-    internal val safePrecisionPowerScale: Double
-        get() = finiteAtLeast(precisionPowerScale, min = 0.0, fallback = 0.0)
-
-    internal val safeStoppedVelocityThreshold: Double
-        get() = finiteAtLeast(
-            stoppedVelocityThreshold,
-            min = 0.0,
-            fallback = DEFAULT_STOPPED_VELOCITY_THRESHOLD,
-        )
-
-    internal val safeHoldToleranceInches: Double
-        get() = finiteAtLeast(holdToleranceInches, min = 0.0, fallback = DEFAULT_HOLD_TOLERANCE_INCHES)
-
-    internal val safeHoldToleranceRadians: Double
-        get() = finiteAtLeast(
-            holdToleranceRadians,
-            min = 0.0,
-            fallback = DEFAULT_HOLD_TOLERANCE_RADIANS,
-        )
-
-    private fun finiteAtLeast(value: Double, min: Double, fallback: Double): Double =
-        if (value.isFinite() && value >= min) value else fallback
+    /** How close a hold or turn must get to its target to count as arrived. */
+    @JvmField var holdToleranceInches = 1.0
+    @JvmField var holdToleranceRadians = Math.toRadians(2.0)
 }

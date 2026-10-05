@@ -333,8 +333,6 @@ class Robot(
         CommandHistory.abortAll("op-mode stop")
         try { recordEvent("stop") } catch (_: Throwable) { /* best-effort */ }
         try { closeFlightRecorder() } catch (_: Throwable) { /* best-effort */ }
-        // Tuning edited during INIT must survive cancellation too.
-        try { ConfigStore.persistIfDirty() } catch (_: Throwable) { /* preserve the original fault */ }
     }
 
     /**

@@ -7,21 +7,19 @@ import org.firstinspires.ftc.teamcode.vision.hive.HiveConfig
 import org.firstinspires.ftc.teamcode.vision.hive.HiveRig
 import org.firstinspires.ftc.teamcode.vision.hive.HiveTestFrames.lowered
 import org.firstinspires.ftc.teamcode.vision.hive.HiveTestFrames.raised
+import org.firstinspires.ftc.teamcode.core.sim.ConfigSnapshot
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Test
 
 class HiveSurveyMemoryTest {
-
-    @Before
-    fun setUp() = HiveConfig.resetDefaults()
+    private val savedConfig = ConfigSnapshot(HiveConfig)
 
     @After
-    fun tearDown() = HiveConfig.resetDefaults()
+    fun tearDown() = savedConfig.restore()
 
     @Test
     fun keepsEveryTagAndCellSeenAcrossFrames() {

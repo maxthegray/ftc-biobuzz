@@ -7,6 +7,7 @@ import org.firstinspires.ftc.teamcode.core.io.ServoIO
 import org.firstinspires.ftc.teamcode.core.sim.FakeClock
 import org.firstinspires.ftc.teamcode.core.sim.FakeServoIO
 import org.firstinspires.ftc.teamcode.core.sim.SimMotorIO
+import org.firstinspires.ftc.teamcode.core.sim.ConfigSnapshot
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -15,6 +16,7 @@ import org.junit.Before
 import org.junit.Test
 
 class TransferSubsystemTest {
+    private val savedConfig = ConfigSnapshot(TransferConfig)
     private val clock = FakeClock()
     private val motors = listOf(SimMotorIO(clock), SimMotorIO(clock))
     private val blocker = FakeServoIO()
@@ -23,14 +25,13 @@ class TransferSubsystemTest {
     @Before
     fun setUp() {
         Scheduler.reset()
-        TransferConfig.resetDefaults()
         transfer.init(HardwareMap(null, null))
     }
 
     @After
     fun tearDown() {
         Scheduler.reset()
-        TransferConfig.resetDefaults()
+        savedConfig.restore()
     }
 
     private fun tick(ms: Double = 20.0) {
@@ -173,17 +174,5 @@ class TransferSubsystemTest {
         transfer.stop()
         motors.forEach { assertEquals(0.0, it.lastPower, 0.0) }
         assertFalse(transfer.blockerOpen)
-    }
-
-    @Test
-    fun outOfRangeSettingsAreClamped() {
-        TransferConfig.feedPower = 3.0
-        TransferConfig.blockerOpenPosition = Double.NaN
-        TransferConfig.blockerTravelMs = -5.0
-        Scheduler.schedule(transfer.feed())
-        tick(0.0)
-        tick(150.0)
-        motors.forEach { assertEquals(1.0, it.lastPower, 0.0) }
-        assertEquals(0.5, blocker.lastPosition, 0.0)
     }
 }

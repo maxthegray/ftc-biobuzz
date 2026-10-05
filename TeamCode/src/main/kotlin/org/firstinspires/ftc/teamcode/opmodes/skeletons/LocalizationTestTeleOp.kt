@@ -70,8 +70,6 @@ class LocalizationTestTeleOp : TeleOpBase() {
         /** Stick axis magnitude above which a path is considered interrupted by the driver. */
         @JvmField var stickInterruptThreshold: Double = 0.1
 
-        private const val DEFAULT_PATH_SPEED_FRACTION = 0.3
-
         /**
          * Inches. A target this close to the current position gets no path:
          * a zero-length Pedro line has no direction to follow.
@@ -99,7 +97,7 @@ class LocalizationTestTeleOp : TeleOpBase() {
                 steps += drive.followCommand(path, name = "Localization test path")
             }
             if (targetHeading != null &&
-                abs(shortestAngleDelta(start.heading(), targetHeading)) > DriveConfig.safeHoldToleranceRadians
+                abs(shortestAngleDelta(start.heading(), targetHeading)) > DriveConfig.holdToleranceRadians
             ) {
                 steps += drive.turnToCommand(targetHeading, name = "Localization test turn")
             }
@@ -162,7 +160,7 @@ class LocalizationTestTeleOp : TeleOpBase() {
         }
         val goal = target()
         val heading = if (turnToTargetHeading) goal.heading() else null
-        val move = moveCommand(drive, drive.pose, goal, heading, safePathSpeedFraction())
+        val move = moveCommand(drive, drive.pose, goal, heading, pathSpeedFraction)
         if (move == null) {
             lastPress = "$button: already at ${label()}"
             return@instant
@@ -182,9 +180,6 @@ class LocalizationTestTeleOp : TeleOpBase() {
         abs(driver.leftStickY) > stickInterruptThreshold ||
             abs(driver.leftStickX) > stickInterruptThreshold ||
             abs(driver.rightStickX) > stickInterruptThreshold
-
-    private fun safePathSpeedFraction(): Double =
-        if (pathSpeedFraction.isFinite() && pathSpeedFraction > 0.0) pathSpeedFraction.coerceAtMost(1.0) else DEFAULT_PATH_SPEED_FRACTION
 
     private fun emitTelemetry() {
         telemetryBag.section("Localization Test") {
