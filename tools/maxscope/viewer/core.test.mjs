@@ -126,7 +126,7 @@ test('discrete picker includes command state and individual gamepad buttons, not
   assert.equal(options[0].source, 'commands/active');
   assert.equal(options.filter(option => option.name === 'events' || option.name === 'commands/events').length, 0);
   const button = options.find(option => option.key === 'gamepad1/buttons::1');
-  assert.equal(button.componentLabel, 'B');
+  assert.equal(button.componentLabel, 'Circle');
   assert.deepEqual(discreteSeries([[0, 0], [1, 3], [2, null]], button.bit), [[0, false], [1, true], [2, null]]);
   assert.deepEqual(discreteSeries([[0, ''], [1, false], [2, NaN]]), [[0, ''], [1, false], [2, null]]);
   assert.equal(discreteOptions([{name: 'commands/running', type: 'string'}])[0].source, 'commands/running');

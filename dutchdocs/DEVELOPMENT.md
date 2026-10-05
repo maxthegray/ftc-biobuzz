@@ -124,16 +124,17 @@ Rules:
 In `configure()` / `configureTeleop()`, using Ivy commands:
 
 ```kotlin
-driver.button(Button.A).onTrue(intake.grab())                 // schedule on press
-driver.button(Button.LEFT_BUMPER).whileTrue(intake.eject())   // cancel on release
-driver.button(Button.X).toggleOnTrue(lift.raise())
-driver.trigger { driver.rightTrigger > 0.5 }.whileTrue(shooter.spinUp())
-(driver.button(Button.BACK) and driver.button(Button.Y)).onTrue(instant { … })
+driver.button(Button.CROSS).onTrue(intake.grab())             // schedule on press
+driver.button(Button.L1).whileTrue(intake.eject())            // cancel on release
+driver.button(Button.SQUARE).toggleOnTrue(lift.raise())
+driver.trigger { driver.r2 > 0.5 }.whileTrue(shooter.spinUp())
+(driver.button(Button.CREATE) and driver.button(Button.TRIANGLE)).onTrue(instant { … })
 ```
 
-Bindings lock at start. Read sticks directly (`driver.leftStickY` is +up).
-`TeleOpBase` already binds Back+Y (heading reset), Back+B (field-centric) and
-installs stick driving as the drive's default command.
+We only use PS5 controllers, so buttons have PS5 names. Bindings lock at
+start. Read sticks directly (`driver.leftStickY` is +up).
+`TeleOpBase` already binds Create+Triangle (heading reset), Create+Circle
+(field-centric) and installs stick driving as the drive's default command.
 
 ## Compose an autonomous
 

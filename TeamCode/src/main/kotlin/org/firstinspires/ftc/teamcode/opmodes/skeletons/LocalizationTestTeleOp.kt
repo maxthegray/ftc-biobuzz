@@ -21,12 +21,12 @@ import org.firstinspires.ftc.teamcode.subsystems.shortestAngleDelta
 /**
  * Teleop for testing localization consistency over time.
  *
- * Behaves like Drive Only during normal driving (including the Back+Y
- * heading reset and Back+B field-centric chords from [TeleOpBase]), with two
+ * Behaves like Drive Only during normal driving (including the Create+Triangle
+ * heading reset and Create+Circle field-centric chords from [TeleOpBase]), with two
  * extra buttons:
  *
- *  - **Triangle (Y)** — Pedro-follows to waypoint A (24" forward by default).
- *  - **Cross (A)** — Pedro-follows back to the test origin.
+ *  - **Triangle** — Pedro-follows to waypoint A (24" forward by default).
+ *  - **Cross** — Pedro-follows back to the test origin.
  *
  * Destinations and the path speed cap are companion fields, hidden from Panels
  * while the skeleton is disabled: add `@Configurable` back to the class when
@@ -114,22 +114,22 @@ class LocalizationTestTeleOp : TeleOpBase() {
     private var lastPress: String = "-"
 
     override fun configureTeleop() {
-        // Y only when it isn't the Back+Y heading-reset chord; A only when
-        // it isn't the Driver Station's Start+A gamepad re-bind chord.
-        driver.trigger { driver.y && !driver.back }.onTrue(
-            moveOnPress("Y", { "(%.1f, %.1f)".format(waypointAX, waypointAY) }) {
+        // Triangle only when it isn't the Create+Triangle heading-reset chord;
+        // Cross only when it isn't the Driver Station's Options+Cross re-bind chord.
+        driver.trigger { driver.triangle && !driver.create }.onTrue(
+            moveOnPress("Triangle", { "(%.1f, %.1f)".format(waypointAX, waypointAY) }) {
                 Pose(waypointAX, waypointAY, Math.toRadians(waypointAHeadingDegrees))
             },
         )
-        driver.trigger { driver.a && !driver.start }.onTrue(
-            moveOnPress("A", { "(%.1f, %.1f)".format(returnX, returnY) }) {
+        driver.trigger { driver.cross && !driver.options }.onTrue(
+            moveOnPress("Cross", { "(%.1f, %.1f)".format(returnX, returnY) }) {
                 Pose(returnX, returnY, Math.toRadians(returnHeadingDegrees))
             },
         )
         // Moving a stick takes the drive back: the newest drive command wins.
         driver.trigger { stickMoved() }.whileTrue(
             drive.teleopCommand(name = "Driver takeover") {
-                TeleopInput(driver.leftStickY, driver.leftStickX, driver.rightStickX, driver.rightTrigger > 0.1)
+                TeleopInput(driver.leftStickY, driver.leftStickX, driver.rightStickX, driver.r2 > 0.1)
             },
         )
     }

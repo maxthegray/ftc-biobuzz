@@ -14,7 +14,7 @@ import org.firstinspires.ftc.teamcode.vision.BallCameraSubsystem
  * SDK's ColorBlobLocatorProcessor, tuned from Panels (`ballVision`), with the
  * detections outlined on the Robot Controller preview. Commands no motors.
  *
- * Driver B toggles preview rendering. The camera and preview already run
+ * Driver Circle toggles preview rendering. The camera and preview already run
  * during INIT. `visionDiagnostics.runBothCameras` also opens the Limelight.
  */
 @TeleOp(name = "Ball Tracking Test", group = "Diagnostics")
@@ -39,7 +39,7 @@ class BallTrackingTestTeleOp : OpModeBase() {
             Preflight.check(hardwareMap, listOf(VisionDiagnostics.limelightRequirement))
             limelight = robot.register(VisionDiagnostics.limelight(startup))
         }
-        driver.button(Button.B).onTrue(instant(VisionDiagnostics::togglePreview))
+        driver.button(Button.CIRCLE).onTrue(instant(VisionDiagnostics::togglePreview))
     }
 
     override fun onStart() {

@@ -18,10 +18,10 @@ import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem.TeleopInp
  *
  * Standard controls:
  *  - left stick translate, right stick turn (per [DriveConfig] scaling)
- *  - **right trigger** — precision mode while held
- *  - **Back + Y** — reset heading to zero (Back, not Start: Start+A/B are
- *    the Driver Station's gamepad re-bind chords)
- *  - **Back + B** — toggle field-centric / robot-centric
+ *  - **R2** — precision mode while held
+ *  - **Create + Triangle** — reset heading to zero (Create, not Options:
+ *    Options+Cross/Circle are the Driver Station's gamepad re-bind chords)
+ *  - **Create + Circle** — toggle field-centric / robot-centric
  *
  * Localization starts at (0, 0, 0) every run; nothing is restored from a
  * previous op-mode (see [LocalizerSubsystem]).
@@ -51,7 +51,7 @@ abstract class TeleOpBase : OpModeBase() {
                 forward = driver.leftStickY,
                 strafe = driver.leftStickX,
                 turn = driver.rightStickX,
-                precision = driver.rightTrigger > 0.1,
+                precision = driver.r2 > 0.1,
             )
         }
         drive.defaultCommand = drive.teleopCommand(name = "Driver sticks", input = stickInput)
@@ -69,7 +69,7 @@ abstract class TeleOpBase : OpModeBase() {
                 },
             ),
         )
-        (driver.button(Button.BACK) and driver.button(Button.Y)).onTrue(
+        (driver.button(Button.CREATE) and driver.button(Button.TRIANGLE)).onTrue(
             // Claiming the drive preempts a path or assist: hard-snapping the
             // pose under a live path controller would command a large jerk.
             logged(
@@ -77,7 +77,7 @@ abstract class TeleOpBase : OpModeBase() {
                 instant { localizer.setPose(drive.pose.withHeading(0.0)) }.requiring(drive),
             ),
         )
-        (driver.button(Button.BACK) and driver.button(Button.B)).onTrue(
+        (driver.button(Button.CREATE) and driver.button(Button.CIRCLE)).onTrue(
             instant { drive.toggleFieldCentric() },
         )
         configureTeleop()

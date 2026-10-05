@@ -231,7 +231,7 @@ export function plotBounds(layers, axis, end) {
   return [min - padding, max + padding];
 }
 
-export const buttonNames = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'Up', 'Down', 'Left', 'Right', 'Start', 'Back', 'LS', 'RS'];
+export const buttonNames = ['Cross', 'Circle', 'Square', 'Triangle', 'L1', 'R1', 'Up', 'Down', 'Left', 'Right', 'Options', 'Create', 'L3', 'R3', 'Touchpad'];
 
 export function discreteOptions(channels) {
   const commandSource = ['commands/active', 'commands/running'].find(name => channels.some(channel => channel.name === name));

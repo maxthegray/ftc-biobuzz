@@ -302,8 +302,8 @@ class FlightRecorder private constructor(
         axesValues[1] = pad.leftStickY
         axesValues[2] = pad.rightStickX
         axesValues[3] = pad.rightStickY
-        axesValues[4] = pad.leftTrigger
-        axesValues[5] = pad.rightTrigger
+        axesValues[4] = pad.l2
+        axesValues[5] = pad.r2
         writer.appendDoubleArray(axesEntry, axesValues, timestampUs)
         writer.appendInt64(buttonsEntry, buttonMask(pad), timestampUs)
     }
@@ -313,20 +313,21 @@ class FlightRecorder private constructor(
         fun bit(index: Int, value: Boolean) {
             if (value) mask = mask or (1L shl index)
         }
-        bit(0, pad.a)
-        bit(1, pad.b)
-        bit(2, pad.x)
-        bit(3, pad.y)
-        bit(4, pad.leftBumper)
-        bit(5, pad.rightBumper)
+        bit(0, pad.cross)
+        bit(1, pad.circle)
+        bit(2, pad.square)
+        bit(3, pad.triangle)
+        bit(4, pad.l1)
+        bit(5, pad.r1)
         bit(6, pad.dpadUp)
         bit(7, pad.dpadDown)
         bit(8, pad.dpadLeft)
         bit(9, pad.dpadRight)
-        bit(10, pad.start)
-        bit(11, pad.back)
-        bit(12, pad.leftStickButton)
-        bit(13, pad.rightStickButton)
+        bit(10, pad.options)
+        bit(11, pad.create)
+        bit(12, pad.l3)
+        bit(13, pad.r3)
+        bit(14, pad.touchpad)
         return mask
     }
 

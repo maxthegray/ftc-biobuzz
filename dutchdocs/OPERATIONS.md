@@ -43,8 +43,8 @@ turn each wheel robot-forward. Fix directions in `pedro/Constants.java`
 ## 4. Teleop signs and field-centric (on carpet, slow)
 
 In **Drive Only** at low stick: forward/back, strafe left/right, turn
-direction. Toggle field-centric (Back+B), rotate the robot, confirm
-translation stays field-true; reset heading (Back+Y) and confirm "away from
+direction. Toggle field-centric (Create+Circle), rotate the robot, confirm
+translation stays field-true; reset heading (Create+Triangle) and confirm "away from
 the driver" is +x.
 
 **Second-run heading drill.** Every op-mode starts at (0, 0, 0), so teleop's
@@ -54,10 +54,10 @@ field-centric "forward" is wherever the robot faces at INIT.
 2. Without power-cycling, face the robot away from the driver again and init
    Drive Only. Before START the pose must read (0, 0, 0), not the first run's
    pose, and Health must show `Localizer: ok`.
-3. Start: stick forward drives away from the driver with no Back+Y.
+3. Start: stick forward drives away from the driver with no Create+Triangle.
 4. Repeat with an autonomous before teleop: teleop still starts at (0, 0, 0),
    regardless of where the autonomous ended. Face the robot away from the
-   driver before INIT, or press Back+Y after START.
+   driver before INIT, or press Create+Triangle after START.
 
 ## 5. AutoTune (clear carpet, full battery)
 
@@ -81,7 +81,7 @@ compensation; tune on a full battery.
 
 Re-enable `opmodes/skeletons/LocalizationTestTeleOp.kt` (and add
 `@Configurable` back to the class to tune its targets in Panels). From a clear origin:
-Y follows 24" forward, A returns; speed is capped at 30% of max velocity
+Triangle follows 24" forward, Cross returns; speed is capped at 30% of max velocity
 (`pathSpeedFraction`). Press the button again or move a stick to cancel.
 Pressing a button within 0.25 in of its target does nothing; with
 `turnToTargetHeading` the robot turns to the target heading instead.
@@ -191,7 +191,7 @@ goal, not a promise that it can take a score.
 - **Preview:** on the **Robot Controller** screen while either OpMode has the
   ball camera open (INIT or running): plug an HDMI monitor into the Control
   Hub, or `tools/hub-connect.sh` then `scrcpy`. The SDK's ColorBlobLocatorProcessor
-  outlines every blob that passed the filters. After START, gamepad 1 **B**
+  outlines every blob that passed the filters. After START, gamepad 1 **Circle**
   toggles rendering (`previewEnabled`); off saves CPU for timing comparisons.
 
 ### What applies live
@@ -275,7 +275,7 @@ Setup:
    at 0.
 3. Open **Hive Tag Survey**; *Survey Setup* must read `measured`.
 
-Procedure (**B** clears the survey memory):
+Procedure (**Circle** clears the survey memory):
 
 1. **One CELL head-on.** Aim at your raised CELL from 1.5–2.5 m. *CELL Goals*
    spread under ~1 in with all four tags used. A consistent spread that grows
@@ -449,7 +449,7 @@ Three separate levels; passing one says nothing about the next.
 3. **Hardware (manual).** Park the robot at a known field pose, init an
    op-mode, drive one tile forward and turn 90°, stop, pull the log, and
    confirm the 2D field shows the same start, direction and end (see "Verify
-   the axes" above). In Localization Test, press Y, move a stick mid-path, and
+   the axes" above). In Localization Test, press Triangle, move a stick mid-path, and
    confirm `commands/events` shows `START … Localization test path`, then
    `INTERRUPT` of it with `START … Driver takeover` at the moment the sticks
    moved, and `Driver sticks` resuming after release.
@@ -466,7 +466,7 @@ Three separate levels; passing one says nothing about the next.
 | Paths refuse to start | `FORESIGHT_TUNED` false, or `ROBOT_CENTRIC_FALLBACK` after a localizer fault |
 | Auton drifted | `follow/translationalErrorIn`: small error means localization; large means following |
 | Sudden pose jump | `pose correction applied` events and correction gates |
-| Field-centric wrong | Robot faced elsewhere at INIT (heading starts at 0): Back+Y |
+| Field-centric wrong | Robot faced elsewhere at INIT (heading starts at 0): Create+Triangle |
 | Driving robot-centric unexpectedly | `LOCALIZER FAULT` event, `Drive/odometryFallback` |
 | Loop rate collapsed | Phase maxima: `writeHardware` usually Pinpoint, `telemetry` Panels, `periodic` season I/O |
 | Tuned config reverted | Registration, public primitive `@JvmField`, config schema |
@@ -508,7 +508,7 @@ Record results in `PROGRESS.md`.
 
 **Driving and turning**
 - [ ] Stick signs, precision trigger, squared input curve, diagonal speed.
-- [ ] Field-centric stays field-true through a full rotation; Back+Y resets heading.
+- [ ] Field-centric stays field-true through a full rotation; Create+Triangle resets heading.
 - [ ] Brake mode on stick release matches `DriveConfig.brakeOnTeleop`.
 - [ ] `turnToCommand(90°)` reaches heading within 2°; a blocked turn times out
       and the routine aborts with `COMMAND FAULT: … turnTo timed out`.

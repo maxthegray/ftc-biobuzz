@@ -254,7 +254,7 @@ function updateDetails() {
       dot.style.opacity = axes ? '1' : '0';
     });
     const buttons = finite(mask) ? buttonNames.filter((_, i) => mask & (1 << i)).join(' ') || 'None' : 'Not recorded';
-    pad.data.textContent = axes ? `LT ${fmt(axes[4])}  RT ${fmt(axes[5])}\nButtons: ${buttons}` : 'No input sample at this time';
+    pad.data.textContent = axes ? `L2 ${fmt(axes[4])}  R2 ${fmt(axes[5])}\nButtons: ${buttons}` : 'No input sample at this time';
   }
 }
 

@@ -10,7 +10,7 @@ import org.firstinspires.ftc.teamcode.subsystems.DriveConfig
 class DriveOnlyTeleOp : TeleOpBase() {
 
     override fun onLoop() {
-        val precision = driver.rightTrigger > 0.1
+        val precision = driver.r2 > 0.1
         telemetryBag.section("Drive") {
             put("pose", drive.pose)
             put("velocity", drive.velocity)

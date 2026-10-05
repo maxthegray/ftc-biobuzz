@@ -29,7 +29,7 @@ import org.firstinspires.ftc.teamcode.vision.Vec3
  * an inch checks the camera mount, FIRST's cluster geometry and the Limelight's
  * rotation convention together. Commands no motors.
  *
- * Driver B clears the survey memory.
+ * Driver Circle clears the survey memory.
  */
 @TeleOp(name = "Hive Tag Survey", group = "Diagnostics")
 class HiveTagSurveyTeleOp : OpModeBase() {
@@ -50,7 +50,7 @@ class HiveTagSurveyTeleOp : OpModeBase() {
         robot.recordEvent(SettingsChangeLog.describe("hive", HiveConfig))
         limelight = robot.register(VisionDiagnostics.limelight(startup))
         hive = robot.register(HiveTracker(limelight, { 0.0 }, eventSink = robot::recordEvent, clock = robot.clock))
-        driver.button(Button.B).onTrue(
+        driver.button(Button.CIRCLE).onTrue(
             instant {
                 survey.reset()
                 robot.recordEvent("Hive Tag Survey memory cleared")
@@ -116,7 +116,7 @@ class HiveTagSurveyTeleOp : OpModeBase() {
             put("3", "Each CELL: spread < ~1 in, all four tags agree (else rotation convention)")
             put("4", "Tape-measure tripod → CELL opening centre; compare horizontal")
             put("5", "Tip each HIVE; note tag heights both ways; set hive.raisedMinHeightIn between")
-            put("6", "B clears the survey memory")
+            put("6", "Circle clears the survey memory")
         }
     }
 }

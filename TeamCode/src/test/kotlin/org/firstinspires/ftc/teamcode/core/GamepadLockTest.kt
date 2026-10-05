@@ -27,20 +27,20 @@ class GamepadLockTest {
     @Test(expected = IllegalStateException::class)
     fun creatingButtonTriggerAfterLockThrows() {
         host.lockBindings()
-        host.button(GamepadEx.Button.A)
+        host.button(GamepadEx.Button.CROSS)
     }
 
     @Test(expected = IllegalStateException::class)
     fun bindingOnExistingTriggerAfterLockThrows() {
-        val t = host.button(GamepadEx.Button.A)
+        val t = host.button(GamepadEx.Button.CROSS)
         host.lockBindings()
         t.onTrue(Command.build())
     }
 
     @Test(expected = IllegalStateException::class)
     fun composingAfterLockThrows() {
-        val a = host.button(GamepadEx.Button.A)
-        val b = host.button(GamepadEx.Button.B)
+        val a = host.button(GamepadEx.Button.CROSS)
+        val b = host.button(GamepadEx.Button.CIRCLE)
         host.lockBindings()
         a and b
     }
@@ -60,10 +60,10 @@ class GamepadLockTest {
     @Test
     fun buttonHeldThroughInitDoesNotFireAtStart() {
         val cmd = Command.build().setDone { false }.requiring(Any())
-        host.button(GamepadEx.Button.A).onTrue(cmd)
+        host.button(GamepadEx.Button.CROSS).onTrue(cmd)
 
         // Init loop: button pressed and held, triggers not polled.
-        host.raw.a = true
+        host.raw.cross = true
         host.update(pollTriggers = false)
 
         // Start: lockBindings primes edge state; still held -> no rising edge.
@@ -72,9 +72,9 @@ class GamepadLockTest {
         assertFalse(Scheduler.isScheduled(cmd))
 
         // Release and re-press: a real rising edge fires normally.
-        host.raw.a = false
+        host.raw.cross = false
         host.update()
-        host.raw.a = true
+        host.raw.cross = true
         host.update()
         assertTrue(Scheduler.isScheduled(cmd))
     }
@@ -82,12 +82,12 @@ class GamepadLockTest {
     @Test
     fun buttonNotHeldAtStartStillFiresOnFirstPress() {
         val cmd = Command.build().setDone { false }.requiring(Any())
-        host.button(GamepadEx.Button.A).onTrue(cmd)
+        host.button(GamepadEx.Button.CROSS).onTrue(cmd)
 
         host.update(pollTriggers = false)
         host.lockBindings()
 
-        host.raw.a = true
+        host.raw.cross = true
         host.update()
         assertTrue(Scheduler.isScheduled(cmd))
     }
@@ -103,8 +103,8 @@ class GamepadLockTest {
         assertFalse(Scheduler.isScheduled(cmd))
 
         // Edge detection on raw buttons still works in init mode.
-        host.raw.a = true
+        host.raw.cross = true
         host.update(pollTriggers = false)
-        assertTrue(host.aPressed)
+        assertTrue(host.crossPressed)
     }
 }

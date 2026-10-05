@@ -309,8 +309,8 @@ reload never run.
 | `velocity` | `double[]` | `[vx in/s, vy in/s, omega rad/s]`, field frame |
 | `driveMode` | string | `IDLE`, `TELEOP`, `FOLLOWING`, `HOLDING`, `ROBOT_CENTRIC_FALLBACK` |
 | `follow/translationalErrorIn`, `follow/headingErrorRad` | double | Foresight errors, only while following/holding |
-| `gamepad1/axes`, `gamepad2/axes` | `double[]` | `[lx, ly(+up), rx, ry(+up), lt, rt]` after deadband |
-| `gamepad1/buttons`, `gamepad2/buttons` | int64 | bits: A B X Y LB RB up down left right start back LS RS |
+| `gamepad1/axes`, `gamepad2/axes` | `double[]` | `[lx, ly(+up), rx, ry(+up), L2, R2]` after deadband |
+| `gamepad1/buttons`, `gamepad2/buttons` | int64 | bits: Cross Circle Square Triangle L1 R1 up down left right Options Create L3 R3 Touchpad |
 | `battery` | double | volts |
 | `loop/totalNanos`, `loop/<phase>Nanos`, `loop/windowMax…` | int64 | loop timing and per-window peaks |
 | `<Subsystem>/…` | any | `SubsystemBase.logState` channels |
@@ -399,6 +399,10 @@ loop keeps running.
 - **Pinpoint offsets map as** Pedro 2 `forwardPodY → xPodOffset`,
   `strafePodX → yPodOffset` (same `setOffsets(x, y)` call).
 - **Subsystem writes in `periodic`.** Don't.
+- **PS5 controllers only.** `GamepadEx` uses PS5 names (Cross, Circle,
+  Square, Triangle, L1/R1, L2/R2 analog, L3/R3, Options, Create, Touchpad).
+  Never write Xbox names (A/B/X/Y, Back/Start). Options+Cross/Circle are the
+  Driver Station's re-bind chords, so driver chords use Create.
 - **VisionPortal processors are single-use.** Build a new processor every
   run. Never let an exception leave `processFrame`.
 - **The ball camera is the SDK's `ColorBlobLocatorProcessor`.** Its color

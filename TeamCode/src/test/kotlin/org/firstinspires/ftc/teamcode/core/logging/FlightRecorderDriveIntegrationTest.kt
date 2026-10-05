@@ -107,7 +107,7 @@ class FlightRecorderDriveIntegrationTest {
         s.hardware.localizer.measuredPose = Pose(8.0, 56.0, 0.0)
         s.hardware.localizer.measuredVelocity = Velocity(10.0, -2.0, 0.5)
         s.gamepad.left_stick_y = -1f
-        s.gamepad.a = true
+        s.gamepad.cross = true
         s.gamepad.dpad_left = true
         repeat(3) { s.tick() }
 
@@ -191,7 +191,7 @@ class FlightRecorderDriveIntegrationTest {
         assertEquals(1.0, followErrors.last().second, 1e-6)
         assertTrue(log.has("follow/headingErrorRad"))
 
-        // Gamepad encoding: axes [lx, ly(+up), rx, ry(+up), lt, rt]; buttons bitmask A=bit0, dpadLeft=bit8.
+        // Gamepad encoding: axes [lx, ly(+up), rx, ry(+up), L2, R2]; buttons bitmask cross=bit0, dpadLeft=bit8.
         assertArrayEquals(doubleArrayOf(0.0, 1.0, 0.0, 0.0, 0.0, 0.0), log.doubleArrays("gamepad1/axes").first().second, 1e-9)
         assertEquals((1L shl 0) or (1L shl 8), log.longs("gamepad1/buttons").first().second)
         assertTrue(log.doubleArrays("gamepad2/axes").isEmpty())

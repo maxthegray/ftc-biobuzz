@@ -155,7 +155,7 @@ internal object VisionDiagnostics {
             bag.section("Preview") {
                 put("enabled", BallCameraConfig.previewEnabled)
                 put("view", "Control Hub HDMI or scrcpy: Robot Controller screen; blobs that passed are outlined")
-                put("change", "B toggles rendering (after START), or Panels ballVision.previewEnabled")
+                put("change", "Circle toggles rendering (after START), or Panels ballVision.previewEnabled")
             }
         }
     }
