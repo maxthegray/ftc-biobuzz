@@ -487,8 +487,9 @@ No team or season prefix. `"Match"` or `"Diagnostics"` groups. Title Case, no
 - **Hot reload** (`make hot`, `./gradlew deploySloth`): ordinary TeamCode
   iteration, including `pedro/Constants.java`.
 
-Logs: `make debug` (newest log as a JSON bundle), `make analyze` (same as
-text), `make pull-logs` (all 30 logs the hub keeps). `tools/logs/analyze_wpilog.py` reports `commandHistoryCoverage`:
+Logs: `make pull-logs [N]` pulls the newest N (default all 30 the hub keeps);
+`make viewer` opens MaxScope; `python3 tools/logs/analyze_wpilog.py --json`
+emits the JSON bundle (default: newest log under `robot-logs/`). It reports `commandHistoryCoverage`:
 `"all scheduled"` (pre-Ivy logs, `commands/running`), `"none"` (Ivy logs before
 command tracing) or `"instrumented"` (current logs, `logged` commands only,
 with `commandExecutions`, `commandFailures`, `commandActive` and
@@ -498,7 +499,8 @@ hypotheses and the one channel or reproduction that decides it.
 ### Post-match debugging (the AI runs this)
 
 When the user is plugged into the hub and reports a match problem, run
-**`make debug`**, anchor on the stated symptom, and drill into channels with
+**`make pull-logs 2`**, then
+`python3 tools/logs/analyze_wpilog.py --json robot-logs/<file>`, anchor on the stated symptom, and drill into channels with
 `python3 tools/logs/analyze_wpilog.py --json --channel <name,name> robot-logs/<file>`.
 The auton run is usually the second pulled file. For "what was it doing":
 read `commandFailures`, then the `commandExecutions` overlapping the symptom

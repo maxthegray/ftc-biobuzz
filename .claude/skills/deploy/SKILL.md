@@ -33,14 +33,14 @@ running old code. Always classify before deploying.
 
    It runs `tools/deploy/classify-deploy.sh`, prints its
    `RECOMMENDATION: HOT|FULL`, `REASON` and deciding files, refuses to run
-   without a connected device, deploys, and on success writes
+   if it can't reach a hub, deploys, and on success writes
    `.last-deploy-sha` so the next run diffs from here. `make install` also
    writes the marker; `make hot` does not, so a forced hot reload never hides
    a pending full install.
 
-2. **If it reports no device,** tell the user to plug in USB or run
-   `make connect` (adb connect to `192.168.43.1:5555`, the Control Hub
-   default), then stop.
+2. **If it reports no Control Hub,** it already tried USB, the hub's Wi-Fi
+   (`192.168.43.1:5555`) and an adb restart. Tell the user to plug in USB or
+   join the hub's network, then stop.
 
 3. **Report** concisely: which path ran and why (quote the `REASON`; name the
    files if FULL was chosen because of pinned/dep/manifest changes), and

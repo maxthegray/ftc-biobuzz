@@ -264,9 +264,9 @@ See [MaxScope](../tools/maxscope/README.md) for controls, limits and tests.
 
 ## Download a WPILOG and open it in AdvantageScope
 
-1. Connect to the Control Hub (USB, or its Wi-Fi then `make connect`).
-2. `make debug` pulls the newest match's logs into `robot-logs/` and prints a
-   summary; `make pull-logs` copies all of them.
+1. Connect to the Control Hub over USB or join its Wi-Fi.
+2. `make pull-logs 2` pulls the newest match's logs into `robot-logs/`;
+   `make pull-logs` copies all of them. `make viewer` summarizes them.
 3. Open the `.wpilog` in AdvantageScope (File → Open Log).
 4. **2D field:** drag `Field/Robot` onto a 2D Field tab with an FTC field
    (default *Center/Rotated* coordinates). It is already in the FTC frame:
@@ -278,7 +278,7 @@ See [MaxScope](../tools/maxscope/README.md) for controls, limits and tests.
 5. **What was the robot trying to do?** Open `commands/events` in a table
    (or drag it onto a line graph) next to `driveMode`, `pose` and motor
    channels, and scrub to the moment in question; `commands/active` shows
-   every traced command running then. `make analyze` lists each execution
+   every traced command running then. MaxScope (`make viewer`) lists each execution
    with start, end and outcome, and failures first.
 
 ## Commands and faults

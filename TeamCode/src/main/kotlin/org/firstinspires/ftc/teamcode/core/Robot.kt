@@ -364,8 +364,8 @@ enum class LoopPhase(val label: String) {
 
 /**
  * How long each [LoopPhase] of the latest tick took, and the peaks since
- * [resetMaxima], in nanoseconds. The flight recorder logs it; `make analyze`
- * reports which phase owns the loop time.
+ * [resetMaxima], in nanoseconds. The flight recorder logs it;
+ * `tools/logs/analyze_wpilog.py` reports which phase owns the loop time.
  */
 class LoopProfile {
 

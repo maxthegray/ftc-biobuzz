@@ -191,7 +191,7 @@ internal object VisionDiagnostics {
         m += "loop.count" to timing.count.toString()
         m += "loop.meanMs" to fmt(timing.meanMs, 2)
         m += "loop.maxMs" to fmt(timing.maxMs, 2)
-        m += "loop.note" to "percentiles: make debug on this run's WPILOG"
+        m += "loop.note" to "percentiles: open this run's WPILOG in MaxScope"
         if (limelight != null) {
             m += "limelight.pipeline" to "${limelight.activePipelineIndex} ${limelight.pipelineType} (expected ${limelight.pipelineIndex})"
             m += "limelight.newFramesHz" to fmt(limelight.resultRateHz, 1)

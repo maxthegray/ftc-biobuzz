@@ -16,20 +16,18 @@ make deploy            # deploy, picking full install or hot reload automaticall
 make install           # force a full APK install
 make hot               # force a TeamCode hot reload via Sloth
 
-make connect           # connect to the Control Hub over Wi-Fi
-make reset-adb         # stop the ADB server when it gets stuck
-make logs              # stream filtered robot logcat
+make logcat            # stream live robot output (crashes, OpMode logs)
 
-make pull-logs         # download every log the hub keeps (newest 30) to robot-logs/
+make pull-logs         # download all 30 logs the hub keeps to robot-logs/
+make pull-logs 2       # download only the newest 2 (usually the last match)
 make pull-lab-records  # download vision lab records to lab-records/
-make analyze           # pull the newest match logs (if connected) and summarize
-make debug             # same as analyze, as a JSON diagnosis
-make viewer            # start MaxScope at http://127.0.0.1:8008
+make viewer            # browse and summarize logs in MaxScope (http://127.0.0.1:8008)
 ```
 
-Use `make deploy` by default. It does a full install on the first deploy of a
-session and after changes to dependencies, the manifest, resources, or files
-outside TeamCode, and a hot reload otherwise. Follow the
+Commands that talk to the hub connect on their own over USB or the hub's
+Wi-Fi. Use `make deploy` by default. It does a full install on the first
+deploy of a session and after changes to dependencies, the manifest,
+resources, or files outside TeamCode, and a hot reload otherwise. Follow the
 [operations guide](dutchdocs/OPERATIONS.md) for hardware setup and AutoTune.
 Paths require Foresight tuning before they can run.
 

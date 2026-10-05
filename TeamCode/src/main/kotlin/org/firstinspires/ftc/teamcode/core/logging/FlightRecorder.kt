@@ -18,7 +18,7 @@ import org.firstinspires.ftc.teamcode.core.SubsystemBase
 import org.firstinspires.ftc.teamcode.subsystems.DriveTelemetrySource
 
 /**
- * One WPILOG file per op-mode run, for AdvantageScope and `make analyze`.
+ * One WPILOG file per op-mode run, for MaxScope and AdvantageScope.
  * Pose, gamepads, loop timing, battery and every subsystem's [StateLog]
  * channels are sampled at up to 100 Hz; `events` and the command history keep
  * their own timestamps. A full SD card or other I/O error turns the recorder

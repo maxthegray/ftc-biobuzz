@@ -78,7 +78,7 @@ abstract class OpModeBase : LinearOpMode() {
     private var endgameRumbled = false
     private var telemetryFailures = 0
 
-    /** The phase breakdown is in the flight log; `make analyze` reports it. */
+    /** The phase breakdown is in the flight log; `tools/logs/analyze_wpilog.py` reports it. */
     private fun publishLoopTiming() {
         val p = robot.profile
         telemetryBag.section("Loop") {

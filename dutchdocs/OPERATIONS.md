@@ -191,7 +191,7 @@ goal, not a promise that it can take a score.
   in code. Panels does not stream camera images.
 - **Preview:** on the **Robot Controller** screen while either OpMode has the
   ball camera open (INIT or running): plug an HDMI monitor into the Control
-  Hub, or `make connect` then `scrcpy`. The SDK's ColorBlobLocatorProcessor
+  Hub, or `tools/hub-connect.sh` then `scrcpy`. The SDK's ColorBlobLocatorProcessor
   outlines every blob that passed the filters. After START, gamepad 1 **B**
   toggles rendering (`previewEnabled`); off saves CPU for timing comparisons.
 
@@ -247,7 +247,7 @@ after each step that settles something.
 5. **Both cameras.** Set `VisionDiagnosticsConfig.runBothCameras` true in
    Panels and restart **each** OpMode. Compare
    *Timing Comparison*, library fps, Limelight new-frame rate and ages against
-   the single-camera runs, then `make debug` for loop percentiles.
+   the single-camera runs, then open the run in MaxScope (`make viewer`) for loop percentiles.
 6. **Limelight tags.** Limelight AprilTag Test: hold each tag still; confirm ID
    and meaning against its sticker, the signs of tx/ty, and |d| against a tape
    measure; record whether the cluster's four tags appear together.
@@ -344,9 +344,9 @@ so AdvantageScope shows both); per-window loop maxima keep spikes between
 samples.
 
 ```sh
-make debug       # newest Auto + TeleOp, JSON diagnostic bundle
-make pull-logs   # copy all logs for AdvantageScope
-make analyze     # pull logs and summarize the newest one
+make pull-logs 2   # pull the newest match (Auto + TeleOp)
+make pull-logs     # pull all 30 logs the hub keeps
+make viewer        # summarize and plot them in MaxScope
 ```
 
 For an auton problem inspect `robot-logs/Auto-*.wpilog` explicitly; the
@@ -549,7 +549,7 @@ Record results in `PROGRESS.md`.
 - [ ] `pose`, `velocity`, `driveMode`, `follow/*`, `battery`, `gamepad1/*`,
       `loop/*`, `Drive/*`, `Localizer/*` and season subsystem channels plot
       with sensible values; events line up with what happened.
-- [ ] `make debug` summarises the newest Auto + TeleOp logs.
+- [ ] `make pull-logs 2` pulls the newest Auto + TeleOp logs and MaxScope summarises them.
 - [ ] A teleop log with a driver takeover shows `Driver sticks` interrupted and
       resumed in `commands/events`, `commands/lost` stays 0, and the analyzer
       reports `instrumented commands only`.
