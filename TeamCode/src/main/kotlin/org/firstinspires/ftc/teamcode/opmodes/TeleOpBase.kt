@@ -42,6 +42,9 @@ abstract class TeleOpBase : OpModeBase() {
         RumbleAlert(RobotConfig.Match.FINAL_TWENTY_NANOS, blips = 3, expiresNanos = RobotConfig.Match.DRIVER_NANOS),
     )
 
+    /** Multiplier on the turn stick; lower it for gentler rotation. */
+    protected open val turnScale = 1.0
+
     protected lateinit var drive: MecanumDriveSubsystem
         private set
 
@@ -57,7 +60,7 @@ abstract class TeleOpBase : OpModeBase() {
             TeleopInput(
                 forward = driver.leftStickY,
                 strafe = driver.leftStickX,
-                turn = driver.rightStickX,
+                turn = driver.rightStickX * turnScale,
                 precision = driver.r2 > 0.1,
             )
         }
