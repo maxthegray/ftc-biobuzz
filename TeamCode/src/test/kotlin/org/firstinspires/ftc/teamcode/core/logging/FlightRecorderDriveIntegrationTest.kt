@@ -201,7 +201,9 @@ class FlightRecorderDriveIntegrationTest {
         assertTrue(log.longs("loop/windowMaxTotalNanos").isNotEmpty())
         assertEquals(true, log.booleans("Drive/fieldCentric").first().second)
         assertEquals(false, log.booleans("Localizer/faulted").first().second)
-        assertTrue(listOf("leftFront", "leftRear", "rightFront", "rightRear").any { log.doubles("Drive/motors/$it/power").isNotEmpty() })
+        assertEquals(pose.size, log.doubleArrays("Drive/motors/power").size)
+        assertEquals(pose.size, log.doubleArrays("Drive/motors/velocityTps").size)
+        assertTrue(listOf("leftFront", "leftRear", "rightFront", "rightRear").any { log.doubles("Drive/motors/$it/currentAmps").isNotEmpty() })
 
         // Same-tick events get distinct timestamps, so AdvantageScope shows every one.
         val eventTimes = log.strings("events").map { it.first }

@@ -12,6 +12,7 @@ import com.pedropathing.math.Pose
 import com.pedropathing.math.Vector2D
 import com.pedropathing.math.Velocity
 import com.pedropathing.paths.Path
+import com.pedropathing.revhub.drivetrains.Mecanum
 import com.qualcomm.robotcore.hardware.DcMotorEx
 import com.qualcomm.robotcore.hardware.HardwareMap
 import kotlin.math.abs
@@ -87,13 +88,13 @@ class MecanumDriveSubsystem(
     private var latchedPathProgress = 0.0
 
     override fun init(hardwareMap: HardwareMap) {
-        loggedMotors = MOTOR_NAMES.map { (label, name) ->
-            label to try {
+        motors = MOTOR_NAMES.map { (_, name) ->
+            try {
                 hardwareMap.tryGet(DcMotorEx::class.java, name)
             } catch (_: Throwable) {
                 null
             }
-        }.filter { it.second != null }.map { it.first to it.second!! }
+        }
     }
 
     /**
@@ -324,48 +325,76 @@ class MecanumDriveSubsystem(
 
     // ------------------------------------------------------- motor channels
 
-    private var loggedMotors: List<Pair<String, DcMotorEx>> = emptyList()
-    private var motorSampleIndex = 0
-    private var lastMotorSampleNs = Long.MIN_VALUE
-    private var sampledMotorIndex = -1
-    private var sampledPower = 0.0
+    /** In Pedro's mixer order ([MOTOR_NAMES]); null where the hardware map has no such motor. */
+    private var motors: List<DcMotorEx?> = emptyList()
+    private val mecanum = follower.drivetrain as? Mecanum
+    private val commandedPower = DoubleArray(MOTOR_NAMES.size)
+    private val wheelVelocity = DoubleArray(MOTOR_NAMES.size) { Double.NaN }
+    private var currentSampleIndex = 0
+    private var lastCurrentSampleNs = Long.MIN_VALUE
+    private var sampledCurrentIndex = -1
     private var sampledCurrentAmps = 0.0
 
     override fun periodic() {
-        sampleNextMotor()
+        readWheelVelocities()
+        sampleNextCurrent()
+    }
+
+    /** Encoder velocities come from the bulk read, so every tick is free. */
+    private fun readWheelVelocities() {
+        for (i in wheelVelocity.indices) {
+            wheelVelocity[i] = try {
+                motors.getOrNull(i)?.velocity ?: Double.NaN
+            } catch (_: Throwable) {
+                Double.NaN
+            }
+        }
     }
 
     /**
-     * getPower()/getCurrent() are real Lynx transactions, not bulk-cache
-     * backed, so one motor is sampled every [MOTOR_SAMPLE_INTERVAL_NS]
-     * round-robin (each motor refreshes about every 200 ms).
+     * getCurrent() is a real Lynx transaction, not bulk-cache backed, so one
+     * motor is sampled every [CURRENT_SAMPLE_INTERVAL_NS] round-robin (each
+     * motor refreshes about every 100 ms).
      */
-    private fun sampleNextMotor() {
-        sampledMotorIndex = -1
-        if (loggedMotors.isEmpty()) return
+    private fun sampleNextCurrent() {
+        sampledCurrentIndex = -1
+        if (motors.isEmpty()) return
         val now = clock.nanos()
-        if (lastMotorSampleNs != Long.MIN_VALUE && now - lastMotorSampleNs < MOTOR_SAMPLE_INTERVAL_NS) return
-        lastMotorSampleNs = now
-        val index = motorSampleIndex
-        motorSampleIndex = (motorSampleIndex + 1) % loggedMotors.size
+        if (lastCurrentSampleNs != Long.MIN_VALUE && now - lastCurrentSampleNs < CURRENT_SAMPLE_INTERVAL_NS) return
+        lastCurrentSampleNs = now
+        val index = currentSampleIndex
+        currentSampleIndex = (currentSampleIndex + 1) % motors.size
+        val motor = motors[index] ?: return
         try {
-            val motor = loggedMotors[index].second
-            sampledPower = motor.power
             sampledCurrentAmps = motor.getCurrent(CurrentUnit.AMPS)
-            sampledMotorIndex = index
+            sampledCurrentIndex = index
         } catch (_: Throwable) {
             // Logging must never stop the drive; the channel just goes quiet.
+        }
+    }
+
+    /**
+     * Pedro's mixer keeps the last powers it wrote, but its stop() zeroes the
+     * motors without touching them, so a stopped drivetrain is recorded as zero.
+     */
+    private fun recordCommandedPower(stopped: Boolean) {
+        val wheels = mecanum?.wheelPowers
+        for (i in commandedPower.indices) {
+            commandedPower[i] = when {
+                wheels == null -> Double.NaN
+                stopped -> 0.0
+                else -> wheels[i]
+            }
         }
     }
 
     override fun logState(log: StateLog) {
         log.put("fieldCentric", fieldCentric)
         log.put("odometryFallback", odometryFallback)
-        val index = sampledMotorIndex
-        if (index < 0) return
-        val label = loggedMotors[index].first
-        log.put("motors/$label/power", sampledPower)
-        log.put("motors/$label/currentAmps", sampledCurrentAmps)
+        log.put("motors/power", commandedPower)
+        log.put("motors/velocityTps", wheelVelocity)
+        val index = sampledCurrentIndex
+        if (index >= 0) log.put("motors/${MOTOR_NAMES[index].first}/currentAmps", sampledCurrentAmps)
     }
 
     override fun writeHardware() {
@@ -373,10 +402,13 @@ class MecanumDriveSubsystem(
         stagedManual = null
         if (odometryFallback) {
             follower.drivetrain.drive(staged ?: DrivePowers.zero(), true)
+            recordCommandedPower(stopped = false)
             return
         }
         if (staged != null) follower.manual(staged)
+        val idle = follower.mode() == Follower.Mode.IDLE
         follower.update()
+        recordCommandedPower(stopped = idle)
         updateCount++
         if (follower.following()) {
             val sampled = (follower.pathIndex() + follower.parametricCompletion()) / pathSegments
@@ -399,16 +431,18 @@ class MecanumDriveSubsystem(
         latchedPathProgress = 0.0
         follower.stop()
         follower.drivetrain.stop()
+        recordCommandedPower(stopped = true)
     }
 
     private companion object {
+        /** Pedro's mixer order, which the `motors/power` and `motors/velocityTps` arrays follow. */
         val MOTOR_NAMES = listOf(
             "leftFront" to RobotConfig.Drive.FRONT_LEFT_MOTOR,
-            "leftRear" to RobotConfig.Drive.BACK_LEFT_MOTOR,
             "rightFront" to RobotConfig.Drive.FRONT_RIGHT_MOTOR,
+            "leftRear" to RobotConfig.Drive.BACK_LEFT_MOTOR,
             "rightRear" to RobotConfig.Drive.BACK_RIGHT_MOTOR,
         )
-        const val MOTOR_SAMPLE_INTERVAL_NS = 50_000_000L
+        const val CURRENT_SAMPLE_INTERVAL_NS = 25_000_000L
         const val DEFAULT_HOLD_TIMEOUT_MS = 2_000.0
     }
 }

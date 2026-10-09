@@ -20,9 +20,10 @@ class FakeHardwareMap : HardwareMap(null, null) {
         allDevicesMap[name]?.firstOrNull { type.isInstance(it) }?.let(type::cast)
 }
 
-/** A [DcMotorEx] that records every power written. */
+/** A [DcMotorEx] that records every power written and reports [velocity] in ticks per second. */
 class MotorProbe {
     var power = 0.0
+    var velocity = 0.0
     var direction = DcMotorSimple.Direction.FORWARD
     var zeroPowerBehavior = DcMotor.ZeroPowerBehavior.UNKNOWN
     val writes = mutableListOf<Double>()
@@ -38,6 +39,7 @@ class MotorProbe {
             "getDirection" -> direction
             "setDirection" -> { direction = args[0] as DcMotorSimple.Direction; null }
             "setZeroPowerBehavior" -> { zeroPowerBehavior = args[0] as DcMotor.ZeroPowerBehavior; null }
+            "getVelocity" -> velocity
             "getCurrent" -> 0.0
             else -> null
         }
