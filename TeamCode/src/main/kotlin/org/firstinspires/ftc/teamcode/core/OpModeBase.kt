@@ -66,16 +66,14 @@ abstract class OpModeBase : LinearOpMode() {
     /** Set false to suppress the live robot/path drawing on the Panels field view. */
     protected open val publishFieldView: Boolean get() = true
 
-    /** Rumble both gamepads once when the match reaches endgame. */
-    protected open val endgameRumble: Boolean get() = true
+    /** Timed cues for both gamepads; empty for autonomous and diagnostics. */
+    protected open val rumbleAlerts: List<RumbleAlert> get() = emptyList()
 
     private var voltageSensor: VoltageSensor? = null
     private var cachedVoltage = Double.NaN
     private var lastVoltageReadNs = Long.MIN_VALUE
     private val fieldView = FieldView()
     private var fieldViewDrive: DriveTelemetrySource? = null
-    private var startNanos = 0L
-    private var endgameRumbled = false
     private var telemetryFailures = 0
 
     /** The phase breakdown is in the flight log; `tools/logs/analyze_wpilog.py` reports it. */
@@ -143,15 +141,6 @@ abstract class OpModeBase : LinearOpMode() {
         }
     }
 
-    private fun updateEndgameRumble() {
-        if (!endgameRumble || endgameRumbled) return
-        if (robot.clock.nanos() - startNanos >= ENDGAME_START_NANOS) {
-            driver.rumbleBlips(3)
-            operator.rumbleBlips(3)
-            endgameRumbled = true
-        }
-    }
-
     final override fun runOpMode() {
         robot = Robot(hardwareMap).also { it.alliance = initialAlliance }
         driver = GamepadEx(gamepad1)
@@ -208,8 +197,8 @@ abstract class OpModeBase : LinearOpMode() {
 
         try {
             robot.start()
-            startNanos = robot.clock.nanos()
-            endgameRumbled = false
+            val startNanos = robot.clock.nanos()
+            val alerts = RumbleAlerts(rumbleAlerts)
             robot.recordEvent("start")
             onStart()
             while (opModeIsActive()) {
@@ -220,7 +209,10 @@ abstract class OpModeBase : LinearOpMode() {
                     },
                     control = {
                         onLoop()
-                        updateEndgameRumble()
+                        alerts.poll(robot.clock.nanos() - startNanos)?.let { alert ->
+                            driver.rumbleBlips(alert.blips)
+                            operator.rumbleBlips(alert.blips)
+                        }
                     },
                     telemetry = {
                         refreshVoltage()
@@ -243,8 +235,6 @@ abstract class OpModeBase : LinearOpMode() {
     private companion object {
         /** Resting voltage below which the init screen warns to swap the battery. */
         const val LOW_BATTERY_WARN_VOLTS = 12.0
-        /** Endgame is the last 30 s of the 2:00 driver period. */
-        const val ENDGAME_START_NANOS = 90_000_000_000L
     }
 }
 

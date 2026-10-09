@@ -1,7 +1,7 @@
 package org.firstinspires.ftc.teamcode
 
 /**
- * Central list of hardware-map names + wiring-level knobs.
+ * Central list of hardware-map names, wiring-level knobs, and season constants.
  *
  * This file holds the names the robot's active "Configuration" on the
  * Driver Station must use. Everything in [org.firstinspires.ftc.teamcode
@@ -35,6 +35,14 @@ object RobotConfig {
     object Transfer {
         val MOTORS = listOf("transferMotor")
         const val BLOCKER_SERVO = "blockerServo"
+    }
+
+    /** BIOBUZZ period lengths and milestones measured from teleop start. */
+    object Match {
+        const val AUTO_NANOS = 30_000_000_000L
+        const val DRIVER_NANOS = 120_000_000_000L
+        const val FLOWER_UNLOCK_NANOS = 60_000_000_000L
+        const val FINAL_TWENTY_NANOS = 100_000_000_000L
     }
 
     /** Game-level constants that change every season. Edit when the new game launches. */

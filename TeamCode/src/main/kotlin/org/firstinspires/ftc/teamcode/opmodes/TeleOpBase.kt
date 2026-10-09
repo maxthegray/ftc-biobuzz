@@ -2,8 +2,10 @@ package org.firstinspires.ftc.teamcode.opmodes
 
 import com.pedropathing.ivy.Scheduler
 import com.pedropathing.ivy.commands.Commands.instant
+import org.firstinspires.ftc.teamcode.RobotConfig
 import org.firstinspires.ftc.teamcode.core.GamepadEx.Button
 import org.firstinspires.ftc.teamcode.core.OpModeBase
+import org.firstinspires.ftc.teamcode.core.RumbleAlert
 import org.firstinspires.ftc.teamcode.core.logging.logged
 import org.firstinspires.ftc.teamcode.pedro.Constants
 import org.firstinspires.ftc.teamcode.subsystems.DriveConfig
@@ -34,6 +36,11 @@ import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem.TeleopInp
  * drive command ends; there is nothing to call from [onLoop].
  */
 abstract class TeleOpBase : OpModeBase() {
+
+    override val rumbleAlerts: List<RumbleAlert> = listOf(
+        RumbleAlert(RobotConfig.Match.FLOWER_UNLOCK_NANOS, blips = 2, expiresNanos = RobotConfig.Match.DRIVER_NANOS),
+        RumbleAlert(RobotConfig.Match.FINAL_TWENTY_NANOS, blips = 3, expiresNanos = RobotConfig.Match.DRIVER_NANOS),
+    )
 
     protected lateinit var drive: MecanumDriveSubsystem
         private set

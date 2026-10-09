@@ -29,7 +29,6 @@ class BallTrackingTestTeleOp : OpModeBase() {
     override val requiredDevices: List<Preflight.Requirement>
         get() = listOf(VisionDiagnostics.ballCameraRequirement)
     override val publishFieldView: Boolean get() = false
-    override val endgameRumble: Boolean get() = false
 
     override fun configure() {
         startup = VisionDiagnostics.Startup.fromConfig()

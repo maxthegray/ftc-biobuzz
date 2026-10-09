@@ -135,6 +135,10 @@ We only use PS5 controllers, so buttons have PS5 names. Bindings lock at
 start. Read sticks directly (`driver.leftStickY` is +up).
 `TeleOpBase` already binds Create+Triangle (heading reset), Create+Circle
 (field-centric) and installs stick driving as the drive's default command.
+BIOBUZZ match teleop also rumbles both controllers twice at 1:00 left
+(FLOWER ownership unlocked) and three times at 0:20 left. Timing lives in
+`RobotConfig.Match`; diagnostic subclasses of `TeleOpBase` disable the cues
+by overriding `rumbleAlerts` with an empty list.
 
 ## Compose an autonomous
 

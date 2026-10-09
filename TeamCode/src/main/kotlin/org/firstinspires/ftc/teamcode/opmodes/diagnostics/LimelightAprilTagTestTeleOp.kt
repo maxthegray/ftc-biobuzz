@@ -29,7 +29,6 @@ class LimelightAprilTagTestTeleOp : OpModeBase() {
     override val requiredDevices: List<Preflight.Requirement>
         get() = listOf(VisionDiagnostics.limelightRequirement)
     override val publishFieldView: Boolean get() = false
-    override val endgameRumble: Boolean get() = false
 
     override fun configure() {
         startup = VisionDiagnostics.Startup.fromConfig()
