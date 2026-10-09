@@ -55,6 +55,7 @@ export function createCharts({seek, saveLayout, onWindow}) {
   // Graphs follow playback through a fixed-length window, so a 20 s run and a 6 min run read the
   // same. Panning detaches them where you leave them; Follow (or F) puts them back on the cursor.
   const WINDOW_KEY = 'maxscope.graphWindow';
+  const ZOOM_PER_PIXEL = 0.0015;
   try {
     const saved = localStorage.getItem(WINDOW_KEY);
     if (saved === 'all') state.windowLength = Infinity;
@@ -144,7 +145,11 @@ export function createCharts({seek, saveLayout, onWindow}) {
       const rect = canvas.getBoundingClientRect();
       const fraction = Math.max(0, Math.min(1, (event.clientX - rect.left - 45) / Math.max(1, rect.width - 90)));
       const center = start + fraction * (end - start);
-      const length = Math.min(Math.max(state.run.endSec, 0.001), Math.max(0.02, (end - start) * (event.deltaY > 0 ? 1.3 : 0.77)));
+      // Proportional to how far the wheel or trackpad moved, so a trackpad's many small events don't
+      // fly through zoom levels: one mouse notch (100 px) is about 16%. Line-mode deltas are ~16 px.
+      const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1);
+      const factor = Math.exp(Math.max(-1, Math.min(1, pixels * ZOOM_PER_PIXEL)));
+      const length = Math.min(Math.max(state.run.endSec, 0.001), Math.max(0.02, (end - start) * factor));
       // Following, zoom changes the window length and keeps following; detached, it zooms around the pointer.
       if (state.follow) { state.windowLength = length; saveWindowLength(); follow(); }
       else setWindow(center - fraction * length, length);
