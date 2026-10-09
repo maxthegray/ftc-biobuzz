@@ -75,13 +75,18 @@ class ViewerTest(unittest.TestCase):
         self.assertIsNone(decoded["pose"][1][1][2])
         self.assertEqual([], decoded["missing"])
 
-    def test_two_runs_stay_decoded_for_comparison(self):
+    def test_several_runs_stay_decoded_for_overlays(self):
         other = self.logs / "Other-20260916-130000-000-1.wpilog"
         other.write_bytes(fixture())
         second = self.library.register(other)["id"]
         self.library.overview(self.ident)
         self.library.overview(second)
         self.assertEqual({self.ident, second}, set(self.library.cache))
+        for n in range(8):
+            extra = self.logs / f"Extra-20260916-14000{n}-000-1.wpilog"
+            extra.write_bytes(fixture())
+            self.library.overview(self.library.register(extra)["id"])
+        self.assertEqual(6, len(self.library.cache))
         self.assertNotIn("problems", self.library.overview(self.ident)["report"])
         self.assertEqual({"Pose jump": 1, "Log ends early": 1}, self.library.problems(self.ident)["counts"])
 

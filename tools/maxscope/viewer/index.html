@@ -14,16 +14,20 @@
     <div class="sidebar-foot"><span class="status-dot"></span>Offline</div>
   </aside>
   <main>
-    <header><div class="title-block"><h1 id="run-title">Log review</h1><p id="run-file"></p><p id="compare-legend" class="compare-legend" hidden><span class="swatch swatch-a"></span>This run<span class="swatch swatch-b"></span><span id="compare-name"></span></p></div>
+    <header><div class="title-block"><h1 id="run-title">Log review</h1><p id="run-file"></p></div>
       <div class="header-actions"><span id="run-status" class="pill" hidden></span>
-        <div id="compare-controls" class="compare-controls" hidden><select id="compare-run" aria-label="Compare with another run"><option value="">Compare with…</option></select>
-          <span id="compare-options" class="compare-options" hidden><select id="compare-align" aria-label="Line the runs up at"><option value="start">Align at op-mode start</option><option value="motion">Align at first movement</option><option value="log">Align at log start</option></select><label class="compare-shift">Shift B <input id="compare-shift" type="number" step="0.1" value="0" aria-label="Shift the compared run later, in seconds"> s</label><button id="compare-clear" class="text-button" aria-label="Stop comparing" title="Stop comparing">×</button></span>
-        </div>
+        <button id="overlay-open" class="button" aria-haspopup="dialog" aria-controls="overlay-picker" hidden>Overlay runs</button>
         <button id="theme-toggle" class="button" type="button"></button><label class="button primary" for="file">Open WPILOG<input id="file" type="file" accept=".wpilog" class="file-input"></label></div></header>
     <div id="notice" class="notice" role="status" hidden></div>
     <section id="welcome" class="welcome"><p>Select a run or open a WPILOG file.</p></section>
     <div id="workspace" hidden>
       <section class="transport card" aria-label="Playback controls"><button id="play" class="play" aria-label="Play" disabled>▶</button><div class="clock"><span id="time" class="time">0.00 s</span><span id="phase" class="phase" hidden></span></div><div class="scrub-wrap"><input id="scrub" type="range" min="0" max="1" step="0.001" value="0" aria-label="Playback time"><div id="scrub-markers" class="scrub-markers" aria-hidden="true"></div><div id="phase-marks" class="phase-marks" aria-hidden="true"></div></div><span id="duration" class="duration">0.00 s</span><select id="speed" aria-label="Playback speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select><button id="problems-toggle" class="problems-toggle" aria-pressed="false" title="Scan this run for problems · [ and ] step between them">Find problems</button></section>
+      <section id="overlay-bar" class="overlay-bar" aria-label="Overlay runs" hidden>
+        <span class="overlay-this"><span class="overlay-swatch this-run">A</span>This run</span>
+        <div id="overlay-chips" class="overlay-chips"></div>
+        <select id="overlay-align" aria-label="Line the overlay runs up at"><option value="start">Align at op-mode start</option><option value="motion">Align at first movement</option><option value="log">Align at log start</option></select>
+        <button id="overlay-clear-all" class="text-button">Clear</button>
+      </section>
       <div class="tab-row">
       <nav class="view-tabs" role="tablist" aria-label="Log views">
         <button id="tab-field" role="tab" aria-controls="panel-field" aria-selected="true" tabindex="0" data-view="field">Field</button>
@@ -37,7 +41,7 @@
           <div id="field-activity" class="field-activity"><span class="field-activity-heading">Running</span><div id="field-active-commands" aria-label="Active commands on field"></div></div>
           <div class="field-wrap"><canvas id="field" aria-label="Robot field playback in native Pedro coordinates"></canvas><span id="pose-status" class="field-status"></span><span id="field-hint" class="field-status field-hint" role="status" hidden></span><span id="field-zoom" class="field-status field-zoom" hidden><span id="field-zoom-label"></span><button id="field-zoom-reset" class="text-button">Follow playback</button></span><span id="ball-status" class="field-status ball-status" hidden></span></div>
           <div class="pose-readouts"><div>X <strong id="pose-x">—</strong><small>in</small></div><div>Y <strong id="pose-y">—</strong><small>in</small></div><div>Heading <strong id="pose-h">—</strong><small>°</small></div></div>
-          <div id="compare-pose" class="compare-pose" hidden></div>
+          <div id="overlay-poses" class="overlay-poses" hidden></div>
           <div class="field-caption"><span id="field-size"></span></div>
         </section>
         <section id="metrics" class="metrics" aria-label="Run summary"></section>
@@ -67,6 +71,12 @@
     <div id="channel-tree" class="channel-tree" aria-label="Channel folders"></div>
     <p class="picker-note">Layer up to 8 signals · Two unit scales per graph</p>
     <div class="picker-footer"><span id="channel-count" class="muted"></span><button id="channel-clear" class="text-button">Clear graph</button></div>
+  </dialog>
+  <dialog id="overlay-picker" class="overlay-picker" aria-labelledby="overlay-title">
+    <div class="picker-heading"><h2 id="overlay-title">Overlay runs</h2><button id="overlay-close" class="icon" aria-label="Close overlay picker">×</button></div>
+    <input id="overlay-search" type="search" placeholder="Search runs…" aria-label="Search runs" autocomplete="off">
+    <div id="overlay-list" class="overlay-list"></div>
+    <div class="picker-footer"><span class="muted">Up to 4 runs · <span id="overlay-count"></span></span><button id="overlay-clear" class="text-button">Clear all</button></div>
   </dialog>
   <script type="module" src="/app.js"></script>
 </body>

@@ -1,5 +1,6 @@
 import {finite, indexAt, sampleAt, scalarSeries, plotPoints, plotBounds, channelTree, discreteSeries, discreteIntervals, buttonNames, shiftSeries, followWindow} from './core.mjs';
 import {$, state, fmt, fmtTime, node, api, notice, commandCoverage, context, colors, problemColor} from './ui.js';
+import {OVERLAY_DASHES, shownOverlays} from './overlays.js';
 
 export function createCharts({seek, saveLayout, onWindow}) {
   function renderCharts() {
@@ -196,50 +197,87 @@ export function createCharts({seek, saveLayout, onWindow}) {
       header.append(node('span', 'discrete-name', label));
       if (lane.key === '@commands') header.append(node('span', 'discrete-coverage', commandCoverage()));
       lane.value = node('span', 'discrete-value');
+      lane.overlayValues = node('span', 'chart-overlay-values discrete-overlay-values');
       const remove = node('button', 'layer-remove', '×');
       remove.setAttribute('aria-label', `Remove discrete ${label} from graph ${state.charts.indexOf(chart) + 1}`);
       remove.onclick = () => { chart.discreteKeys = chart.discreteKeys.filter(key => key !== lane.key); loadCharts(); };
-      header.append(lane.value, remove);
+      header.append(lane.value, lane.overlayValues, remove);
       lane.canvas = node('canvas');
       lane.canvas.setAttribute('aria-label', `${label} discrete timeline`);
       wireTimeCanvas(lane.canvas);
       lane.canvas.onmousemove = event => {
         const rect = lane.canvas.getBoundingClientRect();
         const time = state.window[0] + Math.max(0, Math.min(1, (event.clientX - rect.left - 45) / Math.max(1, rect.width - 90))) * (state.window[1] - state.window[0]);
-        lane.canvas.title = `${fmtTime(time, 3)} · ${discreteLabel(sampleAt(lane.data, time), lane.option)}`;
+        const others = shownStrips(lane).map(strip => ` · ${strip.overlay.letter}: ${discreteLabel(sampleAt(strip.data, time), lane.option)}`).join('');
+        lane.canvas.title = `${fmtTime(time, 3)} · ${state.overlays.length ? 'A: ' : ''}${discreteLabel(sampleAt(lane.data, time), lane.option)}${others}`;
       };
       row.append(header, lane.canvas); chart.lanes.append(row);
     }
   }
 
+  // Overlay strips are drawn under the open run's strip, one per shown overlay.
+  const LANE_HEIGHT = 42, STRIP_HEIGHT = 14, STRIP_GAP = 4;
+  const shownStrips = lane => (lane.strips || []).filter(strip => strip.overlay.visible);
+
+  // A run of state blocks between `top` and `top + height`: the same value gets the same color in
+  // every strip, off/false/empty is dimmed, and blocks wide enough carry their label.
+  function drawStrip(ctx, x, intervals, option, top, height, labelled) {
+    const [start, end] = state.window, palette = colors.lanes;
+    for (let i = Math.max(0, indexAt(intervals, start)); i < intervals.length; i++) {
+      const [time, interval] = intervals[i];
+      if (time > end) break;
+      if (interval.end <= start) continue;
+      const a = x(Math.max(start, time)), b = x(Math.min(end, interval.end));
+      const label = discreteLabel(interval.value, option);
+      let hash = 0;
+      for (const char of label) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+      ctx.fillStyle = interval.value === false || interval.value === '' || interval.value === 0 ? colors['lane-off'] : palette[hash % palette.length];
+      ctx.fillRect(a, top, Math.max(1, b - a), height);
+      ctx.strokeStyle = colors['lane-edge']; ctx.beginPath(); ctx.moveTo(a, top); ctx.lineTo(a, top + height); ctx.stroke();
+      if (labelled && b - a > 24) {
+        ctx.save(); ctx.beginPath(); ctx.rect(a + 5, top, b - a - 10, height); ctx.clip();
+        ctx.fillStyle = colors['lane-ink']; ctx.fillText(label, a + 7, top + height / 2); ctx.restore();
+      }
+    }
+  }
+
   function drawDiscrete(chart) {
     for (const lane of chart.discrete) {
+      const strips = shownStrips(lane);
+      const canvasHeight = `${LANE_HEIGHT + strips.length * (STRIP_HEIGHT + STRIP_GAP)}px`;
+      if (lane.canvas.style.height !== canvasHeight) lane.canvas.style.height = canvasHeight;
       const {ctx, width, height} = context(lane.canvas);
       const [start, end] = state.window, left = 45, right = width - 45;
       const x = time => left + (time - start) / (end - start) * (right - left);
-      const value = sampleAt(lane.data, state.time);
-      lane.value.textContent = chart.loading ? 'Loading…' : discreteLabel(value, lane.option);
+      lane.value.textContent = chart.loading ? 'Loading…' : discreteLabel(sampleAt(lane.data, state.time), lane.option);
       lane.value.title = lane.value.textContent;
-      ctx.fillStyle = colors.lane; ctx.fillRect(left, 5, right - left, height - 10);
-      ctx.save(); ctx.beginPath(); ctx.rect(left, 0, right - left, height); ctx.clip();
-      ctx.font = '10px ui-monospace, monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      const palette = colors.lanes;
-      for (let i = Math.max(0, indexAt(lane.intervals, start)); i < lane.intervals.length; i++) {
-        const [time, interval] = lane.intervals[i];
-        if (time > end) break;
-        if (interval.end <= start) continue;
-        const a = x(Math.max(start, time)), b = x(Math.min(end, interval.end));
-        const label = discreteLabel(interval.value, lane.option);
-        let hash = 0;
-        for (const char of label) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-        ctx.fillStyle = interval.value === false || interval.value === '' || interval.value === 0 ? colors['lane-off'] : palette[hash % palette.length];
-        ctx.fillRect(a, 5, Math.max(1, b - a), height - 10);
-        ctx.strokeStyle = colors['lane-edge']; ctx.beginPath(); ctx.moveTo(a, 5); ctx.lineTo(a, height - 5); ctx.stroke();
-        if (b - a > 24) {
-          ctx.save(); ctx.beginPath(); ctx.rect(a + 5, 5, b - a - 10, height - 10); ctx.clip();
-          ctx.fillStyle = colors['lane-ink']; ctx.fillText(label, a + 7, height / 2); ctx.restore();
-        }
+      lane.overlayValues.replaceChildren(...(chart.loading ? [] : strips.map(strip => {
+        const value = node('span', 'chart-overlay-value', discreteLabel(sampleAt(strip.data, state.time), lane.option));
+        value.style.setProperty('--run', `var(--overlay-${strip.overlay.slot})`);
+        value.dataset.letter = strip.overlay.letter;
+        value.title = `Run ${strip.overlay.letter}: ${value.textContent}`;
+        return value;
+      })));
+      ctx.font = '10px ui-monospace, monospace'; ctx.textBaseline = 'middle';
+      // Run letters in the left margin, once there is more than one run to tell apart.
+      if (strips.length) {
+        ctx.textAlign = 'right';
+        ctx.fillStyle = colors.lime; ctx.fillText('A', left - 8, LANE_HEIGHT / 2);
+        strips.forEach((strip, i) => {
+          ctx.fillStyle = colors.overlays[strip.overlay.slot];
+          ctx.fillText(strip.overlay.letter, left - 8, LANE_HEIGHT + i * (STRIP_HEIGHT + STRIP_GAP) + STRIP_HEIGHT / 2);
+        });
       }
+      ctx.fillStyle = colors.lane; ctx.fillRect(left, 5, right - left, LANE_HEIGHT - 10);
+      strips.forEach((strip, i) => { ctx.fillStyle = colors.lane; ctx.fillRect(left, LANE_HEIGHT + i * (STRIP_HEIGHT + STRIP_GAP), right - left, STRIP_HEIGHT); });
+      ctx.save(); ctx.beginPath(); ctx.rect(left, 0, right - left, height); ctx.clip();
+      ctx.textAlign = 'left';
+      drawStrip(ctx, x, lane.intervals, lane.option, 5, LANE_HEIGHT - 10, true);
+      strips.forEach((strip, i) => {
+        const top = LANE_HEIGHT + i * (STRIP_HEIGHT + STRIP_GAP);
+        drawStrip(ctx, x, strip.intervals, lane.option, top, STRIP_HEIGHT, false);
+        ctx.fillStyle = colors.overlays[strip.overlay.slot]; ctx.fillRect(left, top, 2, STRIP_HEIGHT);
+      });
       if (state.time >= start && state.time <= end) {
         ctx.strokeStyle = colors['layer-0']; ctx.setLineDash([3, 3]); ctx.beginPath();
         ctx.moveTo(x(state.time), 0); ctx.lineTo(x(state.time), height); ctx.stroke(); ctx.setLineDash([]);
@@ -249,7 +287,7 @@ export function createCharts({seek, saveLayout, onWindow}) {
         ctx.moveTo(x(state.hoverTime), 0); ctx.lineTo(x(state.hoverTime), height); ctx.stroke();
       }
       if (!lane.data.length) {
-        ctx.fillStyle = colors['chart-label']; ctx.fillText(chart.loading ? 'Loading…' : 'No recorded samples', left + 8, height / 2);
+        ctx.fillStyle = colors['chart-label']; ctx.fillText(chart.loading ? 'Loading…' : 'No recorded samples', left + 8, LANE_HEIGHT / 2);
       }
       ctx.restore();
     }
@@ -267,14 +305,13 @@ export function createCharts({seek, saveLayout, onWindow}) {
       label.style.color = `var(--layer-${layer.slot})`;
       label.append(check, node('span', '', layer.option?.label || `${layer.key.split('::')[0]} (not recorded)`));
       layer.value = node('span', 'chart-value', '—');
-      layer.compareValue = node('span', 'chart-value compare-value');
-      layer.compareValue.hidden = !state.compare;
+      layer.overlayValues = node('span', 'chart-overlay-values');
       const axis = node('span', 'axis-label', layer.axis === 1 ? 'R' : 'L');
       axis.title = layer.axis === 1 ? 'Right axis' : 'Left axis';
       const remove = node('button', 'layer-remove', '×');
       remove.setAttribute('aria-label', `Remove ${layer.option?.label || layer.key}`);
       remove.onclick = () => { chart.keys = chart.keys.filter(key => key !== layer.key); loadCharts(); };
-      item.append(label, axis, layer.value, layer.compareValue, remove);
+      item.append(label, axis, layer.value, layer.overlayValues, remove);
       chart.legend.append(item);
     });
   }
@@ -388,7 +425,7 @@ export function createCharts({seek, saveLayout, onWindow}) {
       const visibility = new Map(chart.layers.map(layer => [layer.key, layer.visible]));
       chart.axes = [...new Set(definitions[i].filter(layer => layer.option).map(layer => layer.option.unit))];
       chart.layers = definitions[i].map((layer, j) => ({...layer, slot: j % 8, visible: visibility.get(layer.key) ?? true,
-        axis: Math.max(0, chart.axes.indexOf(layer.option?.unit)), data: [], points: [], compareData: [], comparePoints: []}));
+        axis: Math.max(0, chart.axes.indexOf(layer.option?.unit)), data: [], points: [], overlays: []}));
       chart.loading = true;
       chart.discrete = discreteDefinitions[i].map(lane => ({...lane, data: [], intervals: []}));
       renderLegend(chart); renderDiscrete(chart);
@@ -404,15 +441,17 @@ export function createCharts({seek, saveLayout, onWindow}) {
         for (const [name, series] of Object.entries(result)) state.series.set(name, series);
       }
       if (runGeneration !== state.generation || generation !== state.graphGeneration) return;
-      // The compared run's samples for the same channels, shifted onto this run's clock.
-      const compare = state.compare;
-      const missing = compare ? [...requested].filter(name => !compare.raw.has(name)) : [];
-      for (let offset = 0; offset < missing.length; offset += 8) {
-        const query = new URLSearchParams({id: compare.id});
-        missing.slice(offset, offset + 8).forEach(name => query.append('channel', name));
-        const result = await api(`/api/series?${query}`);
-        if (runGeneration !== state.generation || generation !== state.graphGeneration || compare !== state.compare) return;
-        for (const [name, series] of Object.entries(result)) { compare.raw.set(name, series); compare.series.set(name, shiftSeries(series, compare.offset)); }
+      // Each overlay's samples for the same channels, shifted onto this run's clock.
+      const overlays = state.overlays.filter(overlay => overlay.run);
+      for (const overlay of overlays) {
+        const missing = [...requested].filter(name => !overlay.raw.has(name));
+        for (let offset = 0; offset < missing.length; offset += 8) {
+          const query = new URLSearchParams({id: overlay.id});
+          missing.slice(offset, offset + 8).forEach(name => query.append('channel', name));
+          const result = await api(`/api/series?${query}`);
+          if (runGeneration !== state.generation || generation !== state.graphGeneration || !state.overlays.includes(overlay)) return;
+          for (const [name, series] of Object.entries(result)) { overlay.raw.set(name, series); overlay.series.set(name, shiftSeries(series, overlay.offset)); }
+        }
       }
       const selected = requested;
       for (const key of state.series.keys()) {
@@ -424,11 +463,20 @@ export function createCharts({seek, saveLayout, onWindow}) {
         for (const layer of chart.layers) {
           const option = layer.option;
           layer.data = option ? scalarSeries(state.series.get(option.name) || [], option.component, option.scale) : [];
-          layer.compareData = option && compare ? scalarSeries(compare.series.get(option.name) || [], option.component, option.scale) : [];
+          layer.overlays = option ? overlays.map(overlay => ({overlay, data: scalarSeries(overlay.series.get(option.name) || [], option.component, option.scale), points: []})) : [];
         }
         for (const lane of chart.discrete) {
           lane.data = discreteSeries(state.series.get(lane.option?.source) || [], lane.option?.bit);
           lane.intervals = discreteIntervals(lane.data, state.run.endSec);
+          // Each overlay's own samples of the same field, on this run's clock and ending where its run
+          // ends. Commands come from whichever command channel that run recorded.
+          lane.strips = lane.option ? overlays.map(overlay => {
+            const source = lane.key === '@commands'
+              ? ['commands/active', 'commands/running'].find(name => overlay.run.channels.some(channel => channel.name === name))
+              : lane.option.source;
+            const data = discreteSeries(overlay.series.get(source) || [], lane.option.bit);
+            return {overlay, data, intervals: discreteIntervals(data, overlay.run.endSec + overlay.offset)};
+          }) : [];
         }
       });
       preparePlots(); drawCharts();
@@ -446,9 +494,9 @@ export function createCharts({seek, saveLayout, onWindow}) {
       const buckets = Math.max(100, Math.floor(chart.canvas.clientWidth));
       for (const layer of chart.layers) {
         layer.points = plotPoints(layer.data, ...state.window, buckets);
-        layer.comparePoints = plotPoints(layer.compareData, ...state.window, buckets);
+        for (const trace of layer.overlays) trace.points = trace.overlay.visible ? plotPoints(trace.data, ...state.window, buckets) : [];
       }
-      const scaled = [...chart.layers, ...chart.layers.map(layer => ({...layer, points: layer.comparePoints}))];
+      const scaled = [...chart.layers, ...chart.layers.flatMap(layer => layer.overlays.map(trace => ({...layer, points: trace.points})))];
       chart.bounds = chart.axes.map((unit, axis) => plotBounds(scaled, axis, state.window[1]));
     }
   }
@@ -503,20 +551,26 @@ export function createCharts({seek, saveLayout, onWindow}) {
       for (const layer of chart.layers) {
         const value = sampleAt(layer.data, state.time);
         layer.value.textContent = chart.loading ? '…' : `${fmt(value)}${layer.option?.unit ? ' ' + layer.option.unit : ''}`;
-        if (state.compare) {
-          const other = sampleAt(layer.compareData, state.time);
-          layer.compareValue.textContent = chart.loading ? '' : `B ${fmt(other)}${layer.option?.unit ? ' ' + layer.option.unit : ''}`;
-        }
+        layer.overlayValues.replaceChildren(...(chart.loading ? [] : layer.overlays.filter(trace => trace.overlay.visible && trace.data.length).map(trace => {
+          const value = node('span', 'chart-overlay-value', fmt(sampleAt(trace.data, state.time)));
+          value.style.setProperty('--run', `var(--overlay-${trace.overlay.slot})`);
+          value.dataset.letter = trace.overlay.letter;
+          value.title = `Run ${trace.overlay.letter}`;
+          return value;
+        })));
         const sampled = indexAt(layer.data, state.time);
         layer.value.title = sampled < 0 ? 'No sample at this time' : `Last sample at ${fmtTime(layer.data[sampled][0], 6)}`;
         if (!layer.visible) continue;
         const [min, max] = chart.bounds[layer.axis] || [0, 1];
         const y = value => bottom - (value - min) / (max - min) * (bottom - top);
         ctx.strokeStyle = colors.layers[layer.slot]; ctx.lineWidth = 1.5;
-        if (layer.comparePoints.length) {
-          ctx.globalAlpha = 0.7; ctx.setLineDash([4, 3]); stroke(layer.comparePoints, y);
-          ctx.setLineDash([]); ctx.globalAlpha = 1;
+        // Overlay runs keep the signal's color and take their own dash, thinner and under the open run.
+        ctx.lineWidth = 1.25; ctx.globalAlpha = 0.8;
+        for (const trace of layer.overlays) {
+          if (!trace.points.length) continue;
+          ctx.setLineDash(OVERLAY_DASHES[trace.overlay.slot]); stroke(trace.points, y);
         }
+        ctx.setLineDash([]); ctx.globalAlpha = 1; ctx.lineWidth = 1.5;
         stroke(layer.points, y);
       }
       if (state.time >= start && state.time <= end) {
@@ -544,8 +598,10 @@ export function createCharts({seek, saveLayout, onWindow}) {
       const unit = layer.option?.unit ? ' ' + layer.option.unit : '';
       const name = layer.option?.componentLabel ?? layer.option?.name.split('/').at(-1) ?? layer.key;
       let text = `${name}  ${fmt(sampleAt(layer.data, state.hoverTime))}${unit}`;
-      if (state.compare && layer.compareData.length) text += `  B ${fmt(sampleAt(layer.compareData, state.hoverTime))}${unit}`;
       rows.push([text, colors.layers[layer.slot]]);
+      for (const trace of layer.overlays) {
+        if (trace.overlay.visible && trace.data.length) rows.push([`  ${trace.overlay.letter}  ${fmt(sampleAt(trace.data, state.hoverTime))}${unit}`, colors.overlays[trace.overlay.slot]]);
+      }
     }
     ctx.font = '10px ui-monospace, monospace';
     const boxWidth = Math.max(...rows.map(([text]) => ctx.measureText(text).width)) + 16, boxHeight = rows.length * 14 + 8;

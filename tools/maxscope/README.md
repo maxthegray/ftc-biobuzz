@@ -165,25 +165,22 @@ reduced trail; the coordinate readout always uses the full pose series.
   step to the previous and next problem, turning it on first if needed.
   Rules live in `problems()` in `log_viewer.py`; a log without a channel
   just has no problems of that kind.
-- **Compare with…** beside the run title picks a second run, B. B's trail
-  and robot are drawn in blue on the field, every graph layer gets a dashed
-  B trace in the same color, the legend and metrics show B's values, and a
-  line under the pose readout gives B's pose and its own clock. Line runs up
-  at the op-mode `start` event (default), the first time the robot moves
-  more than an inch, or the log start; **Shift B** nudges B later in
-  seconds. B stays selected while you switch the main run. Discrete lanes,
-  events, commands and gamepads show the main run only.
-
-Samples are held until the next recorded value; no future values or
-interpolated poses are invented. Before a channel's first sample its value
-is unavailable. Nonfinite numbers appear as gaps. Pose age is shown after
-250 ms without a sample. Graph readouts use original samples while plotting
-preserves each pixel bucket's first/last/min/max values. Timing is displayed
-in milliseconds. The pose readout shows heading in degrees (hover it for
-radians); graphs of `pose` heading stay in radians.
-
-## Coverage and limits
-
+- **Overlay runs** in the header lays up to four other runs over the open
+  one, lettered B–E (the open run is A). The picker lists runs of the same
+  op-mode first; the **+** on a run in the sidebar overlays it directly and
+  shows its letter once it is on. On the field each run has its own color:
+  its path, the part played so far, and its robot at the cursor tagged with
+  its letter. On graphs a line's color stays its signal's and each run draws
+  its own dash pattern, shown on its chip; the legend, hover tooltip, pose
+  readout and summary tiles give every run's value by letter. The overlay
+  bar under the playback controls has a chip per run with show/hide, its own
+  shift in seconds and remove, plus the alignment for all of them: op-mode
+  `start` event (default), first movement (more than an inch), or log start.
+  Each discrete lane gets a thin strip per shown overlay under the open run's
+  strip, lettered in the margin: the same value has the same color in every
+  strip, and the lane's header and hover list every run's value. Overlays
+  stay when you open another run; opening one of them drops it from the
+  overlays. Events, commands and gamepads show the open run only.
 - Current command logs show instrumented commands only. Missing commands
   may be unlogged; lost-record counts and incomplete log tails are surfaced.
   Discrete command lanes show the recorded active set, including concurrent
@@ -201,7 +198,9 @@ radians); graphs of `pose` heading stay in radians.
   arbitrary WPILib structs. Logs without raw `pose` still open but have no
   field playback.
 - File limit: 256 MiB. Parsing happens in the local Python server, which
-  keeps two decoded runs (the one open and the one compared). Large files can take several seconds and use much
+  keeps up to six decoded runs while their files total 64 MiB (decoded, a
+  run takes about 8× its file size), so overlays of long teleop runs may be
+  re-parsed when you add signals. Large files can take several seconds and use much
   more RAM than their on-disk size. Playback channels and selected graphs
   are transferred in full; this is not a streaming large-log database.
 - Run dates come from the filename's hub clock, which may be wrong.

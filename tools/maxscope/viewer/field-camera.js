@@ -1,5 +1,6 @@
 import {finite, indexAt, sampleAt, fieldPoint, ROBOT_HALF_IN, ballSighting, ballEstimate, sightingMount, loggedCameraMount, cameraDetections, POLLEN_DIAMETER_IN} from './core.mjs';
 import {$, state, fmt, fmtTime, node, context, colors, problemColor} from './ui.js';
+import {shownOverlays} from './overlays.js';
 
 // Past this the estimate moves by feet per degree of ty, so only the direction is drawn.
 const BALL_TRUST_IN = 48;
@@ -49,10 +50,12 @@ export function drawField() {
     }
     ctx.stroke();
   };
-  const compare = state.compare, comparePoses = compare?.series.get('pose') || [];
-  if (compare) {
-    ctx.globalAlpha = 0.15; drawTrail(compare.trail, false, colors.compare);
-    ctx.globalAlpha = 0.5; drawTrail(compare.trail, true, colors.compare); ctx.globalAlpha = 1;
+  // Overlay runs under the open one, each in its own color: faint whole path, stronger played part.
+  const overlays = shownOverlays();
+  for (const overlay of overlays) {
+    const color = colors.overlays[overlay.slot];
+    ctx.globalAlpha = 0.18; drawTrail(overlay.trail, false, color);
+    ctx.globalAlpha = 0.6; drawTrail(overlay.trail, true, color); ctx.globalAlpha = 1;
   }
   // When the graphs are detached on part of the run, a soft band under the path marks the stretch
   // they show, labelled in the corner; the trail's own played/unplayed colors stay on top. While
@@ -90,12 +93,19 @@ export function drawField() {
       ctx.moveTo(px - 4, py - 4); ctx.lineTo(px + 4, py + 4); ctx.moveTo(px + 4, py - 4); ctx.lineTo(px - 4, py + 4); ctx.stroke();
     }
   }
-  const ghost = compare && state.time >= (comparePoses[0]?.[0] ?? Infinity) ? sampleAt(comparePoses, state.time) : null;
-  if (Array.isArray(ghost) && ghost.slice(0, 3).every(finite)) {
-    const [gx, gy] = fieldPoint(ghost, view, left, top, size), radius = Math.max(5, ROBOT_HALF_IN * size / view.span);
+  // Each overlay's robot at the cursor, tagged with its letter, once that run has started.
+  const radius = Math.max(5, ROBOT_HALF_IN * size / view.span);
+  for (const overlay of overlays) {
+    const poses = overlay.series.get('pose') || [];
+    const ghost = state.time >= (poses[0]?.[0] ?? Infinity) ? sampleAt(poses, state.time) : null;
+    if (!Array.isArray(ghost) || !ghost.slice(0, 3).every(finite)) continue;
+    const color = colors.overlays[overlay.slot];
+    const [gx, gy] = fieldPoint(ghost, view, left, top, size);
     ctx.save(); ctx.translate(gx, gy); ctx.rotate(-ghost[2]);
-    drawRobot(ctx, radius, colors.compare);
+    drawRobot(ctx, radius, color);
     ctx.restore();
+    ctx.globalAlpha = 1; ctx.font = '600 10px Inter, system-ui, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = color; ctx.fillText(overlay.letter, gx, gy - radius * 1.5 - 3);
   }
   const pose = sampleAt(series, state.time);
   const valid = Array.isArray(pose) && pose.length >= 3 && pose.slice(0, 3).every(finite);
@@ -152,6 +162,11 @@ export function drawField() {
     const radius = Math.max(5, ROBOT_HALF_IN * size / view.span);
     ctx.translate(x, y); ctx.rotate(-pose[2]);
     drawRobot(ctx, radius, colors.lime);
+    // With overlays on, the open run's robot is A, matching the overlay bar.
+    if (overlays.length) {
+      ctx.rotate(pose[2]); ctx.font = '600 10px Inter, system-ui, sans-serif'; ctx.textAlign = 'center';
+      ctx.fillStyle = colors.lime; ctx.fillText('A', 0, -radius * 1.5 - 3);
+    }
   }
   ctx.restore();
 }

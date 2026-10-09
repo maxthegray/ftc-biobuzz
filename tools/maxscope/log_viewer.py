@@ -23,6 +23,10 @@ import analyze_wpilog  # noqa: E402
 ROOT = Path(__file__).resolve().parents[2]
 ASSETS = Path(__file__).with_name("viewer")
 MAX_UPLOAD = 256 * 1024 * 1024
+# Decoded runs stay cached so overlays don't re-parse on every graph change: up to CACHE_RUNS, and
+# while their files total CACHE_BYTES (decoded, a run takes about 8x its file size in memory).
+CACHE_RUNS = 6
+CACHE_BYTES = 64 * 1024 * 1024
 PLAYBACK_CHANNELS = ("pose", "driveMode", "gamepad1/axes", "gamepad1/buttons",
                      "gamepad2/axes", "gamepad2/buttons", "commands/active", "commands/running",
                      "BallAssist/tx", "BallAssist/ty", "BallAssist/targetTy",
@@ -241,7 +245,6 @@ class LogLibrary:
         self.upload_directory = Path(upload_directory)
         self.paths = {}
         self.names = {}
-        # Two decoded runs, so comparing one against another doesn't re-parse on every request.
         self.cache = OrderedDict()
         self.found = {}
         self.lock = threading.RLock()
@@ -302,7 +305,9 @@ class LogLibrary:
             raise ValueError("This file is not a WPILOG")
         if len(header) == 8 and header[6:8] != b"\x00\x01":
             raise ValueError("This draft supports WPILOG version 1.0")
-        if len(self.cache) >= 2:
+        size = path.stat().st_size
+        while self.cache and (len(self.cache) >= CACHE_RUNS
+                              or sum(self.paths[i].stat().st_size for i in self.cache) + size > CACHE_BYTES):
             evicted, _ = self.cache.popitem(last=False)
             self.found.pop(evicted, None)
         records, types, truncated = analyze_wpilog.parse_wpilog(path)
@@ -406,6 +411,7 @@ def handler_for(library):
                              "/layout.js": ("layout.js", "text/javascript"),
                              "/charts.js": ("charts.js", "text/javascript"),
                              "/field-camera.js": ("field-camera.js", "text/javascript"),
+                             "/overlays.js": ("overlays.js", "text/javascript"),
                              "/core.mjs": ("core.mjs", "text/javascript"),
                              "/theme.js": ("theme.js", "text/javascript"),
                              "/style.css": ("style.css", "text/css")}

@@ -58,7 +58,10 @@
   --robot-line: #111416;
   --robot-arrow:#2f6fe4;
   --ball: #e07020;
-  --compare: #7a3fd6;
+  --overlay-0: #7a3fd6;
+  --overlay-1: #d9731a;
+  --overlay-2: #0f9d76;
+  --overlay-3: #d6407e;
   --trail-window: #111416;
   --tooltip: #fafafaf2;
   --chart-grid: #e2e2e2;
@@ -144,7 +147,10 @@
   --robot-line: #0e1011;
   --robot-arrow:#4d8dff;
   --ball: #ff8f3a;
-  --compare: #c08cff;
+  --overlay-0: #c08cff;
+  --overlay-1: #ff9f43;
+  --overlay-2: #4fd6a8;
+  --overlay-3: #ff6fae;
   --trail-window: #ffffff;
   --tooltip:#1f1f1ff2;
   --chart-grid:#262626;
@@ -1303,18 +1309,18 @@ canvas {
   gap: 28px;
 }
 
-#channel-picker {
+#channel-picker, #overlay-picker {
   width: min(560px, calc(100vw - 32px));
   padding: 0;
   border: 1px solid var(--line);
-  border-radius: 3px;
+  border-radius: 12px;
   background: var(--surface);
   color: var(--ink);
   box-shadow: 0 20px 80px var(--shadow-strong);
   max-height: calc(100dvh - 40px);
 }
 
-#channel-picker::backdrop {
+#channel-picker::backdrop, #overlay-picker::backdrop {
   background: var(--backdrop);
 }
 
@@ -1330,14 +1336,14 @@ canvas {
   margin: 0;
 }
 
-#channel-search {
+#channel-search, #overlay-search {
   display: block;
   width: calc(100% - 40px);
   margin: 6px 20px 14px;
   padding: 10px 12px;
   border: 1px solid var(--line);
   background: var(--input);
-  border-radius: 3px;
+  border-radius: 8px;
   font-size: 12px;
 }
 
@@ -1743,72 +1749,274 @@ canvas {
   padding: 5px 10px;
 }
 
-.compare-controls, .compare-options {
+/* Overlay runs. --run is each run's color, set inline from --overlay-0..3. */
+.overlay-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.compare-options[hidden] {
-  display: none;
-}
-
-#compare-run {
-  max-width: 240px;
-}
-
-.compare-shift {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 10px;
-  color: var(--muted);
-}
-
-.compare-shift input {
-  width: 58px;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 8px 12px;
   border: 1px solid var(--line);
-  background: var(--input);
-  color: var(--select-ink);
-  padding: 5px 6px;
-  font-size: 10px;
-  border-radius: 0;
+  border-radius: 10px;
+  background: var(--surface);
 }
 
-.compare-legend {
+.overlay-this {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 8px 0 0;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
 }
 
-.compare-legend[hidden] {
-  display: none;
+.overlay-swatch {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--run);
+  color: #111;
+  font-size: 10.5px;
+  font-weight: 700;
 }
 
-.swatch {
-  width: 14px;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--trail-past);
+.overlay-swatch.this-run {
+  background: var(--lime);
+  color: #fff;
 }
 
-.swatch-b {
-  margin-left: 8px;
-  background: repeating-linear-gradient(90deg, var(--compare) 0 4px, transparent 4px 6px);
+.overlay-chips {
+  display: flex;
+  flex-wrap: wrap;
+  flex: 1;
+  gap: 8px;
+  min-width: 0;
 }
 
-.compare-pose {
-  margin: 8px 20px 0;
+.overlay-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 5px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--run);
+  border-radius: 8px;
+  background: var(--soft);
+  font-size: 12px;
+}
+
+.overlay-chip.hidden-overlay {
+  opacity: .5;
+}
+
+/* The dash this run draws on graphs, matching OVERLAY_DASHES in overlays.js. */
+.overlay-dash {
+  flex: none;
+  width: 24px;
+  height: 2px;
+}
+
+.dash-0 {
+  background: repeating-linear-gradient(90deg, var(--ink) 0 7px, transparent 7px 11px);
+}
+
+.dash-1 {
+  background: repeating-linear-gradient(90deg, var(--ink) 0 2px, transparent 2px 5px);
+}
+
+.dash-2 {
+  background: repeating-linear-gradient(90deg, var(--ink) 0 9px, transparent 9px 12px, var(--ink) 12px 14px, transparent 14px 17px);
+}
+
+.dash-3 {
+  background: repeating-linear-gradient(90deg, var(--ink) 0 14px, transparent 14px 19px);
+}
+
+.overlay-name {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overlay-length, .overlay-shift-label {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.overlay-length {
   font-family: ui-monospace, monospace;
-  font-size: 10px;
-  color: var(--compare);
 }
 
-.compare-value {
+.overlay-shift {
+  width: 58px;
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--input);
+  color: var(--select-ink);
+  font-size: 11px;
+}
+
+.overlay-eye, .overlay-remove {
+  padding: 2px 4px;
+  border: 0;
+  background: none;
   color: var(--muted);
+  font-size: 11px;
+}
+
+.overlay-eye:hover, .overlay-remove:hover {
+  color: var(--ink);
+}
+
+.overlay-poses {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 8px 16px 0;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+}
+
+.overlay-pose {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--run);
+}
+
+.overlay-pose .overlay-swatch, .metric-overlay .overlay-swatch {
+  width: 15px;
+  height: 15px;
+  font-size: 9px;
+}
+
+.chart-overlay-values {
+  display: flex;
+  gap: 8px;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.chart-overlay-value::before {
+  content: attr(data-letter) " ";
+  color: var(--run);
+  font-weight: 700;
+}
+
+.discrete-overlay-values {
+  max-width: 45%;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.metric-overlays {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 6px;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+}
+
+.metric-overlay {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Sidebar: each run row carries a toggle that overlays it, shown on hover or once it's on. */
+.run-row {
+  position: relative;
+}
+
+.run-overlay {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  transform: translateY(-50%);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  opacity: 0;
+}
+
+.run-row:hover .run-overlay, .run-overlay:focus-visible, .run-overlay.on {
+  opacity: 1;
+}
+
+.run-row:hover .run-length, .run-row:has(.run-overlay.on) .run-length {
+  visibility: hidden;
+}
+
+.run-overlay.on {
+  border-color: transparent;
+  background: var(--run);
+  color: #111;
+  font-weight: 700;
+}
+
+.overlay-list {
+  max-height: min(420px, calc(100dvh - 220px));
+  overflow: auto;
+  padding: 0 12px 10px;
+}
+
+.overlay-group {
+  padding: 10px 8px 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.overlay-option {
+  display: grid;
+  grid-template-columns: 22px 1fr auto 42px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+  font-size: 12.5px;
+}
+
+.overlay-option:hover {
+  background: var(--soft);
+}
+
+.overlay-option[aria-pressed="true"] {
+  background: var(--highlight);
+}
+
+.overlay-option .overlay-swatch {
+  background: var(--run, transparent);
+  border: 1px dashed var(--line);
+}
+
+.overlay-option[aria-pressed="true"] .overlay-swatch {
+  border-color: transparent;
+}
+
+.overlay-option-date, .overlay-option-length {
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+}
+
+.overlay-option:disabled {
+  opacity: .4;
 }
 
 .problems-toggle {

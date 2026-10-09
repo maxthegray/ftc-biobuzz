@@ -1,5 +1,6 @@
 import {finite, indexAt, sampleAt, activeCommandSpans, fieldView, ballSources, cameraSources, channelOptions, channelTree, discreteOptions, buttonNames, alignmentAnchor, shiftSeries, adjacentProblem, problemsAt, matchPhases, phaseAt, minutes, posePasses, nextPass} from './core.mjs';
-import {$, state, fmt, fmtTime, node, api, notice, commandCoverage, refreshColors} from './ui.js';
+import {$, state, fmt, fmtTime, node, api, notice, commandCoverage, refreshColors, runLabel, runDay, runClock, runDate} from './ui.js';
+import {createOverlays, shownOverlays, MAX_OVERLAYS} from './overlays.js';
 import {createCharts} from './charts.js';
 import {createLayout} from './layout.js';
 import {drawField, drawCamera, fillCameraSources, fieldInches} from './field-camera.js';
@@ -9,12 +10,19 @@ const faultPattern = /\b(?:FAULT|CRASH|FAIL(?:ED|URE)?|LOST|INCOMPLETE|DISABLED|
 const themeKey = 'maxscope.theme';
 const {closePicker, renderCharts, loadCharts, applyPreset, preparePlots, drawCharts, syncWindow, follow, updateWindowControls} = createCharts({seek, saveLayout: () => saveLayout(), onWindow: () => drawField()});
 const {initializeLayout, saveLayout, setProblemsView} = createLayout({seek, preparePlots, redraw});
+// Everything that shows overlays redraws when one is added, removed, hidden, shifted or realigned;
+// `reload` also fetches their samples for the graphs.
+const overlays = createOverlays({downsample: poses => downsample(poses), onChange: (reload = true) => {
+  overlays.render();
+  if (!state.run) return;
+  updateFieldView();
+  renderMetrics();
+  renderLibrary();
+  if (reload) loadCharts(); else { preparePlots(); drawCharts(); }
+  seek(state.time);
+}});
 
 function redraw() { drawField(); drawCamera(); drawCharts(); }
-
-function runLabel(name) {
-  return name.replace(/-\d{8}-\d{6}.*\.wpilog$/, '').replace(/\.wpilog$/, '').replace(/([a-z])([A-Z])/g, '$1 $2');
-}
 
 // Runs that never left init, or stopped within seconds of start, are hidden unless asked for or open.
 const listed = log => state.showShort || !log.short || log.id === state.run?.id;
@@ -31,6 +39,7 @@ function renderLibrary() {
   for (const log of runs) {
     const date = runDay(log);
     if (date !== day) { day = date; $('runs').append(node('div', 'run-day', date)); }
+    const row = node('div', 'run-row');
     const button = node('button', 'run');
     button.classList.toggle('selected', log.id === state.run?.id);
     button.classList.toggle('short', log.short);
@@ -41,32 +50,20 @@ function renderLibrary() {
     top.append(node('span', 'run-length', !log.scanned ? '…' : log.drivenSec !== null ? minutes(log.drivenSec) : 'init only'));
     button.append(top, node('small', '', `${runClock(log)} · ${(log.bytes / 1048576).toFixed(1)} MiB`));
     button.onclick = () => openRun(log.id);
-    $('runs').append(button);
+    row.append(button);
+    if (log.id !== state.run?.id && state.run) {
+      const overlay = state.overlays.find(item => item.id === log.id);
+      const toggle = node('button', `run-overlay${overlay ? ' on' : ''}`, overlay?.letter ?? '+');
+      if (overlay) toggle.style.setProperty('--run', `var(--overlay-${overlay.slot})`);
+      toggle.title = overlay ? `Remove overlay ${overlay.letter}` : 'Overlay this run';
+      toggle.setAttribute('aria-label', `${toggle.title}: ${runLabel(log.name)} ${runDate(log)}`);
+      toggle.disabled = !overlay && state.overlays.length >= MAX_OVERLAYS;
+      toggle.onclick = () => overlays.toggle(log.id);
+      row.append(toggle);
+    }
+    $('runs').append(row);
   }
   if (!runs.length) $('runs').append(node('p', 'empty', state.logs.length ? 'No matching runs.' : 'No local logs yet. Open a WPILOG or run make pull-logs.'));
-  renderCompareOptions();
-}
-
-const stamp = log => log.name.match(/-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/);
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-// Dates come from the hub's clock, which may be wrong, so no weekday is guessed from them.
-function runDay(log) {
-  const match = stamp(log);
-  return match ? `${MONTHS[Number(match[2]) - 1] ?? match[2]} ${Number(match[3])}` : log.uploaded ? 'Imported' : 'Other';
-}
-function runClock(log) {
-  const match = stamp(log);
-  return match ? `${match[4]}:${match[5]}:${match[6]}` : log.uploaded ? 'Imported' : 'Local file';
-}
-function runDate(log) {
-  return stamp(log) ? `${runDay(log)} · ${runClock(log)}` : runClock(log);
-}
-
-function renderCompareOptions() {
-  const select = $('compare-run');
-  select.replaceChildren(new Option('Compare with…', ''), ...state.logs
-    .filter(log => log.id !== state.run?.id)
-    .map(log => new Option(`${runLabel(log.name)} · ${runDate(log)}`, log.id, false, log.id === state.compare?.id)));
 }
 
 // The newest pulled run worth opening: scanned, and not a short one. Null while it is still scanning.
@@ -129,11 +126,12 @@ async function openRun(id) {
     state.problems = [];
     state.problemCounts = {};
     state.problemFilter = null;
-    if (state.compare?.id === id) clearCompare(false);
+
     state.eventSeries = state.events.map(event => [event.tSec, event]);
     const poses = run.playback.pose || [];
     state.trail = downsample(poses);
-    if (state.compare) alignCompare(); else updateFieldView();
+    overlays.reopen();
+    updateFieldView();
     state.cameras = cameraSources(run.channels);
     $('field-ball-option').hidden = !ballSources(state.cameras).some(source => run.playback[source.tx]?.length);
     for (const view of state.cameraViews) fillCameraSources(view);
@@ -148,7 +146,8 @@ async function openRun(id) {
     $('duration').title = `Log ends at ${fmt(run.endSec)} s`;
     $('play').disabled = run.endSec <= 0;
     $('workspace').hidden = false;
-    $('compare-controls').hidden = false;
+    $('overlay-open').hidden = false;
+    overlays.render();
     renderPhaseMarks();
     renderMetrics();
     renderProblems();
@@ -178,20 +177,27 @@ async function openRun(id) {
 }
 
 function renderMetrics() {
-  const report = state.run.report, other = state.compare?.run.report;
+  const report = state.run.report;
   const faults = (events = []) => events.filter(event => faultPattern.test(event.text)).length;
-  const versus = (value, unit, digits = 2) => other ? ` · B ${fmt(value, digits)}${unit ? ' ' + unit : ''}` : '';
   const metrics = [
-    ['RUN LENGTH', fmt(state.run.endSec, 1), 's', `${(report.recordCount || 0).toLocaleString()} records${versus(state.compare?.run.endSec, 's', 1)}`],
-    ['BATTERY MINIMUM', fmt(report.battery?.minV), 'V', `Start ${fmt(report.battery?.startV)} V${versus(other?.battery?.minV, 'V')}`],
-    ['LOOP P99', fmt(report.loop?.p99Ms), 'ms', `Peak ${fmt(report.loop?.maxMs)} ms${versus(other?.loop?.p99Ms, 'ms')}`],
-    ['FAULT EVENTS', String(faults(state.run.report.events)), '', `${state.run.channels.length} recorded channels${other ? ` · B ${faults(other.events)}` : ''}`],
+    ['RUN LENGTH', fmt(state.run.endSec, 1), 's', `${(report.recordCount || 0).toLocaleString()} records`, run => fmt(run.endSec, 1)],
+    ['BATTERY MINIMUM', fmt(report.battery?.minV), 'V', `Start ${fmt(report.battery?.startV)} V`, run => fmt(run.report.battery?.minV)],
+    ['LOOP P99', fmt(report.loop?.p99Ms), 'ms', `Peak ${fmt(report.loop?.maxMs)} ms`, run => fmt(run.report.loop?.p99Ms)],
+    ['FAULT EVENTS', String(faults(report.events)), '', `${state.run.channels.length} recorded channels`, run => String(faults(run.report.events))],
   ];
-  $('metrics').replaceChildren(...metrics.map(([label, value, unit, detail]) => {
+  $('metrics').replaceChildren(...metrics.map(([label, value, unit, detail, of]) => {
     const item = node('div', 'metric');
     const number = node('strong', '', value);
     number.append(node('small', '', unit));
     item.append(node('div', 'label', label), number, node('div', 'detail', detail));
+    const others = shownOverlays();
+    if (others.length) item.append(node('div', 'metric-overlays'));
+    for (const overlay of others) {
+      const tag = node('span', 'metric-overlay');
+      tag.style.setProperty('--run', `var(--overlay-${overlay.slot})`);
+      tag.append(node('span', 'overlay-swatch', overlay.letter), node('span', '', `${of(overlay.run)}${unit ? ' ' + unit : ''}`));
+      item.lastChild.append(tag);
+    }
     return item;
   }));
 }
@@ -303,50 +309,8 @@ function downsample(poses) {
 }
 
 function updateFieldView() {
-  const poses = [...(state.run.playback.pose || []), ...(state.compare?.run.playback.pose || [])];
+  const poses = [...(state.run.playback.pose || []), ...state.overlays.flatMap(overlay => overlay.run?.playback.pose || [])];
   state.fieldView = fieldView(poses, state.run.fieldLengthIn);
-}
-
-async function openCompare(id) {
-  if (!id) { clearCompare(); return; }
-  const generation = ++state.compareGeneration;
-  notice('Opening the run to compare…');
-  try {
-    const run = await api(`/api/log?id=${encodeURIComponent(id)}`);
-    if (generation !== state.compareGeneration || !state.run) return;
-    state.compare = {id, run, raw: new Map(Object.entries(run.playback)), series: new Map(), offset: 0, trail: []};
-    $('compare-name').textContent = `B: ${runLabel(run.name)} · ${runDate(run)}`;
-    $('compare-options').hidden = false;
-    $('compare-legend').hidden = false;
-    alignCompare();
-    renderMetrics();
-    notice('');
-    await loadCharts();
-  } catch (error) {
-    if (generation === state.compareGeneration) { notice(error.message, true); clearCompare(); }
-  }
-}
-
-// B's samples are shifted onto this run's clock once per alignment, so every view reads them
-// with the same lookups as this run's own.
-function alignCompare() {
-  const compare = state.compare;
-  const mode = $('compare-align').value, manual = Number($('compare-shift').value) || 0;
-  const anchor = (events, poses) => alignmentAnchor(events, poses, mode);
-  compare.offset = anchor(state.events, state.run.playback.pose) - anchor(compare.run.report.events, compare.run.playback.pose) + manual;
-  compare.series = new Map([...compare.raw].map(([name, series]) => [name, shiftSeries(series, compare.offset)]));
-  compare.trail = downsample(compare.series.get('pose') || []);
-  updateFieldView();
-}
-
-function clearCompare(redraw = true) {
-  state.compareGeneration++;
-  state.compare = null;
-  $('compare-run').value = '';
-  $('compare-options').hidden = true;
-  $('compare-legend').hidden = true;
-  $('compare-pose').hidden = true;
-  if (redraw && state.run) { updateFieldView(); renderMetrics(); loadCharts(); seek(state.time); }
 }
 
 function renderCommands() {
@@ -441,13 +405,7 @@ function updateDetails() {
   for (const [event, element] of state.eventNodes) element.classList.toggle('current', event === current);
   const flagged = new Set(problemsAt(state.problems, state.time));
   for (const [item, element] of state.problemNodes || []) element.classList.toggle('current', flagged.has(item));
-  if (state.compare) {
-    const pose = sampleAt(state.compare.series.get('pose'), state.time);
-    const before = state.time < (state.compare.series.get('pose')?.[0]?.[0] ?? Infinity);
-    $('compare-pose').hidden = false;
-    $('compare-pose').textContent = before || !Array.isArray(pose) ? 'B has not started at this time'
-      : `B  X ${fmt(pose[0])} in · Y ${fmt(pose[1])} in · θ ${fmt(pose[2], 3)} rad · B at ${fmtTime(state.time - state.compare.offset, 2, state.compare.run.match?.startSec)}`;
-  }
+  overlays.renderPoses();
   for (const pad of state.pads) {
     const axes = sampleAt(playback[`gamepad${pad.number}/axes`], state.time);
     const mask = sampleAt(playback[`gamepad${pad.number}/buttons`], state.time);
@@ -502,11 +460,6 @@ $('field-ball-toggle').onchange = () => { saveLayout(); if (state.run) drawField
 $('problems-toggle').onclick = () => setProblems(!state.problemsOn);
 $('problem-prev').onclick = () => stepProblem(-1);
 $('problem-next').onclick = () => stepProblem(1);
-$('compare-run').onchange = event => openCompare(event.target.value);
-$('compare-clear').onclick = () => clearCompare();
-const realign = () => { if (!state.compare) return; alignCompare(); loadCharts(); seek(state.time); };
-$('compare-align').onchange = realign;
-$('compare-shift').oninput = realign;
 $('refresh').onclick = refresh;
 $('search').oninput = renderLibrary;
 $('field-zoom-reset').onclick = () => follow();
