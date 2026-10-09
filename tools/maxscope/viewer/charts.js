@@ -1,5 +1,5 @@
-import {finite, indexAt, sampleAt, scalarSeries, plotPoints, plotBounds, channelTree, discreteSeries, discreteIntervals, buttonNames} from './core.mjs';
-import {$, state, fmt, node, api, notice, commandCoverage, context, colors} from './ui.js';
+import {finite, indexAt, sampleAt, scalarSeries, plotPoints, plotBounds, channelTree, discreteSeries, discreteIntervals, buttonNames, shiftSeries} from './core.mjs';
+import {$, state, fmt, node, api, notice, commandCoverage, context, colors, problemColor} from './ui.js';
 
 export function createCharts({seek, saveLayout}) {
   function renderCharts() {
@@ -172,12 +172,14 @@ export function createCharts({seek, saveLayout}) {
       label.style.color = `var(--layer-${layer.slot})`;
       label.append(check, node('span', '', layer.option?.label || `${layer.key.split('::')[0]} (not recorded)`));
       layer.value = node('span', 'chart-value', '—');
+      layer.compareValue = node('span', 'chart-value compare-value');
+      layer.compareValue.hidden = !state.compare;
       const axis = node('span', 'axis-label', layer.axis === 1 ? 'R' : 'L');
       axis.title = layer.axis === 1 ? 'Right axis' : 'Left axis';
       const remove = node('button', 'layer-remove', '×');
       remove.setAttribute('aria-label', `Remove ${layer.option?.label || layer.key}`);
       remove.onclick = () => { chart.keys = chart.keys.filter(key => key !== layer.key); loadCharts(); };
-      item.append(label, axis, layer.value, remove);
+      item.append(label, axis, layer.value, layer.compareValue, remove);
       chart.legend.append(item);
     });
   }
@@ -291,7 +293,7 @@ export function createCharts({seek, saveLayout}) {
       const visibility = new Map(chart.layers.map(layer => [layer.key, layer.visible]));
       chart.axes = [...new Set(definitions[i].filter(layer => layer.option).map(layer => layer.option.unit))];
       chart.layers = definitions[i].map((layer, j) => ({...layer, slot: j % 8, visible: visibility.get(layer.key) ?? true,
-        axis: Math.max(0, chart.axes.indexOf(layer.option?.unit)), data: [], points: []}));
+        axis: Math.max(0, chart.axes.indexOf(layer.option?.unit)), data: [], points: [], compareData: [], comparePoints: []}));
       chart.loading = true;
       chart.discrete = discreteDefinitions[i].map(lane => ({...lane, data: [], intervals: []}));
       renderLegend(chart); renderDiscrete(chart);
@@ -307,6 +309,16 @@ export function createCharts({seek, saveLayout}) {
         for (const [name, series] of Object.entries(result)) state.series.set(name, series);
       }
       if (runGeneration !== state.generation || generation !== state.graphGeneration) return;
+      // The compared run's samples for the same channels, shifted onto this run's clock.
+      const compare = state.compare;
+      const missing = compare ? [...requested].filter(name => !compare.raw.has(name)) : [];
+      for (let offset = 0; offset < missing.length; offset += 8) {
+        const query = new URLSearchParams({id: compare.id});
+        missing.slice(offset, offset + 8).forEach(name => query.append('channel', name));
+        const result = await api(`/api/series?${query}`);
+        if (runGeneration !== state.generation || generation !== state.graphGeneration || compare !== state.compare) return;
+        for (const [name, series] of Object.entries(result)) { compare.raw.set(name, series); compare.series.set(name, shiftSeries(series, compare.offset)); }
+      }
       const selected = requested;
       for (const key of state.series.keys()) {
         if (state.series.size <= 24) break;
@@ -317,6 +329,7 @@ export function createCharts({seek, saveLayout}) {
         for (const layer of chart.layers) {
           const option = layer.option;
           layer.data = option ? scalarSeries(state.series.get(option.name) || [], option.component, option.scale) : [];
+          layer.compareData = option && compare ? scalarSeries(compare.series.get(option.name) || [], option.component, option.scale) : [];
         }
         for (const lane of chart.discrete) {
           lane.data = discreteSeries(state.series.get(lane.option?.source) || [], lane.option?.bit);
@@ -335,8 +348,13 @@ export function createCharts({seek, saveLayout}) {
   function preparePlots() {
     for (const chart of state.charts) {
       if (!chart.canvas.clientWidth) continue;
-      for (const layer of chart.layers) layer.points = plotPoints(layer.data, ...state.window, Math.max(100, Math.floor(chart.canvas.clientWidth)));
-      chart.bounds = chart.axes.map((unit, axis) => plotBounds(chart.layers, axis, state.window[1]));
+      const buckets = Math.max(100, Math.floor(chart.canvas.clientWidth));
+      for (const layer of chart.layers) {
+        layer.points = plotPoints(layer.data, ...state.window, buckets);
+        layer.comparePoints = plotPoints(layer.compareData, ...state.window, buckets);
+      }
+      const scaled = [...chart.layers, ...chart.layers.map(layer => ({...layer, points: layer.comparePoints}))];
+      chart.bounds = chart.axes.map((unit, axis) => plotBounds(scaled, axis, state.window[1]));
     }
   }
 
@@ -362,23 +380,42 @@ export function createCharts({seek, saveLayout}) {
       ctx.fillStyle = colors.muted; ctx.textAlign = 'left'; ctx.fillText(`${fmt(start, 1)} s`, left, height - 4);
       ctx.textAlign = 'right'; ctx.fillText(`${fmt(end, 1)} s`, right, height - 4);
       ctx.save(); ctx.beginPath(); ctx.rect(left, top - 3, right - left, bottom - top + 6); ctx.clip();
-      for (const layer of chart.layers) {
-        const value = sampleAt(layer.data, state.time);
-        layer.value.textContent = chart.loading ? '…' : `${fmt(value)}${layer.option?.unit ? ' ' + layer.option.unit : ''}`;
-        const sampled = indexAt(layer.data, state.time);
-        layer.value.title = sampled < 0 ? 'No sample at this time' : `Last sample at ${fmt(layer.data[sampled][0], 6)} s`;
-        if (!layer.visible) continue;
-        const [min, max] = chart.bounds[layer.axis] || [0, 1];
-        const y = value => bottom - (value - min) / (max - min) * (bottom - top);
-        ctx.strokeStyle = colors.layers[layer.slot]; ctx.lineWidth = 1.5; ctx.beginPath();
+      ctx.globalAlpha = 0.14;
+      for (const item of state.problems) {
+        if (item.endSec < start || item.startSec > end) continue;
+        const a = x(Math.max(start, item.startSec)), b = x(Math.min(end, item.endSec));
+        ctx.fillStyle = problemColor(item); ctx.fillRect(a - 1, top - 3, Math.max(2, b - a), bottom - top + 6);
+      }
+      ctx.globalAlpha = 1;
+      const stroke = (points, y) => {
+        ctx.beginPath();
         let connected = false, previousValue = null;
-        for (const [t, value] of layer.points) {
+        for (const [t, value] of points) {
           if (!finite(value)) { connected = false; continue; }
           if (connected) { ctx.lineTo(x(t), y(previousValue)); ctx.lineTo(x(t), y(value)); }
           else ctx.moveTo(x(t), y(value));
           connected = true; previousValue = value;
         }
         ctx.stroke();
+      };
+      for (const layer of chart.layers) {
+        const value = sampleAt(layer.data, state.time);
+        layer.value.textContent = chart.loading ? '…' : `${fmt(value)}${layer.option?.unit ? ' ' + layer.option.unit : ''}`;
+        if (state.compare) {
+          const other = sampleAt(layer.compareData, state.time);
+          layer.compareValue.textContent = chart.loading ? '' : `B ${fmt(other)}${layer.option?.unit ? ' ' + layer.option.unit : ''}`;
+        }
+        const sampled = indexAt(layer.data, state.time);
+        layer.value.title = sampled < 0 ? 'No sample at this time' : `Last sample at ${fmt(layer.data[sampled][0], 6)} s`;
+        if (!layer.visible) continue;
+        const [min, max] = chart.bounds[layer.axis] || [0, 1];
+        const y = value => bottom - (value - min) / (max - min) * (bottom - top);
+        ctx.strokeStyle = colors.layers[layer.slot]; ctx.lineWidth = 1.5;
+        if (layer.comparePoints.length) {
+          ctx.globalAlpha = 0.7; ctx.setLineDash([4, 3]); stroke(layer.comparePoints, y);
+          ctx.setLineDash([]); ctx.globalAlpha = 1;
+        }
+        stroke(layer.points, y);
       }
       if (state.time >= start && state.time <= end) {
         ctx.strokeStyle = colors['chart-cursor']; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(x(state.time), top); ctx.lineTo(x(state.time), bottom); ctx.stroke(); ctx.setLineDash([]);

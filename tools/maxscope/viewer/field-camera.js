@@ -1,5 +1,5 @@
-import {finite, indexAt, sampleAt, fieldPoint, ballSighting, ballEstimate, sightingMount, loggedCameraMount, cameraDetections, POLLEN_DIAMETER_IN} from './core.mjs';
-import {$, state, fmt, node, context, colors} from './ui.js';
+import {finite, indexAt, sampleAt, fieldPoint, ROBOT_HALF_IN, ballSighting, ballEstimate, sightingMount, loggedCameraMount, cameraDetections, POLLEN_DIAMETER_IN} from './core.mjs';
+import {$, state, fmt, node, context, colors, problemColor} from './ui.js';
 
 // Past this the estimate moves by feet per degree of ty, so only the direction is drawn.
 const BALL_TRUST_IN = 48;
@@ -33,10 +33,10 @@ export function drawField() {
   if (expanded) { ctx.strokeStyle = colors.wall; ctx.lineWidth = 1.5; ctx.strokeRect(fieldLeft, fieldTop, fieldSize, fieldSize); }
   ctx.fillStyle = colors['field-caption']; ctx.textAlign = 'center';
   ctx.fillText('AUDIENCE WALL · +X →', left + size / 2, height - 4);
-  ctx.textAlign = 'left'; ctx.fillText('+Y ↑', 8, top + 6);
+  // Along the left edge, clear of the tick labels.
+  ctx.save(); ctx.translate(10, top + size / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center'; ctx.fillText('+Y →', 0, 0); ctx.restore();
   ctx.save(); ctx.beginPath(); ctx.rect(left, top, size, size); ctx.clip();
-  const trail = state.trail || [];
-  const drawTrail = (past, color) => {
+  const drawTrail = (trail, past, color) => {
     ctx.strokeStyle = color; ctx.lineWidth = past ? 2 : 1.5; ctx.beginPath();
     let connected = false;
     for (const [t, pose] of trail) {
@@ -47,8 +47,32 @@ export function drawField() {
     }
     ctx.stroke();
   };
-  drawTrail(false, colors['trail-future']); drawTrail(true, colors['trail-past']);
+  const compare = state.compare, comparePoses = compare?.series.get('pose') || [];
+  if (compare) {
+    ctx.globalAlpha = 0.15; drawTrail(compare.trail, false, colors.compare);
+    ctx.globalAlpha = 0.5; drawTrail(compare.trail, true, colors.compare); ctx.globalAlpha = 1;
+  }
+  drawTrail(state.trail || [], false, colors['trail-future']); drawTrail(state.trail || [], true, colors['trail-past']);
   const series = state.run.playback.pose || [];
+  if (state.problemsOn) {
+    ctx.lineWidth = 2;
+    for (const item of state.problems) {
+      const at = sampleAt(series, item.startSec);
+      if (!Array.isArray(at) || !at.slice(0, 2).every(finite)) continue;
+      const [px, py] = fieldPoint(at, view, left, top, size);
+      ctx.strokeStyle = problemColor(item); ctx.beginPath();
+      ctx.moveTo(px - 4, py - 4); ctx.lineTo(px + 4, py + 4); ctx.moveTo(px + 4, py - 4); ctx.lineTo(px - 4, py + 4); ctx.stroke();
+    }
+  }
+  const ghost = compare && state.time >= (comparePoses[0]?.[0] ?? Infinity) ? sampleAt(comparePoses, state.time) : null;
+  if (Array.isArray(ghost) && ghost.slice(0, 3).every(finite)) {
+    const [gx, gy] = fieldPoint(ghost, view, left, top, size), radius = Math.max(5, ROBOT_HALF_IN * size / view.span);
+    ctx.save(); ctx.translate(gx, gy); ctx.rotate(-ghost[2]);
+    ctx.fillStyle = colors.compare; ctx.strokeStyle = colors['robot-line']; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.roundRect(-radius, -radius, radius * 2, radius * 2, 4); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(radius * 1.65, 0); ctx.lineTo(radius * 1.2, -3); ctx.moveTo(radius * 1.65, 0); ctx.lineTo(radius * 1.2, 3); ctx.stroke();
+    ctx.restore();
+  }
   const pose = sampleAt(series, state.time);
   const valid = Array.isArray(pose) && pose.length >= 3 && pose.slice(0, 3).every(finite);
   $('pose-x').textContent = fmt(pose?.[0]); $('pose-y').textContent = fmt(pose?.[1]); $('pose-h').textContent = fmt(pose?.[2], 3);
@@ -56,8 +80,7 @@ export function drawField() {
   const age = index >= 0 ? state.time - series[index][0] : null;
   const outside = valid && (pose[0] < 0 || pose[1] < 0 || pose[0] > length || pose[1] > length);
   const [x, y] = valid ? fieldPoint(pose, view, left, top, size) : [];
-  const slack = view.slack / view.span * size;
-  const offView = valid && (x < left - slack || x > left + size + slack || y < top - slack || y > top + size + slack);
+  const offView = valid && (x < left || x > left + size || y < top || y > top + size);
   $('pose-status').textContent = !valid ? 'No valid pose at this time' : offView ? 'Pose is beyond the view' : outside ? 'Pose is outside the field' : age > 0.25 ? `Last pose ${fmt(age)} s ago` : '';
   const ball = !$('field-ball-option').hidden && $('field-ball-toggle').checked && valid ? ballSighting(state.run.playback, state.time, state.cameras) : null;
   const angle = value => value === null ? '—' : `${value >= 0 ? '+' : ''}${fmt(value, 1)}°`;
@@ -94,12 +117,14 @@ export function drawField() {
       ctx.arc(endX, endY, ballRadius, 0, Math.PI * 2); ctx.fill();
     }
   }
+  // The view holds the robot's body; its heading arrow may reach past it, so it isn't clipped.
+  ctx.restore(); ctx.save();
   if (offView) {
     const edgeX = Math.min(left + size - 2, Math.max(left + 2, x)), edgeY = Math.min(top + size - 2, Math.max(top + 2, y));
     ctx.translate(edgeX, edgeY); ctx.rotate(Math.atan2(y - edgeY, x - edgeX));
     ctx.fillStyle = colors['robot-arrow']; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-12, -6); ctx.lineTo(-12, 6); ctx.closePath(); ctx.fill();
   } else if (valid) {
-    const radius = Math.max(5, 8 * size / view.span);
+    const radius = Math.max(5, ROBOT_HALF_IN * size / view.span);
     ctx.translate(x, y); ctx.rotate(-pose[2]);
     ctx.fillStyle = colors.lime; ctx.strokeStyle = colors['robot-line']; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.roundRect(-radius, -radius, radius * 2, radius * 2, 4); ctx.fill(); ctx.stroke();

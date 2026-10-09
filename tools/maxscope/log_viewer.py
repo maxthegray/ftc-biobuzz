@@ -10,6 +10,7 @@ import re
 import sys
 import tempfile
 import threading
+from collections import OrderedDict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -36,6 +37,122 @@ CAMERA_CHANNEL_SUFFIXES = tuple(
 def camera_channels(records):
     return tuple(name for name in records
                  if name.partition("/")[0] and name.partition("/")[2] in CAMERA_CHANNEL_SUFFIXES)
+
+
+# Problem thresholds. The robot's own LOOP OVERRUN event fires at 100 ms; 50 ms is already a
+# missed control update. 9.5 V matches analyze_wpilog's sag warning; under 8 V risks a brownout.
+SAG_VOLTS = 9.5
+BROWNOUT_VOLTS = 8.0
+MIN_VALID_VOLTS = 1.0
+LOOP_SPIKE_MS = 50
+POSE_JUMP_IN = 3.0
+MERGE_GAP_SEC = 1.0
+SAG_MERGE_GAP_SEC = 5.0
+STARTUP_LOOPS = 2
+MAX_PER_KIND = 200
+# Whole words, so "schedule default Drive" isn't a FAULT.
+FAULT_EVENT = re.compile(r"\b(?:FAULT|CRASH|FAIL(?:ED|URE)?|LOST|INCOMPLETE|DISABLED|OVERRUN)\b", re.I)
+
+
+def spans(series, predicate, gap_us=MERGE_GAP_SEC * 1e6):
+    """Runs of samples matching predicate, as [start, end, values, active_us, dips]. Runs closer
+    than gap_us merge into one span; active_us is only the time actually matching, summed over
+    the merged dips. A dip lasts until the first sample that no longer matches."""
+    result, current, since = [], None, None
+    for ts, value in series:
+        if predicate(value):
+            if since is None:
+                if current and ts - current[1] <= gap_us:
+                    current[4] += 1
+                else:
+                    current = [ts, ts, [], 0, 1]
+                    result.append(current)
+                since = ts
+            current[1] = ts
+            current[2].append(value)
+        elif since is not None:
+            current[1] = ts
+            current[3] += ts - since
+            since = None
+    if since is not None:
+        current[3] += current[1] - since
+    return result
+
+
+def lasted(active_us):
+    return f"{active_us / 1e6:.2f} s"
+
+
+def problems(records, report):
+    """Moments worth a look, from channels the recorder already writes. Missing channels add nothing."""
+    found = []
+
+    def add(kind, severity, start_us, end_us, detail):
+        found.append({"kind": kind, "severity": severity, "startSec": start_us / 1e6,
+                      "endSec": end_us / 1e6, "detail": detail})
+
+    battery = [(ts, v) for ts, v in records.get("battery", []) if isinstance(v, float) and v > MIN_VALID_VOLTS]
+    # Sag comes in bursts with each hard acceleration; one span per stretch of hard driving.
+    for start, end, values, active, dips in spans(battery, lambda v: v < SAG_VOLTS, SAG_MERGE_GAP_SEC * 1e6):
+        low = min(values)
+        add("Battery sag", "fault" if low < BROWNOUT_VOLTS else "warn", start, end,
+            f"min {low:.2f} V · {lasted(active)} under {SAG_VOLTS} V" + (f" in {dips} dips" if dips > 1 else ""))
+
+    # The first loops after start time the op-mode starting up, not a control hitch.
+    loop = records.get("loop/totalNanos", [])[STARTUP_LOOPS:]
+    for start, end, values, _, _ in spans(loop, lambda v: v > LOOP_SPIKE_MS * 1e6):
+        slow = f" · {len(values)} slow loops" if len(values) > 1 else ""
+        add("Loop spike", "warn", start, end, f"peak {max(values) / 1e6:.0f} ms{slow}")
+
+    for name in sorted(records):
+        subsystem, _, leaf = name.rpartition("/")
+        if leaf != "connected" or not subsystem:
+            continue
+        series = records[name]
+        first = next((i for i, (_, v) in enumerate(series) if v is True), None)
+        if first is not None:
+            for start, end, _, active, _ in spans(series[first:], lambda v: v is False):
+                add(f"{subsystem} disconnected", "fault", start, end, f"for {lasted(active)}")
+
+    for name, kind in (("Localizer/faulted", "Localizer fault"), ("Drive/odometryFallback", "Odometry fallback")):
+        for start, end, _, active, _ in spans(records.get(name, []), lambda v: v is True):
+            add(kind, "fault", start, end, f"for {lasted(active)}")
+
+    previous = None
+    for ts, pose in records.get("pose", []):
+        valid = isinstance(pose, (list, tuple)) and len(pose) >= 2 and all(map(math.isfinite, pose[:2]))
+        if valid and previous:
+            jump = math.hypot(pose[0] - previous[0], pose[1] - previous[1])
+            if jump > POSE_JUMP_IN:
+                add("Pose jump", "warn", ts, ts, f"{jump:.1f} in")
+        previous = pose if valid else None
+
+    # The loop channel already covers overruns, with the true peak rather than a throttled event.
+    skip_overruns = bool(records.get("loop/totalNanos"))
+    for ts, text in records.get("events", []):
+        if FAULT_EVENT.search(text) and not (skip_overruns and text.startswith("LOOP OVERRUN")):
+            add("Fault event", "fault", ts, ts, text)
+
+    for failure in report.get("commandFailures", []):
+        at = failure["tSec"] * 1e6
+        add("Command failed", "fault", at, at, failure["text"])
+
+    lost = next((ts for ts, v in records.get("commands/lost", []) if v), None)
+    if lost is not None:
+        add("Command records lost", "warn", lost, lost, "later command history is incomplete")
+
+    if report.get("truncated"):
+        end = max((series[-1][0] for series in records.values() if series), default=0)
+        add("Log ends early", "warn", end, end, "the last record was cut off")
+
+    found.sort(key=lambda item: item["startSec"])
+    counts = {}
+    kept = []
+    for item in found:
+        counts[item["kind"]] = counts.get(item["kind"], 0) + 1
+        if counts[item["kind"]] <= MAX_PER_KIND:
+            kept.append(item)
+    return kept, counts
 
 
 def json_safe(value):
@@ -67,8 +184,9 @@ class LogLibrary:
         self.upload_directory = Path(upload_directory)
         self.paths = {}
         self.names = {}
-        self.cached_id = None
-        self.cached = None
+        # Two decoded runs, so comparing one against another doesn't re-parse on every request.
+        self.cache = OrderedDict()
+        self.found = {}
         self.lock = threading.RLock()
 
     def register(self, path, name=None):
@@ -92,36 +210,38 @@ class LogLibrary:
     def load(self, ident):
         if ident not in self.paths:
             raise KeyError("Unknown log; refresh the run library")
-        if self.cached_id != ident:
-            self.cached = None
-            self.cached_id = None
-            path = self.paths[ident]
-            if path.stat().st_size > MAX_UPLOAD:
-                raise ValueError("This draft supports logs up to 256 MiB")
-            with path.open("rb") as stream:
-                header = stream.read(8)
-            if header[:6] != b"WPILOG":
-                raise ValueError("This file is not a WPILOG")
-            if len(header) == 8 and header[6:8] != b"\x00\x01":
-                raise ValueError("This draft supports WPILOG version 1.0")
-            records, types, truncated = analyze_wpilog.parse_wpilog(path)
-            for series in records.values():
-                if any(series[i][0] < series[i - 1][0] for i in range(1, len(series))):
-                    series.sort(key=lambda point: point[0])
-            report = analyze_wpilog.to_json_dict(
-                analyze_wpilog.build_report(records, types, self.names[ident], truncated))
-            # The CLI rounds timestamps for readability. The viewer needs full precision.
-            if not report.get("empty"):
-                report["events"] = [{"tSec": ts / 1e6, "text": value}
-                                    for ts, value in records.get("events", [])]
-                report["commandExecutions"], _ = analyze_wpilog.command_executions(records)
-            self.cached = records, types, report
-            self.cached_id = ident
-        return self.cached
+        if ident in self.cache:
+            self.cache.move_to_end(ident)
+            return self.cache[ident]
+        path = self.paths[ident]
+        if path.stat().st_size > MAX_UPLOAD:
+            raise ValueError("This draft supports logs up to 256 MiB")
+        with path.open("rb") as stream:
+            header = stream.read(8)
+        if header[:6] != b"WPILOG":
+            raise ValueError("This file is not a WPILOG")
+        if len(header) == 8 and header[6:8] != b"\x00\x01":
+            raise ValueError("This draft supports WPILOG version 1.0")
+        if len(self.cache) >= 2:
+            evicted, _ = self.cache.popitem(last=False)
+            self.found.pop(evicted, None)
+        records, types, truncated = analyze_wpilog.parse_wpilog(path)
+        for series in records.values():
+            if any(series[i][0] < series[i - 1][0] for i in range(1, len(series))):
+                series.sort(key=lambda point: point[0])
+        raw = analyze_wpilog.build_report(records, types, self.names[ident], truncated)
+        report = analyze_wpilog.to_json_dict(raw)
+        # The CLI rounds timestamps for readability. The viewer needs full precision.
+        if not report.get("empty"):
+            report["events"] = [{"tSec": ts / 1e6, "text": value}
+                                for ts, value in records.get("events", [])]
+            report["commandExecutions"], _ = analyze_wpilog.command_executions(records)
+        self.cache[ident] = records, types, report, raw
+        return self.cache[ident]
 
     def overview(self, ident):
         with self.lock:
-            records, types, report = self.load(ident)
+            records, types, report, _ = self.load(ident)
             timestamps = [series[-1][0] for series in records.values() if series]
             channels = []
             for name, series in sorted(records.items()):
@@ -139,8 +259,17 @@ class LogLibrary:
         if len(names) > 8:
             raise ValueError("Request at most eight channels at once")
         with self.lock:
-            records, _, _ = self.load(ident)
+            records, _, _, _ = self.load(ident)
             return series_seconds(records, names)
+
+    def problems(self, ident):
+        # Only scanned when asked for, then kept with the decoded run.
+        with self.lock:
+            records, _, _, raw = self.load(ident)
+            if ident not in self.found:
+                found, counts = problems(records, raw)
+                self.found[ident] = {"problems": found, "counts": counts}
+            return self.found[ident]
 
 
 def handler_for(library):
@@ -184,6 +313,8 @@ def handler_for(library):
                     self.send_json(library.catalog())
                 elif url.path == "/api/log":
                     self.send_json(library.overview(query.get("id", [""])[0]))
+                elif url.path == "/api/problems":
+                    self.send_json(library.problems(query.get("id", [""])[0]))
                 elif url.path == "/api/series":
                     self.send_json(library.series(query.get("id", [""])[0], query.get("channel", [])))
                 else:

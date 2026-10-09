@@ -1,14 +1,15 @@
-import {finite, indexAt, sampleAt, activeCommandSpans, fieldView, ballSources, cameraSources, channelOptions, channelTree, discreteOptions, buttonNames} from './core.mjs';
+import {finite, indexAt, sampleAt, activeCommandSpans, fieldView, ballSources, cameraSources, channelOptions, channelTree, discreteOptions, buttonNames, alignmentAnchor, shiftSeries, adjacentProblem, problemsAt} from './core.mjs';
 import {$, state, fmt, node, api, notice, commandCoverage, refreshColors} from './ui.js';
 import {createCharts} from './charts.js';
 import {createLayout} from './layout.js';
 import {drawField, drawCamera, fillCameraSources} from './field-camera.js';
 
-const faultPattern = /FAULT|CRASH|FAIL|LOST|INCOMPLETE|DISABLED|OVERRUN/i;
+// Whole words, so "schedule default Drive" isn't a FAULT. Matches the server's problem rule.
+const faultPattern = /\b(?:FAULT|CRASH|FAIL(?:ED|URE)?|LOST|INCOMPLETE|DISABLED|OVERRUN)\b/i;
 const FIELD_TIMELINE_LANES = 5;
 const themeKey = 'maxscope.theme';
 const {closePicker, renderCharts, loadCharts, applyPreset, preparePlots, drawCharts} = createCharts({seek, saveLayout: () => saveLayout()});
-const {initializeLayout, saveLayout} = createLayout({seek, preparePlots, redraw});
+const {initializeLayout, saveLayout, setProblemsView} = createLayout({seek, preparePlots, redraw});
 
 function redraw() { drawField(); drawCamera(); drawCharts(); }
 
@@ -25,13 +26,24 @@ function renderLibrary() {
     button.classList.toggle('selected', log.id === state.run?.id);
     button.title = log.name;
     button.append(node('strong', '', runLabel(log.name)));
-    const match = log.name.match(/-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/);
-    const date = match ? `${match[2]}/${match[3]} · ${match[4]}:${match[5]}:${match[6]}` : log.uploaded ? 'Imported' : 'Local file';
-    button.append(node('small', '', `${date} · ${(log.bytes / 1048576).toFixed(1)} MiB`));
+    button.append(node('small', '', `${runDate(log)} · ${(log.bytes / 1048576).toFixed(1)} MiB`));
     button.onclick = () => openRun(log.id);
     $('runs').append(button);
   }
   if (!runs.length) $('runs').append(node('p', 'empty', state.logs.length ? 'No matching runs.' : 'No local logs yet. Open a WPILOG or run make pull-logs.'));
+  renderCompareOptions();
+}
+
+function runDate(log) {
+  const match = log.name.match(/-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/);
+  return match ? `${match[2]}/${match[3]} · ${match[4]}:${match[5]}:${match[6]}` : log.uploaded ? 'Imported' : 'Local file';
+}
+
+function renderCompareOptions() {
+  const select = $('compare-run');
+  select.replaceChildren(new Option('Compare with…', ''), ...state.logs
+    .filter(log => log.id !== state.run?.id)
+    .map(log => new Option(`${runLabel(log.name)} · ${runDate(log)}`, log.id, false, log.id === state.compare?.id)));
 }
 
 async function refresh() {
@@ -61,12 +73,14 @@ async function openRun(id) {
     state.channelTree = channelTree(state.options);
     state.discreteOptions = discreteOptions(run.channels);
     state.events = [...(run.report.events || []), ...run.commandEvents].sort((a, b) => a.tSec - b.tSec);
+    state.problems = [];
+    state.problemCounts = {};
+    state.problemFilter = null;
+    if (state.compare?.id === id) clearCompare(false);
     state.eventSeries = state.events.map(event => [event.tSec, event]);
-    // The robot trail is a drawing aid. Cursor pose always uses the full native series.
     const poses = run.playback.pose || [];
-    const stride = Math.max(1, Math.ceil(poses.length / 6000));
-    state.trail = poses.filter((point, i) => i % stride === 0 || i === poses.length - 1);
-    state.fieldView = fieldView(poses, run.fieldLengthIn);
+    state.trail = downsample(poses);
+    if (state.compare) alignCompare(); else updateFieldView();
     state.cameras = cameraSources(run.channels);
     $('field-ball-option').hidden = !ballSources(state.cameras).some(source => run.playback[source.tx]?.length);
     for (const view of state.cameraViews) fillCameraSources(view);
@@ -81,6 +95,8 @@ async function openRun(id) {
     $('play').disabled = run.endSec <= 0;
     $('workspace').hidden = false;
     renderMetrics();
+    renderProblems();
+    if (state.problemsOn) loadProblems();
     renderCommands();
     renderEvents();
     renderGamepads();
@@ -105,13 +121,14 @@ async function openRun(id) {
 }
 
 function renderMetrics() {
-  const report = state.run.report;
-  const faults = state.events.filter(event => /FAULT|CRASH|FAIL/i.test(event.text));
+  const report = state.run.report, other = state.compare?.run.report;
+  const faults = (events = []) => events.filter(event => faultPattern.test(event.text)).length;
+  const versus = (value, unit, digits = 2) => other ? ` · B ${fmt(value, digits)}${unit ? ' ' + unit : ''}` : '';
   const metrics = [
-    ['RUN LENGTH', fmt(state.run.endSec, 1), 's', `${(report.recordCount || 0).toLocaleString()} records`],
-    ['BATTERY MINIMUM', fmt(report.battery?.minV), 'V', `Start ${fmt(report.battery?.startV)} V`],
-    ['LOOP P99', fmt(report.loop?.p99Ms), 'ms', `Peak ${fmt(report.loop?.maxMs)} ms`],
-    ['FAULT RECORDS', String(faults.length), '', `${state.run.channels.length} recorded channels`],
+    ['RUN LENGTH', fmt(state.run.endSec, 1), 's', `${(report.recordCount || 0).toLocaleString()} records${versus(state.compare?.run.endSec, 's', 1)}`],
+    ['BATTERY MINIMUM', fmt(report.battery?.minV), 'V', `Start ${fmt(report.battery?.startV)} V${versus(other?.battery?.minV, 'V')}`],
+    ['LOOP P99', fmt(report.loop?.p99Ms), 'ms', `Peak ${fmt(report.loop?.maxMs)} ms${versus(other?.loop?.p99Ms, 'ms')}`],
+    ['FAULT EVENTS', String(faults(state.run.report.events)), '', `${state.run.channels.length} recorded channels${other ? ` · B ${faults(other.events)}` : ''}`],
   ];
   $('metrics').replaceChildren(...metrics.map(([label, value, unit, detail]) => {
     const item = node('div', 'metric');
@@ -120,6 +137,149 @@ function renderMetrics() {
     item.append(node('div', 'label', label), number, node('div', 'detail', detail));
     return item;
   }));
+}
+
+async function loadProblems() {
+  const generation = ++state.problemGeneration, id = state.run.id;
+  state.problemsScanning = true;
+  renderProblems();
+  try {
+    const result = await api(`/api/problems?id=${encodeURIComponent(id)}`);
+    if (generation !== state.problemGeneration || !state.problemsOn || state.run?.id !== id) return;
+    state.problems = result.problems;
+    state.problemCounts = result.counts;
+    state.problemsScanning = false;
+    renderProblems();
+    seek(state.time);
+  } catch (error) {
+    if (generation === state.problemGeneration) { state.problemsScanning = false; notice(error.message, true); renderProblems(); }
+  }
+}
+
+function updateProblemsButton() {
+  const count = state.problems.length;
+  $('problems-toggle').textContent = !state.problemsOn ? 'Find problems' : state.problemsScanning ? 'Scanning…' : `${count} problem${count === 1 ? '' : 's'}`;
+  $('problems-toggle').setAttribute('aria-pressed', String(state.problemsOn));
+  $('problems-toggle').classList.toggle('fault', state.problemsOn && state.problems.some(item => item.severity === 'fault'));
+  $('problems-toggle').title = state.problemsOn ? 'Hide problems' : 'Scan this run for problems · [ and ] step between them';
+}
+
+async function setProblems(on) {
+  state.problemsOn = on;
+  state.problemGeneration++;
+  state.problems = [];
+  state.problemCounts = {};
+  state.problemFilter = null;
+  state.problemsScanning = false;
+  if (!state.run) return;
+  setProblemsView(on);
+  renderProblems();
+  seek(state.time);
+  if (on) await loadProblems();
+}
+
+function renderProblems() {
+  updateProblemsButton();
+  const problems = state.problems;
+  const kinds = new Map();
+  for (const item of problems) kinds.set(item.kind, (kinds.get(item.kind) || 0) + 1);
+  const truncated = Object.entries(state.problemCounts).filter(([kind, count]) => count > (kinds.get(kind) || 0));
+  if (state.problemFilter && !kinds.has(state.problemFilter)) state.problemFilter = null;
+  $('problem-count').textContent = state.problemsScanning ? 'SCANNING' : problems.length ? `${problems.length} FLAGGED` : 'NONE FLAGGED';
+  $('problem-count').classList.toggle('warning', problems.some(item => item.severity === 'fault'));
+  $('problem-prev').disabled = $('problem-next').disabled = !problems.length;
+  $('problem-kinds').replaceChildren(...[...kinds].map(([kind, count]) => {
+    const chip = node('button', `problem-kind ${problems.find(item => item.kind === kind).severity}`, `${kind} · ${count}`);
+    chip.setAttribute('aria-pressed', String(state.problemFilter === kind));
+    chip.title = state.problemFilter === kind ? 'Show every problem' : `Show only ${kind.toLowerCase()}`;
+    chip.onclick = () => { state.problemFilter = state.problemFilter === kind ? null : kind; renderProblems(); updateDetails(); };
+    return chip;
+  }));
+  state.problemNodes = [];
+  const shown = problems.filter(item => !state.problemFilter || item.kind === state.problemFilter);
+  $('problems').replaceChildren(...shown.map(item => {
+    const button = node('button', `problem ${item.severity}`);
+    button.append(node('time', '', `${fmt(item.startSec, 2)} s`), node('strong', '', item.kind), node('span', '', item.detail));
+    button.onclick = () => { stop(); seek(item.startSec); };
+    state.problemNodes.push([item, button]);
+    return button;
+  }));
+  if (!problems.length) $('problems').append(node('p', 'empty', state.problemsScanning ? 'Scanning this run…' : 'Nothing flagged in this run. Only the rules above are checked.'));
+  for (const [kind, count] of truncated) $('problems').append(node('p', 'empty', `${kind}: showing the first ${kinds.get(kind) || 0} of ${count}.`));
+  renderMarkers();
+}
+
+// Problem spans on the playback slider. The range thumb's centre can't reach the track ends, so
+// the markers are inset by half a thumb to line up with it.
+function renderMarkers() {
+  const length = Math.max(state.run.endSec, 0.001);
+  $('scrub-markers').replaceChildren(...state.problems.map(item => {
+    const marker = node('span', `scrub-marker ${item.severity}`);
+    marker.style.setProperty('--start', String(item.startSec / length));
+    marker.style.setProperty('--span', String(Math.max(0, item.endSec - item.startSec) / length));
+    marker.title = `${fmt(item.startSec, 2)} s · ${item.kind}${item.detail ? ' · ' + item.detail : ''}`;
+    marker.onclick = () => { stop(); seek(item.startSec); };
+    return marker;
+  }));
+}
+
+async function stepProblem(direction) {
+  if (!state.problemsOn) await setProblems(true);
+  const target = adjacentProblem(state.problems.filter(item => !state.problemFilter || item.kind === state.problemFilter), state.time, direction);
+  if (target) { stop(); seek(target.startSec); }
+}
+
+// The robot trail is a drawing aid. Cursor pose always uses the full native series.
+function downsample(poses) {
+  const stride = Math.max(1, Math.ceil(poses.length / 6000));
+  return poses.filter((point, i) => i % stride === 0 || i === poses.length - 1);
+}
+
+function updateFieldView() {
+  const poses = [...(state.run.playback.pose || []), ...(state.compare?.run.playback.pose || [])];
+  state.fieldView = fieldView(poses, state.run.fieldLengthIn);
+}
+
+async function openCompare(id) {
+  if (!id) { clearCompare(); return; }
+  const generation = ++state.compareGeneration;
+  notice('Opening the run to compare…');
+  try {
+    const run = await api(`/api/log?id=${encodeURIComponent(id)}`);
+    if (generation !== state.compareGeneration || !state.run) return;
+    state.compare = {id, run, raw: new Map(Object.entries(run.playback)), series: new Map(), offset: 0, trail: []};
+    $('compare-name').textContent = `B: ${runLabel(run.name)} · ${runDate(run)}`;
+    $('compare-options').hidden = false;
+    $('compare-legend').hidden = false;
+    alignCompare();
+    renderMetrics();
+    notice('');
+    await loadCharts();
+  } catch (error) {
+    if (generation === state.compareGeneration) { notice(error.message, true); clearCompare(); }
+  }
+}
+
+// B's samples are shifted onto this run's clock once per alignment, so every view reads them
+// with the same lookups as this run's own.
+function alignCompare() {
+  const compare = state.compare;
+  const mode = $('compare-align').value, manual = Number($('compare-shift').value) || 0;
+  const anchor = (events, poses) => alignmentAnchor(events, poses, mode);
+  compare.offset = anchor(state.events, state.run.playback.pose) - anchor(compare.run.report.events, compare.run.playback.pose) + manual;
+  compare.series = new Map([...compare.raw].map(([name, series]) => [name, shiftSeries(series, compare.offset)]));
+  compare.trail = downsample(compare.series.get('pose') || []);
+  updateFieldView();
+}
+
+function clearCompare(redraw = true) {
+  state.compareGeneration++;
+  state.compare = null;
+  $('compare-run').value = '';
+  $('compare-options').hidden = true;
+  $('compare-legend').hidden = true;
+  $('compare-pose').hidden = true;
+  if (redraw && state.run) { updateFieldView(); renderMetrics(); loadCharts(); seek(state.time); }
 }
 
 function renderCommands() {
@@ -245,6 +405,15 @@ function updateDetails() {
   if (state.events.length > 500 && Math.abs(state.time - state.eventPageTime) > 5) renderEvents();
   const current = sampleAt(state.eventSeries, state.time);
   for (const [event, element] of state.eventNodes) element.classList.toggle('current', event === current);
+  const flagged = new Set(problemsAt(state.problems, state.time));
+  for (const [item, element] of state.problemNodes || []) element.classList.toggle('current', flagged.has(item));
+  if (state.compare) {
+    const pose = sampleAt(state.compare.series.get('pose'), state.time);
+    const before = state.time < (state.compare.series.get('pose')?.[0]?.[0] ?? Infinity);
+    $('compare-pose').hidden = false;
+    $('compare-pose').textContent = before || !Array.isArray(pose) ? 'B has not started at this time'
+      : `B  X ${fmt(pose[0])} in · Y ${fmt(pose[1])} in · θ ${fmt(pose[2], 3)} rad · B time ${fmt(state.time - state.compare.offset, 2)} s`;
+  }
   for (const pad of state.pads) {
     const axes = sampleAt(playback[`gamepad${pad.number}/axes`], state.time);
     const mask = sampleAt(playback[`gamepad${pad.number}/buttons`], state.time);
@@ -291,6 +460,14 @@ $('scrub').oninput = () => { stop(); seek(Number($('scrub').value)); };
 $('event-filter').onchange = () => { renderEvents(); updateDetails(); };
 $('field-commands-toggle').onchange = () => { saveLayout(); if (state.run) updateDetails(); };
 $('field-ball-toggle').onchange = () => { saveLayout(); if (state.run) drawField(); };
+$('problems-toggle').onclick = () => setProblems(!state.problemsOn);
+$('problem-prev').onclick = () => stepProblem(-1);
+$('problem-next').onclick = () => stepProblem(1);
+$('compare-run').onchange = event => openCompare(event.target.value);
+$('compare-clear').onclick = () => clearCompare();
+const realign = () => { if (!state.compare) return; alignCompare(); loadCharts(); seek(state.time); };
+$('compare-align').onchange = realign;
+$('compare-shift').oninput = realign;
 $('refresh').onclick = refresh;
 $('search').oninput = renderLibrary;
 $('file').onchange = async event => {
@@ -307,6 +484,7 @@ $('file').onchange = async event => {
 document.addEventListener('keydown', event => {
   if ($('channel-picker').open || ['INPUT', 'SELECT', 'BUTTON', 'TEXTAREA'].includes(event.target.tagName) || !state.run || $('workspace').hidden) return;
   if (event.code === 'Space') { event.preventDefault(); $('play').click(); }
+  if (event.code === 'BracketLeft' || event.code === 'BracketRight') { event.preventDefault(); stepProblem(event.code === 'BracketRight' ? 1 : -1); }
   if (event.code === 'ArrowLeft' || event.code === 'ArrowRight') {
     event.preventDefault(); stop(); seek(state.time + (event.code === 'ArrowRight' ? 1 : -1) * (event.shiftKey ? 1 : 0.02));
   }
@@ -331,6 +509,8 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
 });
 applyTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
 initializeLayout();
+// Closing the Problems view turns detection off, rather than leaving its marks with no list.
+document.querySelector('.problems-card .hide-view').addEventListener('click', () => setProblems(false));
 const redrawOnResize = new ResizeObserver(() => { if (state.run && !$('workspace').hidden) { preparePlots(); drawField(); drawCamera(); drawCharts(); } });
 redrawOnResize.observe($('workspace'));
 redrawOnResize.observe(document.querySelector('.field-wrap'));

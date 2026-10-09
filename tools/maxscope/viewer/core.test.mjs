@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {activeCommandSpans, fieldPoint, fieldView, ballSighting, ballEstimate, cameraDetections, loggedCameraMount, cameraSources, sampleAt, plotPoints, plotBounds, scalarSeries, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals} from './core.mjs';
+import {activeCommandSpans, fieldPoint, fieldView, ballSighting, ballEstimate, cameraDetections, loggedCameraMount, cameraSources, sampleAt, plotPoints, plotBounds, scalarSeries, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals, alignmentAnchor, shiftSeries, adjacentProblem, problemsAt} from './core.mjs';
 
 test('Pedro field corners retain their axes with only screen Y inverted', () => {
   const view = {minX: 0, minY: 0, span: 141.5};
@@ -10,23 +10,25 @@ test('Pedro field corners retain their axes with only screen Y inverted', () => 
   assert.ok(Math.abs(x - 36) < 1e-10 && Math.abs(y - 181) < 1e-10);
 });
 
-test('field view stays on the field when the path does', () => {
-  const view = fieldView([[0, [8, 56, 0]], [1, [141.5, 0, 0]], [2, [NaN, 900, 0]]], 141.5);
-  assert.deepEqual(view, {minX: 0, minY: 0, span: 141.5, tile: 141.5 / 6, tiles: 6, slack: 141.5 / 24});
+test('field view stays on the field when the whole robot does', () => {
+  const view = fieldView([[0, [8, 56, 0]], [1, [133.5, 8, 0]], [2, [NaN, 900, 0]]], 141.5);
+  assert.deepEqual(view, {minX: 0, minY: 0, span: 141.5, tile: 141.5 / 6, tiles: 6});
   assert.deepEqual(fieldView([], 141.5).tiles, 6);
 });
 
-test('field view ignores a pose just past a wall', () => {
-  assert.equal(fieldView([[0, [-5, 72, 0]], [1, [72, 149, 0]]], 144).tiles, 6);
-  assert.equal(fieldView([[0, [-7, 72, 0]]], 144).minX, -24);
+test('field view grows to show a robot that is partly over a wall', () => {
+  assert.equal(fieldView([[0, [8, 72, 0]]], 144).tiles, 6);
+  assert.equal(fieldView([[0, [8.2, 72, 0]]], 144).minX, 0);
+  assert.equal(fieldView([[0, [8, 72, Math.PI / 4]]], 144).minX, -24);
+  assert.equal(fieldView([[0, [2, 72, 0]]], 144).minX, -24);
+  assert.equal(fieldView([[0, [72, 140, NaN]]], 144).tiles, 7);
 });
 
 test('field view grows by whole tiles to hold an off-field path and stays square', () => {
   const tile = 144 / 6;
-  const view = fieldView([[0, [0, 0, 0]], [1, [-30, 10, 0]], [2, [20, 160, 0]]], 144);
-  assert.equal(view.minX, -tile);
-  assert.equal(view.tiles, 7);
-  assert.ok(view.minY <= 0 && view.minY + view.span >= 160);
+  const view = fieldView([[0, [10, 10, 0]], [1, [-30, 10, 0]], [2, [20, 160, 0]]], 144);
+  assert.equal(view.minX, -2 * tile);
+  assert.ok(view.minY <= 0 && view.minY + view.span >= 168);
   assert.equal(view.span, view.tiles * tile);
 });
 
@@ -241,4 +243,30 @@ test('sampled active sets become one span per command name', () => {
   ]);
   assert.deepEqual(activeCommandSpans([[0, '#1 Held']], 9), [{name: 'Held', startSec: 0, endSec: 9, outcome: 'SAMPLED'}]);
   assert.deepEqual(activeCommandSpans(), []);
+});
+
+test('graph padding never invents a negative loop time', () => {
+  assert.deepEqual(plotBounds([{axis: 0, visible: true, points: [[0, 0], [1, 50]]}], 0, 1), [0, 56]);
+  assert.deepEqual(plotBounds([{axis: 0, visible: true, points: [[0, -50], [1, 0]]}], 0, 1), [-56, 0]);
+});
+
+test('compared runs line up at op-mode start, first movement, or log start', () => {
+  const events = [{tSec: 0.4, text: 'init X'}, {tSec: 1.2, text: 'start'}];
+  const poses = [[0.5, [NaN, 0, 0]], [1, [10, 10, 0]], [2, [10.5, 10, 0]], [3, [12, 10, 0]]];
+  assert.equal(alignmentAnchor(events, poses, 'start'), 1.2);
+  assert.equal(alignmentAnchor([], poses, 'start'), 0);
+  assert.equal(alignmentAnchor(events, poses, 'motion'), 3);
+  assert.equal(alignmentAnchor(events, poses, 'log'), 0);
+  assert.deepEqual(shiftSeries([[1, 'a'], [2, 'b']], 0.5), [[1.5, 'a'], [2.5, 'b']]);
+});
+
+test('problem stepping and the problems under the cursor', () => {
+  const problems = [{startSec: 2, endSec: 4}, {startSec: 6, endSec: 6}, {startSec: 9, endSec: 9.5}];
+  assert.equal(adjacentProblem(problems, 0, 1), problems[0]);
+  assert.equal(adjacentProblem(problems, 2, 1), problems[1]);
+  assert.equal(adjacentProblem(problems, 6, -1), problems[0]);
+  assert.equal(adjacentProblem(problems, 2, -1), null);
+  assert.deepEqual(problemsAt(problems, 3), [problems[0]]);
+  assert.deepEqual(problemsAt(problems, 6.05), [problems[1]]);
+  assert.deepEqual(problemsAt(problems, 5), []);
 });

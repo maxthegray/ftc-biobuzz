@@ -37,10 +37,11 @@ coordinates to canvas pixels. Existing AdvantageScope output remains
 compatible. Field size is not historical metadata in today's logs, so older
 logs with different field dimensions need a future metadata addition.
 
-When a run's poses leave the field (for example an op-mode that never set a
-starting pose), the view grows by whole tiles to hold the whole path, at most
-one field length past each wall. A pose less than a quarter tile past a wall
-doesn't add a tile. The view stays square. The field keeps its outline;
+When the robot leaves the field, even partly (for example an op-mode that
+never set a starting pose), the view grows by whole tiles so the whole robot
+marker is always visible at every pose, rotated corners included, at most one
+field length past each wall. Overhanging by under half an inch doesn't add a
+tile. The view stays square. The field keeps its outline;
 the area outside it is hatched. A pose past that limit is shown as an arrow on
 the edge of the view. The view is fixed for the run, so it doesn't move while
 scrubbing.
@@ -121,6 +122,32 @@ reduced trail; the coordinate readout always uses the full pose series.
   the sampling. Rows past the first five are counted in a note.
 - Scroll over a graph to zoom all graphs around the pointer. Reset zoom
   restores the full run. The slider always spans the complete run.
+- **Find problems** in the playback bar scans the run for moments worth a
+  look. It is off when the viewer opens, so nothing is drawn until you ask.
+  The rules use channels already logged: battery under 9.5 V (a fault under
+  8 V; readings of 1 V or less are ignored as dead), loops over 50 ms
+  (skipping the two startup loops), `<Subsystem>/connected` going false
+  after it was true, `Localizer/faulted`, `Drive/odometryFallback`, pose
+  jumps over 3 in between samples, fault events, failed commands, lost
+  command records and a cut-off log end. Spans closer than a second merge
+  (battery: five seconds, one per stretch of hard driving); the time listed
+  is only the time actually past the threshold, with how many dips merged.
+  While on, they
+  show as marks under the slider, faint bands on every graph and ✕ marks on
+  the field where the robot was, and the Problems view opens in the current
+  tab; its chips filter by kind. It stays on as you switch runs. Click the
+  button again, or close the Problems view, to turn it off. `[` and `]`
+  step to the previous and next problem, turning it on first if needed.
+  Rules live in `problems()` in `log_viewer.py`; a log without a channel
+  just has no problems of that kind.
+- **Compare with…** beside the run title picks a second run, B. B's trail
+  and robot are drawn in blue on the field, every graph layer gets a dashed
+  B trace in the same color, the legend and metrics show B's values, and a
+  line under the pose readout gives B's pose and its own clock. Line runs up
+  at the op-mode `start` event (default), the first time the robot moves
+  more than an inch, or the log start; **Shift B** nudges B later in
+  seconds. B stays selected while you switch the main run. Discrete lanes,
+  events, commands and gamepads show the main run only.
 
 Samples are held until the next recorded value; no future values or
 interpolated poses are invented. Before a channel's first sample its value
@@ -142,13 +169,13 @@ in milliseconds; pose heading remains radians.
 - Selected scalar graphs, field, driver inputs, and events share one clock.
   Events combine recorder and command channels. Fault totals count records,
   not distinct root causes. Large event lists show up to 500 near the cursor.
-- There is no camera-video replay, desired-path overlay, live tuning, or
-  automatic fault diagnosis in this draft.
+- There is no camera-video replay, desired-path overlay or live tuning.
+  Problems are fixed threshold rules, not a diagnosis of the cause.
 - The parser supports the types this recorder emits; it does not decode
   arbitrary WPILib structs. Logs without raw `pose` still open but have no
   field playback.
 - File limit: 256 MiB. Parsing happens in the local Python server, which
-  caches one decoded run. Large files can take several seconds and use much
+  keeps two decoded runs (the one open and the one compared). Large files can take several seconds and use much
   more RAM than their on-disk size. Playback channels and selected graphs
   are transferred in full; this is not a streaming large-log database.
 - Run dates come from the filename's hub clock, which may be wrong.

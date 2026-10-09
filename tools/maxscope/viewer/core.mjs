@@ -20,22 +20,27 @@ export function fieldPoint(pose, view, left, top, size) {
   return [left + (pose[0] - view.minX) / view.span * size, top + (1 - (pose[1] - view.minY) / view.span) * size];
 }
 
-// Square view over the field and the run's whole path, in whole field tiles. Poses within
-// `slack` of a wall don't add a tile. Each side grows by at most `maxExtraFields` field
-// lengths so a pose glitch can't shrink the field to a dot.
-export function fieldView(poses, length, maxExtraFields = 1) {
-  const tile = length / 6, cap = 6 * maxExtraFields, slack = tile / 4;
+// Half the side of the robot marker drawn on the field.
+export const ROBOT_HALF_IN = 8;
+
+// Square view over the field and the whole robot at every pose of the run, in whole field tiles.
+// The robot counts by its drawn body at its heading, so a robot half over a wall still shows in
+// full; overhanging by under `toleranceIn` doesn't add a tile. Each side grows by at most
+// `maxExtraFields` field lengths so a pose glitch can't shrink the field to a dot.
+export function fieldView(poses, length, maxExtraFields = 1, toleranceIn = 0.5) {
+  const tile = length / 6, cap = 6 * maxExtraFields;
   let minX = 0, maxX = length, minY = 0, maxY = length;
   for (const [, pose] of poses) {
     if (!Array.isArray(pose) || !finite(pose[0]) || !finite(pose[1])) continue;
-    minX = Math.min(minX, pose[0]); maxX = Math.max(maxX, pose[0]);
-    minY = Math.min(minY, pose[1]); maxY = Math.max(maxY, pose[1]);
+    const reach = finite(pose[2]) ? ROBOT_HALF_IN * (Math.abs(Math.cos(pose[2])) + Math.abs(Math.sin(pose[2]))) : ROBOT_HALF_IN * Math.SQRT2;
+    minX = Math.min(minX, pose[0] - reach); maxX = Math.max(maxX, pose[0] + reach);
+    minY = Math.min(minY, pose[1] - reach); maxY = Math.max(maxY, pose[1] + reach);
   }
-  const tiles = (lo, hi) => [Math.max(-cap, Math.floor((lo + slack) / tile)), Math.min(6 + cap, Math.ceil((hi - slack) / tile))];
+  const tiles = (lo, hi) => [Math.max(-cap, Math.floor((lo + toleranceIn) / tile)), Math.min(6 + cap, Math.ceil((hi - toleranceIn) / tile))];
   const x = tiles(minX, maxX), y = tiles(minY, maxY);
   const count = Math.max(x[1] - x[0], y[1] - y[0]);
   const low = ([lo, hi]) => lo - Math.floor((count - (hi - lo)) / 2);
-  return {minX: low(x) * tile, minY: low(y) * tile, span: count * tile, tile, tiles: count, slack};
+  return {minX: low(x) * tile, minY: low(y) * tile, span: count * tile, tile, tiles: count};
 }
 
 // Ball the robot is tracking, as camera angles in degrees: +tx right, +ty up. BallAssist is what
@@ -228,7 +233,40 @@ export function plotBounds(layers, axis, end) {
   }
   if (!finite(min)) { min = 0; max = 1; }
   const padding = (max - min) * 0.12 || Math.max(Math.abs(max) * 0.05, 0.1);
-  return [min - padding, max + padding];
+  // Padding never crosses zero: a loop time or a current that is never negative gets no
+  // negative axis.
+  return [min >= 0 && max > 0 ? Math.max(0, min - padding) : min - padding,
+    max <= 0 && min < 0 ? Math.min(0, max + padding) : max + padding];
+}
+
+// When comparing, where each run is lined up: the op-mode start event, the first time the robot
+// moves more than `thresholdIn` from where it began, or the log's first record. Falls back to 0.
+export function alignmentAnchor(events = [], poses = [], mode, thresholdIn = 1) {
+  if (mode === 'start') return events.find(event => event.text === 'start')?.tSec ?? 0;
+  if (mode !== 'motion') return 0;
+  let origin = null;
+  for (const [time, pose] of poses) {
+    if (!Array.isArray(pose) || !finite(pose[0]) || !finite(pose[1])) continue;
+    if (!origin) origin = pose;
+    else if (Math.hypot(pose[0] - origin[0], pose[1] - origin[1]) > thresholdIn) return time;
+  }
+  return 0;
+}
+
+export const shiftSeries = (series = [], offset) => offset ? series.map(([time, value]) => [time + offset, value]) : series;
+
+// The next problem starting after `time`, or the last one starting before it. Problems are sorted.
+export function adjacentProblem(problems, time, direction) {
+  const epsilon = 1e-6;
+  return (direction > 0 ? problems.find(item => item.startSec > time + epsilon)
+    : problems.findLast(item => item.startSec < time - epsilon)) ?? null;
+}
+
+// Problems under the cursor: spans that cover it, and point problems within `nearSec` of it.
+export function problemsAt(problems, time, nearSec = 0.1) {
+  return problems.filter(item => item.endSec > item.startSec
+    ? item.startSec <= time && time <= item.endSec
+    : Math.abs(item.startSec - time) <= nearSec);
 }
 
 export const buttonNames = ['Cross', 'Circle', 'Square', 'Triangle', 'L1', 'R1', 'Up', 'Down', 'Left', 'Right', 'Options', 'Create', 'L3', 'R3', 'Touchpad'];

@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from log_viewer import LogLibrary, ThreadingHTTPServer, camera_channels, handler_for, json_safe
+from log_viewer import LogLibrary, ThreadingHTTPServer, camera_channels, handler_for, json_safe, problems
 
 
 def fixture(truncated=False):
@@ -74,6 +74,16 @@ class ViewerTest(unittest.TestCase):
         decoded = json.loads(encoded)
         self.assertIsNone(decoded["pose"][1][1][2])
         self.assertEqual([], decoded["missing"])
+
+    def test_two_runs_stay_decoded_for_comparison(self):
+        other = self.logs / "Other-20260916-130000-000-1.wpilog"
+        other.write_bytes(fixture())
+        second = self.library.register(other)["id"]
+        self.library.overview(self.ident)
+        self.library.overview(second)
+        self.assertEqual({self.ident, second}, set(self.library.cache))
+        self.assertNotIn("problems", self.library.overview(self.ident)["report"])
+        self.assertEqual({"Pose jump": 1, "Log ends early": 1}, self.library.problems(self.ident)["counts"])
 
     def test_arbitrary_file_paths_cannot_be_requested(self):
         with self.assertRaises(KeyError):
@@ -141,3 +151,45 @@ class CameraChannelTest(unittest.TestCase):
             ("BallCamera/candidates/xPx", "IntakeCam/target/horizontalDeg", "IntakeCam/mount/heightIn"),
             camera_channels(records),
         )
+
+
+def seconds(*points):
+    return [(round(t * 1e6), v) for t, v in points]
+
+
+class ProblemTest(unittest.TestCase):
+    def kinds(self, records, report=None):
+        return [(p["kind"], p["severity"], p["startSec"], p["endSec"], p["detail"]) for p in problems(records, report or {})[0]]
+
+    def test_battery_sag_merges_bursts_and_ignores_dead_readings(self):
+        records = {"battery": seconds((0, 12.5), (1, 0.0), (2, 9.2), (3, 12.0), (6, 7.9), (6.5, 9.0), (7, 12.1),
+                                      (20, 9.4), (21, 12.0))}
+        self.assertEqual([("Battery sag", "fault", 2, 7, "min 7.90 V · 2.00 s under 9.5 V in 2 dips"),
+                          ("Battery sag", "warn", 20, 21, "min 9.40 V · 1.00 s under 9.5 V")],
+                         self.kinds(records))
+
+    def test_loop_spikes_skip_the_startup_loops(self):
+        records = {"loop/totalNanos": seconds((0, 9e6), (0.01, 90e6), (0.02, 9e6), (5, 64e6), (5.01, 9e6))}
+        self.assertEqual([("Loop spike", "warn", 5, 5.01, "peak 64 ms")], self.kinds(records))
+        records = {"loop/totalNanos": seconds((0, 9e6), (0.01, 9e6), (5, 64e6), (5.01, 70e6), (5.02, 9e6))}
+        self.assertEqual([("Loop spike", "warn", 5, 5.02, "peak 70 ms · 2 slow loops")], self.kinds(records))
+
+    def test_disconnects_count_only_after_a_connection(self):
+        records = {"Limelight/connected": seconds((0, False), (1, True), (2, False), (4, True)),
+                   "BallCamera/connected": seconds((0, False), (9, False))}
+        self.assertEqual([("Limelight disconnected", "fault", 2, 4, "for 2.00 s")], self.kinds(records))
+
+    def test_pose_jumps_and_word_bounded_fault_events(self):
+        records = {"pose": seconds((0, [0.0, 0.0, 0.0]), (0.01, [1.0, 0.0, 0.0]), (0.02, [float("nan"), 0.0, 0.0]),
+                                   (0.03, [9.0, 0.0, 0.0]), (0.04, [13.0, 0.0, 0.0])),
+                   "loop/totalNanos": seconds((0, 9e6)),
+                   "events": seconds((1, "schedule default Drive: teleop drive"), (2, "LOCALIZER FAULT: Pinpoint status NOT_READY"),
+                                     (3, "LOOP OVERRUN: 146 ms"))}
+        self.assertEqual([("Pose jump", "warn", 0.04, 0.04, "4.0 in"),
+                          ("Fault event", "fault", 2, 2, "LOCALIZER FAULT: Pinpoint status NOT_READY")], self.kinds(records))
+
+    def test_failed_commands_and_cut_off_logs(self):
+        report = {"commandFailures": [{"tSec": 3.5, "text": "#2 Lift up: timeout"}], "truncated": True}
+        self.assertEqual([("Command failed", "fault", 3.5, 3.5, "#2 Lift up: timeout"),
+                          ("Log ends early", "warn", 4, 4, "the last record was cut off")],
+                         self.kinds({"battery": seconds((4, 12.0))}, report))
