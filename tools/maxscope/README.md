@@ -171,7 +171,8 @@ reduced trail; the coordinate readout always uses the full pose series.
   (skipping the two startup loops), `<Subsystem>/connected` going false
   after it was true, `Localizer/faulted`, `Drive/odometryFallback`, pose
   jumps over 3 in between samples (not the reset as the op-mode stops),
-  fault events, failed commands, lost command records and a cut-off log end. Spans closer than a second merge
+  fault events, failed commands, lost command records, a cut-off log end,
+  and traction (see **Traction**). Spans closer than a second merge
   (battery: five seconds, one per stretch of hard driving); the time listed
   is only the time actually past the threshold, with how many dips merged.
   While on, they
@@ -222,6 +223,35 @@ reduced trail; the coordinate readout always uses the full pose series.
   are transferred in full; this is not a streaming large-log database.
 - Run dates come from the filename's hub clock, which may be wrong.
 
+## Traction (wheels vs Pinpoint)
+
+For logs with drive encoders (`Drive/motors/velocityTps`), the server compares
+how fast the wheels say the robot moved with what the Pinpoint measured, in
+the robot's frame. `traction.py` does the work; nothing is logged on the robot
+for it.
+
+- The wheel scales are fitted from each log: inches per tick forward, inches
+  per tick strafing (mecanum rollers lose some), radians per tick turning. Each
+  is the median ratio over samples where that axis moves, so hits and slips
+  don't skew it. A log without enough strafing uses the forward scale; one
+  without turning skips the turn term. The fit is in the run report as
+  `traction`.
+- Derived channels under `MaxScope/traction/`: `wheels` and `pinpoint`
+  (`[forward, left, turn]`), `mismatchInPerS` (the difference, smoothed over
+  5 samples; turn counts as the inches a wheel would travel),
+  `thresholdInPerS`, and `wheelsMinusPinpointInPerS` (positive: the wheels
+  outran the robot).
+- **Find problems** flags a stretch where the mismatch stays over
+  8 in/s + 25% of wheel speed for at least 0.1 s (stretches 0.5 s apart
+  merge). **Wheels slipping**: the wheels went faster than the robot (spinning
+  out, or pushing a wall or robot). **Pushed**: the robot moved without its
+  wheels (hit or shoved). Wheels that stall against a wall agree with the
+  Pinpoint and are not flagged.
+- If wheels and Pinpoint disagree by more than 30% in ordinary driving (an
+  encoder reversed or unplugged), the check reports **Traction check off**
+  with the reason instead of flagging the whole run.
+- The thresholds are first guesses, not yet tuned on a run with known hits.
+
 ## 3D field (experimental)
 
 **3D ↗** on the field card opens `/3d` in its own tab: the run on a 3D model
@@ -246,7 +276,7 @@ only to `127.0.0.1`, exposes an allowlist of assets, and accepts same-origin
 local requests. No cloud hosting or build step is needed.
 
 ```sh
-python3 -m unittest tools/logs/test_analyze_wpilog.py tools/maxscope/test_log_viewer.py
+python3 -m unittest tools/logs/test_analyze_wpilog.py tools/maxscope/test_log_viewer.py tools/maxscope/test_traction.py
 node --test tools/maxscope/viewer/core.test.mjs
 ```
 

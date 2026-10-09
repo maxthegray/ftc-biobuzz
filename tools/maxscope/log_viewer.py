@@ -19,6 +19,7 @@ from urllib.parse import parse_qs, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "logs"))
 import analyze_wpilog  # noqa: E402
+import traction  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 ASSETS = Path(__file__).with_name("viewer")
@@ -142,6 +143,9 @@ def problems(records, report):
     for ts, text in records.get("events", []):
         if FAULT_EVENT.search(text) and not (skip_overruns and text.startswith("LOOP OVERRUN")):
             add("Fault event", "fault", ts, ts, text)
+
+    for kind, start, end, detail in traction.problems(records, report.get("traction")):
+        add(kind, "warn", start, end, detail)
 
     for failure in report.get("commandFailures", []):
         at = failure["tSec"] * 1e6
@@ -326,6 +330,11 @@ class LogLibrary:
             if any(series[i][0] < series[i - 1][0] for i in range(1, len(series))):
                 series.sort(key=lambda point: point[0])
         raw = analyze_wpilog.build_report(records, types, self.names[ident], truncated)
+        # Derived after the report, so the analyzer's own summary only describes recorded channels.
+        derived, raw["traction"] = traction.analyze(records)
+        for name, (kind, series) in derived.items():
+            records[name] = series
+            types[name] = kind
         # MaxScope keeps log time internally and shows op-mode-start time, as the analyzer prints.
         report = analyze_wpilog.to_json_dict(raw, from_start=False)
         # The CLI rounds timestamps for readability. The viewer needs full precision.
@@ -333,6 +342,7 @@ class LogLibrary:
             report["events"] = [{"tSec": ts / 1e6, "text": value}
                                 for ts, value in records.get("events", [])]
             report["commandExecutions"], _ = analyze_wpilog.command_executions(records)
+            report["traction"] = raw["traction"]
         self.cache[ident] = records, types, report, raw
         return self.cache[ident]
 

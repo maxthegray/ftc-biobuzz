@@ -104,6 +104,27 @@ test('velocity gets a derived speed channel in in/s', () => {
   assert.deepEqual(scalarSeries([[0, [3, -4, 1]], [1, [3, null, 0]]], speed.component), [[0, 5], [1, null]]);
 });
 
+test('drive wheel arrays are labelled by wheel, velocity in ticks/s', () => {
+  const options = channelOptions([
+    {name: 'Drive/motors/power', type: 'double[]', components: 4},
+    {name: 'Drive/motors/velocityTps', type: 'double[]', components: 4},
+  ]);
+  assert.deepEqual(options.slice(0, 4).map(option => option.componentLabel), ['leftFront', 'rightFront', 'leftRear', 'rightRear']);
+  assert.equal(options[0].unit, '');
+  assert.equal(options[5].label, 'Drive/motors/velocityTps / rightFront');
+  assert.equal(options[5].unit, 'ticks/s');
+});
+
+test('traction channels read in in/s, turn in rad/s', () => {
+  const options = channelOptions([
+    {name: 'MaxScope/traction/wheels', type: 'double[]', components: 3},
+    {name: 'MaxScope/traction/mismatchInPerS', type: 'double'},
+  ]);
+  assert.deepEqual(options.slice(0, 3).map(option => [option.componentLabel, option.unit]),
+    [['Forward', 'in/s'], ['Left', 'in/s'], ['Turn', 'rad/s']]);
+  assert.equal(options.find(option => option.name === 'MaxScope/traction/mismatchInPerS').unit, 'in/s');
+});
+
 test('channel folders retain complete paths, array components, and prefix collisions', () => {
   const options = channelOptions([
     {name: 'Drive/motors/leftFront/power', type: 'double'},

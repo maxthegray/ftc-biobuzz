@@ -198,8 +198,10 @@ export function plotPoints(series, start, end, buckets = 600) {
 
 export function channelOptions(channels) {
   const axes = ['Left stick X', 'Left stick Y', 'Right stick X', 'Right stick Y', 'Left trigger', 'Right trigger'];
+  const wheels = ['leftFront', 'rightFront', 'leftRear', 'rightRear'];
   const labels = {pose: ['X', 'Y', 'Heading'], velocity: ['X velocity', 'Y velocity', 'Angular velocity'],
-    'gamepad1/axes': axes, 'gamepad2/axes': axes};
+    'gamepad1/axes': axes, 'gamepad2/axes': axes, 'Drive/motors/power': wheels, 'Drive/motors/velocityTps': wheels,
+    'MaxScope/traction/wheels': ['Forward', 'Left', 'Turn'], 'MaxScope/traction/pinpoint': ['Forward', 'Left', 'Turn']};
   // Speed is derived: the magnitude of the field-frame translational velocity.
   const derived = {velocity: {speed: 'Speed'}};
   return channels.flatMap(channel => {
@@ -210,7 +212,7 @@ export function channelOptions(channels) {
       const name = channel.name;
       let unit = '', scale = 1;
       if (name === 'pose') unit = component === 2 ? 'rad' : 'in';
-      else if (name === 'velocity') unit = component === 2 ? 'rad/s' : 'in/s';
+      else if (name === 'velocity' || name.startsWith('MaxScope/traction/')) unit = component === 2 ? 'rad/s' : 'in/s';
       else if (name.startsWith('loop/') && name.endsWith('Nanos')) { unit = 'ms'; scale = 1e-6; }
       else if (name === 'battery') unit = 'V';
       else if (name.endsWith('Amps')) unit = 'A';
@@ -218,6 +220,7 @@ export function channelOptions(channels) {
       else if (/In$/.test(name)) unit = 'in';
       else if (/Ms$/.test(name)) unit = 'ms';
       else if (/Fps$|Hz$/.test(name)) unit = 'Hz';
+      else if (/Tps$/.test(name)) unit = 'ticks/s';
       const componentLabel = component === null ? null
         : String(derived[name]?.[component] ?? labels[name]?.[component] ?? component);
       const suffix = componentLabel === null ? '' : ` / ${componentLabel}`;
