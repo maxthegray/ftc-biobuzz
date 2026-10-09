@@ -6,9 +6,8 @@ import {drawField, drawCamera, fillCameraSources, fieldInches} from './field-cam
 
 // Whole words, so "schedule default Drive" isn't a FAULT. Matches the server's problem rule.
 const faultPattern = /\b(?:FAULT|CRASH|FAIL(?:ED|URE)?|LOST|INCOMPLETE|DISABLED|OVERRUN)\b/i;
-const FIELD_TIMELINE_LANES = 5;
 const themeKey = 'maxscope.theme';
-const {closePicker, renderCharts, loadCharts, applyPreset, preparePlots, drawCharts} = createCharts({seek, saveLayout: () => saveLayout(), onWindow: () => drawField()});
+const {closePicker, renderCharts, loadCharts, applyPreset, preparePlots, drawCharts, syncWindow, follow, updateWindowControls} = createCharts({seek, saveLayout: () => saveLayout(), onWindow: () => drawField()});
 const {initializeLayout, saveLayout, setProblemsView} = createLayout({seek, preparePlots, redraw});
 
 function redraw() { drawField(); drawCamera(); drawCharts(); }
@@ -120,6 +119,7 @@ async function openRun(id) {
     state.time = 0;
     state.series = new Map(Object.entries(run.playback));
     state.window = [0, Math.max(run.endSec, 0.001)];
+    state.follow = true;
     state.match = matchPhases(run.match);
     state.hoverTime = null;
     state.options = channelOptions(run.channels);
@@ -142,7 +142,7 @@ async function openRun(id) {
     $('run-status').textContent = run.report.truncated ? 'Partial log' : 'No readable samples';
     $('run-status').hidden = !run.report.truncated && !run.report.empty;
     $('run-status').classList.toggle('warning', run.report.truncated || run.report.empty);
-    $('field-size').textContent = `${run.fieldLengthIn} × ${run.fieldLengthIn} in`;
+    $('field-size').textContent = `Field · ${run.fieldLengthIn}" × ${run.fieldLengthIn}"`;
     $('scrub').max = run.endSec;
     $('duration').textContent = fmtTime(run.endSec);
     $('duration').title = `Log ends at ${fmt(run.endSec)} s`;
@@ -360,11 +360,15 @@ function renderCommands() {
     : 'This run has no command history. An empty timeline does not mean no commands ran.';
   $('commands').replaceChildren();
   state.commandCursors = [];
-  const runs = state.run.report.commandExecutions || [];
+  // Legacy logs have no executions, so their bars are spans of the sampled active set.
+  const playback = state.run.playback;
+  const traced = state.run.report.commandExecutions || [];
+  const runs = traced.length ? traced
+    : activeCommandSpans(playback['commands/active']?.length ? playback['commands/active'] : playback['commands/running'], state.run.endSec);
   for (const run of runs) {
     const row = node('div', 'command');
     const label = node('div', 'command-label');
-    label.append(node('span', '', `#${run.id} ${run.name}`), node('span', '', run.outcome));
+    label.append(node('span', '', run.id === undefined ? run.name : `#${run.id} ${run.name}`), node('span', '', run.outcome === 'SAMPLED' ? 'sampled' : run.outcome));
     const track = node('div', 'command-track');
     const bar = node('button', `command-bar ${run.outcome.toLowerCase()}`);
     const length = Math.max(state.run.endSec, 0.001);
@@ -379,44 +383,7 @@ function renderCommands() {
     row.append(label, track);
     $('commands').append(row);
   }
-  if (!runs.length) $('commands').append(node('p', 'empty', 'No traced executions in this run.'));
-  const playback = state.run.playback;
-  renderFieldTimeline(runs.length ? runs
-    : activeCommandSpans(playback['commands/active']?.length ? playback['commands/active'] : playback['commands/running'], state.run.endSec));
-}
-
-// The same executions as the Commands view, one row per command name, so the field card shows the
-// whole run at a glance under the commands active right now.
-function renderFieldTimeline(runs) {
-  const length = Math.max(state.run.endSec, 0.001);
-  const byName = new Map();
-  for (const run of runs) {
-    if (!byName.has(run.name)) byName.set(run.name, []);
-    byName.get(run.name).push(run);
-  }
-  const rows = [...byName].slice(0, FIELD_TIMELINE_LANES);
-  $('field-timeline').hidden = !runs.length;
-  $('field-timeline').replaceChildren(...rows.map(([name, items]) => {
-    const row = node('div', 'timeline-row');
-    const label = node('span', 'timeline-name', name);
-    label.title = name;
-    const lane = node('div', 'timeline-lane');
-    for (const run of items) {
-      const bar = node('button', `command-bar ${run.outcome.toLowerCase()}`);
-      bar.style.left = `${run.startSec / length * 100}%`;
-      bar.style.width = `${Math.max(0.4, ((run.endSec ?? length) - run.startSec) / length * 100)}%`;
-      bar.title = `${run.name} · ${fmtTime(run.startSec, 3)}–${fmtTime(run.endSec, 3)} · ${run.outcome === 'SAMPLED' ? 'from sampled active set' : run.outcome}`;
-      bar.setAttribute('aria-label', bar.title);
-      bar.onclick = () => seek(run.startSec);
-      lane.append(bar);
-    }
-    const cursor = node('span', 'command-cursor');
-    state.commandCursors.push(cursor);
-    lane.append(cursor);
-    row.append(label, lane);
-    return row;
-  }));
-  if (byName.size > rows.length) $('field-timeline').append(node('div', 'timeline-note', `${byName.size - rows.length} more commands in the Commands view`));
+  if (!runs.length) $('commands').append(node('p', 'empty', 'No command history in this run.'));
 }
 
 function renderEvents() {
@@ -460,7 +427,7 @@ function updateDetails() {
   const active = sampleAt(playback['commands/active']?.length ? playback['commands/active'] : playback['commands/running'], state.time);
   const mode = sampleAt(playback.driveMode, state.time);
   $('field-activity').hidden = !$('field-commands-toggle').checked;
-  $('field-command-coverage').textContent = commandCoverage();
+  $('field-activity').title = `Command coverage: ${commandCoverage()}`;
   const commandText = active === null ? 'No command sample at this time' : active || 'No active logged commands';
   if ($('field-active-commands').dataset.value !== commandText) {
     $('field-active-commands').dataset.value = commandText;
@@ -498,6 +465,7 @@ function seek(time) {
   if (!state.run) return;
   state.time = Math.max(0, Math.min(state.run.endSec, time));
   $('scrub').value = state.time;
+  if (syncWindow()) updateWindowControls();
   $('time').textContent = fmtTime(state.time);
   $('time').title = `Log time ${fmt(state.time, 3)} s`;
   const phase = phaseAt(state.match, state.time);
@@ -541,7 +509,7 @@ $('compare-align').onchange = realign;
 $('compare-shift').oninput = realign;
 $('refresh').onclick = refresh;
 $('search').oninput = renderLibrary;
-$('field-zoom-reset').onclick = () => $('reset-zoom').click();
+$('field-zoom-reset').onclick = () => follow();
 $('short-toggle').onclick = () => { state.showShort = !state.showShort; renderLibrary(); };
 $('field').addEventListener('click', event => {
   if (!state.run) return;
@@ -570,6 +538,7 @@ $('file').onchange = async event => {
 document.addEventListener('keydown', event => {
   if ($('channel-picker').open || ['INPUT', 'SELECT', 'BUTTON', 'TEXTAREA'].includes(event.target.tagName) || !state.run || $('workspace').hidden) return;
   if (event.code === 'Space') { event.preventDefault(); $('play').click(); }
+  if (event.code === 'KeyF' && !event.metaKey && !event.ctrlKey) { event.preventDefault(); follow(); }
   if (event.code === 'BracketLeft' || event.code === 'BracketRight') { event.preventDefault(); stepProblem(event.code === 'BracketRight' ? 1 : -1); }
   if (event.code === 'ArrowLeft' || event.code === 'ArrowRight') {
     event.preventDefault(); stop(); seek(state.time + (event.code === 'ArrowRight' ? 1 : -1) * (event.shiftKey ? 1 : 0.02));
@@ -579,7 +548,7 @@ function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
   refreshColors();
   const next = theme === 'dark' ? 'light' : 'dark';
-  $('theme-toggle').textContent = theme === 'dark' ? '☀ Light' : '☾ Dark';
+  $('theme-toggle').textContent = theme === 'dark' ? 'Light' : 'Dark';
   $('theme-toggle').setAttribute('aria-label', `Switch to ${next} mode`);
   if (state.run && !$('workspace').hidden) { drawField(); drawCamera(); drawCharts(); }
 }

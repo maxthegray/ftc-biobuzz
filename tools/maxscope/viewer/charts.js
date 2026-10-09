@@ -1,4 +1,4 @@
-import {finite, indexAt, sampleAt, scalarSeries, plotPoints, plotBounds, channelTree, discreteSeries, discreteIntervals, buttonNames, shiftSeries} from './core.mjs';
+import {finite, indexAt, sampleAt, scalarSeries, plotPoints, plotBounds, channelTree, discreteSeries, discreteIntervals, buttonNames, shiftSeries, followWindow} from './core.mjs';
 import {$, state, fmt, fmtTime, node, api, notice, commandCoverage, context, colors, problemColor} from './ui.js';
 
 export function createCharts({seek, saveLayout, onWindow}) {
@@ -52,10 +52,57 @@ export function createCharts({seek, saveLayout, onWindow}) {
     return state.window[0] + fraction * (state.window[1] - state.window[0]);
   };
 
+  // Graphs follow playback through a fixed-length window, so a 20 s run and a 6 min run read the
+  // same. Panning detaches them where you leave them; Follow (or F) puts them back on the cursor.
+  const WINDOW_KEY = 'maxscope.graphWindow';
+  try {
+    const saved = localStorage.getItem(WINDOW_KEY);
+    if (saved === 'all') state.windowLength = Infinity;
+    else if (Number(saved) > 0) state.windowLength = Number(saved);
+  } catch { /* Storage may be disabled. */ }
+
+  function saveWindowLength() {
+    try { localStorage.setItem(WINDOW_KEY, state.windowLength === Infinity ? 'all' : String(state.windowLength)); } catch { /* Storage may be disabled. */ }
+  }
+
+  // Moves a following window to the cursor; true when it moved. Called on every seek.
+  function syncWindow() {
+    if (!state.run || !state.follow) return false;
+    const [start, end] = followWindow(state.time, state.windowLength, state.run.endSec);
+    if (start === state.window[0] && end === state.window[1]) return false;
+    state.window = [start, end];
+    preparePlots();
+    return true;
+  }
+
+  function follow() {
+    state.follow = true;
+    syncWindow(); updateWindowControls(); drawCharts(); onWindow();
+  }
+
+  function setWindowLength(length) {
+    state.windowLength = length;
+    saveWindowLength();
+    follow();
+  }
+
+  // A window placed by hand: panning, or zooming while detached.
   function setWindow(start, length) {
     const begin = Math.max(0, Math.min(state.run.endSec - length, start));
+    state.follow = false;
     state.window = [begin, begin + length];
-    preparePlots(); drawCharts(); onWindow();
+    state.windowLength = length;
+    saveWindowLength();
+    preparePlots(); updateWindowControls(); drawCharts(); onWindow();
+  }
+
+  function updateWindowControls() {
+    const full = !state.run || state.window[1] - state.window[0] >= state.run.endSec - 1e-6;
+    for (const button of document.querySelectorAll('[data-window]')) {
+      const length = button.dataset.window === 'all' ? Infinity : Number(button.dataset.window);
+      button.setAttribute('aria-pressed', String(state.follow && length === state.windowLength));
+    }
+    $('follow').hidden = state.follow || full;
   }
 
   // Click seeks; dragging pans a zoomed graph. Hovering shows a crosshair on every graph and the
@@ -98,7 +145,9 @@ export function createCharts({seek, saveLayout, onWindow}) {
       const fraction = Math.max(0, Math.min(1, (event.clientX - rect.left - 45) / Math.max(1, rect.width - 90)));
       const center = start + fraction * (end - start);
       const length = Math.min(Math.max(state.run.endSec, 0.001), Math.max(0.02, (end - start) * (event.deltaY > 0 ? 1.3 : 0.77)));
-      setWindow(center - fraction * length, length);
+      // Following, zoom changes the window length and keeps following; detached, it zooms around the pointer.
+      if (state.follow) { state.windowLength = length; saveWindowLength(); follow(); }
+      else setWindow(center - fraction * length, length);
     }, {passive: false});
   }
 
@@ -505,7 +554,10 @@ export function createCharts({seek, saveLayout, onWindow}) {
     ctx.textBaseline = 'alphabetic';
   }
 
-  $('reset-zoom').onclick = () => setWindow(0, Math.max(state.run.endSec, 0.001));
+  for (const button of document.querySelectorAll('[data-window]')) {
+    button.onclick = () => setWindowLength(button.dataset.window === 'all' ? Infinity : Number(button.dataset.window));
+  }
+  $('follow').onclick = follow;
   $('add-graph').onclick = () => {
     if (!state.run || state.charts.length >= 8) return;
     state.focusedChart = null;
@@ -518,5 +570,5 @@ export function createCharts({seek, saveLayout, onWindow}) {
   $('channel-search').oninput = renderChannelTree;
   $('channel-picker').addEventListener('close', () => { state.pickerChart = null; });
 
-  return {closePicker, renderCharts, loadCharts, applyPreset, preparePlots, drawCharts};
+  return {closePicker, renderCharts, loadCharts, applyPreset, preparePlots, drawCharts, syncWindow, follow, updateWindowControls};
 }

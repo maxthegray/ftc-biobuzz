@@ -53,8 +53,9 @@ the area outside it is hatched. A pose past that limit is shown as an arrow on
 the edge of the view. The view is fixed for the run, so it doesn't move while
 scrubbing.
 
-The grid is season-neutral. The robot outline is a position/heading marker,
-not a measured chassis footprint. The faint trail is the recorded run and
+The grid is season-neutral. The robot is a 16 in marker (chassis outline,
+wheel pods, heading line from the centre to the front), not a measured
+footprint. The faint trail is the recorded run and
 the darker trail is its elapsed portion, not a planned path. Drawing uses a
 reduced trail; the coordinate readout always uses the full pose series.
 
@@ -132,17 +133,20 @@ reduced trail; the coordinate readout always uses the full pose series.
   channel prefix (`<Subsystem>/candidates/…` or `<Subsystem>/target/…`), so a
   second camera subsystem appears without any viewer change. Logs recorded
   before a camera logged its candidates show nothing.
-- Field shows a command timeline under the active commands: one row per
-  command name, bars for when it ran, and the playback cursor. Click a bar to
-  seek. Instrumented logs use the recorded executions; older logs fall back to
-  spans derived from the sampled active set, whose edges are only as exact as
-  the sampling. Rows past the first five are counted in a note.
-- Scroll over a graph to zoom all graphs around the pointer, and drag to pan.
-  Reset zoom restores the full run. The slider always spans the complete run.
-  While the graphs show less than 90% of the run, a soft band under the
-  field path marks the stretch they cover, labelled with its times and a
-  Reset zoom button. Hovering a graph draws a crosshair on all of them and lists
-  that graph's values at the pointer.
+- The Commands view (Events tab) has a bar for each execution and the
+  playback cursor; click a bar to seek. Instrumented logs use the recorded
+  executions; older logs fall back to spans derived from the sampled active
+  set, labelled "sampled", whose edges are only as exact as the sampling.
+- Graphs follow playback: every graph shows the same fixed window (10 s by
+  default) with the cursor two thirds across, so a short run and a long one
+  read the same. **5 s / 10 s / 30 s / All** beside **+ Graph** pick the
+  window, and the choice is saved; All is the whole run. Scrolling over a
+  graph zooms; while following it changes the window length and keeps
+  following. Dragging pans and detaches the graphs where you leave them;
+  **Follow playback** (or F) puts them back on the cursor. While detached, a
+  soft band under the field path marks the stretch the graphs show. Hovering a
+  graph draws a crosshair on all of them and lists that graph's values at the
+  pointer. The slider always spans the complete run.
 - **Find problems** in the playback bar scans the run for moments worth a
   look. It is off when the viewer opens, so nothing is drawn until you ask.
   The rules use channels already logged: battery under 9.5 V (a fault under
@@ -175,7 +179,8 @@ interpolated poses are invented. Before a channel's first sample its value
 is unavailable. Nonfinite numbers appear as gaps. Pose age is shown after
 250 ms without a sample. Graph readouts use original samples while plotting
 preserves each pixel bucket's first/last/min/max values. Timing is displayed
-in milliseconds; pose heading remains radians.
+in milliseconds. The pose readout shows heading in degrees (hover it for
+radians); graphs of `pose` heading stay in radians.
 
 ## Coverage and limits
 

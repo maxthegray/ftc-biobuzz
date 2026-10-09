@@ -3,7 +3,7 @@ import {finite} from './core.mjs';
 export const $ = id => document.getElementById(id);
 export const state = {logs: [], run: null, time: 0, playing: false, generation: 0, charts: [], options: [],
   series: new Map(), window: [0, 1], events: [], eventNodes: [], commandCursors: [], graphGeneration: 0, frame: null,
-  match: null, hoverTime: null, hoverChart: null, showShort: false, knownIds: null, newIds: new Set(), openedOnce: false, problems: [], problemCounts: {}, problemsOn: false, problemGeneration: 0, problemFilter: null, problemNodes: [], compare: null, compareGeneration: 0, cameras: [], cameraViews: [], dragKey: null, activeTab: 'field', pickerChart: null, layout: null, focusedChart: null, panels: {field: [['field'], ['gamepads']], signals: [['signals']], events: [['commands'], ['events']]}};
+  match: null, follow: true, windowLength: 10, hoverTime: null, hoverChart: null, showShort: false, knownIds: null, newIds: new Set(), openedOnce: false, problems: [], problemCounts: {}, problemsOn: false, problemGeneration: 0, problemFilter: null, problemNodes: [], compare: null, compareGeneration: 0, cameras: [], cameraViews: [], dragKey: null, activeTab: 'field', pickerChart: null, layout: null, focusedChart: null, panels: {field: [['field'], ['gamepads']], signals: [['signals']], events: [['commands'], ['events']]}};
 export const fmt = (n, digits = 2) => finite(n) ? n.toFixed(digits) : '—';
 export const node = (tag, className, text) => {
   const element = document.createElement(tag);

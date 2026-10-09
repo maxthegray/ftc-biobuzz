@@ -20,7 +20,8 @@ export function drawField() {
     ctx.stroke(); ctx.restore();
     ctx.fillStyle = colors.field; ctx.fillRect(fieldLeft, fieldTop, fieldSize, fieldSize);
   }
-  ctx.lineWidth = 1; ctx.strokeStyle = colors.grid; ctx.font = '9px ui-monospace, monospace';
+  // Foam tile seams, then the walls over them.
+  ctx.lineWidth = 2; ctx.strokeStyle = colors.grid; ctx.font = '9px ui-monospace, monospace';
   const labelEvery = Math.ceil(view.tiles / 6);
   for (let i = 0; i <= view.tiles; i++) {
     const at = i * cell, tileX = Math.round(view.minX / view.tile) + i, tileY = Math.round(view.minY / view.tile) + view.tiles - i;
@@ -31,7 +32,7 @@ export function drawField() {
     if (tileX % labelEvery === 0) { ctx.textAlign = 'center'; ctx.fillText(label(tileX), left + at, top + size + 16); }
     if (tileY % labelEvery === 0) { ctx.textAlign = 'right'; ctx.fillText(label(tileY), left - 8, top + at + 3); }
   }
-  if (expanded) { ctx.strokeStyle = colors.wall; ctx.lineWidth = 1.5; ctx.strokeRect(fieldLeft, fieldTop, fieldSize, fieldSize); }
+  ctx.strokeStyle = colors.wall; ctx.lineWidth = 2.5; ctx.strokeRect(fieldLeft, fieldTop, fieldSize, fieldSize);
   ctx.fillStyle = colors['field-caption']; ctx.textAlign = 'center';
   ctx.fillText('AUDIENCE WALL · +X →', left + size / 2, height - 4);
   // Along the left edge, clear of the tick labels.
@@ -53,13 +54,14 @@ export function drawField() {
     ctx.globalAlpha = 0.15; drawTrail(compare.trail, false, colors.compare);
     ctx.globalAlpha = 0.5; drawTrail(compare.trail, true, colors.compare); ctx.globalAlpha = 1;
   }
-  // While the graphs are zoomed into part of the run, a soft band under the path marks the stretch
-  // they show, labelled in the corner; the trail's own played/unplayed colors stay on top.
+  // When the graphs are detached on part of the run, a soft band under the path marks the stretch
+  // they show, labelled in the corner; the trail's own played/unplayed colors stay on top. While
+  // they follow playback there is no band: it would only trail the robot.
   const [windowStart, windowEnd] = state.window;
-  const zoomed = windowEnd - windowStart < 0.9 * state.run.endSec;
+  const zoomed = !state.follow && windowEnd - windowStart < 0.9 * state.run.endSec;
   $('field-zoom').hidden = !zoomed;
   if (zoomed) {
-    $('field-zoom-label').textContent = `Highlighted: ${fmtTime(windowStart, 1)} to ${fmtTime(windowEnd, 1)}, the graphs' zoom`;
+    $('field-zoom-label').textContent = `Graphs show ${fmtTime(windowStart, 1)} to ${fmtTime(windowEnd, 1)}`;
     const series = state.run.playback.pose || [];
     const first = Math.max(0, indexAt(series, windowStart)), last = indexAt(series, windowEnd);
     const stride = Math.max(1, Math.ceil((last - first) / 3000));
@@ -92,14 +94,13 @@ export function drawField() {
   if (Array.isArray(ghost) && ghost.slice(0, 3).every(finite)) {
     const [gx, gy] = fieldPoint(ghost, view, left, top, size), radius = Math.max(5, ROBOT_HALF_IN * size / view.span);
     ctx.save(); ctx.translate(gx, gy); ctx.rotate(-ghost[2]);
-    ctx.fillStyle = colors.compare; ctx.strokeStyle = colors['robot-line']; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.roundRect(-radius, -radius, radius * 2, radius * 2, 4); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(radius * 1.65, 0); ctx.lineTo(radius * 1.2, -3); ctx.moveTo(radius * 1.65, 0); ctx.lineTo(radius * 1.2, 3); ctx.stroke();
+    drawRobot(ctx, radius, colors.compare);
     ctx.restore();
   }
   const pose = sampleAt(series, state.time);
   const valid = Array.isArray(pose) && pose.length >= 3 && pose.slice(0, 3).every(finite);
-  $('pose-x').textContent = fmt(pose?.[0]); $('pose-y').textContent = fmt(pose?.[1]); $('pose-h').textContent = fmt(pose?.[2], 3);
+  $('pose-x').textContent = fmt(pose?.[0]); $('pose-y').textContent = fmt(pose?.[1]); $('pose-h').textContent = fmt(finite(pose?.[2]) ? pose[2] * 180 / Math.PI : null, 1);
+  $('pose-h').title = `${fmt(pose?.[2], 3)} rad`;
   const index = indexAt(series, state.time);
   const age = index >= 0 ? state.time - series[index][0] : null;
   const outside = valid && (pose[0] < 0 || pose[1] < 0 || pose[0] > length || pose[1] > length);
@@ -150,12 +151,26 @@ export function drawField() {
   } else if (valid) {
     const radius = Math.max(5, ROBOT_HALF_IN * size / view.span);
     ctx.translate(x, y); ctx.rotate(-pose[2]);
-    ctx.fillStyle = colors.lime; ctx.strokeStyle = colors['robot-line']; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.roundRect(-radius, -radius, radius * 2, radius * 2, 4); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(radius * 1.65, 0); ctx.lineTo(radius * 1.2, -3); ctx.moveTo(radius * 1.65, 0); ctx.lineTo(radius * 1.2, 3); ctx.stroke();
-    ctx.beginPath(); ctx.arc(0, 0, 2, 0, Math.PI * 2); ctx.fillStyle = colors['robot-line']; ctx.fill();
+    drawRobot(ctx, radius, colors.lime);
   }
   ctx.restore();
+}
+
+// The robot marker, already translated and rotated to the pose (+x is the front): a chassis
+// outline, a wheel pod in each corner, and a heading line from the centre to the front edge.
+function drawRobot(ctx, radius, color) {
+  ctx.lineJoin = 'round';
+  ctx.globalAlpha = 0.16; ctx.fillStyle = color; ctx.fillRect(-radius, -radius, radius * 2, radius * 2);
+  ctx.globalAlpha = 1; ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.strokeRect(-radius, -radius, radius * 2, radius * 2);
+  const length = radius * 0.62, width = radius * 0.34, inset = radius * 0.1;
+  ctx.globalAlpha = 0.75; ctx.fillStyle = color;
+  for (const x of [-1, 1]) for (const y of [-1, 1]) {
+    ctx.fillRect(x * (radius - inset) - (x > 0 ? length : 0), y * (radius - inset) - (y > 0 ? width : 0), length, width);
+  }
+  ctx.globalAlpha = 1; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(radius, 0); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, Math.max(2, radius * 0.12), 0, Math.PI * 2); ctx.fill();
+  ctx.lineCap = 'butt';
 }
 
 // A click on the field canvas in field inches, with a pick radius of about 12 px, or null when it

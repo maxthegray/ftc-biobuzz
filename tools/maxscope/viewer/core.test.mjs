@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {activeCommandSpans, fieldPoint, fieldView, ballSighting, ballEstimate, cameraDetections, loggedCameraMount, cameraSources, sampleAt, plotPoints, plotBounds, scalarSeries, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals, alignmentAnchor, shiftSeries, adjacentProblem, problemsAt, matchPhases, phaseAt, posePasses, nextPass} from './core.mjs';
+import {activeCommandSpans, fieldPoint, fieldView, ballSighting, ballEstimate, cameraDetections, loggedCameraMount, cameraSources, sampleAt, plotPoints, plotBounds, scalarSeries, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals, alignmentAnchor, shiftSeries, adjacentProblem, problemsAt, matchPhases, phaseAt, posePasses, nextPass, followWindow} from './core.mjs';
 
 test('Pedro field corners retain their axes with only screen Y inverted', () => {
   const view = {minX: 0, minY: 0, span: 141.5};
@@ -293,4 +293,13 @@ test('clicking the field finds every pass near the point and cycles through them
   assert.equal(nextPass(passes, 1), passes[1]);
   assert.equal(nextPass(passes, 6), passes[0]);
   assert.equal(nextPass([], 0), null);
+});
+
+test('a following graph window keeps its length and the cursor two thirds across, within the run', () => {
+  assert.deepEqual(followWindow(100, 9, 300), [94, 103]);
+  assert.deepEqual(followWindow(2, 9, 300), [0, 9]);
+  assert.deepEqual(followWindow(299, 9, 300), [291, 300]);
+  assert.deepEqual(followWindow(5, 9, 6), [0, 6]);
+  assert.deepEqual(followWindow(150, Infinity, 300), [0, 300]);
+  assert.deepEqual(followWindow(0, 10, 0), [0, 0.001]);
 });

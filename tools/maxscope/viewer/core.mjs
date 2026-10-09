@@ -366,3 +366,12 @@ export function posePasses(series, point, radiusIn) {
 export function nextPass(passes, time) {
   return passes.find(pass => pass.startSec > time + 1e-6) ?? passes[0] ?? null;
 }
+
+// The graph window while following playback: `length` seconds with the cursor `lead` of the way
+// across, so more of the past shows than of what is coming, clamped to the run. A length longer
+// than the run, including Infinity for "All", shows the whole run.
+export function followWindow(time, length, end, lead = 2 / 3) {
+  const runEnd = Math.max(end, 0.001), span = Math.min(length, runEnd);
+  const start = Math.max(0, Math.min(runEnd - span, time - span * lead));
+  return [start, start + span];
+}

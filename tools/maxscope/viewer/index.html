@@ -19,7 +19,7 @@
         <div id="compare-controls" class="compare-controls" hidden><select id="compare-run" aria-label="Compare with another run"><option value="">Compare with…</option></select>
           <span id="compare-options" class="compare-options" hidden><select id="compare-align" aria-label="Line the runs up at"><option value="start">Align at op-mode start</option><option value="motion">Align at first movement</option><option value="log">Align at log start</option></select><label class="compare-shift">Shift B <input id="compare-shift" type="number" step="0.1" value="0" aria-label="Shift the compared run later, in seconds"> s</label><button id="compare-clear" class="text-button" aria-label="Stop comparing" title="Stop comparing">×</button></span>
         </div>
-        <button id="theme-toggle" class="button theme-toggle" type="button"></button><label class="button primary" for="file">Open WPILOG<input id="file" type="file" accept=".wpilog" class="file-input"></label></div></header>
+        <button id="theme-toggle" class="button" type="button"></button><label class="button primary" for="file">Open WPILOG<input id="file" type="file" accept=".wpilog" class="file-input"></label></div></header>
     <div id="notice" class="notice" role="status" hidden></div>
     <section id="welcome" class="welcome"><p>Select a run or open a WPILOG file.</p></section>
     <div id="workspace" hidden>
@@ -33,18 +33,19 @@
       <div class="tab-actions"><select id="add-view" aria-label="Add view to current tab"><option value="">+ View</option><option value="field">Field</option><option value="signals">Signals</option><option value="commands">Commands</option><option value="events">Events</option><option value="gamepads">Gamepads</option><option value="camera">Camera</option></select></div>
       </div>
       <section id="panel-field" class="view-panel" role="tabpanel" aria-labelledby="tab-field">
-        <section class="card field-card"><div class="card-heading"><h3>Field</h3><span class="muted">Pedro · in / rad</span><label class="field-command-toggle"><input id="field-commands-toggle" type="checkbox" checked aria-label="Show active commands on field">Commands</label><label id="field-ball-option" class="field-command-toggle" hidden><input id="field-ball-toggle" type="checkbox" checked aria-label="Show tracked ball direction on field">Ball</label></div>
-          <div id="field-activity" class="field-activity"><div class="field-activity-heading"><span>Active commands</span><span id="field-command-coverage"></span></div><div id="field-active-commands" aria-label="Active commands on field"></div><div id="field-timeline" class="field-timeline" aria-label="Command timeline"></div></div>
-          <div class="field-wrap"><canvas id="field" aria-label="Robot field playback in native Pedro coordinates"></canvas><span id="pose-status" class="field-status"></span><span id="field-hint" class="field-status field-hint" role="status" hidden></span><span id="field-zoom" class="field-status field-zoom" hidden><span id="field-zoom-label"></span><button id="field-zoom-reset" class="text-button">Reset zoom</button></span><span id="ball-status" class="field-status ball-status" hidden></span></div>
-          <div class="pose-readouts"><div>X <strong id="pose-x">—</strong><small>in</small></div><div>Y <strong id="pose-y">—</strong><small>in</small></div><div>θ <strong id="pose-h">—</strong><small>rad</small></div></div>
+        <section class="card field-card"><div class="card-heading"><h3 title="Pedro coordinates, inches. Origin at the audience-left corner, +X right, +Y away from the audience. Click the field to jump to when the robot was there.">Field</h3><label class="field-command-toggle"><input id="field-commands-toggle" type="checkbox" checked aria-label="Show active commands on field">Commands</label><label id="field-ball-option" class="field-command-toggle" hidden><input id="field-ball-toggle" type="checkbox" checked aria-label="Show tracked ball direction on field">Ball</label></div>
+          <div id="field-activity" class="field-activity"><span class="field-activity-heading">Running</span><div id="field-active-commands" aria-label="Active commands on field"></div></div>
+          <div class="field-wrap"><canvas id="field" aria-label="Robot field playback in native Pedro coordinates"></canvas><span id="pose-status" class="field-status"></span><span id="field-hint" class="field-status field-hint" role="status" hidden></span><span id="field-zoom" class="field-status field-zoom" hidden><span id="field-zoom-label"></span><button id="field-zoom-reset" class="text-button">Follow playback</button></span><span id="ball-status" class="field-status ball-status" hidden></span></div>
+          <div class="pose-readouts"><div>X <strong id="pose-x">—</strong><small>in</small></div><div>Y <strong id="pose-y">—</strong><small>in</small></div><div>Heading <strong id="pose-h">—</strong><small>°</small></div></div>
           <div id="compare-pose" class="compare-pose" hidden></div>
-          <div class="field-caption"><span>Origin: audience-left · +X right · +Y away</span><span id="field-size"></span></div>
+          <div class="field-caption"><span id="field-size"></span></div>
         </section>
         <section id="metrics" class="metrics" aria-label="Run summary"></section>
       </section>
       <section id="panel-signals" class="view-panel" role="tabpanel" aria-labelledby="tab-signals" hidden>
-        <section class="card signals-card"><div class="card-heading"><h3>Signals</h3><button id="add-graph" class="channel-select">+ Graph</button></div>
-          <div id="charts"></div><div class="chart-footer"><span>Click to seek · Scroll to zoom · Drag to pan</span><button id="reset-zoom" class="text-button">Reset zoom</button></div>
+        <section class="card signals-card"><div class="card-heading"><h3 title="Click to seek · Scroll to zoom · Drag to pan · F follows playback">Signals</h3><button id="add-graph" class="channel-select">+ Graph</button>
+          <span class="window-controls" role="group" aria-label="Graph window"><button data-window="5" aria-pressed="false">5 s</button><button data-window="10" aria-pressed="true">10 s</button><button data-window="30" aria-pressed="false">30 s</button><button data-window="all" aria-pressed="false">All</button></span><button id="follow" class="button follow" title="Put the graphs back on the playback cursor (F)" hidden>Follow playback</button></div>
+          <div id="charts"></div>
         </section>
       </section>
       <section id="view-storage" hidden>
@@ -54,10 +55,9 @@
         <section class="card"><div class="card-heading"><h3>Events</h3><select id="event-filter" aria-label="Event filter"><option value="all">All events</option><option value="faults">Faults & warnings</option></select></div><div id="events" class="events"></div></section>
       </section>
       <section hidden>
-      <section class="card problems-card"><div class="card-heading"><h3>Problems</h3><span id="problem-count" class="pill"></span><span class="problem-nav"><button id="problem-prev" class="text-button" title="Previous problem ( [ )">‹ Prev</button><button id="problem-next" class="text-button" title="Next problem ( ] )">Next ›</button></span></div>
-        <p class="section-note">Flagged from logged channels: battery under 9.5 V, loops over 50 ms, disconnects, localizer faults, pose jumps over 3 in, fault events and failed commands. [ and ] step between them.</p>
+      <section class="card problems-card"><div class="card-heading"><h3 title="Flagged from logged channels: battery under 9.5 V, loops over 50 ms, disconnects, localizer faults, pose jumps over 3 in, fault events and failed commands. [ and ] step between them.">Problems</h3><span id="problem-count" class="pill"></span><span class="problem-nav"><button id="problem-prev" class="text-button" title="Previous problem ( [ )">‹ Prev</button><button id="problem-next" class="text-button" title="Next problem ( ] )">Next ›</button></span></div>
         <div id="problem-kinds" class="problem-kinds"></div><div id="problems" class="problems"></div></section>
-      <section class="card inputs-card"><div class="card-heading"><h3>Gamepads</h3><span class="muted">After deadband</span></div><div id="gamepads" class="gamepads"></div></section>
+      <section class="card inputs-card"><div class="card-heading"><h3 title="Stick values after deadband">Gamepads</h3></div><div id="gamepads" class="gamepads"></div></section>
       </section>
     </div>
   </main>
