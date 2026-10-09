@@ -1,7 +1,7 @@
 import {finite, indexAt, sampleAt, scalarSeries, plotPoints, plotBounds, channelTree, discreteSeries, discreteIntervals, buttonNames, shiftSeries} from './core.mjs';
-import {$, state, fmt, node, api, notice, commandCoverage, context, colors, problemColor} from './ui.js';
+import {$, state, fmt, fmtTime, node, api, notice, commandCoverage, context, colors, problemColor} from './ui.js';
 
-export function createCharts({seek, saveLayout}) {
+export function createCharts({seek, saveLayout, onWindow}) {
   function renderCharts() {
     $('charts').replaceChildren();
     state.charts = [];
@@ -42,16 +42,55 @@ export function createCharts({seek, saveLayout}) {
       state.charts = state.charts.filter(other => other !== chart);
       root.remove(); updateChartControls(); loadCharts();
     };
-    wireTimeCanvas(canvas);
+    wireTimeCanvas(canvas, chart);
     return chart;
   }
 
-  function wireTimeCanvas(canvas) {
-    canvas.onclick = event => {
-      const rect = canvas.getBoundingClientRect();
-      const fraction = Math.max(0, Math.min(1, (event.clientX - rect.left - 45) / Math.max(1, rect.width - 90)));
-      seek(state.window[0] + fraction * (state.window[1] - state.window[0]));
+  const timeAt = (canvas, clientX) => {
+    const rect = canvas.getBoundingClientRect();
+    const fraction = Math.max(0, Math.min(1, (clientX - rect.left - 45) / Math.max(1, rect.width - 90)));
+    return state.window[0] + fraction * (state.window[1] - state.window[0]);
+  };
+
+  function setWindow(start, length) {
+    const begin = Math.max(0, Math.min(state.run.endSec - length, start));
+    state.window = [begin, begin + length];
+    preparePlots(); drawCharts(); onWindow();
+  }
+
+  // Click seeks; dragging pans a zoomed graph. Hovering shows a crosshair on every graph and the
+  // values under the pointer on this one.
+  function wireTimeCanvas(canvas, chart = null) {
+    canvas.onpointerdown = event => {
+      if (event.button !== 0 || !state.run) return;
+      const startX = event.clientX, [start, end] = state.window;
+      const perPixel = (end - start) / Math.max(1, canvas.getBoundingClientRect().width - 90);
+      let panning = false;
+      canvas.setPointerCapture(event.pointerId);
+      const move = moved => {
+        const dx = moved.clientX - startX;
+        if (!panning && Math.abs(dx) < 4) return;
+        panning = true; canvas.classList.add('panning');
+        state.hoverTime = null;
+        setWindow(start - dx * perPixel, end - start);
+      };
+      const finish = released => {
+        canvas.removeEventListener('pointermove', move);
+        canvas.classList.remove('panning');
+        if (!panning && released.type === 'pointerup') seek(timeAt(canvas, released.clientX));
+      };
+      canvas.addEventListener('pointermove', move);
+      canvas.addEventListener('pointerup', finish, {once: true});
+      canvas.addEventListener('pointercancel', finish, {once: true});
     };
+    canvas.addEventListener('pointermove', event => {
+      if (!state.run || canvas.classList.contains('panning')) return;
+      state.hoverTime = timeAt(canvas, event.clientX);
+      state.hoverChart = chart;
+      state.hoverX = event.clientX - canvas.getBoundingClientRect().left;
+      drawCharts();
+    });
+    canvas.addEventListener('pointerleave', () => { state.hoverTime = null; state.hoverChart = null; drawCharts(); });
     canvas.addEventListener('wheel', event => {
       event.preventDefault();
       const [start, end] = state.window;
@@ -59,9 +98,7 @@ export function createCharts({seek, saveLayout}) {
       const fraction = Math.max(0, Math.min(1, (event.clientX - rect.left - 45) / Math.max(1, rect.width - 90)));
       const center = start + fraction * (end - start);
       const length = Math.min(Math.max(state.run.endSec, 0.001), Math.max(0.02, (end - start) * (event.deltaY > 0 ? 1.3 : 0.77)));
-      const nextStart = Math.max(0, Math.min(state.run.endSec - length, center - fraction * length));
-      state.window = [nextStart, nextStart + length];
-      preparePlots(); drawCharts();
+      setWindow(center - fraction * length, length);
     }, {passive: false});
   }
 
@@ -115,7 +152,7 @@ export function createCharts({seek, saveLayout}) {
       lane.canvas.onmousemove = event => {
         const rect = lane.canvas.getBoundingClientRect();
         const time = state.window[0] + Math.max(0, Math.min(1, (event.clientX - rect.left - 45) / Math.max(1, rect.width - 90))) * (state.window[1] - state.window[0]);
-        lane.canvas.title = `${fmt(time, 3)} s · ${discreteLabel(sampleAt(lane.data, time), lane.option)}`;
+        lane.canvas.title = `${fmtTime(time, 3)} · ${discreteLabel(sampleAt(lane.data, time), lane.option)}`;
       };
       row.append(header, lane.canvas); chart.lanes.append(row);
     }
@@ -152,6 +189,10 @@ export function createCharts({seek, saveLayout}) {
       if (state.time >= start && state.time <= end) {
         ctx.strokeStyle = colors['layer-0']; ctx.setLineDash([3, 3]); ctx.beginPath();
         ctx.moveTo(x(state.time), 0); ctx.lineTo(x(state.time), height); ctx.stroke(); ctx.setLineDash([]);
+      }
+      if (state.hoverTime !== null && state.hoverTime >= start && state.hoverTime <= end) {
+        ctx.strokeStyle = colors.muted; ctx.lineWidth = 1; ctx.beginPath();
+        ctx.moveTo(x(state.hoverTime), 0); ctx.lineTo(x(state.hoverTime), height); ctx.stroke();
       }
       if (!lane.data.length) {
         ctx.fillStyle = colors['chart-label']; ctx.fillText(chart.loading ? 'Loading…' : 'No recorded samples', left + 8, height / 2);
@@ -377,8 +418,8 @@ export function createCharts({seek, saveLayout}) {
         ctx.fillText(unit || 'value', at, 10);
         for (let i = 0; i <= 2; i++) ctx.fillText(fmt(max - (max - min) * i / 2, Math.abs(max) > 100 ? 0 : 1), at, top + (bottom - top) * i / 2 + 3);
       });
-      ctx.fillStyle = colors.muted; ctx.textAlign = 'left'; ctx.fillText(`${fmt(start, 1)} s`, left, height - 4);
-      ctx.textAlign = 'right'; ctx.fillText(`${fmt(end, 1)} s`, right, height - 4);
+      ctx.fillStyle = colors.muted; ctx.textAlign = 'left'; ctx.fillText(fmtTime(start, 1), left, height - 4);
+      ctx.textAlign = 'right'; ctx.fillText(fmtTime(end, 1), right, height - 4);
       ctx.save(); ctx.beginPath(); ctx.rect(left, top - 3, right - left, bottom - top + 6); ctx.clip();
       ctx.globalAlpha = 0.14;
       for (const item of state.problems) {
@@ -387,6 +428,13 @@ export function createCharts({seek, saveLayout}) {
         ctx.fillStyle = problemColor(item); ctx.fillRect(a - 1, top - 3, Math.max(2, b - a), bottom - top + 6);
       }
       ctx.globalAlpha = 1;
+      ctx.font = '9px ui-monospace, monospace'; ctx.textAlign = 'left';
+      for (const mark of state.match?.marks || []) {
+        if (mark.tSec < start || mark.tSec > end) continue;
+        ctx.strokeStyle = colors['chart-label']; ctx.globalAlpha = 0.6; ctx.setLineDash([2, 4]);
+        ctx.beginPath(); ctx.moveTo(x(mark.tSec), top - 3); ctx.lineTo(x(mark.tSec), bottom + 3); ctx.stroke(); ctx.setLineDash([]);
+        ctx.globalAlpha = 1; ctx.fillStyle = colors['chart-label']; ctx.fillText(mark.label, x(mark.tSec) + 4, top + 8);
+      }
       const stroke = (points, y) => {
         ctx.beginPath();
         let connected = false, previousValue = null;
@@ -406,7 +454,7 @@ export function createCharts({seek, saveLayout}) {
           layer.compareValue.textContent = chart.loading ? '' : `B ${fmt(other)}${layer.option?.unit ? ' ' + layer.option.unit : ''}`;
         }
         const sampled = indexAt(layer.data, state.time);
-        layer.value.title = sampled < 0 ? 'No sample at this time' : `Last sample at ${fmt(layer.data[sampled][0], 6)} s`;
+        layer.value.title = sampled < 0 ? 'No sample at this time' : `Last sample at ${fmtTime(layer.data[sampled][0], 6)}`;
         if (!layer.visible) continue;
         const [min, max] = chart.bounds[layer.axis] || [0, 1];
         const y = value => bottom - (value - min) / (max - min) * (bottom - top);
@@ -420,7 +468,12 @@ export function createCharts({seek, saveLayout}) {
       if (state.time >= start && state.time <= end) {
         ctx.strokeStyle = colors['chart-cursor']; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(x(state.time), top); ctx.lineTo(x(state.time), bottom); ctx.stroke(); ctx.setLineDash([]);
       }
+      if (state.hoverTime !== null && state.hoverTime >= start && state.hoverTime <= end) {
+        ctx.strokeStyle = colors.muted; ctx.lineWidth = 1; ctx.beginPath();
+        ctx.moveTo(x(state.hoverTime), top - 3); ctx.lineTo(x(state.hoverTime), bottom + 3); ctx.stroke();
+      }
       ctx.restore();
+      if (state.hoverChart === chart && state.hoverTime !== null) drawTooltip(chart, ctx, width, top, bottom);
       drawDiscrete(chart);
       if (!chart.layers.some(layer => layer.data.length)) {
         ctx.fillStyle = colors.muted; ctx.textAlign = 'center';
@@ -429,7 +482,30 @@ export function createCharts({seek, saveLayout}) {
     }
   }
 
-  $('reset-zoom').onclick = () => { state.window = [0, Math.max(state.run.endSec, 0.001)]; preparePlots(); drawCharts(); };
+  // Values at the hovered time, beside the pointer and flipped to its left near the right edge.
+  function drawTooltip(chart, ctx, width, top, bottom) {
+    const rows = [[fmtTime(state.hoverTime, 3), colors.muted]];
+    for (const layer of chart.layers) {
+      if (!layer.visible || !layer.data.length) continue;
+      const unit = layer.option?.unit ? ' ' + layer.option.unit : '';
+      const name = layer.option?.componentLabel ?? layer.option?.name.split('/').at(-1) ?? layer.key;
+      let text = `${name}  ${fmt(sampleAt(layer.data, state.hoverTime))}${unit}`;
+      if (state.compare && layer.compareData.length) text += `  B ${fmt(sampleAt(layer.compareData, state.hoverTime))}${unit}`;
+      rows.push([text, colors.layers[layer.slot]]);
+    }
+    ctx.font = '10px ui-monospace, monospace';
+    const boxWidth = Math.max(...rows.map(([text]) => ctx.measureText(text).width)) + 16, boxHeight = rows.length * 14 + 8;
+    let left = state.hoverX + 12;
+    if (left + boxWidth > width - 4) left = state.hoverX - 12 - boxWidth;
+    const boxTop = Math.max(2, Math.min(bottom - boxHeight, top));
+    ctx.fillStyle = colors.tooltip; ctx.strokeStyle = colors['chart-grid'];
+    ctx.beginPath(); ctx.roundRect(left, boxTop, boxWidth, boxHeight, 5); ctx.fill(); ctx.stroke();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    rows.forEach(([text, color], i) => { ctx.fillStyle = color; ctx.fillText(text, left + 8, boxTop + 11 + i * 14); });
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  $('reset-zoom').onclick = () => setWindow(0, Math.max(state.run.endSec, 0.001));
   $('add-graph').onclick = () => {
     if (!state.run || state.charts.length >= 8) return;
     state.focusedChart = null;

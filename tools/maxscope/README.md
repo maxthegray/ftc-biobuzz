@@ -10,11 +10,18 @@ From the repository root:
 make viewer
 ```
 
-Open <http://127.0.0.1:8008>. Choose a run from `robot-logs/`, including its
-subdirectories, or use **Open WPILOG** for another file. Imported files are
-temporary copies removed when the server stops; original logs are never
-modified. Use `make pull-logs` separately to retrieve new robot logs, then
-refresh the run library. The viewer does not connect to the robot.
+Open <http://127.0.0.1:8008>. The newest run opens on its own. Choose another
+from `robot-logs/`, including its subdirectories, or use **Open WPILOG** for
+another file. Imported files are temporary copies removed when the server
+stops; original logs are never modified. The viewer does not connect to the
+robot: run `make pull-logs` as usual and new runs appear within a few seconds,
+marked NEW. If you were looking at the newest run, the newly pulled one opens.
+
+The run list is grouped by day and shows each run's time from op-mode start
+to its last record. Runs that never left init, or stopped within 5 s of start,
+are hidden behind **Show** (a run you open stays listed). Lengths come from a
+header-only scan of every log in the background when the server starts, about
+10 s for 300 MB.
 
 Alternate directory or port:
 
@@ -74,7 +81,17 @@ reduced trail; the coordinate readout always uses the full pose series.
   Existing saved graphs are retained when upgrading from the earlier viewer.
 - **Dark** / **Light** in the header switches the theme. The choice is saved
   in this browser; until you pick one, the viewer follows the system setting.
+- Every time shown counts from the op-mode `start` event, like the driver
+  station; init time is negative and hovering the clock shows the log time.
+  Under the clock, the period and its countdown: TELEOP / ENDGAME and time
+  left in the 2:00 driver period (AUTO and 0:30 for op-modes named `…Auto`),
+  then time past the end. Start, endgame and the end of the period are
+  marked under the slider and on every graph. Endgame comes from
+  `OpModeBase.ENDGAME_START_NANOS`. A run is opened at its start.
 - Scrub the shared time slider, click a graph, event, or command bar to seek.
+- Click the field to jump to when the robot was there. If it passed that spot
+  more than once, the note says how many times and each click goes to the
+  next pass.
 - Play at 0.25–4×. Space toggles playback when focus is outside a control.
 - Left/right arrow steps 20 ms; Shift+arrow steps one second.
 - Each graph has Overview, Drive, Timing, and Vision presets for its own
@@ -120,8 +137,12 @@ reduced trail; the coordinate readout always uses the full pose series.
   seek. Instrumented logs use the recorded executions; older logs fall back to
   spans derived from the sampled active set, whose edges are only as exact as
   the sampling. Rows past the first five are counted in a note.
-- Scroll over a graph to zoom all graphs around the pointer. Reset zoom
-  restores the full run. The slider always spans the complete run.
+- Scroll over a graph to zoom all graphs around the pointer, and drag to pan.
+  Reset zoom restores the full run. The slider always spans the complete run.
+  While the graphs show less than 90% of the run, a soft band under the
+  field path marks the stretch they cover, labelled with its times and a
+  Reset zoom button. Hovering a graph draws a crosshair on all of them and lists
+  that graph's values at the pointer.
 - **Find problems** in the playback bar scans the run for moments worth a
   look. It is off when the viewer opens, so nothing is drawn until you ask.
   The rules use channels already logged: battery under 9.5 V (a fault under

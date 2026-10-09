@@ -318,3 +318,51 @@ export function discreteIntervals(series, end) {
     return value !== null && start < stop ? [[start, {end: stop, value}]] : [];
   });
 }
+
+// Match periods on the log clock, from the op-mode start event: tele-op is the 2:00 driver period
+// with endgame at its end, autonomous its 0:30. Null when the op-mode never started.
+export function matchPhases(match) {
+  const start = match?.startSec;
+  if (!finite(start)) return null;
+  const phases = match.kind === 'auto'
+    ? [['INIT', 0, start], ['AUTO', start, start + match.autoSec], ['AFTER AUTO', start + match.autoSec, Infinity]]
+    : [['INIT', 0, start], ['TELEOP', start, start + match.endgameSec], ['ENDGAME', start + match.endgameSec, start + match.driverSec],
+      ['AFTER MATCH', start + match.driverSec, Infinity]];
+  const end = start + (match.kind === 'auto' ? match.autoSec : match.driverSec);
+  return {start, end, phases: phases.map(([name, from, to]) => ({name, from, to})),
+    marks: match.kind === 'auto' ? [{tSec: start, label: 'start'}, {tSec: end, label: '0:30'}]
+      : [{tSec: start, label: 'start'}, {tSec: start + match.endgameSec, label: 'endgame'}, {tSec: end, label: '2:00'}]};
+}
+
+export const minutes = seconds => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+
+// The phase at `time` and what the driver station clock would read: time left in the period, or
+// time past its end.
+export function phaseAt(match, time) {
+  const phase = match?.phases.find(item => time >= item.from && time < item.to);
+  if (!phase) return null;
+  if (phase.name === 'INIT') return {name: phase.name, clock: ''};
+  if (phase.to === Infinity) return {name: phase.name, clock: `+${minutes(time - match.end)}`};
+  return {name: phase.name, clock: `${minutes(Math.ceil(match.end - time - 1e-9))} left`};
+}
+
+// Each time the robot passed within `radiusIn` of `point`, as {startSec, endSec, atSec}, where
+// atSec is that pass's closest sample.
+export function posePasses(series, point, radiusIn) {
+  const passes = [];
+  let current = null;
+  for (const [time, pose] of series) {
+    const distance = Array.isArray(pose) && finite(pose[0]) && finite(pose[1]) ? Math.hypot(pose[0] - point[0], pose[1] - point[1]) : Infinity;
+    if (distance <= radiusIn) {
+      if (!current) { current = {startSec: time, endSec: time, atSec: time, distance}; passes.push(current); }
+      current.endSec = time;
+      if (distance < current.distance) { current.distance = distance; current.atSec = time; }
+    } else current = null;
+  }
+  return passes.map(({startSec, endSec, atSec}) => ({startSec, endSec, atSec}));
+}
+
+// The pass to jump to from `time`: the first one starting after it, wrapping to the first.
+export function nextPass(passes, time) {
+  return passes.find(pass => pass.startSec > time + 1e-6) ?? passes[0] ?? null;
+}

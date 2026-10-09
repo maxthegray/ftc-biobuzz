@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {activeCommandSpans, fieldPoint, fieldView, ballSighting, ballEstimate, cameraDetections, loggedCameraMount, cameraSources, sampleAt, plotPoints, plotBounds, scalarSeries, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals, alignmentAnchor, shiftSeries, adjacentProblem, problemsAt} from './core.mjs';
+import {activeCommandSpans, fieldPoint, fieldView, ballSighting, ballEstimate, cameraDetections, loggedCameraMount, cameraSources, sampleAt, plotPoints, plotBounds, scalarSeries, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals, alignmentAnchor, shiftSeries, adjacentProblem, problemsAt, matchPhases, phaseAt, posePasses, nextPass} from './core.mjs';
 
 test('Pedro field corners retain their axes with only screen Y inverted', () => {
   const view = {minX: 0, minY: 0, span: 141.5};
@@ -269,4 +269,28 @@ test('problem stepping and the problems under the cursor', () => {
   assert.deepEqual(problemsAt(problems, 3), [problems[0]]);
   assert.deepEqual(problemsAt(problems, 6.05), [problems[1]]);
   assert.deepEqual(problemsAt(problems, 5), []);
+});
+
+test('match clock follows the driver station: countdown, endgame, and time past the end', () => {
+  const teleop = matchPhases({kind: 'teleop', startSec: 2, autoSec: 30, driverSec: 120, endgameSec: 90});
+  assert.deepEqual(teleop.marks.map(mark => [mark.tSec, mark.label]), [[2, 'start'], [92, 'endgame'], [122, '2:00']]);
+  assert.deepEqual(phaseAt(teleop, 1), {name: 'INIT', clock: ''});
+  assert.deepEqual(phaseAt(teleop, 2), {name: 'TELEOP', clock: '2:00 left'});
+  assert.deepEqual(phaseAt(teleop, 2.5), {name: 'TELEOP', clock: '2:00 left'});
+  assert.deepEqual(phaseAt(teleop, 95.5), {name: 'ENDGAME', clock: '0:27 left'});
+  assert.deepEqual(phaseAt(teleop, 135), {name: 'AFTER MATCH', clock: '+0:13'});
+  const auto = matchPhases({kind: 'auto', startSec: 1, autoSec: 30, driverSec: 120, endgameSec: 90});
+  assert.deepEqual(phaseAt(auto, 20), {name: 'AUTO', clock: '0:11 left'});
+  assert.equal(phaseAt(auto, 40).name, 'AFTER AUTO');
+  assert.equal(matchPhases({kind: 'teleop', startSec: null}), null);
+});
+
+test('clicking the field finds every pass near the point and cycles through them', () => {
+  const series = [[0, [0, 0, 0]], [1, [10, 0, 0]], [2, [11, 0, 0]], [3, [30, 0, 0]], [4, [10.5, 0.2, 0]], [5, [NaN, 0, 0]], [6, [9, 0, 0]]];
+  const passes = posePasses(series, [10.4, 0], 2);
+  assert.deepEqual(passes, [{startSec: 1, endSec: 2, atSec: 1}, {startSec: 4, endSec: 4, atSec: 4}, {startSec: 6, endSec: 6, atSec: 6}]);
+  assert.equal(nextPass(passes, 0), passes[0]);
+  assert.equal(nextPass(passes, 1), passes[1]);
+  assert.equal(nextPass(passes, 6), passes[0]);
+  assert.equal(nextPass([], 0), null);
 });

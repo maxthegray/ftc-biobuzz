@@ -191,6 +191,30 @@ class AnalyzeWpiLogTest(unittest.TestCase):
         self.assertEqual("instrumented", bundle["commandHistoryCoverage"])
         self.assertEqual([], bundle["commandExecutions"])
 
+    def test_times_count_from_op_mode_start_like_maxscope(self):
+        records = {"events": [(500_000, "init TeleOp"), (2_000_000, "start"), (5_500_000, "LOCALIZER FAULT: x")],
+                   "battery": [(1_000_000, 12.5), (6_000_000, 12.0)],
+                   "commands/events": [(3_000_000, "START #1 Drive"), (4_000_000, "FINISH #1 Drive")]}
+        types = {"events": "string", "battery": "double", "commands/events": "string"}
+        report = analyze_wpilog.build_report(records, types, "run.wpilog")
+
+        bundle = analyze_wpilog.to_json_dict(report)
+        self.assertEqual(("op-mode start", 2.0), (bundle["clock"], bundle["opModeStartLogSec"]))
+        self.assertEqual([-1.5, 0.0, 3.5], [event["tSec"] for event in bundle["events"]])
+        self.assertEqual([3.5], [fault["tSec"] for fault in bundle["faults"]])
+        self.assertEqual((1.0, 2.0), (bundle["commandExecutions"][0]["startSec"], bundle["commandExecutions"][0]["endSec"]))
+        battery = next(ch for ch in bundle["channels"] if ch["name"] == "battery")
+        self.assertEqual((-1.0, 4.0), (battery["tFirstSec"], battery["tLastSec"]))
+        self.assertEqual([[-1.0, 12.5], [4.0, 12.0]],
+                         analyze_wpilog.dump_channels(records, ["battery"], analyze_wpilog.clock_zero(report))["battery"])
+        self.assertEqual("log start", analyze_wpilog.to_json_dict(report, from_start=False)["clock"])
+        self.assertEqual(5.5, analyze_wpilog.to_json_dict(report, from_start=False)["events"][2]["tSec"])
+
+    def test_log_that_never_started_counts_from_log_start(self):
+        report = analyze_wpilog.build_report({"events": [(500_000, "init TeleOp")]}, {"events": "string"}, "init.wpilog")
+        bundle = analyze_wpilog.to_json_dict(report)
+        self.assertEqual(("log start", None, 0.5), (bundle["clock"], bundle["opModeStartLogSec"], bundle["events"][0]["tSec"]))
+
 
 if __name__ == "__main__":
     unittest.main()

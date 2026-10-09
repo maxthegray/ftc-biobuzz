@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from log_viewer import LogLibrary, ThreadingHTTPServer, camera_channels, handler_for, json_safe, problems
+from log_viewer import LogLibrary, ThreadingHTTPServer, camera_channels, handler_for, json_safe, match_info, problems, scan_run
 
 
 def fixture(truncated=False):
@@ -193,3 +193,45 @@ class ProblemTest(unittest.TestCase):
         self.assertEqual([("Command failed", "fault", 3.5, 3.5, "#2 Lift up: timeout"),
                           ("Log ends early", "warn", 4, 4, "the last record was cut off")],
                          self.kinds({"battery": seconds((4, 12.0))}, report))
+
+
+class RunSummaryTest(unittest.TestCase):
+    def test_header_scan_finds_the_end_and_op_mode_start_without_decoding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "Run.wpilog"
+            path.write_bytes(fixture(truncated=True))
+            self.assertEqual({"endSec": 2.000001, "startSec": 1.000002}, scan_run(path))
+            path.write_bytes(b"not a log")
+            self.assertEqual({"endSec": None, "startSec": None}, scan_run(path))
+
+    def test_library_lists_run_length_and_flags_runs_that_never_started(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "Driven-20260916-120000-000-1.wpilog").write_bytes(fixture())
+            (root / "Init-20260916-110000-000-1.wpilog").write_bytes(b"WPILOG\x00\x01\x00\x00\x00\x00")
+            library = LogLibrary(root, root)
+            library.catalog()
+            for _ in range(200):
+                if all(log["scanned"] for log in library.catalog()):
+                    break
+                threading.Event().wait(0.01)
+            runs = {log["name"].split("-")[0]: log for log in library.catalog()}
+            self.assertAlmostEqual(0.999999, runs["Driven"]["drivenSec"])
+            self.assertTrue(runs["Driven"]["short"])
+            self.assertIsNone(runs["Init"]["drivenSec"])
+            self.assertTrue(runs["Init"]["short"])
+
+    def test_match_kind_comes_from_the_op_mode_name(self):
+        self.assertEqual(("auto", 2.0), (lambda m: (m["kind"], m["startSec"]))(match_info("TwoTipAuto-20260916-120000-0-1.wpilog", 2.0)))
+        self.assertEqual("teleop", match_info("DriveOnlyTeleOp-20260916-120000-0-1.wpilog", 2.0)["kind"])
+        self.assertIsNone(match_info("X.wpilog", None)["startSec"])
+
+    def test_viewer_keeps_log_time_and_shares_the_analyzers_start(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "Run-20260916-120000-000-1.wpilog").write_bytes(fixture())
+            library = LogLibrary(root, root)
+            run = library.overview(library.catalog()[0]["id"])
+            self.assertEqual("log start", run["report"]["clock"])
+            self.assertEqual(1.000002, run["match"]["startSec"])
+            self.assertEqual(1.000002, run["report"]["events"][0]["tSec"])

@@ -1,14 +1,14 @@
-import {finite, indexAt, sampleAt, activeCommandSpans, fieldView, ballSources, cameraSources, channelOptions, channelTree, discreteOptions, buttonNames, alignmentAnchor, shiftSeries, adjacentProblem, problemsAt} from './core.mjs';
-import {$, state, fmt, node, api, notice, commandCoverage, refreshColors} from './ui.js';
+import {finite, indexAt, sampleAt, activeCommandSpans, fieldView, ballSources, cameraSources, channelOptions, channelTree, discreteOptions, buttonNames, alignmentAnchor, shiftSeries, adjacentProblem, problemsAt, matchPhases, phaseAt, minutes, posePasses, nextPass} from './core.mjs';
+import {$, state, fmt, fmtTime, node, api, notice, commandCoverage, refreshColors} from './ui.js';
 import {createCharts} from './charts.js';
 import {createLayout} from './layout.js';
-import {drawField, drawCamera, fillCameraSources} from './field-camera.js';
+import {drawField, drawCamera, fillCameraSources, fieldInches} from './field-camera.js';
 
 // Whole words, so "schedule default Drive" isn't a FAULT. Matches the server's problem rule.
 const faultPattern = /\b(?:FAULT|CRASH|FAIL(?:ED|URE)?|LOST|INCOMPLETE|DISABLED|OVERRUN)\b/i;
 const FIELD_TIMELINE_LANES = 5;
 const themeKey = 'maxscope.theme';
-const {closePicker, renderCharts, loadCharts, applyPreset, preparePlots, drawCharts} = createCharts({seek, saveLayout: () => saveLayout()});
+const {closePicker, renderCharts, loadCharts, applyPreset, preparePlots, drawCharts} = createCharts({seek, saveLayout: () => saveLayout(), onWindow: () => drawField()});
 const {initializeLayout, saveLayout, setProblemsView} = createLayout({seek, preparePlots, redraw});
 
 function redraw() { drawField(); drawCamera(); drawCharts(); }
@@ -17,16 +17,30 @@ function runLabel(name) {
   return name.replace(/-\d{8}-\d{6}.*\.wpilog$/, '').replace(/\.wpilog$/, '').replace(/([a-z])([A-Z])/g, '$1 $2');
 }
 
+// Runs that never left init, or stopped within seconds of start, are hidden unless asked for or open.
+const listed = log => state.showShort || !log.short || log.id === state.run?.id;
+
 function renderLibrary() {
   const search = $('search').value.toLowerCase();
-  const runs = state.logs.filter(log => log.name.toLowerCase().includes(search));
+  const matching = state.logs.filter(log => log.name.toLowerCase().includes(search));
+  const runs = matching.filter(listed);
+  const hidden = matching.filter(log => log.short).length;
+  $('short-toggle').hidden = !hidden;
+  $('short-toggle').textContent = state.showShort ? 'Hide short runs' : `${hidden} short run${hidden === 1 ? '' : 's'} hidden · Show`;
   $('runs').replaceChildren();
+  let day = null;
   for (const log of runs) {
+    const date = runDay(log);
+    if (date !== day) { day = date; $('runs').append(node('div', 'run-day', date)); }
     const button = node('button', 'run');
     button.classList.toggle('selected', log.id === state.run?.id);
+    button.classList.toggle('short', log.short);
     button.title = log.name;
-    button.append(node('strong', '', runLabel(log.name)));
-    button.append(node('small', '', `${runDate(log)} · ${(log.bytes / 1048576).toFixed(1)} MiB`));
+    const top = node('span', 'run-top');
+    top.append(node('strong', '', runLabel(log.name)));
+    if (state.newIds.has(log.id)) top.append(node('span', 'run-new', 'NEW'));
+    top.append(node('span', 'run-length', !log.scanned ? '…' : log.drivenSec !== null ? minutes(log.drivenSec) : 'init only'));
+    button.append(top, node('small', '', `${runClock(log)} · ${(log.bytes / 1048576).toFixed(1)} MiB`));
     button.onclick = () => openRun(log.id);
     $('runs').append(button);
   }
@@ -34,9 +48,19 @@ function renderLibrary() {
   renderCompareOptions();
 }
 
+const stamp = log => log.name.match(/-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/);
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// Dates come from the hub's clock, which may be wrong, so no weekday is guessed from them.
+function runDay(log) {
+  const match = stamp(log);
+  return match ? `${MONTHS[Number(match[2]) - 1] ?? match[2]} ${Number(match[3])}` : log.uploaded ? 'Imported' : 'Other';
+}
+function runClock(log) {
+  const match = stamp(log);
+  return match ? `${match[4]}:${match[5]}:${match[6]}` : log.uploaded ? 'Imported' : 'Local file';
+}
 function runDate(log) {
-  const match = log.name.match(/-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/);
-  return match ? `${match[2]}/${match[3]} · ${match[4]}:${match[5]}:${match[6]}` : log.uploaded ? 'Imported' : 'Local file';
+  return stamp(log) ? `${runDay(log)} · ${runClock(log)}` : runClock(log);
 }
 
 function renderCompareOptions() {
@@ -46,16 +70,43 @@ function renderCompareOptions() {
     .map(log => new Option(`${runLabel(log.name)} · ${runDate(log)}`, log.id, false, log.id === state.compare?.id)));
 }
 
+// The newest pulled run worth opening: scanned, and not a short one. Null while it is still scanning.
+function newestRun() {
+  const newest = state.logs.find(log => !log.uploaded && (!log.scanned || !log.short));
+  return newest?.scanned ? newest : null;
+}
+
+// Polled every few seconds, so make pull-logs shows up without a refresh. The newest run opens
+// on first load, and again whenever one is pulled while you are looking at the newest (following
+// is decided when a run opens, so a pull that is still being scanned doesn't break it).
 async function refresh() {
   try {
     const logs = await api('/api/logs');
+    const signature = list => list.map(log => `${log.id}:${log.scanned}`).join();
+    const changed = signature(logs) !== signature(state.logs.filter(log => !log.uploaded));
+    if (state.knownIds) for (const log of logs) if (!state.knownIds.has(log.id)) state.newIds.add(log.id);
+    state.knownIds = new Set([...(state.knownIds || []), ...logs.map(log => log.id)]);
     state.logs = [...state.logs.filter(log => log.uploaded), ...logs];
-    renderLibrary();
-  } catch (error) { notice(error.message, true); }
+    if (changed) renderLibrary();
+    const newest = newestRun();
+    if (newest && !state.openedOnce) openRun(newest.id);
+    else if (newest && state.following && newest.id !== state.run?.id) { await openRun(newest.id); notice(`Opened the newest run, ${runLabel(newest.name)} · ${runDate(newest)}.`); }
+    return logs.some(log => !log.scanned);
+  } catch (error) { notice(error.message, true); return false; }
 }
+
+// Polling pauses while the tab is hidden and catches up as soon as it is shown.
+async function poll(first = false) {
+  clearTimeout(state.pollTimer);
+  const scanning = first || !document.hidden ? await refresh() : false;
+  state.pollTimer = setTimeout(poll, scanning ? 1000 : 5000);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
 
 async function openRun(id) {
   const generation = ++state.generation;
+  state.openedOnce = true;
+  state.following = id === newestRun()?.id;
   closePicker();
   stop();
   $('play').disabled = true;
@@ -69,6 +120,8 @@ async function openRun(id) {
     state.time = 0;
     state.series = new Map(Object.entries(run.playback));
     state.window = [0, Math.max(run.endSec, 0.001)];
+    state.match = matchPhases(run.match);
+    state.hoverTime = null;
     state.options = channelOptions(run.channels);
     state.channelTree = channelTree(state.options);
     state.discreteOptions = discreteOptions(run.channels);
@@ -91,9 +144,12 @@ async function openRun(id) {
     $('run-status').classList.toggle('warning', run.report.truncated || run.report.empty);
     $('field-size').textContent = `${run.fieldLengthIn} × ${run.fieldLengthIn} in`;
     $('scrub').max = run.endSec;
-    $('duration').textContent = `${fmt(run.endSec)} s`;
+    $('duration').textContent = fmtTime(run.endSec);
+    $('duration').title = `Log ends at ${fmt(run.endSec)} s`;
     $('play').disabled = run.endSec <= 0;
     $('workspace').hidden = false;
+    $('compare-controls').hidden = false;
+    renderPhaseMarks();
     renderMetrics();
     renderProblems();
     if (state.problemsOn) loadProblems();
@@ -102,7 +158,8 @@ async function openRun(id) {
     renderGamepads();
     renderCharts();
     renderLibrary();
-    seek(poses[0]?.[0] ?? 0);
+    // Op-mode start, or the first pose after it: the start event lands a loop before any sample.
+    seek(Math.max(state.match?.start ?? 0, poses[0]?.[0] ?? 0));
     const warnings = [];
     if (run.report.truncated) warnings.push('This log has an incomplete ending. All complete records before it are available.');
     if (run.report.empty) warnings.push('This file contains no supported sample data. Choose another run.');
@@ -199,7 +256,7 @@ function renderProblems() {
   const shown = problems.filter(item => !state.problemFilter || item.kind === state.problemFilter);
   $('problems').replaceChildren(...shown.map(item => {
     const button = node('button', `problem ${item.severity}`);
-    button.append(node('time', '', `${fmt(item.startSec, 2)} s`), node('strong', '', item.kind), node('span', '', item.detail));
+    button.append(node('time', '', fmtTime(item.startSec)), node('strong', '', item.kind), node('span', '', item.detail));
     button.onclick = () => { stop(); seek(item.startSec); };
     state.problemNodes.push([item, button]);
     return button;
@@ -217,9 +274,19 @@ function renderMarkers() {
     const marker = node('span', `scrub-marker ${item.severity}`);
     marker.style.setProperty('--start', String(item.startSec / length));
     marker.style.setProperty('--span', String(Math.max(0, item.endSec - item.startSec) / length));
-    marker.title = `${fmt(item.startSec, 2)} s · ${item.kind}${item.detail ? ' · ' + item.detail : ''}`;
+    marker.title = `${fmtTime(item.startSec)} · ${item.kind}${item.detail ? ' · ' + item.detail : ''}`;
     marker.onclick = () => { stop(); seek(item.startSec); };
     return marker;
+  }));
+}
+
+// Match period boundaries under the slider: start, endgame, and the end of the period.
+function renderPhaseMarks() {
+  const length = Math.max(state.run.endSec, 0.001);
+  $('phase-marks').replaceChildren(...(state.match?.marks || []).filter(mark => mark.tSec <= state.run.endSec).map(mark => {
+    const label = node('span', 'phase-mark', mark.label);
+    label.style.setProperty('--at', String(mark.tSec / length));
+    return label;
   }));
 }
 
@@ -303,7 +370,7 @@ function renderCommands() {
     const length = Math.max(state.run.endSec, 0.001);
     bar.style.left = `${run.startSec / length * 100}%`;
     bar.style.width = `${Math.max(0, ((run.endSec ?? length) - run.startSec) / length * 100)}%`;
-    bar.title = `${run.name} · ${fmt(run.startSec, 3)}–${fmt(run.endSec, 3)} s · ${run.outcome}${run.detail ? '\n' + run.detail : ''}`;
+    bar.title = `${run.name} · ${fmtTime(run.startSec, 3)}–${fmtTime(run.endSec, 3)} · ${run.outcome}${run.detail ? '\n' + run.detail : ''}`;
     bar.setAttribute('aria-label', bar.title);
     bar.onclick = () => seek(run.startSec);
     const cursor = node('span', 'command-cursor');
@@ -338,7 +405,7 @@ function renderFieldTimeline(runs) {
       const bar = node('button', `command-bar ${run.outcome.toLowerCase()}`);
       bar.style.left = `${run.startSec / length * 100}%`;
       bar.style.width = `${Math.max(0.4, ((run.endSec ?? length) - run.startSec) / length * 100)}%`;
-      bar.title = `${run.name} · ${fmt(run.startSec, 3)}–${fmt(run.endSec, 3)} s · ${run.outcome === 'SAMPLED' ? 'from sampled active set' : run.outcome}`;
+      bar.title = `${run.name} · ${fmtTime(run.startSec, 3)}–${fmtTime(run.endSec, 3)} · ${run.outcome === 'SAMPLED' ? 'from sampled active set' : run.outcome}`;
       bar.setAttribute('aria-label', bar.title);
       bar.onclick = () => seek(run.startSec);
       lane.append(bar);
@@ -363,7 +430,7 @@ function renderEvents() {
   if (events.length > 500) $('events').append(node('div', 'empty', `Showing ${start + 1}–${start + visible.length} of ${events.length} events around the cursor.`));
   for (const event of visible) {
     const button = node('button', `event${faultPattern.test(event.text) ? ' fault' : ''}`);
-    button.append(node('time', '', `${fmt(event.tSec, 3)} s`), node('span', '', event.text));
+    button.append(node('time', '', fmtTime(event.tSec, 3)), node('span', '', event.text));
     button.onclick = () => seek(event.tSec);
     $('events').append(button);
     state.eventNodes.push([event, button]);
@@ -412,7 +479,7 @@ function updateDetails() {
     const before = state.time < (state.compare.series.get('pose')?.[0]?.[0] ?? Infinity);
     $('compare-pose').hidden = false;
     $('compare-pose').textContent = before || !Array.isArray(pose) ? 'B has not started at this time'
-      : `B  X ${fmt(pose[0])} in · Y ${fmt(pose[1])} in · θ ${fmt(pose[2], 3)} rad · B time ${fmt(state.time - state.compare.offset, 2)} s`;
+      : `B  X ${fmt(pose[0])} in · Y ${fmt(pose[1])} in · θ ${fmt(pose[2], 3)} rad · B at ${fmtTime(state.time - state.compare.offset, 2, state.compare.run.match?.startSec)}`;
   }
   for (const pad of state.pads) {
     const axes = sampleAt(playback[`gamepad${pad.number}/axes`], state.time);
@@ -431,7 +498,11 @@ function seek(time) {
   if (!state.run) return;
   state.time = Math.max(0, Math.min(state.run.endSec, time));
   $('scrub').value = state.time;
-  $('time').textContent = `${fmt(state.time, 3)} s`;
+  $('time').textContent = fmtTime(state.time);
+  $('time').title = `Log time ${fmt(state.time, 3)} s`;
+  const phase = phaseAt(state.match, state.time);
+  $('phase').hidden = !phase;
+  if (phase) { $('phase').textContent = phase.clock ? `${phase.name} · ${phase.clock}` : phase.name; $('phase').dataset.phase = phase.name; }
   drawField(); drawCamera(); drawCharts(); updateDetails();
 }
 
@@ -470,6 +541,21 @@ $('compare-align').onchange = realign;
 $('compare-shift').oninput = realign;
 $('refresh').onclick = refresh;
 $('search').oninput = renderLibrary;
+$('field-zoom-reset').onclick = () => $('reset-zoom').click();
+$('short-toggle').onclick = () => { state.showShort = !state.showShort; renderLibrary(); };
+$('field').addEventListener('click', event => {
+  if (!state.run) return;
+  const point = fieldInches(event);
+  if (!point) return;
+  const passes = posePasses(state.run.playback.pose || [], point.at, point.radiusIn);
+  const target = nextPass(passes, state.time);
+  clearTimeout(state.fieldHintTimer);
+  $('field-hint').hidden = false;
+  $('field-hint').textContent = !target ? 'The robot never came here'
+    : passes.length === 1 ? `Here once, at ${fmtTime(target.atSec)}` : `Here ${passes.length} times · pass ${passes.indexOf(target) + 1}, at ${fmtTime(target.atSec)} · click again for the next`;
+  state.fieldHintTimer = setTimeout(() => { $('field-hint').hidden = true; }, 4000);
+  if (target) { stop(); seek(target.atSec); }
+});
 $('file').onchange = async event => {
   const file = event.target.files[0];
   if (!file) return;
@@ -514,4 +600,4 @@ document.querySelector('.problems-card .hide-view').addEventListener('click', ()
 const redrawOnResize = new ResizeObserver(() => { if (state.run && !$('workspace').hidden) { preparePlots(); drawField(); drawCamera(); drawCharts(); } });
 redrawOnResize.observe($('workspace'));
 redrawOnResize.observe(document.querySelector('.field-wrap'));
-await refresh();
+await poll(true);

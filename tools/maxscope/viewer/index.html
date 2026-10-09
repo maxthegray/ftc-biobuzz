@@ -9,30 +9,33 @@
     <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">M</span><span>MaxScope</span></a>
     <div class="library-title"><span>Runs</span><button id="refresh" class="icon" title="Refresh local logs" aria-label="Refresh local logs">↻</button></div>
     <input id="search" type="search" placeholder="Find a run…" aria-label="Find a run">
+    <button id="short-toggle" class="text-button short-toggle" hidden></button>
     <div id="runs" class="runs" aria-label="Recorded runs"></div>
     <div class="sidebar-foot"><span class="status-dot"></span>Offline</div>
   </aside>
   <main>
-    <header><h1>Log review</h1><div class="header-actions"><button id="theme-toggle" class="button theme-toggle" type="button"></button><label class="button primary" for="file">Open WPILOG<input id="file" type="file" accept=".wpilog" class="file-input"></label></div></header>
+    <header><div class="title-block"><h1 id="run-title">Log review</h1><p id="run-file"></p><p id="compare-legend" class="compare-legend" hidden><span class="swatch swatch-a"></span>This run<span class="swatch swatch-b"></span><span id="compare-name"></span></p></div>
+      <div class="header-actions"><span id="run-status" class="pill" hidden></span>
+        <div id="compare-controls" class="compare-controls" hidden><select id="compare-run" aria-label="Compare with another run"><option value="">Compare with…</option></select>
+          <span id="compare-options" class="compare-options" hidden><select id="compare-align" aria-label="Line the runs up at"><option value="start">Align at op-mode start</option><option value="motion">Align at first movement</option><option value="log">Align at log start</option></select><label class="compare-shift">Shift B <input id="compare-shift" type="number" step="0.1" value="0" aria-label="Shift the compared run later, in seconds"> s</label><button id="compare-clear" class="text-button" aria-label="Stop comparing" title="Stop comparing">×</button></span>
+        </div>
+        <button id="theme-toggle" class="button theme-toggle" type="button"></button><label class="button primary" for="file">Open WPILOG<input id="file" type="file" accept=".wpilog" class="file-input"></label></div></header>
     <div id="notice" class="notice" role="status" hidden></div>
     <section id="welcome" class="welcome"><p>Select a run or open a WPILOG file.</p></section>
     <div id="workspace" hidden>
-      <section class="run-heading"><div><h2 id="run-title"></h2><p id="run-file"></p><p id="compare-legend" class="compare-legend" hidden><span class="swatch swatch-a"></span>This run<span class="swatch swatch-b"></span><span id="compare-name"></span></p></div>
-        <div class="run-actions"><span id="run-status" class="pill" hidden></span>
-          <div class="compare-controls"><select id="compare-run" aria-label="Compare with another run"><option value="">Compare with…</option></select>
-            <span id="compare-options" class="compare-options" hidden><select id="compare-align" aria-label="Line the runs up at"><option value="start">Align at op-mode start</option><option value="motion">Align at first movement</option><option value="log">Align at log start</option></select><label class="compare-shift">Shift B <input id="compare-shift" type="number" step="0.1" value="0" aria-label="Shift the compared run later, in seconds"> s</label><button id="compare-clear" class="text-button" aria-label="Stop comparing" title="Stop comparing">×</button></span>
-          </div></div></section>
-      <section class="transport card" aria-label="Playback controls"><button id="play" class="play" aria-label="Play" disabled>▶</button><span id="time" class="time">0.000</span><div class="scrub-wrap"><input id="scrub" type="range" min="0" max="1" step="0.001" value="0" aria-label="Playback time"><div id="scrub-markers" class="scrub-markers" aria-hidden="true"></div></div><span id="duration" class="duration">0.00 s</span><select id="speed" aria-label="Playback speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select><button id="problems-toggle" class="problems-toggle" aria-pressed="false" title="Scan this run for problems · [ and ] step between them">Find problems</button></section>
-      <div class="tab-actions"><select id="add-view" aria-label="Add view to current tab"><option value="">+ View</option><option value="field">Field</option><option value="signals">Signals</option><option value="commands">Commands</option><option value="events">Events</option><option value="gamepads">Gamepads</option><option value="camera">Camera</option></select></div>
+      <section class="transport card" aria-label="Playback controls"><button id="play" class="play" aria-label="Play" disabled>▶</button><div class="clock"><span id="time" class="time">0.00 s</span><span id="phase" class="phase" hidden></span></div><div class="scrub-wrap"><input id="scrub" type="range" min="0" max="1" step="0.001" value="0" aria-label="Playback time"><div id="scrub-markers" class="scrub-markers" aria-hidden="true"></div><div id="phase-marks" class="phase-marks" aria-hidden="true"></div></div><span id="duration" class="duration">0.00 s</span><select id="speed" aria-label="Playback speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select><button id="problems-toggle" class="problems-toggle" aria-pressed="false" title="Scan this run for problems · [ and ] step between them">Find problems</button></section>
+      <div class="tab-row">
       <nav class="view-tabs" role="tablist" aria-label="Log views">
         <button id="tab-field" role="tab" aria-controls="panel-field" aria-selected="true" tabindex="0" data-view="field">Field</button>
         <button id="tab-signals" role="tab" aria-controls="panel-signals" aria-selected="false" tabindex="-1" data-view="signals">Signals</button>
         <button id="tab-events" role="tab" aria-controls="panel-events" aria-selected="false" tabindex="-1" data-view="events">Events</button>
       </nav>
+      <div class="tab-actions"><select id="add-view" aria-label="Add view to current tab"><option value="">+ View</option><option value="field">Field</option><option value="signals">Signals</option><option value="commands">Commands</option><option value="events">Events</option><option value="gamepads">Gamepads</option><option value="camera">Camera</option></select></div>
+      </div>
       <section id="panel-field" class="view-panel" role="tabpanel" aria-labelledby="tab-field">
         <section class="card field-card"><div class="card-heading"><h3>Field</h3><span class="muted">Pedro · in / rad</span><label class="field-command-toggle"><input id="field-commands-toggle" type="checkbox" checked aria-label="Show active commands on field">Commands</label><label id="field-ball-option" class="field-command-toggle" hidden><input id="field-ball-toggle" type="checkbox" checked aria-label="Show tracked ball direction on field">Ball</label></div>
           <div id="field-activity" class="field-activity"><div class="field-activity-heading"><span>Active commands</span><span id="field-command-coverage"></span></div><div id="field-active-commands" aria-label="Active commands on field"></div><div id="field-timeline" class="field-timeline" aria-label="Command timeline"></div></div>
-          <div class="field-wrap"><canvas id="field" aria-label="Robot field playback in native Pedro coordinates"></canvas><span id="pose-status" class="field-status"></span><span id="ball-status" class="field-status ball-status" hidden></span></div>
+          <div class="field-wrap"><canvas id="field" aria-label="Robot field playback in native Pedro coordinates"></canvas><span id="pose-status" class="field-status"></span><span id="field-hint" class="field-status field-hint" role="status" hidden></span><span id="field-zoom" class="field-status field-zoom" hidden><span id="field-zoom-label"></span><button id="field-zoom-reset" class="text-button">Reset zoom</button></span><span id="ball-status" class="field-status ball-status" hidden></span></div>
           <div class="pose-readouts"><div>X <strong id="pose-x">—</strong><small>in</small></div><div>Y <strong id="pose-y">—</strong><small>in</small></div><div>θ <strong id="pose-h">—</strong><small>rad</small></div></div>
           <div id="compare-pose" class="compare-pose" hidden></div>
           <div class="field-caption"><span>Origin: audience-left · +X right · +Y away</span><span id="field-size"></span></div>
@@ -41,7 +44,7 @@
       </section>
       <section id="panel-signals" class="view-panel" role="tabpanel" aria-labelledby="tab-signals" hidden>
         <section class="card signals-card"><div class="card-heading"><h3>Signals</h3><button id="add-graph" class="channel-select">+ Graph</button></div>
-          <div id="charts"></div><div class="chart-footer"><span>Click a graph to seek · Scroll to zoom</span><button id="reset-zoom" class="text-button">Reset zoom</button></div>
+          <div id="charts"></div><div class="chart-footer"><span>Click to seek · Scroll to zoom · Drag to pan</span><button id="reset-zoom" class="text-button">Reset zoom</button></div>
         </section>
       </section>
       <section id="view-storage" hidden>

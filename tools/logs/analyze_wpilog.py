@@ -10,6 +10,11 @@ the text one-pager, plus a channel manifest and the full event timeline) for
 programmatic post-match debugging. --channel adds the full [tSec, value]
 series for the named channels.
 
+Times count from the op-mode start event, like the driver station clock and
+MaxScope; init is negative. The JSON's `clock` says which zero was used and
+`opModeStartLogSec` where it falls in the log. A log whose op-mode never
+started counts from the log's first record.
+
 Command history comes in three generations, reported as `commandHistoryCoverage`:
 
 - "all scheduled": logs from before the Ivy migration carry `commands/running`,
@@ -206,6 +211,7 @@ def build_report(records, channel_types, path, truncated=False):
     report["empty"] = False
     end_ts = max(all_ts)
     report["durationSec"] = (end_ts - min(all_ts)) / 1e6
+    report["opModeStartSec"] = next((ts / 1e6 for ts, text in records.get("events", []) if text == "start"), None)
     report["recordCount"] = len(all_ts)
     report["channelCount"] = len(records)
 
@@ -312,6 +318,13 @@ def build_report(records, channel_types, path, truncated=False):
     return report
 
 
+def clock_zero(report, from_start=True):
+    """Log time the reported clock counts from: the op-mode start, or the log start when the
+    op-mode never started or from_start is False."""
+    start = report.get("opModeStartSec")
+    return start if from_start and start is not None else 0.0
+
+
 def print_text_report(report):
     print(f"=== {report['file']} ===")
     if report["truncated"]:
@@ -319,8 +332,11 @@ def print_text_report(report):
     if report["empty"]:
         print("  (empty log)")
         return
+    zero = clock_zero(report)
     print(f"duration: {report['durationSec']:.1f} s, "
           f"{report['recordCount']} records, {report['channelCount']} channels")
+    print(f"times from op-mode start (log +{zero:.2f} s); init is negative"
+          if report.get("opModeStartSec") is not None else "times from log start (op-mode never started)")
 
     loop = report.get("loop")
     if loop:
@@ -367,18 +383,18 @@ def print_text_report(report):
         if report["commandHistoryLostRecords"]:
             print(f"  WARNING: {report['commandHistoryLostRecords']} command records lost; history is incomplete")
         for failure in report["commandFailures"]:
-            print(f"  [{failure['tSec']:8.2f}s] FAIL {failure['text']}")
+            print(f"  [{failure['tSec'] - zero:8.2f}s] FAIL {failure['text']}")
         for run in runs:
-            end = f"{run['endSec']:8.2f}s" if run["endSec"] is not None else "    open "
+            end = f"{run['endSec'] - zero:8.2f}s" if run["endSec"] is not None else "    open "
             detail = f" ({run['detail']})" if run["detail"] else ""
-            print(f"  [{run['startSec']:8.2f}s → {end}] #{run['id']} {run['name']}: {run['outcome']}{detail}")
+            print(f"  [{run['startSec'] - zero:8.2f}s → {end}] #{run['id']} {run['name']}: {run['outcome']}{detail}")
     else:
         print("\ncommand history: not recorded (see explicit events)")
 
     if report["faults"]:
         print(f"\n!! {len(report['faults'])} fault/crash event(s):")
         for fault in report["faults"]:
-            print(f"  [{fault['tSec']:8.2f}s] {fault['text'].splitlines()[0]}")
+            print(f"  [{fault['tSec'] - zero:8.2f}s] {fault['text'].splitlines()[0]}")
     corrections = report.get("poseCorrections")
     if corrections:
         print(f"\npose corrections: {corrections['applied']} applied, "
@@ -386,16 +402,22 @@ def print_text_report(report):
     if report["events"]:
         print(f"\nevent timeline ({len(report['events'])}):")
         for event in report["events"]:
-            print(f"  [{event['tSec']:8.2f}s] {event['text'].splitlines()[0]}")
+            print(f"  [{event['tSec'] - zero:8.2f}s] {event['text'].splitlines()[0]}")
     print()
 
 
-def to_json_dict(report):
-    """Reshape the internal report into the compact, documented JSON bundle."""
+def to_json_dict(report, from_start=True):
+    """Reshape the internal report into the compact, documented JSON bundle. Times count from
+    the op-mode start unless from_start is False (MaxScope keeps log time internally)."""
     out = {"file": report["file"], "empty": report["empty"],
            "truncated": report["truncated"]}
     if report["empty"]:
         return out
+    zero = clock_zero(report, from_start)
+    t = lambda sec: round(sec - zero, 3)
+    start = report.get("opModeStartSec")
+    out["clock"] = "op-mode start" if from_start and start is not None else "log start"
+    out["opModeStartLogSec"] = None if start is None else round(start, 3)
     out["durationSec"] = round(report["durationSec"], 1)
     out["recordCount"] = report["recordCount"]
     out["channelCount"] = report["channelCount"]
@@ -436,30 +458,30 @@ def to_json_dict(report):
     out["commandHistoryRecorded"] = report["commandHistoryRecorded"]
     out["commandHistoryCoverage"] = report["commandHistoryCoverage"]
     if report["commandHistoryCoverage"] == "all scheduled":
-        out["commands"] = [{"tSec": round(c["tSec"], 3), "running": c["running"]}
+        out["commands"] = [{"tSec": t(c["tSec"]), "running": c["running"]}
                            for c in report["commands"]]
     elif report["commandHistoryCoverage"] == "instrumented":
         out["commandHistoryIntact"] = report["commandHistoryIntact"]
         out["commandHistoryLostRecords"] = report["commandHistoryLostRecords"]
         out["commandExecutions"] = [
-            {**run, "startSec": round(run["startSec"], 3),
-             "endSec": None if run["endSec"] is None else round(run["endSec"], 3)}
+            {**run, "startSec": t(run["startSec"]),
+             "endSec": None if run["endSec"] is None else t(run["endSec"])}
             for run in report["commandExecutions"]
         ]
-        out["commandFailures"] = [{"tSec": round(f["tSec"], 3), "text": f["text"]}
+        out["commandFailures"] = [{"tSec": t(f["tSec"]), "text": f["text"]}
                                   for f in report["commandFailures"]]
-        out["commandActive"] = [{"tSec": round(a["tSec"], 3), "active": a["active"]}
+        out["commandActive"] = [{"tSec": t(a["tSec"]), "active": a["active"]}
                                 for a in report["commandActive"]]
-    out["events"] = [{"tSec": round(e["tSec"], 3), "text": e["text"]}
+    out["events"] = [{"tSec": t(e["tSec"]), "text": e["text"]}
                      for e in report["events"]]
-    out["faults"] = [{"tSec": round(f["tSec"], 3), "text": f["text"]}
+    out["faults"] = [{"tSec": t(f["tSec"]), "text": f["text"]}
                      for f in report["faults"]]
     out["poseCorrections"] = report.get("poseCorrections", {"applied": 0, "rejected": 0})
 
     out["channels"] = []
     for ch in report["channels"]:
         entry = {"name": ch["name"], "type": ch["type"], "count": ch["count"],
-                 "tFirstSec": round(ch["tFirstSec"], 3), "tLastSec": round(ch["tLastSec"], 3)}
+                 "tFirstSec": t(ch["tFirstSec"]), "tLastSec": t(ch["tLastSec"])}
         if "minV" in ch:
             entry["minV"] = round(ch["minV"], 4) if isinstance(ch["minV"], float) else ch["minV"]
             entry["maxV"] = round(ch["maxV"], 4) if isinstance(ch["maxV"], float) else ch["maxV"]
@@ -467,14 +489,14 @@ def to_json_dict(report):
     return out
 
 
-def dump_channels(records, names):
+def dump_channels(records, names, zero=0.0):
     out = {}
     for name in names:
         series = records.get(name)
         if series is None:
             out[name] = None
             continue
-        out[name] = [[round(ts / 1e6, 4), v] for ts, v in series]
+        out[name] = [[round(ts / 1e6 - zero, 4), v] for ts, v in series]
     return out
 
 
@@ -525,10 +547,11 @@ def main():
         bundles = []
         for path in paths:
             records, channel_types, truncated = parse_wpilog(path)
-            bundle = to_json_dict(build_report(records, channel_types, path, truncated))
+            report = build_report(records, channel_types, path, truncated)
+            bundle = to_json_dict(report)
             if args.channel:
                 names = [n for n in args.channel.split(",") if n]
-                bundle["series"] = dump_channels(records, names)
+                bundle["series"] = dump_channels(records, names, clock_zero(report))
             bundles.append(bundle)
         print(json.dumps(bundles[0] if len(bundles) == 1 else bundles, indent=2))
         return 0

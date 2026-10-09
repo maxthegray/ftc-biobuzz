@@ -1,5 +1,5 @@
 import {finite, indexAt, sampleAt, fieldPoint, ROBOT_HALF_IN, ballSighting, ballEstimate, sightingMount, loggedCameraMount, cameraDetections, POLLEN_DIAMETER_IN} from './core.mjs';
-import {$, state, fmt, node, context, colors, problemColor} from './ui.js';
+import {$, state, fmt, fmtTime, node, context, colors, problemColor} from './ui.js';
 
 // Past this the estimate moves by feet per degree of ty, so only the direction is drawn.
 const BALL_TRUST_IN = 48;
@@ -9,6 +9,7 @@ export function drawField() {
   const {ctx, width, height} = context($('field'));
   const length = state.run.fieldLengthIn, view = state.fieldView, size = Math.min(width - 78, height - 58);
   const left = (width - size) / 2 + 8, top = 17, cell = size / view.tiles;
+  state.fieldGeometry = {left, top, size};
   const [fieldLeft, fieldTop] = fieldPoint([0, length], view, left, top, size), fieldSize = length / view.span * size;
   const expanded = view.tiles > 6;
   ctx.fillStyle = expanded ? colors['off-field'] : colors.field; ctx.fillRect(left, top, size, size);
@@ -52,7 +53,30 @@ export function drawField() {
     ctx.globalAlpha = 0.15; drawTrail(compare.trail, false, colors.compare);
     ctx.globalAlpha = 0.5; drawTrail(compare.trail, true, colors.compare); ctx.globalAlpha = 1;
   }
+  // While the graphs are zoomed into part of the run, a soft band under the path marks the stretch
+  // they show, labelled in the corner; the trail's own played/unplayed colors stay on top.
+  const [windowStart, windowEnd] = state.window;
+  const zoomed = windowEnd - windowStart < 0.9 * state.run.endSec;
+  $('field-zoom').hidden = !zoomed;
+  if (zoomed) {
+    $('field-zoom-label').textContent = `Highlighted: ${fmtTime(windowStart, 1)} to ${fmtTime(windowEnd, 1)}, the graphs' zoom`;
+    const series = state.run.playback.pose || [];
+    const first = Math.max(0, indexAt(series, windowStart)), last = indexAt(series, windowEnd);
+    const stride = Math.max(1, Math.ceil((last - first) / 3000));
+    ctx.save(); ctx.globalAlpha = 0.22; ctx.lineWidth = 9; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = colors['trail-window']; ctx.beginPath();
+    let connected = false;
+    for (let i = first; i <= last; i += stride) {
+      const pose = series[i][1];
+      if (!Array.isArray(pose) || !pose.slice(0, 2).every(finite)) { connected = false; continue; }
+      const [px, py] = fieldPoint(pose, view, left, top, size);
+      if (connected) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+      connected = true;
+    }
+    ctx.stroke(); ctx.restore();
+  }
   drawTrail(state.trail || [], false, colors['trail-future']); drawTrail(state.trail || [], true, colors['trail-past']);
+
   const series = state.run.playback.pose || [];
   if (state.problemsOn) {
     ctx.lineWidth = 2;
@@ -132,6 +156,17 @@ export function drawField() {
     ctx.beginPath(); ctx.arc(0, 0, 2, 0, Math.PI * 2); ctx.fillStyle = colors['robot-line']; ctx.fill();
   }
   ctx.restore();
+}
+
+// A click on the field canvas in field inches, with a pick radius of about 12 px, or null when it
+// falls outside the drawn field view.
+export function fieldInches(event) {
+  const geometry = state.fieldGeometry, view = state.fieldView;
+  if (!geometry || !view) return null;
+  const rect = $('field').getBoundingClientRect();
+  const x = (event.clientX - rect.left - geometry.left) / geometry.size, y = (event.clientY - rect.top - geometry.top) / geometry.size;
+  if (x < 0 || x > 1 || y < 0 || y > 1) return null;
+  return {at: [view.minX + x * view.span, view.minY + (1 - y) * view.span], radiusIn: Math.max(3, 12 / geometry.size * view.span)};
 }
 
 // Camera views are added from + View, one card per camera, each choosing which camera it shows.

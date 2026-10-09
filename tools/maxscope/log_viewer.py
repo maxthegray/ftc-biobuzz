@@ -6,7 +6,9 @@ import gzip
 import hashlib
 import json
 import math
+import queue
 import re
+import struct
 import sys
 import tempfile
 import threading
@@ -155,6 +157,61 @@ def problems(records, report):
     return kept, counts
 
 
+# FTC match periods. Endgame comes from the robot code so the viewer and the rumble agree.
+AUTO_SEC = 30
+DRIVER_SEC = 120
+SHORT_RUN_SEC = 5
+
+
+def endgame_seconds():
+    base = ROOT / "TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/core/OpModeBase.kt"
+    try:
+        match = re.search(r"ENDGAME_START_NANOS\s*=\s*([\d_]+)L", base.read_text())
+    except OSError:
+        match = None
+    return int(match[1].replace("_", "")) / 1e9 if match else 90.0
+
+
+def match_info(name, start):
+    kind = "auto" if re.search(r"auto", Path(name).stem.split("-")[0], re.I) else "teleop"
+    return {"kind": kind, "startSec": start, "autoSec": AUTO_SEC, "driverSec": DRIVER_SEC, "endgameSec": endgame_seconds()}
+
+
+def scan_run(path):
+    """Last timestamp and op-mode start time from record headers alone, without decoding any
+    samples, so the run list can show every run's length. About 30 MB/s."""
+    data = path.read_bytes()
+    if data[:6] != b"WPILOG" or len(data) < 12:
+        return {"endSec": None, "startSec": None}
+    pos, end = 12 + struct.unpack_from("<I", data, 8)[0], len(data)
+    last, events, start = 0, None, None
+    while pos < end:
+        header = data[pos]
+        pos += 1
+        entry_len, size_len, time_len = (header & 3) + 1, ((header >> 2) & 3) + 1, ((header >> 4) & 7) + 1
+        if pos + entry_len + size_len + time_len > end:
+            break
+        entry = int.from_bytes(data[pos:pos + entry_len], "little")
+        pos += entry_len
+        size = int.from_bytes(data[pos:pos + size_len], "little")
+        pos += size_len
+        ts = int.from_bytes(data[pos:pos + time_len], "little")
+        pos += time_len
+        if pos + size > end:
+            break
+        if entry == 0:
+            if size >= 9 and data[pos] == 0:
+                ident, length = struct.unpack_from("<II", data, pos + 1)
+                if data[pos + 9:pos + 9 + length] == b"events":
+                    events = ident
+        else:
+            last = max(last, ts)
+            if start is None and entry == events and data[pos:pos + size] == b"start":
+                start = ts
+        pos += size
+    return {"endSec": last / 1e6 if last else None, "startSec": start / 1e6 if start is not None else None}
+
+
 def json_safe(value):
     if isinstance(value, float) and not math.isfinite(value):
         return None
@@ -188,6 +245,20 @@ class LogLibrary:
         self.cache = OrderedDict()
         self.found = {}
         self.lock = threading.RLock()
+        # Run lengths for the library, scanned in the background and keyed by file identity.
+        self.summaries = {}
+        self.scan_queue = queue.Queue()
+        self.queued = set()
+        threading.Thread(target=self.scan_worker, daemon=True).start()
+
+    def scan_worker(self):
+        while True:
+            identity, path = self.scan_queue.get()
+            try:
+                summary = scan_run(path)
+            except (OSError, struct.error):
+                summary = {"endSec": None, "startSec": None}
+            self.summaries[identity] = summary
 
     def register(self, path, name=None):
         path = path.resolve()
@@ -196,8 +267,17 @@ class LogLibrary:
         ident = hashlib.sha256(identity.encode()).hexdigest()[:24]
         self.paths[ident] = path
         self.names[ident] = name or path.name
+        if identity not in self.summaries and identity not in self.queued:
+            self.queued.add(identity)
+            self.scan_queue.put((identity, path))
+        summary = self.summaries.get(identity)
+        driving = summary and summary["endSec"] is not None and summary["startSec"] is not None
         return {"id": ident, "name": self.names[ident], "bytes": stat.st_size,
-                "modified": stat.st_mtime, "uploaded": path.parent == self.upload_directory}
+                "modified": stat.st_mtime, "uploaded": path.parent == self.upload_directory,
+                "scanned": summary is not None,
+                "endSec": summary and summary["endSec"],
+                "drivenSec": summary["endSec"] - summary["startSec"] if driving else None,
+                "short": summary is not None and (not driving or summary["endSec"] - summary["startSec"] < SHORT_RUN_SEC)}
 
     def catalog(self):
         with self.lock:
@@ -230,7 +310,8 @@ class LogLibrary:
             if any(series[i][0] < series[i - 1][0] for i in range(1, len(series))):
                 series.sort(key=lambda point: point[0])
         raw = analyze_wpilog.build_report(records, types, self.names[ident], truncated)
-        report = analyze_wpilog.to_json_dict(raw)
+        # MaxScope keeps log time internally and shows op-mode-start time, as the analyzer prints.
+        report = analyze_wpilog.to_json_dict(raw, from_start=False)
         # The CLI rounds timestamps for readability. The viewer needs full precision.
         if not report.get("empty"):
             report["events"] = [{"tSec": ts / 1e6, "text": value}
@@ -241,7 +322,7 @@ class LogLibrary:
 
     def overview(self, ident):
         with self.lock:
-            records, types, report, _ = self.load(ident)
+            records, types, report, raw = self.load(ident)
             timestamps = [series[-1][0] for series in records.values() if series]
             channels = []
             for name, series in sorted(records.items()):
@@ -249,6 +330,7 @@ class LogLibrary:
                 channels.append({"name": name, "type": types.get(name), "count": len(series),
                                  "components": length})
             return {"id": ident, "name": self.names[ident], "report": report,
+                    "match": match_info(self.names[ident], raw.get("opModeStartSec")),
                     "endSec": max(timestamps, default=0) / 1e6,
                     "fieldLengthIn": field_length(), "channels": channels,
                     "playback": series_seconds(records, PLAYBACK_CHANNELS + camera_channels(records)),

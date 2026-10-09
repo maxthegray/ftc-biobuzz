@@ -495,7 +495,9 @@ emits the JSON bundle (default: newest log under `robot-logs/`). It reports `com
 `"all scheduled"` (pre-Ivy logs, `commands/running`), `"none"` (Ivy logs before
 command tracing) or `"instrumented"` (current logs, `logged` commands only,
 with `commandExecutions`, `commandFailures`, `commandActive` and
-`commandHistoryIntact`/`commandHistoryLostRecords`). When a log doesn't determine the cause, give ranked
+`commandHistoryIntact`/`commandHistoryLostRecords`). All its times, like MaxScope's, count from the
+op-mode start (`clock`, `opModeStartLogSec`; init is negative), so a time the user reads off
+MaxScope matches the bundle. When a log doesn't determine the cause, give ranked
 hypotheses and the one channel or reproduction that decides it.
 
 ### Post-match debugging (the AI runs this)
