@@ -53,7 +53,16 @@ the area outside it is hatched. A pose past that limit is shown as an arrow on
 the edge of the view. The view is fixed for the run, so it doesn't move while
 scrubbing.
 
-The grid is season-neutral. The robot is a 16 in marker (chassis outline,
+The **BIOBUZZ** checkbox on the field (on by default, saved) draws this
+season's elements: red and blue alliance walls, LOADING ZONES (A5, F2),
+GARDENS (A1, F6), the HIVE frame and both HIVES with their CELLS, the four
+FLOWERS, and tile names A–F / 1–6. Positions come from the 2026-27 manual
+(TU04) Section 9 and the Event Field Setup Guide, with the manual's ±1 in.
+tolerance; each number and its figure is listed in `viewer/field-elements.js`.
+The raised CELL of each HIVE is drawn solid: from `Hive/<RED|BLUE>/state` when
+the log has it, otherwise the match setup (red audience, blue far), dashed.
+
+Without it the grid is season-neutral. The robot is a 16 in marker (chassis outline,
 wheel pods, heading line from the centre to the front), not a measured
 footprint. The faint trail is the recorded run and
 the darker trail is its elapsed portion, not a planned path. Drawing uses a

@@ -1,6 +1,7 @@
 import {finite, indexAt, sampleAt, fieldPoint, ROBOT_HALF_IN, ballSighting, ballEstimate, sightingMount, loggedCameraMount, cameraDetections, POLLEN_DIAMETER_IN} from './core.mjs';
 import {$, state, fmt, fmtTime, node, context, colors, problemColor} from './ui.js';
 import {shownOverlays} from './overlays.js';
+import {drawBiobuzz, drawTileNames, hiveStates} from './field-elements.js';
 
 // Past this the estimate moves by feet per degree of ty, so only the direction is drawn.
 const BALL_TRUST_IN = 48;
@@ -39,6 +40,11 @@ export function drawField() {
   // Along the left edge, clear of the tick labels.
   ctx.save(); ctx.translate(10, top + size / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center'; ctx.fillText('+Y →', 0, 0); ctx.restore();
   ctx.save(); ctx.beginPath(); ctx.rect(left, top, size, size); ctx.clip();
+  if ($('field-elements-toggle').checked) {
+    const at = point => fieldPoint(point, view, left, top, size), scale = size / view.span;
+    drawBiobuzz(ctx, {length, at, scale, colors, hives: hiveStates(state.run.playback, state.time)});
+    drawTileNames(ctx, {length, at, colors});
+  }
   const drawTrail = (trail, past, color) => {
     ctx.strokeStyle = color; ctx.lineWidth = past ? 2 : 1.5; ctx.beginPath();
     let connected = false;

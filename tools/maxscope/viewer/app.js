@@ -457,6 +457,7 @@ $('scrub').oninput = () => { stop(); seek(Number($('scrub').value)); };
 $('event-filter').onchange = () => { renderEvents(); updateDetails(); };
 $('field-commands-toggle').onchange = () => { saveLayout(); if (state.run) updateDetails(); };
 $('field-ball-toggle').onchange = () => { saveLayout(); if (state.run) drawField(); };
+$('field-elements-toggle').onchange = () => { saveLayout(); if (state.run) drawField(); };
 $('problems-toggle').onclick = () => setProblems(!state.problemsOn);
 $('problem-prev').onclick = () => stepProblem(-1);
 $('problem-next').onclick = () => stepProblem(1);

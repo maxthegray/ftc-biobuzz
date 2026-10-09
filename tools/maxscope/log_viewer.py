@@ -30,7 +30,8 @@ CACHE_BYTES = 64 * 1024 * 1024
 PLAYBACK_CHANNELS = ("pose", "driveMode", "gamepad1/axes", "gamepad1/buttons",
                      "gamepad2/axes", "gamepad2/buttons", "commands/active", "commands/running",
                      "BallAssist/tx", "BallAssist/ty", "BallAssist/targetTy",
-                     "Limelight/target/visible", "Limelight/target/txDegrees", "Limelight/target/tyDegrees")
+                     "Limelight/target/visible", "Limelight/target/txDegrees", "Limelight/target/tyDegrees",
+                     "Hive/RED/state", "Hive/BLUE/state")
 
 # Any camera subsystem's detections, whatever it is called: <Subsystem>/<one of these>.
 CAMERA_CHANNEL_SUFFIXES = tuple(
@@ -415,6 +416,7 @@ def handler_for(library):
                              "/charts.js": ("charts.js", "text/javascript"),
                              "/field-camera.js": ("field-camera.js", "text/javascript"),
                              "/overlays.js": ("overlays.js", "text/javascript"),
+                             "/field-elements.js": ("field-elements.js", "text/javascript"),
                              "/core.mjs": ("core.mjs", "text/javascript"),
                              "/theme.js": ("theme.js", "text/javascript"),
                              "/style.css": ("style.css", "text/css")}

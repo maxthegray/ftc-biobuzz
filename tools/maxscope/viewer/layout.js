@@ -45,7 +45,7 @@ export function createLayout({seek, preparePlots, redraw}) {
   function saveLayout() {
     state.layout = {panels: state.panels, layers: state.charts.length ? state.charts.map(chart => [...chart.keys]) : state.layout?.layers,
       discrete: state.charts.length ? state.charts.map(chart => [...chart.discreteKeys]) : state.layout?.discrete,
-      fieldCommands: $('field-commands-toggle').checked, fieldBall: $('field-ball-toggle').checked,
+      fieldCommands: $('field-commands-toggle').checked, fieldBall: $('field-ball-toggle').checked, fieldElements: $('field-elements-toggle').checked,
       cameraViews: Object.fromEntries(state.cameraViews.map(view => [view.key, view.source]))};
     try { localStorage.setItem(layoutKey, JSON.stringify(state.layout)); } catch { /* Storage may be disabled. */ }
   }
@@ -239,6 +239,7 @@ export function createLayout({seek, preparePlots, redraw}) {
       const saved = JSON.parse(localStorage.getItem(layoutKey));
       $('field-commands-toggle').checked = saved?.fieldCommands !== false;
       $('field-ball-toggle').checked = saved?.fieldBall !== false;
+      $('field-elements-toggle').checked = saved?.fieldElements !== false;
       const previous = saved || JSON.parse(localStorage.getItem('maxscope.layout.v1'));
       if (saved?.panels) {
         for (const keys of Object.values(saved.panels)) {
