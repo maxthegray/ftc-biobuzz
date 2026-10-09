@@ -1,0 +1,109 @@
+/* The experimental 3D page. It reuses style.css's tokens and controls; nothing here applies to the
+   main viewer. */
+body.field3d {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  margin: 0;
+  overflow: hidden;
+}
+
+.field3d-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.field3d-header .brand {
+  margin: 0;
+}
+
+.field3d-header #run {
+  max-width: 320px;
+}
+
+.field3d-views {
+  display: flex;
+  margin-left: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.field3d-views button {
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.field3d-views button + button {
+  border-left: 1px solid var(--line);
+}
+
+.field3d-views button[aria-pressed="true"] {
+  background: var(--primary-bg);
+  color: var(--primary-ink);
+}
+
+.field3d-main {
+  margin: 0;
+  max-width: none;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  padding: 12px 16px;
+}
+
+.field3d-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.field3d-stage canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.field3d-note {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.field3d-transport {
+  position: static;
+  margin: 0;
+}
+
+.field3d-transport #scrub {
+  flex: 1;
+}
+
+.field3d-pose {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.field3d-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+}

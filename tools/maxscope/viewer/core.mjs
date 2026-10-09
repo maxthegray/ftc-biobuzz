@@ -144,9 +144,23 @@ export function ballEstimate(pose, sighting, mount, ballDiameterIn = POLLEN_DIAM
 
 export function scalarSeries(series, component = null, scale = 1) {
   return series.map(([t, value]) => {
-    const scalar = component === null ? value : value?.[component];
+    const scalar = component === null ? value
+      : component === 'speed' ? (finite(value?.[0]) && finite(value?.[1]) ? Math.hypot(value[0], value[1]) : null)
+      : value?.[component];
     return [t, typeof scalar === 'boolean' ? Number(scalar) : finite(scalar) ? scalar * scale : null];
   });
+}
+
+// The lowest and highest samples in [start, end], each as [time, value]; ties keep the earliest.
+export function extremes(series, start, end) {
+  let min = null, max = null;
+  for (let i = Math.max(0, indexAt(series, start)); i < series.length && series[i][0] <= end; i++) {
+    const point = series[i];
+    if (point[0] < start || !finite(point[1])) continue;
+    if (!min || point[1] < min[1]) min = point;
+    if (!max || point[1] > max[1]) max = point;
+  }
+  return min && {min, max};
 }
 
 export function plotPoints(series, start, end, buckets = 600) {
@@ -186,9 +200,12 @@ export function channelOptions(channels) {
   const axes = ['Left stick X', 'Left stick Y', 'Right stick X', 'Right stick Y', 'Left trigger', 'Right trigger'];
   const labels = {pose: ['X', 'Y', 'Heading'], velocity: ['X velocity', 'Y velocity', 'Angular velocity'],
     'gamepad1/axes': axes, 'gamepad2/axes': axes};
+  // Speed is derived: the magnitude of the field-frame translational velocity.
+  const derived = {velocity: {speed: 'Speed'}};
   return channels.flatMap(channel => {
     if (!['double', 'int64', 'boolean', 'double[]'].includes(channel.type)) return [];
     const components = channel.type === 'double[]' ? Array.from({length: channel.components}, (_, i) => i) : [null];
+    if (channel.type === 'double[]' && channel.components >= 2) components.push(...Object.keys(derived[channel.name] ?? {}));
     return components.map(component => {
       const name = channel.name;
       let unit = '', scale = 1;
@@ -201,7 +218,8 @@ export function channelOptions(channels) {
       else if (/In$/.test(name)) unit = 'in';
       else if (/Ms$/.test(name)) unit = 'ms';
       else if (/Fps$|Hz$/.test(name)) unit = 'Hz';
-      const componentLabel = component === null ? null : String(labels[name]?.[component] ?? component);
+      const componentLabel = component === null ? null
+        : String(derived[name]?.[component] ?? labels[name]?.[component] ?? component);
       const suffix = componentLabel === null ? '' : ` / ${componentLabel}`;
       return {key: `${name}::${component ?? ''}`, name, component, componentLabel, unit, scale, label: name + suffix};
     });
@@ -319,19 +337,22 @@ export function discreteIntervals(series, end) {
   });
 }
 
-// Match periods on the log clock, from the op-mode start event: tele-op is the 2:00 driver period
-// with endgame at its end, autonomous its 0:30. Null when the op-mode never started.
+// BIOBUZZ milestones on the log clock, from the op-mode start event.
+// Null when the op-mode never started.
 export function matchPhases(match) {
   const start = match?.startSec;
   if (!finite(start)) return null;
   const phases = match.kind === 'auto'
     ? [['INIT', 0, start], ['AUTO', start, start + match.autoSec], ['AFTER AUTO', start + match.autoSec, Infinity]]
-    : [['INIT', 0, start], ['TELEOP', start, start + match.endgameSec], ['ENDGAME', start + match.endgameSec, start + match.driverSec],
+    : [['INIT', 0, start], ['TELEOP', start, start + match.flowerUnlockSec],
+      ['FLOWER OWNERSHIP UNLOCKED', start + match.flowerUnlockSec, start + match.finalTwentySec],
+      ['FINAL 20 SECONDS', start + match.finalTwentySec, start + match.driverSec],
       ['AFTER MATCH', start + match.driverSec, Infinity]];
   const end = start + (match.kind === 'auto' ? match.autoSec : match.driverSec);
   return {start, end, phases: phases.map(([name, from, to]) => ({name, from, to})),
     marks: match.kind === 'auto' ? [{tSec: start, label: 'start'}, {tSec: end, label: '0:30'}]
-      : [{tSec: start, label: 'start'}, {tSec: start + match.endgameSec, label: 'endgame'}, {tSec: end, label: '2:00'}]};
+      : [{tSec: start, label: 'start'}, {tSec: start + match.flowerUnlockSec, label: 'FLOWER ownership unlocked'},
+        {tSec: start + match.finalTwentySec, label: 'Final 20 seconds'}, {tSec: end, label: '2:00'}]};
 }
 
 export const minutes = seconds => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;

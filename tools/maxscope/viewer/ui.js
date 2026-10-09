@@ -64,7 +64,7 @@ export let colors = null;
 const cssColors = () => {
   const style = getComputedStyle(document.documentElement), read = name => style.getPropertyValue(`--${name}`).trim();
   const names = ['field', 'off-field', 'hatch', 'grid', 'field-label', 'wall', 'field-caption', 'trail-future', 'trail-past', 'lime', 'robot-line', 'robot-arrow', 'ball',
-    'chart-grid', 'chart-label', 'chart-cursor', 'muted', 'lane', 'lane-off', 'lane-edge', 'lane-ink', 'layer-0', 'red', 'amber', 'trail-window', 'tooltip', 'alliance-red', 'alliance-blue', 'frame', 'flower', 'flower-core'];
+    'chart-grid', 'chart-label', 'chart-cursor', 'muted', 'surface', 'lane', 'lane-off', 'lane-edge', 'lane-ink', 'layer-0', 'red', 'amber', 'trail-window', 'tooltip', 'alliance-red', 'alliance-blue', 'frame', 'flower', 'flower-core'];
   return {...Object.fromEntries(names.map(name => [name, read(name)])),
     lanes: Array.from({length: 6}, (_, i) => read(`lane-${i}`)), layers: Array.from({length: 8}, (_, i) => read(`layer-${i}`)),
     overlays: Array.from({length: 4}, (_, i) => read(`overlay-${i}`))};

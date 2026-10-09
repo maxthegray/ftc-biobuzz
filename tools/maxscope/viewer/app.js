@@ -286,7 +286,7 @@ function renderMarkers() {
   }));
 }
 
-// Match period boundaries under the slider: start, endgame, and the end of the period.
+// Match boundaries and BIOBUZZ milestones under the slider.
 function renderPhaseMarks() {
   const length = Math.max(state.run.endSec, 0.001);
   $('phase-marks').replaceChildren(...(state.match?.marks || []).filter(mark => mark.tSec <= state.run.endSec).map(mark => {
@@ -423,6 +423,7 @@ function seek(time) {
   if (!state.run) return;
   state.time = Math.max(0, Math.min(state.run.endSec, time));
   $('scrub').value = state.time;
+  field3d.postMessage({type: 'time', runId: state.run.id, time: state.time});
   if (syncWindow()) updateWindowControls();
   $('time').textContent = fmtTime(state.time);
   $('time').title = `Log time ${fmt(state.time, 3)} s`;
@@ -458,6 +459,10 @@ $('event-filter').onchange = () => { renderEvents(); updateDetails(); };
 $('field-commands-toggle').onchange = () => { saveLayout(); if (state.run) updateDetails(); };
 $('field-ball-toggle').onchange = () => { saveLayout(); if (state.run) drawField(); };
 $('field-elements-toggle').onchange = () => { saveLayout(); if (state.run) drawField(); };
+// The experimental 3D page lives in its own tab: it opens on this run and time, then follows
+// every seek through the 'maxscope' channel. Nothing else here knows it exists.
+const field3d = new BroadcastChannel('maxscope');
+$('field-3d').onclick = () => { if (state.run) $('field-3d').href = `/3d#run=${encodeURIComponent(state.run.id)}&t=${state.time}`; };
 $('problems-toggle').onclick = () => setProblems(!state.problemsOn);
 $('problem-prev').onclick = () => stepProblem(-1);
 $('problem-next').onclick = () => stepProblem(1);

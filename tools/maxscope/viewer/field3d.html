@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MaxScope 3D</title><script src="/theme.js"></script><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/field3d.css">
+</head>
+<body class="field3d">
+  <header class="field3d-header">
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">M</span><span>MaxScope</span></a>
+    <span class="pill">3D · experimental</span>
+    <select id="run" aria-label="Run"></select>
+    <label class="field-command-toggle" title="Follow the run and time open in the MaxScope tab"><input id="sync" type="checkbox" checked>Sync with MaxScope</label>
+    <label class="field-command-toggle"><input id="elements" type="checkbox" checked>BIOBUZZ</label>
+    <span class="field3d-views" role="group" aria-label="Camera">
+      <button data-view="audience">Audience</button><button data-view="red">Red driver</button><button data-view="blue">Blue driver</button><button data-view="top">Top</button><button data-view="chase">Chase</button>
+    </span>
+  </header>
+  <main class="field3d-main">
+    <div id="stage" class="field3d-stage"><p id="field3d-note" class="field3d-note">Loading…</p></div>
+    <section class="transport field3d-transport" aria-label="Playback controls"><button id="play" class="play" aria-label="Play" disabled>▶</button><span id="time" class="time">0.00 s</span><input id="scrub" type="range" min="0" max="1" step="0.001" value="0" aria-label="Playback time"><span id="pose" class="field3d-pose"></span><select id="speed" aria-label="Playback speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></section>
+    <p class="field3d-hint">Drag to orbit · Right-drag to pan · Scroll to zoom · Approximate model of the BIOBUZZ field (±1 in.)</p>
+  </main>
+  <script type="module" src="/field3d.js"></script>
+</body>
+</html>

@@ -93,11 +93,14 @@ reduced trail; the coordinate readout always uses the full pose series.
   in this browser; until you pick one, the viewer follows the system setting.
 - Every time shown counts from the op-mode `start` event, like the driver
   station; init time is negative and hovering the clock shows the log time.
-  Under the clock, the period and its countdown: TELEOP / ENDGAME and time
-  left in the 2:00 driver period (AUTO and 0:30 for op-modes named `…Auto`),
-  then time past the end. Start, endgame and the end of the period are
-  marked under the slider and on every graph. Endgame comes from
-  `OpModeBase.ENDGAME_START_NANOS`. A run is opened at its start.
+  Under the clock, BIOBUZZ's TELEOP / FLOWER OWNERSHIP UNLOCKED / FINAL 20
+  SECONDS and time left in the 2:00 driver period (AUTO and 0:30 for op-modes
+  named `…Auto`), then time past the end. Start, FLOWER ownership unlocked
+  at 1:00 left, the final 20 seconds, and the end of the period are marked
+  under the slider and on every graph. Timing comes from `RobotConfig.Match`,
+  with BIOBUZZ defaults if its source is unavailable. Match teleop rumbles
+  both controllers twice at 1:00 left and three times at 0:20 left;
+  autonomous and diagnostics have no match rumbles. A run is opened at its start.
 - Scrub the shared time slider, click a graph, event, or command bar to seek.
 - Click the field to jump to when the robot was there. If it passed that spot
   more than once, the note says how many times and each click goes to the
@@ -113,6 +116,11 @@ reduced trail; the coordinate readout always uses the full pose series.
   eight overlaid signals with two unit scales, marked L/R in the legend.
   Signals with matching units share a scale. Checkboxes hide individual
   layers; × removes them. Missing channels stay labeled when switching logs.
+  `velocity` also has a derived **Speed** component, √(vx² + vy²).
+- Click a signal's name in the legend, or double-click its line, to highlight
+  it: the other signals dim, and its max and min in view are marked on the
+  graph and listed under its name. Click either to jump there. Click the name
+  again, double-click away from the lines, or press Escape to clear.
 - **+ Discrete** adds state lanes below a graph: strings, booleans, integer
   states, or individual gamepad buttons. Commands appears under the first
   graph by default. Each lane shares the graph's time axis, zoom, and cursor;
@@ -213,6 +221,22 @@ reduced trail; the coordinate readout always uses the full pose series.
   more RAM than their on-disk size. Playback channels and selected graphs
   are transferred in full; this is not a streaming large-log database.
 - Run dates come from the filename's hub clock, which may be wrong.
+
+## 3D field (experimental)
+
+**3D ↗** on the field card opens `/3d` in its own tab: the run on a 3D model
+of the BIOBUZZ field, for fun and for a feel of heights. The field, perimeter
+walls, alliance areas, tape, HIVE frame, tilting HIVES (from
+`Hive/<RED|BLUE>/state` or the match setup) and FLOWERS use the same numbers
+as the 2D drawing (`field-elements.js`), as an approximate model. The robot is
+a 16 in. box with its trail. Drag to orbit, right-drag to pan, scroll to zoom;
+Audience, Red driver, Blue driver, Top and Chase set the camera.
+
+It is kept apart from the viewer: only that page loads it and three.js
+(vendored in `viewer/vendor/three`, see its README). The viewer's one link to
+it is a `BroadcastChannel('maxscope')` message on every seek, so with **Sync
+with MaxScope** on the 3D tab follows the run and time open in MaxScope; off,
+it has its own run picker and playback.
 
 ## Development
 

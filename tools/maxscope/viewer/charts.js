@@ -1,4 +1,4 @@
-import {finite, indexAt, sampleAt, scalarSeries, plotPoints, plotBounds, channelTree, discreteSeries, discreteIntervals, buttonNames, shiftSeries, followWindow} from './core.mjs';
+import {finite, indexAt, sampleAt, scalarSeries, extremes, plotPoints, plotBounds, channelTree, discreteSeries, discreteIntervals, buttonNames, shiftSeries, followWindow} from './core.mjs';
 import {$, state, fmt, fmtTime, node, api, notice, commandCoverage, context, colors, problemColor} from './ui.js';
 import {OVERLAY_DASHES, shownOverlays} from './overlays.js';
 
@@ -44,6 +44,7 @@ export function createCharts({seek, saveLayout, onWindow}) {
       root.remove(); updateChartControls(); loadCharts();
     };
     wireTimeCanvas(canvas, chart);
+    canvas.addEventListener('dblclick', event => highlightAt(chart, event));
     return chart;
   }
 
@@ -297,13 +298,23 @@ export function createCharts({seek, saveLayout, onWindow}) {
     chart.legend.replaceChildren();
     chart.layers.forEach(layer => {
       const item = node('div', 'legend-item');
-      const label = node('label', 'layer-label');
+      const label = node('div', 'layer-label');
       const check = node('input');
+      const text = layer.option?.label || `${layer.key.split('::')[0]} (not recorded)`;
       check.type = 'checkbox'; check.checked = layer.visible;
-      check.setAttribute('aria-label', `Show ${layer.option?.label || layer.key}`);
-      check.onchange = () => { layer.visible = check.checked; preparePlots(); drawCharts(); };
+      check.setAttribute('aria-label', `Show ${text}`);
+      check.onchange = () => {
+        layer.visible = check.checked;
+        if (!layer.visible && chart.highlight === layer.key) chart.highlight = null;
+        preparePlots(); drawCharts();
+      };
+      layer.check = check;
+      layer.name = node('button', 'layer-name', text);
+      layer.name.title = 'Highlight this signal and mark its min and max';
+      layer.name.disabled = !layer.option;
+      layer.name.onclick = () => highlight(chart, chart.highlight === layer.key ? null : layer.key);
       label.style.color = `var(--layer-${layer.slot})`;
-      label.append(check, node('span', '', layer.option?.label || `${layer.key.split('::')[0]} (not recorded)`));
+      label.append(check, layer.name);
       layer.value = node('span', 'chart-value', '—');
       layer.overlayValues = node('span', 'chart-overlay-values');
       const axis = node('span', 'axis-label', layer.axis === 1 ? 'R' : 'L');
@@ -311,9 +322,61 @@ export function createCharts({seek, saveLayout, onWindow}) {
       const remove = node('button', 'layer-remove', '×');
       remove.setAttribute('aria-label', `Remove ${layer.option?.label || layer.key}`);
       remove.onclick = () => { chart.keys = chart.keys.filter(key => key !== layer.key); loadCharts(); };
-      item.append(label, axis, layer.value, layer.overlayValues, remove);
+      layer.item = item;
+      layer.extremes = node('div', 'layer-extremes');
+      layer.extremes.style.setProperty('--signal', `var(--layer-${layer.slot})`);
+      item.append(label, axis, layer.value, layer.overlayValues, remove, layer.extremes);
       chart.legend.append(item);
     });
+    renderHighlight(chart);
+  }
+
+  // One highlighted signal per graph: the others dim, and its lowest and highest samples in view
+  // are marked on the graph and listed under its legend entry, where clicking one seeks to it.
+  function highlight(chart, key) {
+    chart.highlight = key;
+    const layer = chart.layers.find(layer => layer.key === key);
+    if (layer && !layer.visible) { layer.visible = true; layer.check.checked = true; }
+    preparePlots(); drawCharts();
+  }
+
+  // Double-clicking a graph highlights the line nearest the pointer, or clears it away from any line.
+  function highlightAt(chart, event) {
+    const rect = chart.canvas.getBoundingClientRect(), time = timeAt(chart.canvas, event.clientX);
+    const pointerY = event.clientY - rect.top, top = 21, bottom = rect.height - 22;
+    let nearest = null, distance = 12;
+    for (const layer of chart.layers) {
+      const value = layer.visible ? sampleAt(layer.data, time) : null;
+      if (!finite(value)) continue;
+      const [min, max] = chart.bounds[layer.axis] || [0, 1];
+      const gap = Math.abs(bottom - (value - min) / (max - min) * (bottom - top) - pointerY);
+      if (gap < distance) { nearest = layer; distance = gap; }
+    }
+    highlight(chart, nearest && nearest.key !== chart.highlight ? nearest.key : null);
+  }
+
+  function renderHighlight(chart) {
+    if (!chart.layers.some(layer => layer.key === chart.highlight)) chart.highlight = null;
+    for (const layer of chart.layers) {
+      if (!layer.item) continue;
+      const on = layer.key === chart.highlight;
+      layer.item.classList.toggle('highlighted', on);
+      layer.item.classList.toggle('dimmed', Boolean(chart.highlight) && !on);
+      layer.name.setAttribute('aria-pressed', String(on));
+      layer.extremes.hidden = !on;
+      if (!on) continue;
+      const unit = layer.option?.unit ? ' ' + layer.option.unit : '';
+      const mark = (kind, point) => {
+        const button = node('button', `extreme extreme-${kind}`);
+        button.append(node('span', 'extreme-kind', kind), `${fmt(point[1])}${unit}`, node('span', 'extreme-time', fmtTime(point[0])));
+        button.title = `Go to the ${kind === 'max' ? 'highest' : 'lowest'} sample`;
+        button.onclick = () => seek(point[0]);
+        return button;
+      };
+      const found = chart.extremes;
+      layer.extremes.replaceChildren(node('span', 'extremes-scope', chart.loading ? 'Loading…' : found ? 'In view' : 'No samples in view'),
+        ...(found && !chart.loading ? [mark('max', found.max), mark('min', found.min)] : []));
+    }
   }
 
   function closePicker() {
@@ -498,6 +561,9 @@ export function createCharts({seek, saveLayout, onWindow}) {
       }
       const scaled = [...chart.layers, ...chart.layers.flatMap(layer => layer.overlays.map(trace => ({...layer, points: trace.points})))];
       chart.bounds = chart.axes.map((unit, axis) => plotBounds(scaled, axis, state.window[1]));
+      const highlighted = chart.layers.find(layer => layer.key === chart.highlight);
+      chart.extremes = highlighted ? extremes(highlighted.data, ...state.window) : null;
+      renderHighlight(chart);
     }
   }
 
@@ -560,19 +626,24 @@ export function createCharts({seek, saveLayout, onWindow}) {
         })));
         const sampled = indexAt(layer.data, state.time);
         layer.value.title = sampled < 0 ? 'No sample at this time' : `Last sample at ${fmtTime(layer.data[sampled][0], 6)}`;
-        if (!layer.visible) continue;
+      }
+      const highlighted = chart.layers.find(layer => layer.key === chart.highlight && layer.visible);
+      for (const layer of [...chart.layers.filter(layer => layer !== highlighted), highlighted]) {
+        if (!layer?.visible) continue;
         const [min, max] = chart.bounds[layer.axis] || [0, 1];
         const y = value => bottom - (value - min) / (max - min) * (bottom - top);
-        ctx.strokeStyle = colors.layers[layer.slot]; ctx.lineWidth = 1.5;
+        const alpha = highlighted && layer !== highlighted ? 0.2 : 1;
+        ctx.strokeStyle = colors.layers[layer.slot];
         // Overlay runs keep the signal's color and take their own dash, thinner and under the open run.
-        ctx.lineWidth = 1.25; ctx.globalAlpha = 0.8;
+        ctx.lineWidth = 1.25; ctx.globalAlpha = 0.8 * alpha;
         for (const trace of layer.overlays) {
           if (!trace.points.length) continue;
           ctx.setLineDash(OVERLAY_DASHES[trace.overlay.slot]); stroke(trace.points, y);
         }
-        ctx.setLineDash([]); ctx.globalAlpha = 1; ctx.lineWidth = 1.5;
+        ctx.setLineDash([]); ctx.globalAlpha = alpha; ctx.lineWidth = layer === highlighted ? 2.25 : 1.5;
         stroke(layer.points, y);
       }
+      ctx.globalAlpha = 1;
       if (state.time >= start && state.time <= end) {
         ctx.strokeStyle = colors['chart-cursor']; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(x(state.time), top); ctx.lineTo(x(state.time), bottom); ctx.stroke(); ctx.setLineDash([]);
       }
@@ -581,6 +652,7 @@ export function createCharts({seek, saveLayout, onWindow}) {
         ctx.moveTo(x(state.hoverTime), top - 3); ctx.lineTo(x(state.hoverTime), bottom + 3); ctx.stroke();
       }
       ctx.restore();
+      if (highlighted && chart.extremes && !chart.loading) drawExtremes(chart, highlighted, ctx, x, {left, right, top, bottom, height});
       if (state.hoverChart === chart && state.hoverTime !== null) drawTooltip(chart, ctx, width, top, bottom);
       drawDiscrete(chart);
       if (!chart.layers.some(layer => layer.data.length)) {
@@ -588,6 +660,38 @@ export function createCharts({seek, saveLayout, onWindow}) {
         ctx.fillText(chart.loading ? 'Loading samples…' : chart.keys.length ? 'No recorded samples' : 'Add signals to compare them', (left + right) / 2, (top + bottom) / 2);
       }
     }
+  }
+
+  // A dashed level, a dot and a value tag for the highlighted signal's max and min; the tags sit
+  // outside the line (above the max, below the min) and flip inward at the graph's edges.
+  function drawExtremes(chart, layer, ctx, x, {left, right, top, bottom, height}) {
+    const [low, high] = chart.bounds[layer.axis] || [0, 1];
+    const y = value => bottom - (value - low) / (high - low) * (bottom - top);
+    const color = colors.layers[layer.slot], unit = layer.option?.unit ? ' ' + layer.option.unit : '';
+    const {min, max} = chart.extremes;
+    const marks = max[1] === min[1] ? [['max', max]] : [['max', max], ['min', min]];
+    ctx.font = '10px ui-monospace, monospace'; ctx.textBaseline = 'middle';
+    for (const [kind, [time, value]] of marks) {
+      const px = x(time), py = y(value);
+      ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.globalAlpha = 0.45; ctx.setLineDash([2, 3]);
+      ctx.beginPath(); ctx.moveTo(left, py); ctx.lineTo(right, py); ctx.stroke();
+      ctx.setLineDash([]); ctx.globalAlpha = 1;
+      ctx.fillStyle = color; ctx.strokeStyle = colors.surface; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(px, py, 3.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      const prefix = `${kind} `, text = `${fmt(value)}${unit}`;
+      const prefixWidth = ctx.measureText(prefix).width, boxWidth = prefixWidth + ctx.measureText(text).width + 12, boxHeight = 16;
+      const boxLeft = Math.max(left, Math.min(right - boxWidth, px - boxWidth / 2));
+      const above = py - 7 - boxHeight, below = py + 7;
+      let boxTop = kind === 'max' ? above : below;
+      if (boxTop < 1) boxTop = below;
+      if (boxTop + boxHeight > height - 1) boxTop = above;
+      ctx.fillStyle = colors.tooltip; ctx.strokeStyle = color; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.roundRect(boxLeft, boxTop, boxWidth, boxHeight, 4); ctx.fill(); ctx.stroke();
+      ctx.textAlign = 'left';
+      ctx.fillStyle = colors.muted; ctx.fillText(prefix, boxLeft + 6, boxTop + boxHeight / 2);
+      ctx.fillStyle = color; ctx.fillText(text, boxLeft + 6 + prefixWidth, boxTop + boxHeight / 2);
+    }
+    ctx.textBaseline = 'alphabetic';
   }
 
   // Values at the hovered time, beside the pointer and flipped to its left near the right edge.
@@ -630,6 +734,11 @@ export function createCharts({seek, saveLayout, onWindow}) {
   $('channel-clear').onclick = () => chooseChannel(null);
   $('channel-search').oninput = renderChannelTree;
   $('channel-picker').addEventListener('close', () => { state.pickerChart = null; });
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape' || $('channel-picker').open || !state.charts.some(chart => chart.highlight)) return;
+    state.charts.forEach(chart => { chart.highlight = null; });
+    preparePlots(); drawCharts();
+  });
 
   return {closePicker, renderCharts, loadCharts, applyPreset, preparePlots, drawCharts, syncWindow, follow, updateWindowControls};
 }

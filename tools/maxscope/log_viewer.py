@@ -165,24 +165,31 @@ def problems(records, report):
     return kept, counts
 
 
-# FTC match periods. Endgame comes from the robot code so the viewer and the rumble agree.
-AUTO_SEC = 30
-DRIVER_SEC = 120
+# BIOBUZZ timing comes from the robot code so the viewer and controller cues agree.
 SHORT_RUN_SEC = 5
 
 
-def endgame_seconds():
-    base = ROOT / "TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/core/OpModeBase.kt"
+def match_timing():
+    config = ROOT / "TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/RobotConfig.kt"
     try:
-        match = re.search(r"ENDGAME_START_NANOS\s*=\s*([\d_]+)L", base.read_text())
+        source = config.read_text()
     except OSError:
-        match = None
-    return int(match[1].replace("_", "")) / 1e9 if match else 90.0
+        source = ""
+    timing = {}
+    for key, constant, fallback in (
+        ("autoSec", "AUTO_NANOS", 30.0),
+        ("driverSec", "DRIVER_NANOS", 120.0),
+        ("flowerUnlockSec", "FLOWER_UNLOCK_NANOS", 60.0),
+        ("finalTwentySec", "FINAL_TWENTY_NANOS", 100.0),
+    ):
+        match = re.search(rf"\bconst val {constant}\s*=\s*([\d_]+)L\b", source)
+        timing[key] = int(match[1].replace("_", "")) / 1e9 if match else fallback
+    return timing
 
 
 def match_info(name, start):
     kind = "auto" if re.search(r"auto", Path(name).stem.split("-")[0], re.I) else "teleop"
-    return {"kind": kind, "startSec": start, "autoSec": AUTO_SEC, "driverSec": DRIVER_SEC, "endgameSec": endgame_seconds()}
+    return {"kind": kind, "startSec": start, **match_timing()}
 
 
 def scan_run(path):
@@ -417,6 +424,13 @@ def handler_for(library):
                              "/field-camera.js": ("field-camera.js", "text/javascript"),
                              "/overlays.js": ("overlays.js", "text/javascript"),
                              "/field-elements.js": ("field-elements.js", "text/javascript"),
+                             # The experimental 3D page and its vendored three.js; see vendor/three/README.md.
+                             "/3d": ("field3d.html", "text/html; charset=utf-8"),
+                             "/field3d.js": ("field3d.js", "text/javascript"),
+                             "/field3d.css": ("field3d.css", "text/css"),
+                             "/vendor/three/three.module.js": ("vendor/three/three.module.js", "text/javascript"),
+                             "/vendor/three/three.core.js": ("vendor/three/three.core.js", "text/javascript"),
+                             "/vendor/three/OrbitControls.js": ("vendor/three/OrbitControls.js", "text/javascript"),
                              "/core.mjs": ("core.mjs", "text/javascript"),
                              "/theme.js": ("theme.js", "text/javascript"),
                              "/style.css": ("style.css", "text/css")}

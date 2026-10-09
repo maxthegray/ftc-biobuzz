@@ -19,10 +19,23 @@ import {sampleAt} from './core.mjs';
 //  - FLOWERS (§9.7, Figure 9-12; Setup Guide §10.1): four, on the perimeter where wall panels
 //    join, at tile seams: far wall at X = 2 tiles, audience wall X = 4 tiles, red wall Y = 2 tiles,
 //    blue wall Y = 4 tiles (Figure 9-17). A 4.0 in. opening on a ~4.8 in. base ring.
-const CELL_WIDTH = 20, CELL_DEPTH = 12.04, CELL_GAP = 18.84, HIVE_TILT = 30 * Math.PI / 180;
-const HIVE_SPACING = 25.5, FRAME_WIDTH = 49.46, FRAME_DEPTH = 38.95;
-const LOADING_DEPTH = 11, GARDEN_DEPTH = 2;
-const FLOWER_RING = 2.4, FLOWER_OPENING = 2.0, FLOWER_FROM_WALL = 2.6;
+//  - Heights (3D view): pivot axis 43.95 in. (Figure 9-8); CELL opening 14 in. tall with its
+//    sides 7.61 in. (Figure 9-11); FLOWER opening 21.5 in. above the TILES (Figure 9-12).
+export const BIOBUZZ = {
+  cellWidth: 20, cellDepth: 12.04, cellHeight: 14, cellSide: 7.61, cellGap: 18.84, hiveTilt: 30 * Math.PI / 180,
+  hiveSpacing: 25.5, pivotHeight: 43.95, frameWidth: 49.46, frameDepth: 38.95,
+  loadingDepth: 11, gardenDepth: 2,
+  flowerRing: 2.4, flowerOpening: 2.0, flowerFromWall: 2.6, flowerHeight: 21.5,
+};
+const {cellWidth: CELL_WIDTH, cellDepth: CELL_DEPTH, cellGap: CELL_GAP, hiveTilt: HIVE_TILT, hiveSpacing: HIVE_SPACING,
+  frameWidth: FRAME_WIDTH, frameDepth: FRAME_DEPTH, loadingDepth: LOADING_DEPTH, gardenDepth: GARDEN_DEPTH,
+  flowerRing: FLOWER_RING, flowerOpening: FLOWER_OPENING, flowerFromWall: FLOWER_FROM_WALL} = BIOBUZZ;
+
+// The four FLOWER centres, against the wall at tile seams.
+export function flowerPoints(length) {
+  const tile = length / 6;
+  return [[2 * tile, length - FLOWER_FROM_WALL], [4 * tile, FLOWER_FROM_WALL], [FLOWER_FROM_WALL, 2 * tile], [length - FLOWER_FROM_WALL, 4 * tile]];
+}
 
 // Which CELL of each HIVE is up: from `Hive/<RED|BLUE>/state` when the log has it, otherwise the
 // match setup (Figure 10-2: red's audience CELL and blue's far CELL raised).
@@ -95,8 +108,7 @@ export function drawBiobuzz(ctx, {length, at, scale, colors, hives}) {
   }
 
   // FLOWERS: base ring and top opening, against the wall.
-  const flowers = [[2 * tile, length - FLOWER_FROM_WALL], [4 * tile, FLOWER_FROM_WALL], [FLOWER_FROM_WALL, 2 * tile], [length - FLOWER_FROM_WALL, 4 * tile]];
-  for (const point of flowers) {
+  for (const point of flowerPoints(length)) {
     const [x, y] = at(point);
     ctx.fillStyle = colors['flower']; ctx.beginPath(); ctx.arc(x, y, Math.max(4, FLOWER_RING * scale), 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = colors['flower-core']; ctx.beginPath(); ctx.arc(x, y, Math.max(2, FLOWER_OPENING * scale), 0, Math.PI * 2); ctx.fill();

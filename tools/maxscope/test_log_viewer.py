@@ -7,10 +7,11 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from log_viewer import LogLibrary, ThreadingHTTPServer, camera_channels, handler_for, json_safe, match_info, problems, scan_run
+from log_viewer import LogLibrary, ThreadingHTTPServer, camera_channels, handler_for, json_safe, match_info, match_timing, problems, scan_run
 
 
 def fixture(truncated=False):
@@ -127,6 +128,15 @@ class ViewerTest(unittest.TestCase):
             imported = json.loads(response.read())
             self.assertEqual(200, response.status)
             self.assertEqual("Imported.wpilog", self.library.overview(imported["id"])["name"])
+            for path in ("/3d", "/field3d.js", "/vendor/three/three.module.js", "/vendor/three/OrbitControls.js"):
+                connection.request("GET", path)
+                response = connection.getresponse()
+                response.read()
+                self.assertEqual(200, response.status, path)
+            connection.request("GET", "/vendor/three/package.json")
+            response = connection.getresponse()
+            response.read()
+            self.assertEqual(404, response.status)
             connection.request("GET", "/api/logs", headers={"Origin": "https://example.com"})
             response = connection.getresponse()
             response.read()
@@ -235,6 +245,29 @@ class RunSummaryTest(unittest.TestCase):
         self.assertEqual(("auto", 2.0), (lambda m: (m["kind"], m["startSec"]))(match_info("TwoTipAuto-20260916-120000-0-1.wpilog", 2.0)))
         self.assertEqual("teleop", match_info("DriveOnlyTeleOp-20260916-120000-0-1.wpilog", 2.0)["kind"])
         self.assertIsNone(match_info("X.wpilog", None)["startSec"])
+
+    def test_match_timing_matches_biobuzz_robot_constants(self):
+        self.assertEqual({"kind": "teleop", "startSec": 2.0, "autoSec": 30.0, "driverSec": 120.0,
+                          "flowerUnlockSec": 60.0, "finalTwentySec": 100.0},
+                         match_info("DriveOnlyTeleOp.wpilog", 2.0))
+
+    def test_match_timing_reads_each_constant_instead_of_using_defaults(self):
+        source = """object Match {
+            const val AUTO_NANOS = 31_000_000_000L
+            const val DRIVER_NANOS = 121_000_000_000L
+            const val FLOWER_UNLOCK_NANOS = 61_000_000_000L
+            const val FINAL_TWENTY_NANOS = 101_000_000_000L
+        }"""
+        with patch("log_viewer.Path.read_text", return_value=source):
+            self.assertEqual({"autoSec": 31.0, "driverSec": 121.0,
+                              "flowerUnlockSec": 61.0, "finalTwentySec": 101.0}, match_timing())
+
+    def test_missing_source_or_constants_use_biobuzz_defaults(self):
+        expected = {"autoSec": 30.0, "driverSec": 120.0, "flowerUnlockSec": 60.0, "finalTwentySec": 100.0}
+        with patch("log_viewer.Path.read_text", side_effect=OSError):
+            self.assertEqual(expected, match_timing())
+        with patch("log_viewer.Path.read_text", return_value="object Match {}"):
+            self.assertEqual(expected, match_timing())
 
     def test_viewer_keeps_log_time_and_shares_the_analyzers_start(self):
         with tempfile.TemporaryDirectory() as directory:

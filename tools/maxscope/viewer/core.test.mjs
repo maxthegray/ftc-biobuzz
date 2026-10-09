@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {activeCommandSpans, fieldPoint, fieldView, ballSighting, ballEstimate, cameraDetections, loggedCameraMount, cameraSources, sampleAt, plotPoints, plotBounds, scalarSeries, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals, alignmentAnchor, shiftSeries, adjacentProblem, problemsAt, matchPhases, phaseAt, posePasses, nextPass, followWindow} from './core.mjs';
+import {activeCommandSpans, fieldPoint, fieldView, ballSighting, ballEstimate, cameraDetections, loggedCameraMount, cameraSources, sampleAt, plotPoints, plotBounds, extremes, scalarSeries, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals, alignmentAnchor, shiftSeries, adjacentProblem, problemsAt, matchPhases, phaseAt, posePasses, nextPass, followWindow} from './core.mjs';
 
 test('Pedro field corners retain their axes with only screen Y inverted', () => {
   const view = {minX: 0, minY: 0, span: 141.5};
@@ -87,6 +87,21 @@ test('native heading stays radians and loop graphs explicitly convert ns to ms',
   assert.equal(options[3].unit, 'ms');
   assert.deepEqual(scalarSeries([[0, 12000000]], null, options[3].scale), [[0, 12]]);
   assert.deepEqual(scalarSeries([[0, [3, null, NaN]]], 1), [[0, null]]);
+});
+
+test('extremes cover only the window, skip gaps, and keep the earliest tie', () => {
+  const series = [[0, 99], [1, 2], [2, null], [3, 7], [4, -1], [5, 7], [6, -50]];
+  assert.deepEqual(extremes(series, 0.5, 5.5), {min: [4, -1], max: [3, 7]});
+  assert.equal(extremes(series, 2, 2.5), null);
+  assert.equal(extremes([], 0, 1), null);
+});
+
+test('velocity gets a derived speed channel in in/s', () => {
+  const options = channelOptions([{name: 'velocity', type: 'double[]', components: 3}]);
+  const speed = options.find(option => option.key === 'velocity::speed');
+  assert.equal(speed.label, 'velocity / Speed');
+  assert.equal(speed.unit, 'in/s');
+  assert.deepEqual(scalarSeries([[0, [3, -4, 1]], [1, [3, null, 0]]], speed.component), [[0, 5], [1, null]]);
 });
 
 test('channel folders retain complete paths, array components, and prefix collisions', () => {
@@ -271,18 +286,32 @@ test('problem stepping and the problems under the cursor', () => {
   assert.deepEqual(problemsAt(problems, 5), []);
 });
 
-test('match clock follows the driver station: countdown, endgame, and time past the end', () => {
-  const teleop = matchPhases({kind: 'teleop', startSec: 2, autoSec: 30, driverSec: 120, endgameSec: 90});
-  assert.deepEqual(teleop.marks.map(mark => [mark.tSec, mark.label]), [[2, 'start'], [92, 'endgame'], [122, '2:00']]);
+test('match clock follows BIOBUZZ milestones and counts down to the end of teleop', () => {
+  const teleop = matchPhases({kind: 'teleop', startSec: 2, autoSec: 30, driverSec: 120, flowerUnlockSec: 60, finalTwentySec: 100});
+  assert.deepEqual(teleop.marks.map(mark => [mark.tSec, mark.label]),
+    [[2, 'start'], [62, 'FLOWER ownership unlocked'], [102, 'Final 20 seconds'], [122, '2:00']]);
   assert.deepEqual(phaseAt(teleop, 1), {name: 'INIT', clock: ''});
   assert.deepEqual(phaseAt(teleop, 2), {name: 'TELEOP', clock: '2:00 left'});
   assert.deepEqual(phaseAt(teleop, 2.5), {name: 'TELEOP', clock: '2:00 left'});
-  assert.deepEqual(phaseAt(teleop, 95.5), {name: 'ENDGAME', clock: '0:27 left'});
+  assert.deepEqual(phaseAt(teleop, 61.999), {name: 'TELEOP', clock: '1:01 left'});
+  assert.deepEqual(phaseAt(teleop, 62), {name: 'FLOWER OWNERSHIP UNLOCKED', clock: '1:00 left'});
+  assert.deepEqual(phaseAt(teleop, 92), {name: 'FLOWER OWNERSHIP UNLOCKED', clock: '0:30 left'});
+  assert.deepEqual(phaseAt(teleop, 101.999), {name: 'FLOWER OWNERSHIP UNLOCKED', clock: '0:21 left'});
+  assert.deepEqual(phaseAt(teleop, 102), {name: 'FINAL 20 SECONDS', clock: '0:20 left'});
+  assert.deepEqual(phaseAt(teleop, 121.999), {name: 'FINAL 20 SECONDS', clock: '0:01 left'});
+  assert.deepEqual(phaseAt(teleop, 122), {name: 'AFTER MATCH', clock: '+0:00'});
   assert.deepEqual(phaseAt(teleop, 135), {name: 'AFTER MATCH', clock: '+0:13'});
-  const auto = matchPhases({kind: 'auto', startSec: 1, autoSec: 30, driverSec: 120, endgameSec: 90});
+});
+
+test('autonomous and unstarted runs have no teleop milestones', () => {
+  const auto = matchPhases({kind: 'auto', startSec: 1, autoSec: 30, driverSec: 120, flowerUnlockSec: 60, finalTwentySec: 100});
+  assert.deepEqual(auto.marks.map(mark => [mark.tSec, mark.label]), [[1, 'start'], [31, '0:30']]);
+  assert.deepEqual(phaseAt(auto, 1), {name: 'AUTO', clock: '0:30 left'});
   assert.deepEqual(phaseAt(auto, 20), {name: 'AUTO', clock: '0:11 left'});
-  assert.equal(phaseAt(auto, 40).name, 'AFTER AUTO');
+  assert.deepEqual(phaseAt(auto, 31), {name: 'AFTER AUTO', clock: '+0:00'});
+  assert.deepEqual(phaseAt(auto, 40), {name: 'AFTER AUTO', clock: '+0:09'});
   assert.equal(matchPhases({kind: 'teleop', startSec: null}), null);
+  assert.equal(matchPhases(null), null);
 });
 
 test('clicking the field finds every pass near the point and cycles through them', () => {
