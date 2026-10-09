@@ -153,8 +153,8 @@ reduced trail; the coordinate readout always uses the full pose series.
   8 V; readings of 1 V or less are ignored as dead), loops over 50 ms
   (skipping the two startup loops), `<Subsystem>/connected` going false
   after it was true, `Localizer/faulted`, `Drive/odometryFallback`, pose
-  jumps over 3 in between samples, fault events, failed commands, lost
-  command records and a cut-off log end. Spans closer than a second merge
+  jumps over 3 in between samples (not the reset as the op-mode stops),
+  fault events, failed commands, lost command records and a cut-off log end. Spans closer than a second merge
   (battery: five seconds, one per stretch of hard driving); the time listed
   is only the time actually past the threshold, with how many dips merged.
   While on, they

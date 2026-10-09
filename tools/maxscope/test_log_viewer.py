@@ -193,6 +193,11 @@ class ProblemTest(unittest.TestCase):
         self.assertEqual([("Pose jump", "warn", 0.04, 0.04, "4.0 in"),
                           ("Fault event", "fault", 2, 2, "LOCALIZER FAULT: Pinpoint status NOT_READY")], self.kinds(records))
 
+    def test_a_pose_reset_as_the_op_mode_stops_is_not_a_jump(self):
+        records = {"pose": seconds((0, [0.0, 0.0, 0.0]), (5, [10.0, 0.0, 0.0]), (9.995, [80.0, 0.0, 0.0])),
+                   "events": seconds((10, "stop"))}
+        self.assertEqual([("Pose jump", "warn", 5, 5, "10.0 in")], self.kinds(records))
+
     def test_failed_commands_and_cut_off_logs(self):
         report = {"commandFailures": [{"tSec": 3.5, "text": "#2 Lift up: timeout"}], "truncated": True}
         self.assertEqual([("Command failed", "fault", 3.5, 3.5, "#2 Lift up: timeout"),

@@ -52,6 +52,8 @@ BROWNOUT_VOLTS = 8.0
 MIN_VALID_VOLTS = 1.0
 LOOP_SPIKE_MS = 50
 POSE_JUMP_IN = 3.0
+# The last pose before the op-mode's stop event is often a reset, not motion.
+STOP_SETTLE_SEC = 0.1
 MERGE_GAP_SEC = 1.0
 SAG_MERGE_GAP_SEC = 5.0
 STARTUP_LOOPS = 2
@@ -124,12 +126,13 @@ def problems(records, report):
         for start, end, _, active, _ in spans(records.get(name, []), lambda v: v is True):
             add(kind, "fault", start, end, f"for {lasted(active)}")
 
+    stop = next((ts for ts, text in records.get("events", []) if text == "stop"), None)
     previous = None
     for ts, pose in records.get("pose", []):
         valid = isinstance(pose, (list, tuple)) and len(pose) >= 2 and all(map(math.isfinite, pose[:2]))
         if valid and previous:
             jump = math.hypot(pose[0] - previous[0], pose[1] - previous[1])
-            if jump > POSE_JUMP_IN:
+            if jump > POSE_JUMP_IN and not (stop is not None and ts >= stop - STOP_SETTLE_SEC * 1e6):
                 add("Pose jump", "warn", ts, ts, f"{jump:.1f} in")
         previous = pose if valid else None
 
