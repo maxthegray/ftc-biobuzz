@@ -461,7 +461,7 @@ overrides `initialAlliance` only. Start delay on dpad in init, as in the example
 ## Naming op-modes
 
 Currently enabled: Drive Only, Robot Centric Drive, Ball Tracking Test, Limelight AprilTag Test,
-Hive Tag Survey.
+Hive Tag Survey, Fault Drill (throwaway for OPERATIONS.md step 7; delete after the drill).
 AutoTune is a web page, not a Driver Station op-mode. `opmodes/skeletons/` holds `@Disabled` op-modes; keep them disabled unless the
 user asks.
 
