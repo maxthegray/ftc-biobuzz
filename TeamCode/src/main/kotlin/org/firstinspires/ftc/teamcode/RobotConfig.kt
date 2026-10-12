@@ -69,10 +69,13 @@ object RobotConfig {
          * really is. Pedro: (0, 0) at the corner on the audience's left, +X
          * along the audience wall, +Y away from the audience. FTC: origin at
          * the centre, +Y from the red wall to the blue wall. So this is +1 when
-         * the red wall is on the audience's left (DECODE 2025-26, where +X
-         * points at the audience) and −1 when it is on the right (the usual
-         * layout). Display only: paths, start poses and `Alliance` stay in
-         * Pedro's frame. Verify with the axis check in dutchdocs/OPERATIONS.md.
+         * the red wall is on the audience's left (FTC +X then points at the
+         * audience) and −1 when it is on the right (the usual layout).
+         *
+         * BIOBUZZ is +1: the red ALLIANCE AREA is on the left wall (Pedro
+         * x = 0) as seen from the audience (manual Figure 9-17). Display only:
+         * paths, start poses and `Alliance` stay in Pedro's frame. Verify with
+         * the axis check in dutchdocs/OPERATIONS.md.
          */
         const val FIELD_VIEW_QUARTER_TURNS = 1
     }

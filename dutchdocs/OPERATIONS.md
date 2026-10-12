@@ -379,16 +379,16 @@ its inches are read as metres.
 corner on the audience's left, +X runs right along the audience wall, +Y runs
 away from the audience. The FTC frame is fixed by the red wall: +Y points from
 the red wall to the blue wall, and AdvantageScope draws it with the audience
-at the bottom of the screen. In DECODE the red wall is on the audience's left
+at the bottom of the screen. In BIOBUZZ the red wall is on the audience's left
 (the alliances are swapped from the usual layout), so the two frames differ by
 one quarter turn counter-clockwise and the constant is `1`. With the usual
 layout (red on the right) it is `-1`. Set it when the game launches, next to
-`SYMMETRY`. On screen a DECODE log shows Pedro (0, 0) at the bottom-left
+`SYMMETRY`. On screen a BIOBUZZ log shows Pedro (0, 0) at the bottom-left
 corner and heading 0 pointing right; before this rotation existed the robot
 drew at the top-left facing down.
 
 **Verify the axes once on a real field.** Park the robot in Pedro's origin
-corner (audience side, red side in DECODE) facing along the audience wall,
+corner (audience side, red side in BIOBUZZ) facing along the audience wall,
 start a teleop, drive one tile forward. The drawn robot must sit in the
 bottom-left corner pointing right and move right. A quarter-turn error means
 `FIELD_VIEW_QUARTER_TURNS` is wrong for this field; anything else is the
@@ -426,7 +426,7 @@ Three separate levels; passing one says nothing about the next.
      `Drive/*`, `Localizer/*`.
    - Add a **2D Field** tab, pick an FTC field, keep **Center/Rotated**, and
      drag `Field/Robot` on. Scrub the timeline (values are the FTC frame,
-     DECODE quarter turn applied): the robot starts at (0.41, −1.63) m
+     BIOBUZZ quarter turn applied): the robot starts at (0.41, −1.63) m
      facing 90° (Pedro (8, 56) in), near the left wall below the centre
      line with the arrow pointing right; moves to (0.38, −1.32) m; turns to
      120° at (0.56, −1.07) m; and ends at (0.81, 0.46) m facing 180°

@@ -31,7 +31,7 @@ class WpiStructTest {
 
     @Test
     fun aQuarterTurnRotatesAxesAndHeadingTogether() {
-        // DECODE (red wall on the audience's left): +1 quarter turn. Pedro's
+        // BIOBUZZ (red wall on the audience's left): +1 quarter turn. Pedro's
         // origin corner must land at FTC (+X, -Y) with Pedro's +X heading
         // pointing along FTC +Y.
         val corner = encode(0.0, 0.0, 0.0, quarterTurns = 1)

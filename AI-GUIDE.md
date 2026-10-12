@@ -394,7 +394,7 @@ loop keeps running.
   the audience's left, +X along the audience wall) and the FTC frame
   AdvantageScope draws (origin at the centre, +Y from the red wall to the
   blue wall) differ by a quarter turn whose sign depends on which wall is red
-  that season: `RobotConfig.Field.FIELD_VIEW_QUARTER_TURNS` (+1 for DECODE,
+  that season: `RobotConfig.Field.FIELD_VIEW_QUARTER_TURNS` (+1 for BIOBUZZ,
   −1 when red is on the audience's right). `WpiStruct` applies it to the
   field-view channel and nothing else: `pose`, `Constants.java`, autonomous
   start poses and `Alliance` are Pedro's frame and never change for it. A

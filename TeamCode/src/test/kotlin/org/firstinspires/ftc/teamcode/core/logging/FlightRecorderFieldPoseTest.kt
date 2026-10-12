@@ -63,8 +63,8 @@ class FlightRecorderFieldPoseTest {
         val poses = log.structDoubles("Field/Robot")
         assertEquals(2, poses.size)
 
-        // The recorder applies the season's FIELD_VIEW_QUARTER_TURNS (DECODE:
-        // +1, as for BIOBUZZ). A quarter turn CCW puts Pedro (8, 56) at FTC
+        // The recorder applies the season's FIELD_VIEW_QUARTER_TURNS (BIOBUZZ:
+        // +1). A quarter turn CCW puts Pedro (8, 56) at FTC
         // (-(56 - centre), 8 - centre), and Pedro heading 0 at FTC +90°.
         assertEquals(1, RobotConfig.Field.FIELD_VIEW_QUARTER_TURNS)
         assertEquals(-(56.0 - WpiStruct.FIELD_CENTRE_INCHES) * 0.0254, poses[0].second[0], 1e-9)
