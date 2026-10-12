@@ -518,5 +518,5 @@ coverage: an absent command may simply be unlogged.
 ```
 JAVA_HOME="/Users/maximilianreich/Library/Java/JavaVirtualMachines/corretto-17.0.13/Contents/Home" \
   ./gradlew :TeamCode:testDebugUnitTest :TeamCode:assembleDebug
-python3 -m unittest tools/logs/test_analyze_wpilog.py tools/maxscope/test_log_viewer.py tools/maxscope/test_traction.py
+python3 -m unittest tools/logs/test_analyze_wpilog.py tools/maxscope/test_log_viewer.py tools/maxscope/test_traction.py tools/maxscope/test_battery.py
 ```

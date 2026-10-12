@@ -1,0 +1,152 @@
+"""How much the battery sags per amp: the resistance of the battery and its wiring.
+
+The hub reads voltage = resting voltage − resistance × current. The resting
+voltage drifts through a run (a fresh charge settles, a weak battery fades), so
+it is tracked as a rolling median of what the voltage would be with no load,
+and the resistance is the slope of the sag below it against total current.
+
+Current and voltage come from the hubs (`hubs/<hub>/currentAmps` and `volts`,
+read together): everything the hubs power. Older logs only have the drive
+motors' current and the `battery` channel, so other loads go uncounted there.
+"""
+
+import bisect
+import math
+import re
+import statistics
+
+WHEELS = ("leftFront", "rightFront", "leftRear", "rightRear")
+HUB_CURRENT = re.compile(r"^hubs/([^/]+)/currentAmps$")
+# The hub whose voltage is paired with the total; the others are wired further from the battery.
+VOLTAGE_HUB = "control"
+PREFIX = "MaxScope/battery/"
+MIN_VALID_VOLTS = 1.0
+BROWNOUT_VOLTS = 8.0
+# Hubs and motors are read one at a time; a total needs every reading this recent.
+MAX_CURRENT_AGE_US = 300_000
+REST_WINDOW_SEC = 20.0
+REST_GRID_SEC = 1.0
+# The resting voltage depends on the resistance and the resistance on the resting voltage;
+# alternating the two converges on the one pair that agrees.
+FIT_MAX_ITERATIONS = 100
+FIT_TOLERANCE_OHMS = 1e-5
+# A resistance needs real load to measure: this many totals at or above LOADED_AMPS. Fits from
+# light driving still read low, so this errs towards a healthy-looking battery, never an alarm.
+LOADED_AMPS = 10.0
+FIT_MIN_LOADED = 20
+# Typical runs on the sensorbot measure 60-110 mOhm; runs that browned out measured 400+.
+HIGH_RESISTANCE_OHMS = 0.15
+FAULT_RESISTANCE_OHMS = 0.25
+
+
+def finite(value):
+    return isinstance(value, float) and math.isfinite(value)
+
+
+def totals(series):
+    """(ts, source, total amps) at each reading where every source was read recently."""
+    samples = sorted((ts, name, amps) for name, points in series.items() for ts, amps in points if finite(amps))
+    latest, result = {}, []
+    for ts, name, amps in samples:
+        latest[name] = (ts, amps)
+        if len(latest) == len(series) and all(ts - t <= MAX_CURRENT_AGE_US for t, _ in latest.values()):
+            result.append((ts, name, sum(a for _, a in latest.values())))
+    return result
+
+
+def hub_rows(records):
+    """(ts, total amps, volts) at each reading of the voltage hub, from the hubs' own readings."""
+    hubs = sorted(m.group(1) for m in map(HUB_CURRENT.match, records) if m)
+    if not hubs:
+        return []
+    main = VOLTAGE_HUB if VOLTAGE_HUB in hubs else hubs[0]
+    volts = dict(records.get(f"hubs/{main}/volts", []))
+    return [(ts, amps, volts[ts]) for ts, hub, amps in totals({h: records[f"hubs/{h}/currentAmps"] for h in hubs})
+            if hub == main and finite(volts.get(ts)) and volts[ts] > MIN_VALID_VOLTS]
+
+
+def drive_rows(records):
+    """(ts, total drive amps, volts) for logs without hub readings: the four drive motors'
+    current, each paired with the latest `battery` reading."""
+    battery = [(ts, v) for ts, v in records.get("battery", []) if finite(v) and v > MIN_VALID_VOLTS]
+    battery_ts = [ts for ts, _ in battery]
+    rows = []
+    for ts, _, amps in totals({w: records.get(f"Drive/motors/{w}/currentAmps", []) for w in WHEELS}):
+        i = bisect.bisect_right(battery_ts, ts) - 1
+        if i >= 0:
+            rows.append((ts, amps, battery[i][1]))
+    return rows
+
+
+def rolling_rest(rows, resistance):
+    """Resting voltage at each row: the rolling median of voltage + resistance × current,
+    evaluated on a coarse grid and interpolated, so long runs stay fast."""
+    times = [ts for ts, _, _ in rows]
+    unloaded = [v + resistance * amps for _, amps, v in rows]
+    half, step = REST_WINDOW_SEC * 1e6 / 2, REST_GRID_SEC * 1e6
+    grid, values = [], []
+    t = times[0]
+    while t <= times[-1] + step:
+        lo, hi = bisect.bisect_left(times, t - half), bisect.bisect_right(times, t + half)
+        if hi > lo:
+            grid.append(t)
+            values.append(statistics.median(unloaded[lo:hi]))
+        t += step
+    rest = []
+    for ts in times:
+        i = bisect.bisect_right(grid, ts)
+        if i == 0 or i == len(grid):
+            rest.append(values[0] if i == 0 else values[-1])
+        else:
+            f = (ts - grid[i - 1]) / (grid[i] - grid[i - 1])
+            rest.append(values[i - 1] + f * (values[i] - values[i - 1]))
+    return rest
+
+
+def analyze(records):
+    """Derived channels (name -> (type, series)) and the fit, or ({}, None) without current logs."""
+    rows, source = hub_rows(records), "hubs"
+    if not rows:
+        rows, source = drive_rows(records), "drive motors"
+    if not rows:
+        return {}, None
+    channels = {PREFIX + "currentAmps": ("double", [(ts, amps) for ts, amps, _ in rows])}
+    if sum(amps >= LOADED_AMPS for _, amps, _ in rows) < FIT_MIN_LOADED:
+        return channels, {"ok": False, "source": source, "reason": "not enough driving load to measure"}
+
+    resistance = 0.0
+    for _ in range(FIT_MAX_ITERATIONS):
+        rest = rolling_rest(rows, resistance)
+        previous = resistance
+        resistance = sum(a * (r - v) for (_, a, v), r in zip(rows, rest)) / sum(a * a for _, a, _ in rows)
+        if abs(resistance - previous) < FIT_TOLERANCE_OHMS:
+            break
+    rest = rolling_rest(rows, resistance)
+    channels[PREFIX + "restingVolts"] = ("double", [(ts, r) for (ts, _, _), r in zip(rows, rest)])
+    lowest_rest = min(rest)
+    voltages = [(ts, v) for ts, v in records.get("battery", []) if finite(v) and v > MIN_VALID_VOLTS]
+    low_ts, low_v = min(voltages or [(ts, v) for ts, _, v in rows], key=lambda point: point[1])
+    return channels, {
+        "ok": True,
+        "source": source,
+        "resistanceOhms": resistance,
+        "restingStartVolts": rest[0],
+        "restingEndVolts": rest[-1],
+        # Total current at which the weakest resting voltage of the run would sag to brownout.
+        "headroomAmps": (lowest_rest - BROWNOUT_VOLTS) / resistance if resistance > 0 else None,
+        "lowestVolts": low_v,
+        "lowestAtUs": low_ts,
+    }
+
+
+def problems(fit):
+    """(kind, severity, ts, detail) when the battery and wiring resist more than usual."""
+    if not fit or not fit["ok"] or fit["resistanceOhms"] < HIGH_RESISTANCE_OHMS:
+        return []
+    ohms = fit["resistanceOhms"]
+    headroom = fit["headroomAmps"]
+    detail = (f"{ohms * 1000:.0f} mΩ battery + wiring (usually 60–110) · lowest {fit['lowestVolts']:.2f} V"
+              + (f" · {BROWNOUT_VOLTS:.0f} V at ~{headroom:.0f} A" if headroom is not None else "")
+              + " · check the battery, its connector and the power switch")
+    severity = "fault" if ohms >= FAULT_RESISTANCE_OHMS else "warn"
+    return [("High battery resistance", severity, fit["lowestAtUs"], detail)]

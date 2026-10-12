@@ -172,7 +172,7 @@ reduced trail; the coordinate readout always uses the full pose series.
   after it was true, `Localizer/faulted`, `Drive/odometryFallback`, pose
   jumps over 3 in between samples (not the reset as the op-mode stops),
   fault events, failed commands, lost command records, a cut-off log end,
-  and traction (see **Traction**). Spans closer than a second merge
+  battery resistance (see **Battery**) and traction (see **Traction**). Spans closer than a second merge
   (battery: five seconds, one per stretch of hard driving); the time listed
   is only the time actually past the threshold, with how many dips merged.
   While on, they
@@ -222,6 +222,39 @@ reduced trail; the coordinate readout always uses the full pose series.
   more RAM than their on-disk size. Playback channels and selected graphs
   are transferred in full; this is not a streaming large-log database.
 - Run dates come from the filename's hub clock, which may be wrong.
+
+## Battery
+
+`battery.py` measures how much the battery sags per amp: the resistance of the
+battery, its connector, the power switch and the wiring together. The hub
+reads resting voltage − resistance × current.
+
+- Current and voltage come from each hub's own reading (`hubs/<hub>/currentAmps`
+  and `hubs/<hub>/volts`, read back to back): everything the hubs power,
+  mechanisms included. The hubs' currents are summed (each read within 300 ms)
+  against the Control Hub's voltage.
+- Older logs only have the drive motors' current, one motor at a time, and a
+  `battery` reading every 250 ms. There the total needs all four motors read
+  within 300 ms, other mechanisms go uncounted (one that runs while driving
+  reads as extra resistance), and the timing mismatch makes the fit read low.
+  The tile says "drive motors only".
+- The resting voltage (what the battery would read with no load) is a 20 s
+  rolling median, so a fresh charge settling or a weak battery fading during
+  the run doesn't bias the fit. Resistance and resting voltage are refined
+  together until they agree.
+- It needs at least 20 totals of 10 A or more; lighter runs say "not enough
+  driving load to measure". Light runs that just pass still read low, never
+  high.
+- The **Battery resistance** tile in the run summary shows it in mΩ, with
+  the total current that would sag the run's lowest resting voltage to 8 V
+  (brownout, an estimate). Overlaid runs show theirs, so runs on different
+  batteries can be compared.
+- Derived channels: `MaxScope/battery/currentAmps` and
+  `MaxScope/battery/restingVolts` (graph it with `battery` to see the sag).
+- **Find problems** reports **High battery resistance** at the run's lowest
+  voltage from 150 mΩ (a fault from 250 mΩ). Sensorbot runs (drive motors
+  only) measured 60–110 mΩ ordinarily and 400–535 mΩ on the runs that sagged
+  to 5–6 V and cut off. Not yet checked against a meter.
 
 ## Traction (wheels vs Pinpoint)
 
@@ -276,7 +309,7 @@ only to `127.0.0.1`, exposes an allowlist of assets, and accepts same-origin
 local requests. No cloud hosting or build step is needed.
 
 ```sh
-python3 -m unittest tools/logs/test_analyze_wpilog.py tools/maxscope/test_log_viewer.py tools/maxscope/test_traction.py
+python3 -m unittest tools/logs/test_analyze_wpilog.py tools/maxscope/test_log_viewer.py tools/maxscope/test_traction.py tools/maxscope/test_battery.py
 node --test tools/maxscope/viewer/core.test.mjs
 ```
 

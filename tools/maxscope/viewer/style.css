@@ -521,7 +521,7 @@ h2 {
 
 .metrics {
   display: grid;
-  grid-template-columns: repeat(4,1fr);
+  grid-template-columns: repeat(5,1fr);
   background: var(--surface);
   overflow: hidden;
   margin: 0;
@@ -1508,8 +1508,16 @@ canvas {
     grid-template-columns: repeat(2,1fr);
   }
 
-  .metric:nth-child(-n+2) {
+  .metric:nth-child(-n+4) {
     border-bottom: 1px solid var(--line);
+  }
+
+  .metric:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .metric:last-child {
+    grid-column: 1 / -1;
   }
 }
 

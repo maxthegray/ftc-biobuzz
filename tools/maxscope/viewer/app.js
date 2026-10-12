@@ -176,12 +176,23 @@ async function openRun(id) {
   }
 }
 
+// Battery and wiring resistance from tools/maxscope/battery.py; '—' when it couldn't be measured.
+const resistance = report => report.batteryModel?.ok ? fmt(report.batteryModel.resistanceOhms * 1000, 0) : '—';
+
+function resistanceDetail(model) {
+  if (!model) return 'No current logged';
+  if (!model.ok) return model.reason;
+  const headroom = finite(model.headroomAmps) ? `8 V brownout at ~${fmt(model.headroomAmps, 0)} A` : '';
+  return model.source === 'drive motors' ? [headroom, 'drive motors only'].filter(Boolean).join(' · ') : headroom;
+}
+
 function renderMetrics() {
   const report = state.run.report;
   const faults = (events = []) => events.filter(event => faultPattern.test(event.text)).length;
   const metrics = [
     ['RUN LENGTH', fmt(state.run.endSec, 1), 's', `${(report.recordCount || 0).toLocaleString()} records`, run => fmt(run.endSec, 1)],
     ['BATTERY MINIMUM', fmt(report.battery?.minV), 'V', `Start ${fmt(report.battery?.startV)} V`, run => fmt(run.report.battery?.minV)],
+    ['BATTERY RESISTANCE', resistance(report), 'mΩ', resistanceDetail(report.batteryModel), run => resistance(run.report)],
     ['LOOP P99', fmt(report.loop?.p99Ms), 'ms', `Peak ${fmt(report.loop?.maxMs)} ms`, run => fmt(run.report.loop?.p99Ms)],
     ['FAULT EVENTS', String(faults(report.events)), '', `${state.run.channels.length} recorded channels`, run => String(faults(run.report.events))],
   ];

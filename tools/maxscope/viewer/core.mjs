@@ -214,7 +214,7 @@ export function channelOptions(channels) {
       if (name === 'pose') unit = component === 2 ? 'rad' : 'in';
       else if (name === 'velocity' || name.startsWith('MaxScope/traction/')) unit = component === 2 ? 'rad/s' : 'in/s';
       else if (name.startsWith('loop/') && name.endsWith('Nanos')) { unit = 'ms'; scale = 1e-6; }
-      else if (name === 'battery') unit = 'V';
+      else if (name === 'battery' || name.endsWith('Volts') || name.endsWith('/volts')) unit = 'V';
       else if (name.endsWith('Amps')) unit = 'A';
       else if (/Rad$/.test(name)) unit = 'rad';
       else if (/In$/.test(name)) unit = 'in';

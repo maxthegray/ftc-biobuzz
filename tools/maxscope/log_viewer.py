@@ -19,6 +19,7 @@ from urllib.parse import parse_qs, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "logs"))
 import analyze_wpilog  # noqa: E402
+import battery  # noqa: E402
 import traction  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -50,7 +51,7 @@ def camera_channels(records):
 # Problem thresholds. The robot's own LOOP OVERRUN event fires at 100 ms; 50 ms is already a
 # missed control update. 9.5 V matches analyze_wpilog's sag warning; under 8 V risks a brownout.
 SAG_VOLTS = 9.5
-BROWNOUT_VOLTS = 8.0
+BROWNOUT_VOLTS = battery.BROWNOUT_VOLTS
 MIN_VALID_VOLTS = 1.0
 LOOP_SPIKE_MS = 50
 POSE_JUMP_IN = 3.0
@@ -101,9 +102,9 @@ def problems(records, report):
         found.append({"kind": kind, "severity": severity, "startSec": start_us / 1e6,
                       "endSec": end_us / 1e6, "detail": detail})
 
-    battery = [(ts, v) for ts, v in records.get("battery", []) if isinstance(v, float) and v > MIN_VALID_VOLTS]
+    volts = [(ts, v) for ts, v in records.get("battery", []) if isinstance(v, float) and v > MIN_VALID_VOLTS]
     # Sag comes in bursts with each hard acceleration; one span per stretch of hard driving.
-    for start, end, values, active, dips in spans(battery, lambda v: v < SAG_VOLTS, SAG_MERGE_GAP_SEC * 1e6):
+    for start, end, values, active, dips in spans(volts, lambda v: v < SAG_VOLTS, SAG_MERGE_GAP_SEC * 1e6):
         low = min(values)
         add("Battery sag", "fault" if low < BROWNOUT_VOLTS else "warn", start, end,
             f"min {low:.2f} V · {lasted(active)} under {SAG_VOLTS} V" + (f" in {dips} dips" if dips > 1 else ""))
@@ -143,6 +144,9 @@ def problems(records, report):
     for ts, text in records.get("events", []):
         if FAULT_EVENT.search(text) and not (skip_overruns and text.startswith("LOOP OVERRUN")):
             add("Fault event", "fault", ts, ts, text)
+
+    for kind, severity, at, detail in battery.problems(report.get("batteryModel")):
+        add(kind, severity, at, at, detail)
 
     for kind, start, end, detail in traction.problems(records, report.get("traction")):
         add(kind, "warn", start, end, detail)
@@ -332,6 +336,8 @@ class LogLibrary:
         raw = analyze_wpilog.build_report(records, types, self.names[ident], truncated)
         # Derived after the report, so the analyzer's own summary only describes recorded channels.
         derived, raw["traction"] = traction.analyze(records)
+        battery_channels, raw["batteryModel"] = battery.analyze(records)
+        derived.update(battery_channels)
         for name, (kind, series) in derived.items():
             records[name] = series
             types[name] = kind
@@ -343,6 +349,7 @@ class LogLibrary:
                                 for ts, value in records.get("events", [])]
             report["commandExecutions"], _ = analyze_wpilog.command_executions(records)
             report["traction"] = raw["traction"]
+            report["batteryModel"] = raw["batteryModel"]
         self.cache[ident] = records, types, report, raw
         return self.cache[ident]
 

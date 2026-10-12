@@ -125,6 +125,16 @@ test('traction channels read in in/s, turn in rad/s', () => {
   assert.equal(options.find(option => option.name === 'MaxScope/traction/mismatchInPerS').unit, 'in/s');
 });
 
+test('battery and hub channels read in volts and amps', () => {
+  const options = channelOptions([
+    {name: 'MaxScope/battery/restingVolts', type: 'double'},
+    {name: 'MaxScope/battery/currentAmps', type: 'double'},
+    {name: 'hubs/control/volts', type: 'double'},
+    {name: 'hubs/control/currentAmps', type: 'double'},
+  ]);
+  assert.deepEqual(options.map(option => option.unit), ['V', 'A', 'V', 'A']);
+});
+
 test('channel folders retain complete paths, array components, and prefix collisions', () => {
   const options = channelOptions([
     {name: 'Drive/motors/leftFront/power', type: 'double'},
