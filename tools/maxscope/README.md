@@ -172,7 +172,7 @@ reduced trail; the coordinate readout always uses the full pose series.
   after it was true, `Localizer/faulted`, `Drive/odometryFallback`, pose
   jumps over 3 in between samples (not the reset as the op-mode stops),
   fault events, failed commands, lost command records, a cut-off log end,
-  battery resistance (see **Battery**) and traction (see **Traction**). Spans closer than a second merge
+  and traction (see **Traction**). Spans closer than a second merge
   (battery: five seconds, one per stretch of hard driving); the time listed
   is only the time actually past the threshold, with how many dips merged.
   While on, they
@@ -229,10 +229,12 @@ reduced trail; the coordinate readout always uses the full pose series.
 battery, its connector, the power switch and the wiring together. The hub
 reads resting voltage − resistance × current.
 
-- Current and voltage come from each hub's own reading (`hubs/<hub>/currentAmps`
-  and `hubs/<hub>/volts`, read back to back): everything the hubs power,
-  mechanisms included. The hubs' currents are summed (each read within 300 ms)
-  against the Control Hub's voltage.
+- Current and voltage come from the Control Hub's own reading
+  (`hubs/control/currentAmps` and `hubs/control/volts`, read back to back):
+  everything it powers, mechanisms included. Expansion Hub readings are left
+  out: it's unchecked whether the Control Hub's reading includes the power it
+  passes through to them. If it doesn't, Expansion Hub loads that run while
+  driving read as extra resistance.
 - Older logs only have the drive motors' current, one motor at a time, and a
   `battery` reading every 250 ms. There the total needs all four motors read
   within 300 ms, other mechanisms go uncounted (one that runs while driving
@@ -251,10 +253,10 @@ reads resting voltage − resistance × current.
   batteries can be compared.
 - Derived channels: `MaxScope/battery/currentAmps` and
   `MaxScope/battery/restingVolts` (graph it with `battery` to see the sag).
-- **Find problems** reports **High battery resistance** at the run's lowest
-  voltage from 150 mΩ (a fault from 250 mΩ). Sensorbot runs (drive motors
-  only) measured 60–110 mΩ ordinarily and 400–535 mΩ on the runs that sagged
-  to 5–6 V and cut off. Not yet checked against a meter.
+- There is no problem rule for it: what's normal depends on the battery,
+  wiring and robot, so compare runs (overlays) instead. For reference,
+  sensorbot runs (drive motors only) measured 60–110 mΩ ordinarily and
+  400–535 mΩ on the runs that sagged to 5–6 V and cut off.
 
 ## Traction (wheels vs Pinpoint)
 

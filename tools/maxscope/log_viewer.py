@@ -145,9 +145,6 @@ def problems(records, report):
         if FAULT_EVENT.search(text) and not (skip_overruns and text.startswith("LOOP OVERRUN")):
             add("Fault event", "fault", ts, ts, text)
 
-    for kind, severity, at, detail in battery.problems(report.get("batteryModel")):
-        add(kind, severity, at, at, detail)
-
     for kind, start, end, detail in traction.problems(records, report.get("traction")):
         add(kind, "warn", start, end, detail)
 

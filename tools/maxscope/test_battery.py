@@ -5,7 +5,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import battery
-from log_viewer import problems
 
 TICK_US = 10_000
 WHEELS = battery.WHEELS
@@ -67,44 +66,22 @@ class BatteryTest(unittest.TestCase):
         self.assertEqual("drive motors", drive_only["source"])
         self.assertGreater(drive_only["resistanceOhms"], 0.11)
 
-    def test_hubs_are_summed_against_the_control_hubs_voltage(self):
+    def test_only_the_control_hub_is_used(self):
         records = run(ohms=0.09, hubs=("control", "expansion2"), other_amps=12.0)
         rows = battery.hub_rows(records)
+        control = dict(records["hubs/control/currentAmps"])
         control_volts = dict(records["hubs/control/volts"])
-        self.assertTrue(rows)
-        self.assertTrue(all(control_volts[ts] == v for ts, _, v in rows))
-        _, fit = battery.analyze(records)
-        self.assertAlmostEqual(fit["resistanceOhms"], 0.09, delta=0.009)
+        self.assertEqual(len(control), len(rows))
+        self.assertTrue(all(control[ts] == a and control_volts[ts] == v for ts, a, v in rows))
 
     def test_light_driving_reports_no_resistance(self):
         channels, fit = battery.analyze(run(peak_amps=1.5))
         self.assertFalse(fit["ok"])
         self.assertEqual({battery.PREFIX + "currentAmps"}, set(channels))
-        self.assertEqual([], battery.problems(fit))
-
-    def test_healthy_and_failing_batteries(self):
-        self.assertEqual([], battery.problems(battery.analyze(run(ohms=0.09))[1]))
-        # Like the runs that browned out: about 15 A sagging a charged battery to 5-6 V.
-        records = run(ohms=0.45, peak_amps=4.0)
-        _, fit = battery.analyze(records)
-        self.assertGreater(min(v for _, v in records["battery"]), 4.0)
-        [(kind, severity, at, detail)] = battery.problems(fit)
-        self.assertEqual(("High battery resistance", "fault"), (kind, severity))
-        self.assertEqual(min(records["battery"], key=lambda p: p[1])[0], at)
-        self.assertRegex(detail, r"^4[45]\d mΩ battery")
-        _, fit = battery.analyze(run(ohms=0.18))
-        self.assertEqual("warn", battery.problems(fit)[0][1])
-
-    def test_problems_scan_includes_the_battery_model(self):
-        records = run(ohms=0.45, peak_amps=4.0)
-        _, fit = battery.analyze(records)
-        found, _ = problems(records, {"batteryModel": fit})
-        self.assertIn("High battery resistance", [p["kind"] for p in found])
 
     def test_logs_without_motor_current_add_nothing(self):
         records = {"battery": run()["battery"]}
         self.assertEqual(({}, None), battery.analyze(records))
-        self.assertEqual([], battery.problems(None))
 
 
 if __name__ == "__main__":
