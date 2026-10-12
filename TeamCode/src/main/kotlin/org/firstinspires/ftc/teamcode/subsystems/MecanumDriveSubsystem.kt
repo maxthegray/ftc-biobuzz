@@ -354,10 +354,11 @@ class MecanumDriveSubsystem(
     /**
      * getCurrent() is a real Lynx transaction, not bulk-cache backed, so one
      * motor is sampled every [CURRENT_SAMPLE_INTERVAL_NS] round-robin (each
-     * motor refreshes about every 100 ms).
+     * motor refreshes about every 800 ms). The battery analysis uses the hubs'
+     * total current instead; this only shows which motor draws what. A sample
+     * stays pending until [logState] writes it, since the recorder skips ticks.
      */
     private fun sampleNextCurrent() {
-        sampledCurrentIndex = -1
         if (motors.isEmpty()) return
         val now = clock.nanos()
         if (lastCurrentSampleNs != Long.MIN_VALUE && now - lastCurrentSampleNs < CURRENT_SAMPLE_INTERVAL_NS) return
@@ -394,7 +395,10 @@ class MecanumDriveSubsystem(
         log.put("motors/power", commandedPower)
         log.put("motors/velocityTps", wheelVelocity)
         val index = sampledCurrentIndex
-        if (index >= 0) log.put("motors/${MOTOR_NAMES[index].first}/currentAmps", sampledCurrentAmps)
+        if (index >= 0) {
+            log.put("motors/${MOTOR_NAMES[index].first}/currentAmps", sampledCurrentAmps)
+            sampledCurrentIndex = -1
+        }
     }
 
     override fun writeHardware() {
@@ -442,7 +446,7 @@ class MecanumDriveSubsystem(
             "leftRear" to RobotConfig.Drive.BACK_LEFT_MOTOR,
             "rightRear" to RobotConfig.Drive.BACK_RIGHT_MOTOR,
         )
-        const val CURRENT_SAMPLE_INTERVAL_NS = 25_000_000L
+        const val CURRENT_SAMPLE_INTERVAL_NS = 200_000_000L
         const val DEFAULT_HOLD_TIMEOUT_MS = 2_000.0
     }
 }

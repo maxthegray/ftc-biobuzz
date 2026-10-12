@@ -97,6 +97,8 @@ class FlightRecorder private constructor(
     }
     private val followTranslationalError = writer.startEntry("follow/translationalErrorIn", "double")
     private val followHeadingError = writer.startEntry("follow/headingErrorRad", "double")
+    /** `[currentAmps, volts]` entries per hub label, created at the hub's first reading. */
+    private val hubEntries = HashMap<String, IntArray>()
 
     // Subsystem channels (SubsystemBase.logState) are created lazily on first
     // put and cached by full name. One reusable sink instance — no per-tick
@@ -218,6 +220,18 @@ class FlightRecorder private constructor(
             resetTimingWindow()
             batteryVoltage()?.takeIf { it.isFinite() }?.let {
                 writer.appendDouble(battery, it, ts)
+            }
+            for (reading in robot.hubPower.readings) {
+                if (!reading.unlogged) continue
+                reading.unlogged = false
+                val entries = hubEntries.getOrPut(reading.label) {
+                    intArrayOf(
+                        writer.startEntry("hubs/${reading.label}/currentAmps", "double"),
+                        writer.startEntry("hubs/${reading.label}/volts", "double"),
+                    )
+                }
+                writer.appendDouble(entries[0], reading.amps, ts)
+                writer.appendDouble(entries[1], reading.volts, ts)
             }
 
             subsystemSink.timestampUs = ts

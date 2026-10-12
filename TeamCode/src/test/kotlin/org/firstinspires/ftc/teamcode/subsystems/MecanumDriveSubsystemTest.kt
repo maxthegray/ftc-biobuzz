@@ -266,12 +266,25 @@ class MecanumDriveSubsystemTest {
         h.drive.logState(log)
         assertTrue(log.channels.containsKey("motors/leftFront/currentAmps"))
         log.channels.clear()
-        h.tick(10.0)
+        h.tick(100.0)
         h.drive.logState(log)
         assertFalse(log.channels.keys.any { it.endsWith("currentAmps") })
-        h.tick(30.0)
+        h.tick(100.0)
         h.drive.logState(log)
         assertTrue(log.channels.containsKey("motors/rightFront/currentAmps"))
+    }
+
+    @Test
+    fun aCurrentSampleWaitsForTheRecorderAndIsLoggedOnce() {
+        val h = Harness()
+        val log = RecordingStateLog()
+        h.tick()
+        h.tick(10.0)
+        h.drive.logState(log)
+        assertTrue(log.channels.containsKey("motors/leftFront/currentAmps"))
+        log.channels.clear()
+        h.drive.logState(log)
+        assertFalse(log.channels.keys.any { it.endsWith("currentAmps") })
     }
 
     private class RecordingStateLog : StateLog {

@@ -311,11 +311,12 @@ reload never run.
 | `follow/translationalErrorIn`, `follow/headingErrorRad` | double | Foresight errors, only while following/holding |
 | `gamepad1/axes`, `gamepad2/axes` | `double[]` | `[lx, ly(+up), rx, ry(+up), L2, R2]` after deadband |
 | `gamepad1/buttons`, `gamepad2/buttons` | int64 | bits: Cross Circle Square Triangle L1 R1 up down left right Options Create L3 R3 Touchpad |
-| `battery` | double | volts |
+| `battery` | double | volts: the Control Hub's from `Robot.hubPower`, else the voltage sensor every 250 ms |
 | `loop/totalNanos`, `loop/<phase>Nanos`, `loop/windowMax…` | int64 | loop timing and per-window peaks |
 | `<Subsystem>/…` | any | `SubsystemBase.logState` channels |
 | `Drive/motors/power`, `Drive/motors/velocityTps` | `double[]` | every tick, `[leftFront, rightFront, leftRear, rightRear]` (Pedro's mixer order): the power Pedro commanded (0 once the drivetrain stops) and the encoder velocity in ticks/s from the bulk read |
-| `Drive/motors/<wheel>/currentAmps` | double | one motor sampled every 25 ms round-robin (≈10 Hz each); `getCurrent` is a real Lynx transaction |
+| `Drive/motors/<wheel>/currentAmps` | double | one motor sampled every 200 ms round-robin (each every 800 ms), logged once at the next sample; `getCurrent` is a real Lynx transaction |
+| `hubs/<hub>/currentAmps`, `hubs/<hub>/volts` | double | `<hub>` is `control` or `expansion<address>`: each hub's input current and voltage, read back to back by `Robot.hubPower`, one hub every 50 ms round-robin, logged once at the next sample. Counts everything the hub powers; MaxScope's battery analysis uses it. The Control Hub's voltage also feeds `battery` |
 | `BallCamera/candidates/…` | `double[]` | every blob that passed the filters in the current frame, largest first: `xPx`, `yPx`, `radiusPx`, `areaPx`, `circularity`, `horizontalDeg`, `verticalDeg` (+ below the axis), and `selectedIndex` (0, or −1 when none) |
 | `BallCamera/mount/…` | double/boolean | `BallCamera.mount*` as recorded: `measured`, `heightIn`, `pitchDownDeg`, `forwardIn`, `leftIn`, `yawDeg` |
 | `Hive/<RED\|BLUE>/…` | mixed | `state` (`AUDIENCE_RAISED`, `FAR_RAISED`, `UNKNOWN`), `stateAssumed`, `tipCount`, and the goal: `visible`, `cell`, `turretBearingDeg`, `robotBearingDeg`, `distanceIn` (horizontal, from the turret axis), `heightIn`, `spreadIn`, `ageMs` (since estimated capture), `tagIds`, `reprojected`; the aim goal: `aimSource` (`VISION`/`ODOMETRY`), `aimTurretBearingDeg`, `aimRobotBearingDeg`; `fieldGoalErrorIn` (vision goal vs `HiveField`) |

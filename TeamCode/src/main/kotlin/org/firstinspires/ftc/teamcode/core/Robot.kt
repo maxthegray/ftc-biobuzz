@@ -15,6 +15,7 @@ import org.firstinspires.ftc.teamcode.core.logging.FlightRecorder
  *
  *  - Owns the list of [SubsystemBase]s and their lifecycle
  *  - Puts every Lynx module in MANUAL bulk caching and clears the cache once per tick
+ *  - Samples each hub's input current and voltage ([hubPower])
  *  - Runs Ivy's static [Scheduler] at a fixed point in the loop, and resets it
  *    on construction and stop so no command outlives its op-mode
  *  - Owns the optional [FlightRecorder]
@@ -28,6 +29,10 @@ class Robot(
 
     private val subsystems = mutableListOf<SubsystemBase>()
     private var hubs: List<LynxModule> = emptyList()
+
+    /** Hub input current and voltage, read in the periodic phase; empty until [init]. */
+    var hubPower = HubPower(emptyList(), clock)
+        internal set
 
     var alliance: Alliance = Alliance.RED
 
@@ -128,6 +133,7 @@ class Robot(
         initialized = true
         hubs = hardwareMap.getAll(LynxModule::class.java)
         for (hub in hubs) hub.bulkCachingMode = LynxModule.BulkCachingMode.MANUAL
+        hubPower = HubPower.of(hubs, clock)
         for (s in subsystems) s.init(hardwareMap)
     }
 
@@ -140,7 +146,7 @@ class Robot(
     /**
      * One main-loop tick. The order is fixed:
      *  1. Clear Lynx bulk caches so all reads this tick return fresh data
-     *  2. [SubsystemBase.periodic] — reads and state updates
+     *  2. [hubPower] sample, then [SubsystemBase.periodic] — reads and state updates
      *  3. [input] — gamepad edges and trigger bindings
      *  4. [control] — the op-mode's `onLoop()`
      *  5. Default commands, then [Scheduler.execute] — commands decide targets
@@ -166,6 +172,7 @@ class Robot(
         clearBulkCaches()
         phaseStart = mark(phaseStart, LoopPhase.CLEAR_CACHES)
 
+        hubPower.sample()
         for (s in subsystems) s.periodic()
         phaseStart = mark(phaseStart, LoopPhase.PERIODIC)
 
@@ -229,6 +236,7 @@ class Robot(
      */
     fun initTick() {
         clearBulkCaches()
+        hubPower.sample()
         for (s in subsystems) s.initPeriodic()
     }
 

@@ -113,8 +113,17 @@ abstract class OpModeBase : LinearOpMode() {
         null
     }
 
-    /** Battery voltage, throttled to one read per 250 ms; runs regardless of telemetry flags. */
+    /**
+     * Battery voltage: the Control Hub's from [Robot.hubPower], which reads it
+     * anyway; otherwise the voltage sensor, throttled to one read per 250 ms.
+     * Runs regardless of telemetry flags.
+     */
     private fun refreshVoltage() {
+        val hubVolts = robot.hubPower.batteryVolts
+        if (hubVolts.isFinite()) {
+            cachedVoltage = hubVolts
+            return
+        }
         val sensor = voltageSensor ?: return
         val now = System.nanoTime()
         if (!cachedVoltage.isNaN() && lastVoltageReadNs != Long.MIN_VALUE && now - lastVoltageReadNs < 250_000_000L) {
