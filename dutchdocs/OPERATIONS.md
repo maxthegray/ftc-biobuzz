@@ -485,12 +485,13 @@ Everything below is unverified on hardware after the Ivy / Pedro 3 migration.
 Record results in `PROGRESS.md`.
 
 **Install and reload**
-- [ ] Full APK install succeeds; Driver Station shows Drive Only, Ball Tracking
-      Test, Limelight AprilTag Test, Hive Tag Survey (no Pedro Tuning op-mode).
+- [ ] Full APK install succeeds; Driver Station shows Drive Only, Robot Centric
+      Drive, Ball Tracking Test, Limelight AprilTag Test, Hive Tag Survey (no Pedro
+      Tuning op-mode).
 - [ ] AutoTune page loads at `http://192.168.43.1:10158` and lists Mecanum
       Tuner, Pinpoint Tuner, Foresight Tuner and Tests (Sloth 0.2.4 runtime).
-- [ ] Panels loads at `:8001`; a `DriveConfig` edit applies live and survives
-      an op-mode restart and a power cycle.
+- [ ] Panels loads at `:8001`; a `DriveConfig` edit applies live and goes back
+      to the code's value when the op-mode restarts.
 - [ ] `make hot` after a small TeamCode edit: change takes effect, Panels still
       edits the reloaded values, AutoTune still lists procedures.
 - [ ] Run Drive Only, stop, run it again three times, then an autonomous and a
