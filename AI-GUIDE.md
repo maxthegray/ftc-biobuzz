@@ -288,7 +288,7 @@ Use the Sloth-compatible `com.bylazar.sloth:fullpanels` artifact; plain
 
 Tunables are `@Configurable` objects with plain `@JvmField var`s initialised
 in code (`@JvmField var targetRpm = 3200.0`). Panels edits them live; nothing
-is persisted, so an app restart or Sloth reload restores the code's values and
+is persisted, so an op-mode restart, app restart or Sloth reload restores the code's values and
 the code is the only source of tuning. No `DEFAULT_*` constants, reset
 functions or clamping getters. `DriveConfig.brakeOnTeleop` is copied into Pedro's `manualBrakeMode` when the
 follower is created (next init).

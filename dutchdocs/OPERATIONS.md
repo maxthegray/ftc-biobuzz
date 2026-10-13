@@ -217,9 +217,9 @@ its front, and `mountMeasured` once the numbers are real. Nothing on the robot
 uses them; they are logged every tick so MaxScope can place detections on the
 field. Re-measure after moving the camera.
 
-**Panels edits are not saved.** They last until the app restarts or a hot
-reload. Copy values worth keeping into the config object before either; the
-flight log (MaxScope) shows every value you changed.
+**Panels edits are not saved.** They last until the op-mode stops. Copy
+values worth keeping into the config object before then; the flight log
+(MaxScope) shows every value you changed.
 
 **Frame age.** The SDK processor publishes no capture timestamp, so *frame
 age* is robot-clock time since the latest new frame reached the loop.
