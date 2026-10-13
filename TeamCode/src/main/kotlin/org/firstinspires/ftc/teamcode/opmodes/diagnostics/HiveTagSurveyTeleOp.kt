@@ -72,7 +72,6 @@ class HiveTagSurveyTeleOp : OpModeBase() {
         }
         if (hive.newFrameThisTick) hive.lastFrameCaptureNanos?.let { survey.record(hive, it) }
 
-        VisionDiagnostics.restartSection(telemetryBag, startup, null)
         VisionDiagnostics.limelightSections(telemetryBag, limelight, sightings, now, detailed = false)
         telemetryBag.section("Survey Setup") {
             put("mount", if (HiveConfig.mountMeasured) "measured" else "NOT MEASURED: heights and raised/lowered are meaningless")

@@ -56,7 +56,6 @@ class LimelightAprilTagTestTeleOp : OpModeBase() {
         if (limelight.newFrameThisTick && limelight.resultFresh && limelight.pipelineMatches) {
             sightings.recordFrame(limelight.fiducials, now)
         }
-        VisionDiagnostics.restartSection(telemetryBag, startup, ballCamera)
         VisionDiagnostics.limelightSections(telemetryBag, limelight, sightings, now, detailed = true)
         ballCamera?.let { VisionDiagnostics.ballCameraSections(telemetryBag, it, detailed = false) }
         VisionDiagnostics.timingSection(telemetryBag, robot, timing, startup)

@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode.opmodes.diagnostics
 
-import com.bylazar.configurables.annotations.Configurable
 import com.qualcomm.hardware.limelightvision.Limelight3A
 import java.util.Locale
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName
@@ -20,7 +19,7 @@ internal object VisionDiagnostics {
     val limelightRequirement = Preflight.Requirement(LimelightSubsystem.DEFAULT_HARDWARE_NAME, Limelight3A::class.java)
     val ballCameraRequirement = Preflight.Requirement(BallCameraSubsystem.DEFAULT_HARDWARE_NAME, WebcamName::class.java)
 
-    /** Restart-only choices, captured once in `configure()`. */
+    /** [VisionDiagnosticsConfig], read once in `configure()`. */
     data class Startup(
         val runBothCameras: Boolean,
         val tagPipelineIndex: Int,
@@ -42,18 +41,6 @@ internal object VisionDiagnostics {
         pollRateHz = startup.pollRateHz,
         maxResultAgeMs = startup.maxResultAgeMs,
     )
-
-    fun restartSection(bag: TelemetryBag, startup: Startup, camera: BallCameraSubsystem?) {
-        val pending = ArrayList<String>()
-        val requested = Startup.fromConfig()
-        if (requested != startup) pending += "visionDiagnostics (both cameras / Limelight pipeline, rate, age)"
-        if (camera != null && camera.restartRequired) pending += "ballVision init settings (color, region, blur/erode/dilate, exposure)"
-        if (pending.isEmpty()) return
-        bag.section("RESTART REQUIRED") {
-            put("changed", pending.joinToString("; "))
-            put("running", "both cameras=${startup.runBothCameras}, LL pipeline ${startup.tagPipelineIndex}")
-        }
-    }
 
     // ---------------------------------------------------------------- Limelight
 
@@ -198,10 +185,10 @@ internal class LoopTimingStats {
 }
 
 /**
- * Settings shared by the vision diagnostics. Every field is **restart**: it
- * decides what hardware the OpMode opens, so edit it in Panels and re-init.
+ * Settings shared by the vision diagnostics. Every field decides what hardware
+ * the OpMode opens, so it is read once at init and is not in Panels: change it
+ * here and hot reload.
  */
-@Configurable
 object VisionDiagnosticsConfig {
     /** Open the Limelight and the USB camera together to compare timing under combined load. */
     @JvmField var runBothCameras = false

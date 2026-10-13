@@ -4,13 +4,13 @@ import com.bylazar.configurables.annotations.Configurable
 
 /**
  * Panels-tunable settings for the USB ball camera. Tentative values from the
- * September 18, 2026 tuning session. Panels edits last until the app restarts
- * or a hot reload; copy values worth keeping here. The flight log records every
- * live change (MaxScope shows them).
+ * September 18, 2026 tuning session. Panels edits last until the OpMode
+ * stops; copy values worth keeping here. The flight log records every live
+ * change (MaxScope shows them).
  *
  * Fields marked **init** are built into the SDK's ColorBlobLocatorProcessor
- * when the OpMode initializes: edit them in Panels, then stop and re-init.
- * The rest apply on the next robot loop.
+ * when the OpMode initializes, so Panels can't change them: edit them here and
+ * hot reload. The rest apply on the next robot loop.
  *
  * The `mount*` fields record where the lens sits on the robot. Nothing on the
  * robot uses them: [BallCameraSubsystem] logs them every tick under

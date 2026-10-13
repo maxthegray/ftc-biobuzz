@@ -58,7 +58,6 @@ class BallTrackingTestTeleOp : OpModeBase() {
         if (ll != null && ll.newFrameThisTick && ll.resultFresh && ll.pipelineMatches) {
             sightings.recordFrame(ll.fiducials, now)
         }
-        VisionDiagnostics.restartSection(telemetryBag, startup, ballCamera)
         VisionDiagnostics.ballCameraSections(telemetryBag, ballCamera, detailed = true)
         ll?.let { VisionDiagnostics.limelightSections(telemetryBag, it, sightings, now, detailed = false) }
         VisionDiagnostics.timingSection(telemetryBag, robot, timing, startup)

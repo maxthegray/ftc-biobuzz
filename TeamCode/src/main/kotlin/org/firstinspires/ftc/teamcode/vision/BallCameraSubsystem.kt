@@ -38,10 +38,7 @@ data class BallSighting(
     val verticalDeg: Double,
 )
 
-/**
- * The **init** fields of [BallCameraConfig], validated. Built into the processor
- * at init; a change shows up as [BallCameraSubsystem.restartRequired].
- */
+/** The **init** fields of [BallCameraConfig], validated. Built into the processor at init. */
 data class DetectionSetup(
     val hsv: Boolean,
     val min: List<Int>,
@@ -139,7 +136,6 @@ class BallCameraSubsystem(
     var frameAgeMs = Double.NaN
         private set
 
-    val restartRequired: Boolean get() = setup != null && setup != DetectionSetup.fromConfig(WIDTH_PX, HEIGHT_PX)
     val cameraState: String get() = portal?.cameraState?.name ?: "NOT_OPENED"
     val libraryReportedFps: Double get() = portal?.fps?.toDouble() ?: Double.NaN
     val lensReport: LensReport get() = lensProbe.report
@@ -266,14 +262,12 @@ class BallCameraSubsystem(
 
     override fun health(): String = when {
         portal == null -> "not opened"
-        restartRequired -> "restart required for ballVision init settings"
         else -> "${cameraState.lowercase()}; ${candidates.size} ball(s)"
     }
 
     override fun logState(log: StateLog) {
         log.put("camera/state", cameraState)
         log.put("camera/libraryReportedFps", libraryReportedFps)
-        log.put("camera/restartRequired", restartRequired)
         log.put("frame/new", newFrame)
         log.put("frame/ageMs", frameAgeMs)
         log.put("frame/widthPx", WIDTH_PX.toLong())

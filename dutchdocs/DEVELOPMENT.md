@@ -333,8 +333,8 @@ object ShooterConfig {
 }
 ```
 
-Panels edits these while the robot runs. **They are not saved**: an app
-restart or hot reload puts back what is in the code. When a value is right,
+Panels edits these while the robot runs. **They are not saved**: an op-mode
+restart, app restart or hot reload puts back what is in the code. When a value is right,
 type it into the file. The code is always the truth about how the robot is
 tuned. Don't `@Pinned` config objects.
 

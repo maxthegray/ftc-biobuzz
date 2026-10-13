@@ -196,13 +196,13 @@ goal, not a promise that it can take a score.
 
 ### What applies live
 
-| Live (next robot loop) | Stop and re-init the OpMode |
+| Live in Panels (next robot loop) | In code, then `make hot` and re-init |
 |---|---|
-| Area/circularity/aspect/density filters, max observation age, preview | Color space and channel thresholds, ROI, blur/erode/dilate, contour mode, exposure, everything in `visionDiagnostics` |
+| Area/circularity/aspect/density filters, max observation age, preview | Color space and channel thresholds, ROI, blur/erode/dilate, contour mode, exposure, everything in `VisionDiagnosticsConfig` |
 
-The SDK builds the color range, region and morphology into the processor, so
-those apply at the next init; no redeploy is needed. A pending change shows a
-**RESTART REQUIRED** section. The capture resolution is fixed at 640×480 MJPEG.
+The SDK builds the color range, region and morphology into the processor at
+init, and Panels edits are gone by the next init, so those are changed in
+code. The capture resolution is fixed at 640×480 MJPEG.
 
 **Tuning in the flight log.** Both OpModes write the `visionDiagnostics`
 values as an event at init. The ball camera writes every `ballVision` value
@@ -231,13 +231,13 @@ Robot stationary, on blocks. Note the values after each step that settles
 something.
 
 1. **Exposure.** One POLLEN ball ~1 m away. With `exposureManual` true, lower
-   `exposureMicros` until a rolled ball is not smeared; re-init after each
-   change. *Ball Camera → exposure* shows what the camera accepted.
-2. **Color range.** Adjust `channel*Min/Max`, re-init, and check the preview
+   `exposureMicros` in code until a rolled ball is not smeared; `make hot` and
+   re-init after each change. *Ball Camera → exposure* shows what the camera accepted.
+2. **Color range.** Adjust `channel*Min/Max` in code, `make hot`, re-init, and check the preview
    until the ball is outlined and tiles, walls, and red/blue NECTAR are not —
    near, far, in shadow, under the brightest light.
-3. **Region and blob filters.** Set the ROI to where POLLEN can appear
-   (re-init). Then, live: raise `minAreaPercent` just below the farthest useful
+3. **Region and blob filters.** Set the ROI to where POLLEN can appear (in
+   code, `make hot`). Then, live in Panels: raise `minAreaPercent` just below the farthest useful
    ball's area and tighten `minCircularity` (1.0 is a perfect circle, which a
    traced contour rarely reaches), `maxAspectRatio`, `minDensity` while testing
    two touching balls, a half-hidden ball, and a ball at the frame edge.
@@ -245,14 +245,14 @@ something.
    small and the target never lingers after the ball leaves. With several
    balls, the target is the largest. Cover the lens: the target goes to none.
 5. **Both cameras.** Set `VisionDiagnosticsConfig.runBothCameras` true in
-   Panels and restart **each** OpMode. Compare
+   code, `make hot`, and run **each** OpMode. Compare
    *Timing Comparison*, library fps, Limelight new-frame rate and ages against
    the single-camera runs, then open the run in MaxScope (`make viewer`) for loop percentiles.
 6. **Limelight tags.** Limelight AprilTag Test: hold each tag still; confirm ID
    and meaning against its sticker, the signs of tx/ty, and |d| against a tape
    measure; record whether the cluster's four tags appear together.
 
-Then copy the tuned values into their config objects and commit.
+Then copy the values tuned live in Panels into `BallCameraConfig` and commit.
 
 ### Hive Tag Survey (real CELL and field)
 
