@@ -113,8 +113,9 @@ reduced trail; the coordinate readout always uses the full pose series.
   `Drive → motors → leftFront → power`) or search full channel paths.
   Arrays such as `pose` expand into named components. Escape closes the
   picker, and **Clear graph** empties that graph. Each graph supports up to
-  eight overlaid signals with two unit scales, marked L/R in the legend.
-  Signals with matching units share a scale. Checkboxes hide individual
+  eight overlaid signals. Signals with matching units share a scale; each
+  unit gets its own, alternating left and right (L, R, L2, R2, … in the
+  legend). Past two scales, each scale's numbers take its first signal's color. Checkboxes hide individual
   layers; × removes them. Missing channels stay labeled when switching logs.
   `velocity` also has a derived **Speed** component, √(vx² + vy²).
 - Click a signal's name in the legend, or double-click its line, to highlight
@@ -276,16 +277,19 @@ for it.
   5 samples; turn counts as the inches a wheel would travel),
   `thresholdInPerS`, and `wheelsMinusPinpointInPerS` (positive: the wheels
   outran the robot).
-- **Find problems** flags a stretch where the mismatch stays over
+- **Find problems** looks at stretches where the mismatch stays over
   8 in/s + 25% of wheel speed for at least 0.1 s (stretches 0.5 s apart
-  merge). **Wheels slipping**: the wheels went faster than the robot (spinning
-  out, or pushing a wall or robot). **Pushed**: the robot moved without its
-  wheels (hit or shoved). Wheels that stall against a wall agree with the
-  Pinpoint and are not flagged.
+  merge). Hard driving skids past that all the time, so only two kinds are
+  reported. **Wheels slipping**: the wheels turned while the robot stayed
+  put (under 6 in/s) for at least 0.3 s, as when pushing a wall or robot.
+  **Pushed**: the robot moved without its wheels while the driver wasn't
+  driving (mean wheel power under 0.1), as when hit or shoved. Wheels that
+  stall against a wall agree with the Pinpoint and are not flagged.
 - If wheels and Pinpoint disagree by more than 30% in ordinary driving (an
   encoder reversed or unplugged), the check reports **Traction check off**
   with the reason instead of flagging the whole run.
-- The thresholds are first guesses, not yet tuned on a run with known hits.
+- Tuned on one run with known hits (two wall pushes and three kicks, all
+  found, nothing else flagged); a soft push into a foot was not flagged.
 
 ## 3D field (experimental)
 

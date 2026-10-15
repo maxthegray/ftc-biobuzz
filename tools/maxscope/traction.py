@@ -11,6 +11,7 @@ import math
 import statistics
 
 WHEELS = "Drive/motors/velocityTps"
+POWER = "Drive/motors/power"
 PREFIX = "MaxScope/traction/"
 
 # Fitting: an axis is fitted from samples where it turns at least this share of its own
@@ -22,11 +23,18 @@ FIT_MIN_SAMPLES = 50
 FIT_MAX_TYPICAL_ERROR = 0.3
 SMOOTH_SAMPLES = 5
 
-# Initial guesses, to be tuned on a run with known hits and pushes.
+# Tuned on the 2026-10-15 sensorbot shakedown (two wall pushes, three kicks): hard driving
+# skids past the mismatch threshold all the time, so a stretch is only reported when it looks
+# like a hit. Pushed: the driver wasn't driving (mean wheel power under PUSHED_MAX_POWER).
+# Wheels slipping: the robot stayed put (median Pinpoint speed under STUCK_MAX_IN_S) for
+# STUCK_MIN_SEC.
 MISMATCH_MIN_IN_S = 8.0
 MISMATCH_SHARE_OF_SPEED = 0.25
 MIN_EVENT_SEC = 0.1
 EVENT_MERGE_SEC = 0.5
+PUSHED_MAX_POWER = 0.1
+STUCK_MAX_IN_S = 6.0
+STUCK_MIN_SEC = 0.3
 
 
 def wheel_axes(tps):
@@ -142,12 +150,27 @@ def problems(records, fit):
                 found.append(current)
             current["peak"] = max(current["peak"], m)
             current["balance"] += balance[ts]
+    powers = records.get(POWER, [])
+    radius = fit["wheelRadiusIn"]
+    ground = [(ts, math.hypot(g[0], g[1], g[2] * radius if radius else 0.0))
+              for ts, g in records.get(PREFIX + "pinpoint", [])]
     result = []
     for span in found:
         if span["end"] - span["start"] < MIN_EVENT_SEC * 1e6:
             continue
-        kind = "Wheels slipping" if span["balance"] > 0 else "Pushed"
-        detail = (f"peak {span['peak']:.0f} in/s mismatch · {(span['end'] - span['start']) / 1e6:.2f} s · "
-                  + ("wheels faster than the robot" if span["balance"] > 0 else "robot moved without its wheels"))
-        result.append((kind, span["start"], span["end"], detail))
+        if span["balance"] > 0:
+            speeds = [v for ts, v in ground if span["start"] <= ts <= span["end"]]
+            if (span["end"] - span["start"] < STUCK_MIN_SEC * 1e6
+                    or not speeds or statistics.median(speeds) >= STUCK_MAX_IN_S):
+                continue
+            kind, detail = "Wheels slipping", "wheels turning, robot stopped"
+        else:
+            power = [sum(map(abs, v)) / len(v) for ts, v in powers
+                     if span["start"] <= ts <= span["end"] and finite(v, 1)]
+            if power and statistics.mean(power) >= PUSHED_MAX_POWER:
+                continue
+            kind, detail = "Pushed", "robot moved without its wheels"
+        result.append((kind, span["start"], span["end"],
+                       f"peak {span['peak']:.0f} in/s mismatch · {(span['end'] - span['start']) / 1e6:.2f} s · "
+                       + detail))
     return result

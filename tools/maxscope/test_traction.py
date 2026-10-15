@@ -16,7 +16,7 @@ TICK_US = 10_000
 def run(events=(), samples=3000, flip_front_left=False):
     """A synthetic drive: forward, strafe and turn mixes on a turning heading. events maps a
     sample range to (wheels, ground) overrides in robot-frame [forward in/s, left in/s, omega]."""
-    records = {"pose": [], "velocity": [], traction.WHEELS: []}
+    records = {"pose": [], "velocity": [], traction.WHEELS: [], traction.POWER: []}
     heading = 0.0
     for i in range(samples):
         t = i * TICK_US
@@ -35,6 +35,7 @@ def run(events=(), samples=3000, flip_front_left=False):
         records["pose"].append((t, [0.0, 0.0, heading]))
         records["velocity"].append((t, [vx, vy, ground[2]]))
         records[traction.WHEELS].append((t, tps))
+        records[traction.POWER].append((t, [v / 4000 for v in tps]))
         heading += ground[2] * TICK_US / 1e6
     return records
 
@@ -66,6 +67,12 @@ class TractionTest(unittest.TestCase):
         self.assertAlmostEqual(found[0]["startSec"], 10.0, delta=0.05)
         self.assertAlmostEqual(found[0]["endSec"], 10.5, delta=0.05)
         self.assertAlmostEqual(found[1]["startSec"], 20.0, delta=0.05)
+
+    def test_skids_while_driving_are_not_flagged(self):
+        overrun = ((20.0, 0.0, 0.0), (45.0, 0.0, 0.0))
+        spin_while_moving = ((60.0, 0.0, 0.0), (30.0, 0.0, 0.0))
+        records, fit = analyzed(run(events=[((1000, 1050), overrun), ((2000, 2050), spin_while_moving)]))
+        self.assertEqual([], problems(records, {"traction": fit})[0])
 
     def test_a_blip_shorter_than_an_event_is_ignored(self):
         blip = ((40.0, 0.0, 0.0), (0.0, 0.0, 0.0))
