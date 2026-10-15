@@ -61,6 +61,23 @@ class HubPowerTest {
     }
 
     @Test
+    fun aZeroVoltReadingIsDropped() {
+        val clock = FakeClock()
+        val control = FakeHub("control", 4.0, 12.5)
+        val power = HubPower(listOf(control), clock)
+
+        power.sample()
+        power.readings[0].unlogged = false
+        control.amps = 0.0
+        control.volts = 0.0
+        clock.advanceMs(50.0)
+        power.sample()
+        assertEquals(12.5, power.batteryVolts, 0.0)
+        assertEquals(4.0, power.readings[0].amps, 0.0)
+        assertEquals(false, power.readings[0].unlogged)
+    }
+
+    @Test
     fun theFlightRecorderLogsEachReadingOnceEvenFromATickItDidNotRecord() {
         val logDir = File.createTempFile("hub-power-logs", "").also {
             it.delete()

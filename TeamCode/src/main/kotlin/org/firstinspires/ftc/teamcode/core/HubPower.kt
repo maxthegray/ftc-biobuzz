@@ -46,6 +46,8 @@ class HubPower(private val hubs: List<Hub>, private val clock: Clock) {
         try {
             val amps = hubs[index].amps()
             val volts = hubs[index].volts()
+            // A hub reads 0 V once the op-mode has stopped; that's not the battery.
+            if (volts <= 0.0) return
             readings[index].apply {
                 this.amps = amps
                 this.volts = volts
