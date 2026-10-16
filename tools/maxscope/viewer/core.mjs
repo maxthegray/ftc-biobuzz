@@ -244,6 +244,14 @@ export function channelTree(options) {
   return root;
 }
 
+// A graph's left and right margins in CSS pixels. Unit scales alternate left, right, left, …;
+// each scale past the first on a side sits further out and widens that margin.
+export const OUTER_AXIS_WIDTH = 42;
+export function plotMargins(axisCount) {
+  return [45 + Math.max(0, Math.ceil(axisCount / 2) - 1) * OUTER_AXIS_WIDTH,
+    45 + Math.max(0, Math.floor(axisCount / 2) - 1) * OUTER_AXIS_WIDTH];
+}
+
 export function plotBounds(layers, axis, end) {
   let min = Infinity, max = -Infinity;
   for (const layer of layers) {

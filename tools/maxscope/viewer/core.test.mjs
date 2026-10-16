@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {activeCommandSpans, fieldPoint, fieldView, ballSighting, ballEstimate, cameraDetections, loggedCameraMount, cameraSources, sampleAt, plotPoints, plotBounds, extremes, scalarSeries, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals, alignmentAnchor, shiftSeries, adjacentProblem, problemsAt, matchPhases, phaseAt, posePasses, nextPass, followWindow} from './core.mjs';
+import {activeCommandSpans, fieldPoint, fieldView, ballSighting, ballEstimate, cameraDetections, loggedCameraMount, cameraSources, sampleAt, plotPoints, plotBounds, plotMargins, extremes, scalarSeries, channelOptions, channelTree, discreteOptions, discreteSeries, discreteIntervals, alignmentAnchor, shiftSeries, adjacentProblem, problemsAt, matchPhases, phaseAt, posePasses, nextPass, followWindow} from './core.mjs';
 
 test('Pedro field corners retain their axes with only screen Y inverted', () => {
   const view = {minX: 0, minY: 0, span: 141.5};
@@ -58,6 +58,14 @@ test('plot reduction preserves short spikes, troughs, and invalid-data gaps', ()
   assert.ok(points.some(([t, v]) => t === 33.34 && v === -80));
   assert.ok(points.some(([t, v]) => t === 33.35 && v === null));
   assert.ok(points.length < 500);
+});
+
+test('unit scales past two widen the graph margins alternately left and right', () => {
+  assert.deepEqual(plotMargins(0), [45, 45]);
+  assert.deepEqual(plotMargins(2), [45, 45]);
+  assert.deepEqual(plotMargins(3), [87, 45]);
+  assert.deepEqual(plotMargins(4), [87, 87]);
+  assert.deepEqual(plotMargins(5), [129, 87]);
 });
 
 test('plots retain neighboring samples at zoom boundaries', () => {

@@ -1,4 +1,4 @@
-import {finite, indexAt, sampleAt, scalarSeries, extremes, plotPoints, plotBounds, channelTree, discreteSeries, discreteIntervals, buttonNames, shiftSeries, followWindow} from './core.mjs';
+import {finite, indexAt, sampleAt, scalarSeries, extremes, plotPoints, plotBounds, plotMargins, OUTER_AXIS_WIDTH, channelTree, discreteSeries, discreteIntervals, buttonNames, shiftSeries, followWindow} from './core.mjs';
 import {$, state, fmt, fmtTime, node, api, notice, commandCoverage, context, colors, problemColor} from './ui.js';
 import {OVERLAY_DASHES, shownOverlays} from './overlays.js';
 
@@ -48,11 +48,14 @@ export function createCharts({seek, saveLayout, onWindow}) {
     return chart;
   }
 
-  const timeAt = (canvas, clientX) => {
-    const rect = canvas.getBoundingClientRect();
-    const fraction = Math.max(0, Math.min(1, (clientX - rect.left - 45) / Math.max(1, rect.width - 90)));
-    return state.window[0] + fraction * (state.window[1] - state.window[0]);
+  const margins = chart => plotMargins(chart?.axes?.length || 0);
+
+  const fractionAt = (canvas, chart, clientX) => {
+    const rect = canvas.getBoundingClientRect(), [left, right] = margins(chart);
+    return Math.max(0, Math.min(1, (clientX - rect.left - left) / Math.max(1, rect.width - left - right)));
   };
+
+  const timeAt = (canvas, chart, clientX) => state.window[0] + fractionAt(canvas, chart, clientX) * (state.window[1] - state.window[0]);
 
   // Graphs follow playback through a fixed-length window, so a 20 s run and a 6 min run read the
   // same. Panning detaches them where you leave them; Follow (or F) puts them back on the cursor.
@@ -109,12 +112,12 @@ export function createCharts({seek, saveLayout, onWindow}) {
   }
 
   // Click seeks; dragging pans a zoomed graph. Hovering shows a crosshair on every graph and the
-  // values under the pointer on this one.
-  function wireTimeCanvas(canvas, chart = null) {
+  // values under the pointer on `tooltipChart`.
+  function wireTimeCanvas(canvas, chart, tooltipChart = chart) {
     canvas.onpointerdown = event => {
       if (event.button !== 0 || !state.run) return;
       const startX = event.clientX, [start, end] = state.window;
-      const perPixel = (end - start) / Math.max(1, canvas.getBoundingClientRect().width - 90);
+      const [left, right] = margins(chart), perPixel = (end - start) / Math.max(1, canvas.getBoundingClientRect().width - left - right);
       let panning = false;
       canvas.setPointerCapture(event.pointerId);
       const move = moved => {
@@ -127,7 +130,7 @@ export function createCharts({seek, saveLayout, onWindow}) {
       const finish = released => {
         canvas.removeEventListener('pointermove', move);
         canvas.classList.remove('panning');
-        if (!panning && released.type === 'pointerup') seek(timeAt(canvas, released.clientX));
+        if (!panning && released.type === 'pointerup') seek(timeAt(canvas, chart, released.clientX));
       };
       canvas.addEventListener('pointermove', move);
       canvas.addEventListener('pointerup', finish, {once: true});
@@ -135,8 +138,8 @@ export function createCharts({seek, saveLayout, onWindow}) {
     };
     canvas.addEventListener('pointermove', event => {
       if (!state.run || canvas.classList.contains('panning')) return;
-      state.hoverTime = timeAt(canvas, event.clientX);
-      state.hoverChart = chart;
+      state.hoverTime = timeAt(canvas, chart, event.clientX);
+      state.hoverChart = tooltipChart;
       state.hoverX = event.clientX - canvas.getBoundingClientRect().left;
       drawCharts();
     });
@@ -144,8 +147,7 @@ export function createCharts({seek, saveLayout, onWindow}) {
     canvas.addEventListener('wheel', event => {
       event.preventDefault();
       const [start, end] = state.window;
-      const rect = canvas.getBoundingClientRect();
-      const fraction = Math.max(0, Math.min(1, (event.clientX - rect.left - 45) / Math.max(1, rect.width - 90)));
+      const fraction = fractionAt(canvas, chart, event.clientX);
       const center = start + fraction * (end - start);
       // Proportional to how far the wheel or trackpad moved, so a trackpad's many small events don't
       // fly through zoom levels: one mouse notch (100 px) is about 16%. Line-mode deltas are ~16 px.
@@ -205,10 +207,9 @@ export function createCharts({seek, saveLayout, onWindow}) {
       header.append(lane.value, lane.overlayValues, remove);
       lane.canvas = node('canvas');
       lane.canvas.setAttribute('aria-label', `${label} discrete timeline`);
-      wireTimeCanvas(lane.canvas);
+      wireTimeCanvas(lane.canvas, chart, null);
       lane.canvas.onmousemove = event => {
-        const rect = lane.canvas.getBoundingClientRect();
-        const time = state.window[0] + Math.max(0, Math.min(1, (event.clientX - rect.left - 45) / Math.max(1, rect.width - 90))) * (state.window[1] - state.window[0]);
+        const time = timeAt(lane.canvas, chart, event.clientX);
         const others = shownStrips(lane).map(strip => ` · ${strip.overlay.letter}: ${discreteLabel(sampleAt(strip.data, time), lane.option)}`).join('');
         lane.canvas.title = `${fmtTime(time, 3)} · ${state.overlays.length ? 'A: ' : ''}${discreteLabel(sampleAt(lane.data, time), lane.option)}${others}`;
       };
@@ -248,7 +249,7 @@ export function createCharts({seek, saveLayout, onWindow}) {
       const canvasHeight = `${LANE_HEIGHT + strips.length * (STRIP_HEIGHT + STRIP_GAP)}px`;
       if (lane.canvas.style.height !== canvasHeight) lane.canvas.style.height = canvasHeight;
       const {ctx, width, height} = context(lane.canvas);
-      const [start, end] = state.window, left = 45, right = width - 45;
+      const [start, end] = state.window, [left, marginRight] = margins(chart), right = width - marginRight;
       const x = time => left + (time - start) / (end - start) * (right - left);
       lane.value.textContent = chart.loading ? 'Loading…' : discreteLabel(sampleAt(lane.data, state.time), lane.option);
       lane.value.title = lane.value.textContent;
@@ -317,8 +318,9 @@ export function createCharts({seek, saveLayout, onWindow}) {
       label.append(check, layer.name);
       layer.value = node('span', 'chart-value', '—');
       layer.overlayValues = node('span', 'chart-overlay-values');
-      const axis = node('span', 'axis-label', layer.axis === 1 ? 'R' : 'L');
-      axis.title = layer.axis === 1 ? 'Right axis' : 'Left axis';
+      const side = layer.axis % 2 ? 'R' : 'L', ring = Math.floor(layer.axis / 2) + 1;
+      const axis = node('span', 'axis-label', ring > 1 ? side + ring : side);
+      axis.title = `${side === 'R' ? 'Right' : 'Left'} axis${ring > 1 ? ' ' + ring : ''}`;
       const remove = node('button', 'layer-remove', '×');
       remove.setAttribute('aria-label', `Remove ${layer.option?.label || layer.key}`);
       remove.onclick = () => { chart.keys = chart.keys.filter(key => key !== layer.key); loadCharts(); };
@@ -342,7 +344,7 @@ export function createCharts({seek, saveLayout, onWindow}) {
 
   // Double-clicking a graph highlights the line nearest the pointer, or clears it away from any line.
   function highlightAt(chart, event) {
-    const rect = chart.canvas.getBoundingClientRect(), time = timeAt(chart.canvas, event.clientX);
+    const rect = chart.canvas.getBoundingClientRect(), time = timeAt(chart.canvas, chart, event.clientX);
     const pointerY = event.clientY - rect.top, top = 21, bottom = rect.height - 22;
     let nearest = null, distance = 12;
     for (const layer of chart.layers) {
@@ -391,7 +393,7 @@ export function createCharts({seek, saveLayout, onWindow}) {
     $('picker-title').textContent = `Graph ${state.charts.indexOf(chart) + 1} ${mode === 'discrete' ? 'discrete field' : 'signal'}`;
     $('channel-clear').textContent = mode === 'discrete' ? 'Clear discrete fields' : 'Clear graph';
     $('channel-clear').disabled = !(mode === 'discrete' ? chart.discreteKeys : chart.keys).length;
-    document.querySelector('.picker-note').textContent = mode === 'discrete' ? 'Up to 8 discrete lanes · Strings, buttons, and states' : 'Layer up to 8 signals · Two unit scales per graph';
+    document.querySelector('.picker-note').textContent = mode === 'discrete' ? 'Up to 8 discrete lanes · Strings, buttons, and states' : 'Layer up to 8 signals · One scale per unit';
     renderChannelTree();
     $('channel-picker').showModal();
     $('channel-search').focus();
@@ -416,14 +418,13 @@ export function createCharts({seek, saveLayout, onWindow}) {
     const options = discrete ? state.discreteOptions : state.options;
     const selectedKeys = (discrete ? state.pickerChart?.discreteKeys : state.pickerChart?.keys) || [];
     const selected = options.filter(option => selectedKeys.includes(option.key));
-    const units = new Set(selected.map(option => option.unit));
     const leaf = (option, label) => {
       const button = node('button', 'channel-leaf');
       button.title = option.label;
       const included = selectedKeys.includes(option.key);
       button.setAttribute('aria-pressed', String(included));
-      button.disabled = included || selectedKeys.length >= 8 || (!discrete && units.size >= 2 && !units.has(option.unit));
-      if (button.disabled && !included) button.title = selectedKeys.length >= 8 ? (discrete ? 'Up to 8 discrete fields per graph' : 'Up to 8 signals per graph') : 'Each graph supports two unit scales; use another graph for this unit.';
+      button.disabled = included || selectedKeys.length >= 8;
+      if (button.disabled && !included) button.title = discrete ? 'Up to 8 discrete fields per graph' : 'Up to 8 signals per graph';
       button.append(node('span', 'channel-name', label), node('span', 'channel-unit', option.unit));
       button.onclick = () => chooseChannel(option);
       return button;
@@ -572,17 +573,21 @@ export function createCharts({seek, saveLayout, onWindow}) {
       if (!chart.canvas.clientWidth) continue;
       const {ctx, width, height} = context(chart.canvas);
       const [start, end] = state.window;
-      const left = 45, right = width - 45, top = 21, bottom = height - 22;
+      const [left, marginRight] = margins(chart), right = width - marginRight, top = 21, bottom = height - 22;
       const x = t => left + (t - start) / (end - start) * (right - left);
       ctx.font = '9px ui-monospace, monospace'; ctx.lineWidth = 1;
       for (let i = 0; i <= 2; i++) {
         const at = top + (bottom - top) * i / 2;
         ctx.strokeStyle = colors['chart-grid']; ctx.beginPath(); ctx.moveTo(left, at); ctx.lineTo(right, at); ctx.stroke();
       }
+      // Past two scales, each scale's labels take the color of its first signal to tell them apart.
       chart.axes.forEach((unit, axis) => {
         const [min, max] = chart.bounds[axis] || [0, 1];
-        ctx.fillStyle = colors['chart-label']; ctx.textAlign = axis === 0 ? 'right' : 'left';
-        const at = axis === 0 ? left - 7 : right + 7;
+        const owner = chart.layers.find(layer => layer.axis === axis && layer.option);
+        ctx.fillStyle = chart.axes.length > 2 && owner ? colors.layers[owner.slot] : colors['chart-label'];
+        const outward = Math.floor(axis / 2) * OUTER_AXIS_WIDTH;
+        ctx.textAlign = axis % 2 ? 'left' : 'right';
+        const at = axis % 2 ? right + 7 + outward : left - 7 - outward;
         ctx.fillText(unit || 'value', at, 10);
         for (let i = 0; i <= 2; i++) ctx.fillText(fmt(max - (max - min) * i / 2, Math.abs(max) > 100 ? 0 : 1), at, top + (bottom - top) * i / 2 + 3);
       });
