@@ -6,7 +6,6 @@ import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem.TeleopInp
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -173,6 +172,25 @@ class FreshLocalizationTest {
     }
 
     @Test
+    fun nudgingTheRobotLateInInitSnapsBackToTheStartPoseWithoutAFault() {
+        val pinpoint = PedroDriveFixture.OdometryProbe()
+        val start = Pose(8.0, 56.0, 0.0)
+        val run = Run(pinpoint, start)
+        run.init(ticks = 300)
+        assertTrue(run.localizer.ready)
+
+        pinpoint.measuredPose = Pose(9.0, 56.0, 0.05)
+        repeat(2) {
+            run.hardware.clock.advanceMs(20.0)
+            run.robot.initTick()
+        }
+        assertNull(run.localizer.fault)
+        assertNull(run.localizer.statusFault)
+        assertTrue(run.localizer.ready)
+        assertPose(start, run.drive.pose)
+    }
+
+    @Test
     fun aPinpointThatNeverAcceptsTheStartPoseFaults() {
         val pinpoint = PedroDriveFixture.OdometryProbe()
         pinpoint.measuredPose = Pose(100.0, 30.0, 1.0)
@@ -184,8 +202,8 @@ class FreshLocalizationTest {
             run.robot.initTick()
         }
         assertFalse(run.localizer.ready)
-        assertNotNull(run.localizer.fault)
-        assertTrue(run.localizer.fault!!.startsWith("start pose not confirmed"))
+        assertNull(run.localizer.fault)
+        assertTrue(run.localizer.statusFault!!.startsWith("start pose not confirmed"))
         assertEquals(0, run.hardware.motors.sumOf { it.writes.size })
     }
 }

@@ -174,10 +174,15 @@ take a `name`; wrap everything else worth seeing with `logged(...)`.
 
 Pass the start pose to the localizer in `configure()`:
 `LocalizerSubsystem(follower, ..., startingPose = start)`. It is written to the
-Pinpoint at INIT, so place the robot before pressing INIT. In `onStart`: refuse
-to run if `!Constants.FORESIGHT_TUNED` or `!localizer.ready` (start pose not
-yet confirmed), `Scheduler.schedule(...)` and check `Scheduler.isScheduled(...)`. In `onLoop`, stop the op-mode once the
-routine is no longer scheduled.
+Pinpoint at INIT, so place the robot before pressing INIT; nudging it into
+place during init is fine, the pose snaps back to the start pose. Pass
+`onStatusFault = {}` so a Pinpoint status problem is only logged and the auto
+keeps driving; only a lost pose (`onFault`) cancels it. In `onStart`: refuse to
+run if `!Constants.FORESIGHT_TUNED`. Then, from `onLoop`, start the routine once
+`localizer.ready`, or after one second anyway unless `localizer.fault` is set
+(START pressed right after INIT): `Scheduler.schedule(...)` and check
+`Scheduler.isScheduled(...)`. Stop the op-mode once the routine is no longer
+scheduled.
 
 - **Waits:** use `monotonicWaitMs(ms)` from `core/`, not Ivy's `waitMs`,
   which is timed by the wall clock and ends early or stalls if the hub's
@@ -187,7 +192,7 @@ routine is no longer scheduled.
   If the path ends or is cancelled first, the marker is dropped.
 - **Completion:** `followCommand` ends at Pedro's *parametric end*, which is
   not arrival. Follow it with `holdCommand(pose)` when arrival matters.
-  `turnToCommand` throws on timeout, which aborts the whole routine.
+  `turnToCommand` ends on its timeout too and the routine moves on.
 - **Turning along a path:** `.linear(a, b)` (see `backPath()` in the
   example), or `.constant(...)` to keep one heading.
 - **Alliances:** one `@Autonomous` class per alliance/routine; the BLUE copy

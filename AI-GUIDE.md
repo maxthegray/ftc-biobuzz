@@ -218,7 +218,7 @@ nothing about arrival.
 drive.teleopCommand { TeleopInput(fwd, strafe, turn, precision, turnPower, forwardPower) }
 drive.followCommand(path, holdEnd = false)       // ends when Pedro leaves FOLLOW (parametric end)
 drive.holdCommand(pose, timeoutMs = 2000.0)      // ends on measured arrival, or timeout (bounded wait)
-drive.turnToCommand(radians, timeoutMs = 2000.0) // ends on measured heading; timeout THROWS
+drive.turnToCommand(radians, timeoutMs = 2000.0) // ends on measured heading, or timeout (bounded wait)
 drive.robotCentricFallbackCommand { input }      // localizer-fault policy; the only prioritized command
 drive.pathProgress()                             // latched 0..1 over all segments, for markers
 drive.pose / drive.velocity / drive.atPose(target) / drive.toggleFieldCentric()
@@ -261,13 +261,19 @@ drive.pose / drive.velocity / drive.atPose(target) / drive.toggleFieldCentric()
    rethrown to the Driver Station. Telemetry and recorder failures are
    contained. Use `error("…")` (an `IllegalStateException`) for a command
    that should fail without ending the op-mode.
-7. **Localizer faults.** `LocalizerSubsystem.periodic()` trips on a non-finite
-   pose, a pose frozen while following, or a bad Pinpoint status
-   (`FAULT_BAD_READ`, the driver rejecting one sample, only after 5 in a
-   row), and calls `onFault` once. Teleop (`TeleOpBase`) schedules the robot-centric fallback
-   and makes it the default: no follower update, no odometry read, no
-   field-centric rotation, and paths/holds/turns refuse. Auton cancels the
-   routine and stays put.
+7. **Localizer faults.** Two latches, each reported once. `fault`: the pose
+   can't be driven on (non-finite, frozen while following, unreadable); calls
+   `onFault` and ends the checks. `statusFault`: the Pinpoint reported a
+   problem but the pose is live (bad status; `FAULT_BAD_READ`, the driver
+   rejecting one sample, only after 5 in a row; start pose never confirmed);
+   calls `onStatusFault` (default `onFault`) and the pose checks go on.
+   Teleop (`TeleOpBase`) treats both the same: it schedules the robot-centric
+   fallback and makes it the default: no follower update, no odometry read,
+   no field-centric rotation, and paths/holds/turns refuse. Auton cancels the
+   routine and stays put on `fault` only; a `statusFault` is logged and the
+   routine keeps driving. Autos are built to keep going: a turn that times
+   out moves on, and a localizer not ready at START gets a second, then the
+   routine runs anyway.
 8. **Fresh localization.** `LocalizerSubsystem.init()` writes `startingPose`
    (default `Pose.zero()`; an autonomous passes its field start pose) to the
    Pinpoint at every INIT. A read that disagrees before one confirms it is a
@@ -454,8 +460,9 @@ sensor reads by default.
 Copy `opmodes/skeletons/ExampleAuto.kt` (routine and meaningful steps `logged`,
 drive steps named): RED poses through `alliance.poses()`,
 paths from `Paths`, the routine as Ivy groups of drive commands, `race`
-timeouts, `deadline` markers, start gates (`FORESIGHT_TUNED`,
-`localizer.ready`, schedule accepted), stop when the routine is no longer
+timeouts, `deadline` markers, start gates (`FORESIGHT_TUNED`; up to 1 s for
+`localizer.ready`, then run anyway unless the pose is lost; schedule
+accepted), `onStatusFault = {}`, stop when the routine is no longer
 scheduled. One `@Autonomous` class per alliance and routine; the BLUE copy
 overrides `initialAlliance` only. Start delay on dpad in init, as in the example.
 

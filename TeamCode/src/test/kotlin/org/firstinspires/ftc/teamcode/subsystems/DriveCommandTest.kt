@@ -16,7 +16,6 @@ import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem.TeleopInp
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -270,21 +269,20 @@ class DriveCommandTest {
     }
 
     @Test
-    fun turnTimeoutAbortsTheRoutineInsteadOfRunningItsNextStep() {
+    fun turnTimeoutStopsTurningAndMovesTheRoutineOn() {
         val h = Harness()
         var advanced = false
         val sequence: Command = sequential(h.drive.turnToCommand(PI / 2, timeoutMs = 250.0), instant { advanced = true })
         Scheduler.schedule(sequence)
         h.tick()
-        h.tick(250.0)
-
-        assertEquals(1, h.robot.commandFaultCount)
-        assertNotNull(h.robot.lastCommandFault!!.message!!.let { if ("turnTo timed out" in it) it else null })
         assertFalse(advanced)
+        h.tick(250.0)
+        h.tick()
+
+        assertEquals(0, h.robot.commandFaultCount)
+        assertTrue(advanced)
         assertFalse(Scheduler.isScheduled(sequence))
         assertArrayEquals(DoubleArray(4), h.hardware.powers(), 1e-9)
-        h.tick()
-        assertFalse(advanced)
     }
 
     @Test

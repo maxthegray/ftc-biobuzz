@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.subsystems
 
+import com.pedropathing.math.Pose
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver.DeviceStatus
 import com.qualcomm.robotcore.hardware.I2cDeviceSynchSimple
@@ -13,7 +14,8 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class PinpointReadinessTest {
-    private class Harness {
+    /** [autoPolicy]: separate status-fault callback, as the autos pass it. */
+    private class Harness(autoPolicy: Boolean = false) {
         val hardware = PedroDriveFixture()
         val clock = FakeClock()
         var deviceStatusBits = 0
@@ -31,7 +33,12 @@ class PinpointReadinessTest {
             } else null
         }, false)
         var faults = 0
-        val localizer = LocalizerSubsystem(hardware.follower, clock, onFault = { faults++ })
+        var statusFaults = 0
+        val localizer = if (autoPolicy) {
+            LocalizerSubsystem(hardware.follower, clock, onFault = { faults++ }, onStatusFault = { statusFaults++ })
+        } else {
+            LocalizerSubsystem(hardware.follower, clock, onFault = { faults++ })
+        }
         val robot = Robot(hardware.hardwareMap, clock)
 
         init {
@@ -91,7 +98,7 @@ class PinpointReadinessTest {
         h.initTick(4999.0)
         assertNull(h.localizer.fault)
         h.initTick(1.0)
-        assertTrue(h.localizer.fault!!.contains("timed out"))
+        assertTrue(h.localizer.statusFault!!.contains("timed out"))
         h.deviceStatusBits = 1
         h.initTick()
         assertFalse(h.localizer.ready)
@@ -103,7 +110,7 @@ class PinpointReadinessTest {
         val h = Harness()
         h.deviceStatusBits = 12
         h.initTick()
-        assertTrue(h.localizer.fault!!.contains("FAULT_NO_PODS_DETECTED"))
+        assertTrue(h.localizer.statusFault!!.contains("FAULT_NO_PODS_DETECTED"))
         assertFalse(h.localizer.ready)
         assertEquals(1, h.faults)
     }
@@ -117,7 +124,7 @@ class PinpointReadinessTest {
         assertNull(h.localizer.fault)
         h.robot.start()
         h.localizer.periodic()
-        assertTrue(h.localizer.fault!!.contains("CALIBRATING"))
+        assertTrue(h.localizer.statusFault!!.contains("CALIBRATING"))
     }
 
     @Test
@@ -127,7 +134,7 @@ class PinpointReadinessTest {
         h.initTick()
         h.deviceStatusBits = 0
         h.initTick()
-        assertTrue(h.localizer.fault!!.contains("NOT_READY"))
+        assertTrue(h.localizer.statusFault!!.contains("NOT_READY"))
     }
 
     @Test
@@ -165,10 +172,36 @@ class PinpointReadinessTest {
             h.robot.loop()
             h.clock.advanceMs(20.0)
         }
-        assertNull(h.localizer.fault)
+        assertNull(h.localizer.statusFault)
         h.robot.loop()
-        assertTrue(h.localizer.fault!!.contains("FAULT_BAD_READ"))
+        assertTrue(h.localizer.statusFault!!.contains("FAULT_BAD_READ"))
         assertEquals(1, h.faults)
+    }
+
+    @Test
+    fun aStatusFaultLeavesThePoseChecksRunning() {
+        val h = Harness(autoPolicy = true)
+        h.deviceStatusBits = 1
+        h.initTick()
+        h.robot.start()
+        h.deviceStatusBits = 12
+        repeat(2) {
+            h.clock.advanceMs(20.0)
+            h.robot.loop()
+        }
+        assertTrue(h.localizer.statusFault!!.contains("FAULT_NO_PODS_DETECTED"))
+        assertNull(h.localizer.fault)
+        assertEquals(0, h.faults)
+        assertEquals(1, h.statusFaults)
+
+        h.hardware.localizer.measuredPose = Pose(Double.NaN, 0.0, 0.0)
+        repeat(2) {
+            h.clock.advanceMs(20.0)
+            h.robot.loop()
+        }
+        assertTrue(h.localizer.fault!!.contains("non-finite"))
+        assertEquals(1, h.faults)
+        assertEquals(1, h.statusFaults)
     }
 
     @Test

@@ -36,8 +36,8 @@ import org.firstinspires.ftc.teamcode.core.logging.logged
  *    not arrival; Pedro then holds or idles.
  *  - [holdCommand]: on measured arrival within [DriveConfig] tolerances, or
  *    after its timeout (a bounded wait, not a failure).
- *  - [turnToCommand]: on measured heading; its timeout throws, which aborts
- *    the routine.
+ *  - [turnToCommand]: on measured heading, or after its timeout (a bounded
+ *    wait, so the routine moves on).
  *
  * Each command cleans up at most once per start, because Ivy 1.1.1 can end
  * a command that never started, or end one twice (AI-GUIDE.md).
@@ -222,9 +222,10 @@ class MecanumDriveSubsystem(
 
     /**
      * Hold the current position while turning to an absolute heading. Done
-     * when the measured heading is within [DriveConfig.holdToleranceRadians].
-     * If it has not converged within [timeoutMs] it throws: a timed-out turn is
-     * never reported as success. Always stops the follower when it ends.
+     * when the measured heading is within [DriveConfig.holdToleranceRadians],
+     * or after [timeoutMs], so a turn that can't quite converge doesn't stall
+     * the routine; FINISH in the log is not proof it got there. Always stops
+     * the follower when it ends.
      */
     fun turnToCommand(radians: Double, timeoutMs: Double = 2_000.0, name: String = "Drive turn"): Command {
         require(radians.isFinite()) { "turn heading must be finite" }
@@ -244,12 +245,9 @@ class MecanumDriveSubsystem(
             .setDone {
                 val heading = pose.heading()
                 check(heading.isFinite()) { "turnTo lost its heading measurement" }
-                val error = abs(shortestAngleDelta(heading, radians))
-                val reached = updateCount > updatesAtStart && error < DriveConfig.holdToleranceRadians
-                check(reached || (clock.nanos() - startNs) / 1e6 < timeoutMs) {
-                    "turnTo timed out after $timeoutMs ms; heading error ${Math.toDegrees(error)} deg"
-                }
-                reached
+                val reached = updateCount > updatesAtStart &&
+                    abs(shortestAngleDelta(heading, radians)) < DriveConfig.holdToleranceRadians
+                reached || (clock.nanos() - startNs) / 1e6 >= timeoutMs
             }
             .setEnd {
                 if (running) halt()

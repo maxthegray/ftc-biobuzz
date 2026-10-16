@@ -95,7 +95,9 @@ error is following or battery.
   must stop, and sticks must drive robot-centric (`driveMode`
   `ROBOT_CENTRIC_FALLBACK`) with forward, strafe, turn, precision and release
   all correct. Paths and field-centric stay unavailable until a new run. In
-  autonomous the routine must cancel and the robot stay put. An exception
+  autonomous the pod fault is only logged (`LOCALIZER FAULT (pose still
+  live)`) and the routine keeps driving; only a non-finite or frozen pose
+  cancels it and leaves the robot parked. An exception
   from the I²C read itself ends the op-mode (hardware stopped first).
 - **Command fault:** in a throwaway teleop, bind a button to a command whose
   `setExecute` throws. Health shows `command faults`, every mechanism stops
@@ -512,7 +514,7 @@ Record results in `PROGRESS.md`.
 - [ ] Field-centric stays field-true through a full rotation; Create+Triangle resets heading.
 - [ ] Brake mode on stick release matches `DriveConfig.brakeOnTeleop`.
 - [ ] `turnToCommand(90°)` reaches heading within 2°; a blocked turn times out
-      and the routine aborts with `COMMAND FAULT: … turnTo timed out`.
+      and the routine goes on to its next step.
 - [ ] `holdCommand` settles within 1 in / 2°.
 
 **Cancellation and takeover**

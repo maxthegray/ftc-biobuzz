@@ -29,6 +29,8 @@ open class TwoTipAutoRed : OpModeBase() {
     private lateinit var drive: MecanumDriveSubsystem
     private lateinit var localizer: LocalizerSubsystem
     private var routine: Command? = null
+    private var waitingToStart = false
+    private var startedNs = 0L
 
     override val initialAlliance: Alliance get() = Alliance.RED
 
@@ -46,8 +48,10 @@ open class TwoTipAutoRed : OpModeBase() {
         localizer = robot.register(
             LocalizerSubsystem(
                 follower,
+                onEvent = robot::recordEvent,
                 isFollowing = drive::isFollowing,
                 onFault = { routine?.let(Scheduler::cancel) },
+                onStatusFault = {},
                 startingPose = start,
             ),
         )
@@ -95,15 +99,30 @@ open class TwoTipAutoRed : OpModeBase() {
     )
 
     override fun onStart() {
-        if (!Constants.FORESIGHT_TUNED || !localizer.ready) {
+        if (!Constants.FORESIGHT_TUNED) {
             requestOpModeStop()
             return
         }
-        routine = buildRoutine().also(Scheduler::schedule)
+        startedNs = robot.clock.nanos()
+        waitingToStart = true
     }
 
     override fun onLoop() {
+        if (waitingToStart) startRoutineWhenReady()
         if (routine?.let(Scheduler::isScheduled) == false) requestOpModeStop()
+    }
+
+    /** START pressed right after INIT: give the localizer up to a second, then go anyway unless the pose is lost. */
+    private fun startRoutineWhenReady() {
+        val waitedMs = (robot.clock.nanos() - startedNs) / 1e6
+        if (localizer.fault == null && !localizer.ready && waitedMs < 1_000.0) return
+        waitingToStart = false
+        if (localizer.fault != null) {
+            requestOpModeStop()
+            return
+        }
+        if (!localizer.ready) robot.recordEvent("AUTO: starting without a ready localizer: ${localizer.health()}")
+        routine = buildRoutine().also(Scheduler::schedule)
     }
 }
 
