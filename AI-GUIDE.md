@@ -262,8 +262,9 @@ drive.pose / drive.velocity / drive.atPose(target) / drive.toggleFieldCentric()
    contained. Use `error("…")` (an `IllegalStateException`) for a command
    that should fail without ending the op-mode.
 7. **Localizer faults.** `LocalizerSubsystem.periodic()` trips on a non-finite
-   pose, a pose frozen while following, or a bad Pinpoint status, and calls
-   `onFault` once. Teleop (`TeleOpBase`) schedules the robot-centric fallback
+   pose, a pose frozen while following, or a bad Pinpoint status
+   (`FAULT_BAD_READ`, the driver rejecting one sample, only after 5 in a
+   row), and calls `onFault` once. Teleop (`TeleOpBase`) schedules the robot-centric fallback
    and makes it the default: no follower update, no odometry read, no
    field-centric rotation, and paths/holds/turns refuse. Auton cancels the
    routine and stays put.

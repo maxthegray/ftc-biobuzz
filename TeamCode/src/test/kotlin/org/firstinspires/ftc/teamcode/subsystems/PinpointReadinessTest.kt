@@ -131,6 +131,47 @@ class PinpointReadinessTest {
     }
 
     @Test
+    fun oneBadReadIsNotAFault() {
+        val h = Harness()
+        h.deviceStatusBits = 1
+        h.initTick()
+        h.deviceStatusBits = 32
+        h.initTick()
+        h.deviceStatusBits = 1
+        h.initTick()
+        assertTrue(h.localizer.ready)
+        assertNull(h.localizer.fault)
+
+        h.robot.start()
+        h.clock.advanceMs(20.0)
+        h.deviceStatusBits = 32
+        h.robot.loop()
+        h.deviceStatusBits = 1
+        h.clock.advanceMs(20.0)
+        h.robot.loop()
+        assertNull(h.localizer.fault)
+        assertEquals(0, h.faults)
+    }
+
+    @Test
+    fun aRunOfBadReadsIsAFaultEvenBetweenStatusChecks() {
+        val h = Harness()
+        h.deviceStatusBits = 1
+        h.initTick()
+        h.robot.start()
+        h.deviceStatusBits = 32
+        // Each tick judges the status the previous tick's update read; the first still sees READY.
+        repeat(5) {
+            h.robot.loop()
+            h.clock.advanceMs(20.0)
+        }
+        assertNull(h.localizer.fault)
+        h.robot.loop()
+        assertTrue(h.localizer.fault!!.contains("FAULT_BAD_READ"))
+        assertEquals(1, h.faults)
+    }
+
+    @Test
     fun initReadFailureIsVisibleAndDoesNotWriteMotorPower() {
         val h = Harness()
         h.failReads = true

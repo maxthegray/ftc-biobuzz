@@ -57,7 +57,7 @@ class LocalizerSubsystem(
     private var lastStatus: DeviceStatus? = null
     private var startPoseConfirmed = false
 
-    private var lastStatusNs = Long.MIN_VALUE
+    private var badReadsInARow = 0
     private var frozenTicks = 0
     private var lastPose = Pose.zero()
     private var hasLastPose = false
@@ -76,6 +76,7 @@ class LocalizerSubsystem(
             null
         }
         startPoseConfirmed = false
+        badReadsInARow = 0
         follower.setPose(startingPose)
     }
 
@@ -149,13 +150,10 @@ class LocalizerSubsystem(
         hasLastPose = true
     }
 
+    /** The driver caches the status from the last bulk read, so this costs no I2C and runs every tick. */
     private fun checkPinpointStatus(initializing: Boolean) {
         val pinpoint = rawPinpoint ?: return
         val now = clock.nanos()
-        if (!initializing && pinpointReady && lastStatusNs != Long.MIN_VALUE &&
-            now - lastStatusNs < STATUS_INTERVAL_NS
-        ) return
-        lastStatusNs = now
         val status = try {
             pinpoint.deviceStatus
         } catch (t: Exception) {
@@ -163,6 +161,14 @@ class LocalizerSubsystem(
             return
         }
         lastStatus = status
+        // The SDK driver flags one corrupt sample this way and keeps the previous
+        // value; the next read clears it. Only a run of them is a dead sensor.
+        if (status == DeviceStatus.FAULT_BAD_READ) {
+            badReadsInARow++
+            if (badReadsInARow >= BAD_READS_TO_FAULT) trip("Pinpoint status $status for $badReadsInARow reads in a row")
+            return
+        }
+        badReadsInARow = 0
         when {
             status == DeviceStatus.READY -> pinpointReady = true
             initializing && !pinpointReady &&
@@ -218,8 +224,10 @@ class LocalizerSubsystem(
     }
 
     private companion object {
-        const val STATUS_INTERVAL_NS = 1_000_000_000L
         const val STARTUP_TIMEOUT_NS = 5_000_000_000L
+
+        /** Consecutive FAULT_BAD_READ samples (one per tick) before the Pinpoint is called dead. */
+        const val BAD_READS_TO_FAULT = 5
 
         /** How far (inches) a read may be from the start pose and still confirm it. */
         const val START_POSE_TOLERANCE_INCHES = 0.5
