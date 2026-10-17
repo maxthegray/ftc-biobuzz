@@ -172,7 +172,8 @@ class Robot(
      *    next tick.
      *  - An [Exception] from one subsystem's periodic() or writeHardware() is
      *    recorded and the other subsystems still run. After a failed write it
-     *    gets [SubsystemBase.onCommandFault], so the drive can't keep driving.
+     *    gets [SubsystemBase.onWriteFault]: the drive zeroes its motors for
+     *    that tick and keeps following its path.
      * Exceptions from 4 (`onLoop()`), and any [Error] (including Kotlin's
      * `TODO()`, which throws [NotImplementedError]), propagate out of this
      * call: the op-mode must then call [stopAfterCrash] and end.
@@ -303,7 +304,7 @@ class Robot(
         try {
             block()
         } catch (e: Exception) {
-            if (phase == "writeHardware") safe(s)
+            if (phase == "writeHardware") try { s.onWriteFault() } catch (_: Throwable) { /* still record it */ }
             subsystemFaultCount++
             lastSubsystemFault = e
             recordFault(e, "SUBSYSTEM FAULT: ${s.name}.$phase: ${e.javaClass.simpleName}: ${e.message}")

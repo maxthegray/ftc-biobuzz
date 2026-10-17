@@ -98,8 +98,9 @@ error is following or battery.
   autonomous the pod fault is only logged (`LOCALIZER FAULT (pose still
   live)`) and the routine keeps driving; only a non-finite or frozen pose
   cancels it and leaves the robot parked. An exception
-  from the I²C read itself is a `SUBSYSTEM FAULT` on the drive: it halts,
-  and stays halted while the read keeps failing.
+  from the I²C read itself is a `SUBSYSTEM FAULT` on the drive: the motors
+  get zero power each tick the read fails, and the path resumes when it
+  works again.
 - **Command fault:** in a throwaway teleop, bind a button to a `logged()`
   command on the intake whose `setExecute` throws. Health shows `command
   faults`, only the intake stops, driving carries on, and the log carries

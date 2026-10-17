@@ -425,6 +425,12 @@ class MecanumDriveSubsystem(
 
     override fun onCommandFault() = halt()
 
+    /** Zero the motors but keep following: the next good update drives the path again. */
+    override fun onWriteFault() {
+        follower.drivetrain.stop()
+        recordCommandedPower(stopped = true)
+    }
+
     override fun stop() = halt()
 
     /** Stop following and write zero power now, without waiting for the next update. */

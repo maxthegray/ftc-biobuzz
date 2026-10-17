@@ -72,13 +72,20 @@ abstract class SubsystemBase(val name: String) {
     open fun logState(log: StateLog) {}
 
     /**
-     * Something threw: a command using this subsystem, this subsystem's own
-     * writeHardware(), or an unlogged command (then [Robot] has cleared Ivy's
-     * scheduler and calls this on every subsystem). Put actuators in a safe
-     * state; the drive writes zero power directly, since a failed write could
-     * leave it driving. Default commands resume on the next tick. Never throw.
+     * Something threw: a command using this subsystem, or an unlogged command
+     * (then [Robot] has cleared Ivy's scheduler and calls this on every
+     * subsystem). Put actuators in a safe state. Default commands resume on
+     * the next tick. Never throw.
      */
     open fun onCommandFault() {}
+
+    /**
+     * This subsystem's writeHardware() threw, so its outputs may be stuck at
+     * their last values. Zero them now, but leave the running command alone
+     * so a one-tick glitch costs one tick. Defaults to [onCommandFault].
+     * Never throw.
+     */
+    open fun onWriteFault() = onCommandFault()
 
     /**
      * Called once at the end of the op-mode, before diagnostics and storage.

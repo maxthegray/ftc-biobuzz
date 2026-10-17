@@ -308,7 +308,8 @@ See [MaxScope](../tools/maxscope/README.md) for controls, limits and tests.
   is gone and the op-mode stops.
 - **If a subsystem's `periodic()` or `writeHardware()` throws,** the log gets
   `SUBSYSTEM FAULT` and the other subsystems keep running. After a failed
-  write that subsystem is halted, so the drive can't keep driving.
+  write that subsystem's outputs are zeroed (`onWriteFault()`). The drive
+  keeps following its path, so a one-tick glitch costs one tick.
 - Health telemetry shows both counts.
 - **An `Error` ends the op-mode,** and so does an exception from `onLoop()`.
   `TODO()` throws `NotImplementedError`, which is an `Error`: code still

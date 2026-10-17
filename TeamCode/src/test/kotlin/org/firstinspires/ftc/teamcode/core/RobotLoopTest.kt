@@ -208,7 +208,7 @@ class RobotLoopTest {
         val broken = object : SubsystemBase("broken") {
             override fun periodic() { error("bad read") }
             override fun writeHardware() { error("bad write") }
-            override fun onCommandFault() { events += "broken safed" }
+            override fun onWriteFault() { events += "broken safed" }
         }
         robot.register(broken)
         robot.register(RecordingSubsystem(events, "other"))

@@ -141,6 +141,27 @@ class DriveCommandTest {
     }
 
     @Test
+    fun aFailedDriveWriteZeroesTheMotorsForOneTickAndThePathCarriesOn() {
+        val h = Harness()
+        val follow = h.drive.followCommand(h.line())
+        Scheduler.schedule(follow)
+        h.tick()
+        assertTrue(h.hardware.powers().any { it != 0.0 })
+
+        h.hardware.localizer.onRead = { error("I2C glitch") }
+        h.tick()
+        assertEquals(1, h.robot.subsystemFaultCount)
+        assertArrayEquals(DoubleArray(4), h.hardware.powers(), 0.0)
+        assertTrue(Scheduler.isScheduled(follow))
+
+        h.hardware.localizer.onRead = {}
+        h.tick()
+        assertTrue(Scheduler.isScheduled(follow))
+        assertEquals("FOLLOWING", h.drive.driveModeName)
+        assertTrue(h.hardware.powers().any { it != 0.0 })
+    }
+
+    @Test
     fun pathCommandsRefuseToStartWithoutForesightAndTheRobotHaltsWithAReason() {
         val h = Harness(tuned = false)
         val hold = h.drive.holdCommand(h.end)

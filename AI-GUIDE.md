@@ -263,8 +263,9 @@ drive.pose / drive.velocity / drive.atPose(target) / drive.toggleFieldCentric()
    - An `Exception` from one subsystem's `periodic()` or `writeHardware()` is
      recorded as `SUBSYSTEM FAULT: <name>.<phase>: …` and the other
      subsystems still run. A failed write also calls that subsystem's
-     `onCommandFault()`, so the drive halts instead of keeping its last
-     power (and the path it was following ends).
+     `onWriteFault()` (default `onCommandFault()`): the drive zeroes its
+     motors for that tick but keeps following, so a glitch costs one tick,
+     not the path.
    - Repeating faults are logged once a second. Telemetry and recorder
      failures are contained.
    - An `Error` is never contained, and neither is an exception from
