@@ -98,10 +98,12 @@ error is following or battery.
   autonomous the pod fault is only logged (`LOCALIZER FAULT (pose still
   live)`) and the routine keeps driving; only a non-finite or frozen pose
   cancels it and leaves the robot parked. An exception
-  from the I²C read itself ends the op-mode (hardware stopped first).
-- **Command fault:** in a throwaway teleop, bind a button to a command whose
-  `setExecute` throws. Health shows `command faults`, every mechanism stops
-  for a tick, the drive default resumes, and the log carries `COMMAND FAULT`.
+  from the I²C read itself is a `SUBSYSTEM FAULT` on the drive: it halts,
+  and stays halted while the read keeps failing.
+- **Command fault:** in a throwaway teleop, bind a button to a `logged()`
+  command on the intake whose `setExecute` throws. Health shows `command
+  faults`, only the intake stops, driving carries on, and the log carries
+  `COMMAND FAULT: <name>: …`.
   Repeat with a command whose `setExecute` calls `TODO()`: the op-mode must
   end with every motor stopped, the Driver Station must show
   `NotImplementedError`, and the log must end with `LOOP CRASHED` and `stop`.
@@ -461,7 +463,8 @@ Three separate levels; passing one says nothing about the next.
 | Symptom | First evidence to check |
 |---|---|
 | Op-mode stopped | Driver Station exception, `LOOP CRASHED` event, loop phase maxima, minimum battery |
-| All mechanisms twitched off / auto stopped mid-routine | `COMMAND FAULT` event and Health `command faults`; the `FAIL` record in `commands/events` names the traced command and phase |
+| A mechanism stopped / auto skipped a step | `COMMAND FAULT` or `SUBSYSTEM FAULT` event and the Health counts; the `FAIL` record in `commands/events` names the traced command and phase |
+| All mechanisms twitched off / auto stopped mid-routine | `COMMAND FAULT: … (commands cleared, subsystems halted)`: something threw outside every `logged()` step |
 | Auto did the wrong step / stopped early | `commands/events` and `commands/active` around the moment (only `logged` steps appear); FINISH of a hold may be its timeout |
 | Path "finished" short of the target | `follow/translationalErrorIn` at the end; follow ends at the parametric end, add `holdCommand` |
 | Auton wrong only on BLUE | Headings not through `Alliance.mirror`, or `PoseFactory.mirrorX` used (it reflects; this season rotates) |
@@ -530,7 +533,8 @@ Record results in `PROGRESS.md`.
 - [ ] Localizer fault drill (step 7) in teleop and in autonomous.
 - [ ] Command fault drill (step 7), including the `TODO()` variant: the op-mode
       ends with every motor stopped and the log ends `LOOP CRASHED`, `stop`.
-- [ ] Unplugged Pinpoint at init: Health reports it, auto refuses to start.
+- [ ] Unplugged Pinpoint at init: Health reports it; auto still runs and logs
+      `AUTO: starting without a ready localizer`, unless the pose itself is lost.
 
 **HIVE tags** (Hive Tag Survey, above)
 - [ ] Four tags of one CELL agree on its goal within ~1 in, head-on and from the side.

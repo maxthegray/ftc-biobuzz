@@ -110,9 +110,10 @@ Rules:
 - Every command that touches the subsystem says `requiring(this)`, so Ivy
   lets only one of them run. Use `Commands.lazy { … }` when the command
   depends on state known only when it starts.
-- `setEnd` runs when the command finishes or is replaced, but **not** when
-  the op-mode stops or a command crashes: `stop()` and `onCommandFault()`
-  make the mechanism safe then.
+- `setEnd` runs when the command finishes, is replaced, or throws (a
+  `logged()` command only), but **not** when the op-mode stops or an
+  unlogged command crashes: `stop()` and `onCommandFault()` make the
+  mechanism safe then.
 - Only make things safe in `setEnd` (power to 0, blocker closed). Ivy can
   run it for a command that never started, or twice, so it must not start
   anything or count anything. AI-GUIDE.md shows the pattern if you need to.
@@ -297,15 +298,22 @@ See [MaxScope](../tools/maxscope/README.md) for controls, limits and tests.
   priorities; the localizer-fault fallback is the only command with one.
 - A default command never replaces a running command; it comes back when the
   subsystem is free.
-- **If a command throws an `Exception`** (for example `error("…")` or
-  `require(...)`), the robot clears every command, halts every subsystem
-  (`onCommandFault()`), records `COMMAND FAULT` in the log, and keeps looping
-  with defaults. In auto that means the routine is gone and the op-mode stops.
-  Health telemetry shows the count.
-- **An `Error` ends the op-mode.** `TODO()` throws `NotImplementedError`,
-  which is an `Error`: a command or binding still containing `TODO()` stops
-  every motor, records `LOOP CRASHED` with the stack trace, and ends the run.
-  Replace every `TODO()` before driving.
+- **If a `logged()` command throws an `Exception`** (for example
+  `error("…")` or `require(...)`), only that command ends. Its subsystems are
+  halted (`onCommandFault()`), the log gets `COMMAND FAULT: <name>: …`, and an
+  auto moves on to its next step. Wrap every routine step in `logged()`; the
+  drive commands already are.
+- An exception from a binding or an unlogged command clears every command
+  and halts every subsystem instead. Defaults come back; in auto the routine
+  is gone and the op-mode stops.
+- **If a subsystem's `periodic()` or `writeHardware()` throws,** the log gets
+  `SUBSYSTEM FAULT` and the other subsystems keep running. After a failed
+  write that subsystem is halted, so the drive can't keep driving.
+- Health telemetry shows both counts.
+- **An `Error` ends the op-mode,** and so does an exception from `onLoop()`.
+  `TODO()` throws `NotImplementedError`, which is an `Error`: code still
+  containing `TODO()` stops every motor, records `LOOP CRASHED` with the stack
+  trace, and ends the run. Replace every `TODO()` before driving.
 - **If the localizer fails** in teleop, the driver keeps robot-centric sticks
   for the rest of the run; paths, holds and turns refuse to start.
 

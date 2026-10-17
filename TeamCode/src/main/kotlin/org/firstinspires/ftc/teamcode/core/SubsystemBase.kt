@@ -72,9 +72,11 @@ abstract class SubsystemBase(val name: String) {
     open fun logState(log: StateLog) {}
 
     /**
-     * A command threw. [Robot] has already cleared Ivy's scheduler (no end
-     * handlers run) and calls this on every subsystem: put actuators in a safe
-     * state. Default commands resume on the next tick. Never throw.
+     * Something threw: a command using this subsystem, this subsystem's own
+     * writeHardware(), or an unlogged command (then [Robot] has cleared Ivy's
+     * scheduler and calls this on every subsystem). Put actuators in a safe
+     * state; the drive writes zero power directly, since a failed write could
+     * leave it driving. Default commands resume on the next tick. Never throw.
      */
     open fun onCommandFault() {}
 

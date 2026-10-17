@@ -210,7 +210,7 @@ class FlightRecorderDriveIntegrationTest {
         assertTrue(eventTimes.zipWithNext().all { (a, b) -> b > a })
         val events = log.strings("events").map { it.second }
         assertTrue("init IntegrationTest" in events)
-        assertTrue("COMMAND FAULT: IllegalStateException: boom (commands cleared, subsystems halted)" in events)
+        assertTrue("COMMAND FAULT: Faulty step: IllegalStateException: boom (command ended)" in events)
         assertTrue("marker" in events)
         assertEquals("stop", events.last())
         assertFalse(log.has("commands/running"))

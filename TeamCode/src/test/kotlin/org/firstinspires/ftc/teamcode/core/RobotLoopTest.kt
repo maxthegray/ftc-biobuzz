@@ -5,6 +5,7 @@ import com.pedropathing.ivy.Scheduler
 import com.pedropathing.ivy.behaviors.EndCondition
 import com.pedropathing.ivy.commands.Commands.infinite
 import com.qualcomm.robotcore.hardware.HardwareMap
+import org.firstinspires.ftc.teamcode.core.logging.logged
 import org.firstinspires.ftc.teamcode.core.sim.FakeClock
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -157,7 +158,7 @@ class RobotLoopTest {
     }
 
     @Test
-    fun commandFaultAbortsEveryCommandHaltsEverySubsystemAndTheLoopContinues() {
+    fun anUnloggedCommandFaultAbortsEveryCommandHaltsEverySubsystemAndTheLoopContinues() {
         val other = robot.register(RecordingSubsystem(events, "other"))
         val survivorEnds = mutableListOf<EndCondition>()
         val unrelated = infinite {}.requiring(Any()).setEnd { survivorEnds += it }
@@ -185,6 +186,54 @@ class RobotLoopTest {
     }
 
     @Test
+    fun aLoggedCommandFaultEndsOnlyThatCommandAndHaltsOnlyItsSubsystem() {
+        robot.register(RecordingSubsystem(events, "other"))
+        val unrelated = infinite {}.requiring(Any())
+        val bad = logged("Bad", Command.build().requiring(subsystem).setExecute { error("boom") })
+
+        robot.start()
+        robot.loop(control = {
+            Scheduler.schedule(unrelated)
+            Scheduler.schedule(bad)
+        })
+
+        assertEquals(1, robot.commandFaultCount)
+        assertFalse(Scheduler.isScheduled(bad))
+        assertTrue(Scheduler.isScheduled(unrelated))
+        assertEquals(listOf("periodic", "periodic", "fault", "write", "write"), events)
+    }
+
+    @Test
+    fun aSubsystemFaultIsContainedAndTheOtherSubsystemsStillRun() {
+        val broken = object : SubsystemBase("broken") {
+            override fun periodic() { error("bad read") }
+            override fun writeHardware() { error("bad write") }
+            override fun onCommandFault() { events += "broken safed" }
+        }
+        robot.register(broken)
+        robot.register(RecordingSubsystem(events, "other"))
+
+        robot.start()
+        robot.loop()
+        robot.loop()
+
+        assertEquals(4, robot.subsystemFaultCount)
+        assertEquals("bad write", robot.lastSubsystemFault?.message)
+        // Only a failed write makes the subsystem safe; a failed read just leaves stale data.
+        assertEquals(List(2) { listOf("periodic", "periodic", "write", "broken safed", "write") }.flatten(), events)
+        assertEquals(2L, robot.loopCount)
+    }
+
+    @Test
+    fun anErrorFromASubsystemStillEndsTheOpMode() {
+        robot.register(object : SubsystemBase("unfinished") {
+            override fun writeHardware() = TODO()
+        })
+        robot.start()
+        assertThrows(NotImplementedError::class.java) { robot.loop() }
+    }
+
+    @Test
     fun faultInTheInputPhaseAbortsCommandsToo() {
         robot.start()
         robot.loop(input = { error("binding blew up") })
@@ -193,7 +242,7 @@ class RobotLoopTest {
     }
 
     @Test
-    fun faultsOutsideTheCommandPhasesEndTheOpMode() {
+    fun anOnLoopFaultEndsTheOpMode() {
         robot.start()
         assertThrows(IllegalStateException::class.java) { robot.loop(control = { error("onLoop bug") }) }
         assertEquals(0, robot.commandFaultCount)

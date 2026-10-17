@@ -143,12 +143,11 @@ class DriveCommandTest {
     @Test
     fun pathCommandsRefuseToStartWithoutForesightAndTheRobotHaltsWithAReason() {
         val h = Harness(tuned = false)
-        assertThrows(IllegalStateException::class.java) { h.drive.followCommand(h.line()).start() }
-
-        // Scheduling from a binding happens in the input phase, inside the robot's fault boundary.
-        h.robot.loop(input = { Scheduler.schedule(h.drive.holdCommand(h.end)) })
+        val hold = h.drive.holdCommand(h.end)
+        h.robot.loop(input = { Scheduler.schedule(hold) })
         assertEquals(1, h.robot.commandFaultCount)
         assertTrue(h.robot.lastCommandFault!!.message!!.contains("Foresight"))
+        assertFalse(Scheduler.isScheduled(hold))
         assertArrayEquals(DoubleArray(4), h.hardware.powers(), 1e-9)
     }
 

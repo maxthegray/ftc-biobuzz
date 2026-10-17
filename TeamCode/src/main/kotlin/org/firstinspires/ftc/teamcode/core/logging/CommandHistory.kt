@@ -21,10 +21,15 @@ fun logged(name: String, command: Command): Command =
     LoggedCommand(name, if (command is LoggedCommand) command.command else command)
 
 /**
- * An Ivy [Command] that forwards every call to [command] unchanged (requirements,
- * priority and the three behaviours are read through on every call; return
- * values and exceptions pass straight back) and reports its lifecycle to
- * [CommandHistory].
+ * An Ivy [Command] that forwards every call to [command] (requirements,
+ * priority and the three behaviours are read through on every call) and
+ * reports its lifecycle to [CommandHistory].
+ *
+ * **Fault isolation.** An [Exception] thrown by [command] ends only this
+ * command: it is recorded as FAIL, [onFault] makes its subsystems safe, then it
+ * reports done and [command]'s end handler runs as for an interrupt. A parent
+ * `sequential` moves on to its next step, so one broken step can't end an
+ * auto. An [Error] (`TODO()`) still escapes and crashes the loop.
  *
  * Ivy 1.1.1 quirks it handles: `end` without a `start` (a later step of a
  * cancelled `sequential`, a cancelled queued command, a `lazy` forwarding to
@@ -36,6 +41,7 @@ fun logged(name: String, command: Command): Command =
  */
 class LoggedCommand internal constructor(val name: String, val command: Command) : Command {
     private var execution: CommandHistory.Execution? = null
+    private var faulted = false
 
     override fun requirements(): MutableSet<Any> = command.requirements()
     override fun priority(): Int = command.priority()
@@ -45,45 +51,46 @@ class LoggedCommand internal constructor(val name: String, val command: Command)
 
     override fun start() {
         execution?.let { CommandHistory.abort(it, "restarted without an end") }
-        val run = CommandHistory.start(name)
-        execution = run
-        try {
-            command.start()
-        } catch (t: Throwable) {
-            CommandHistory.fail(run, name, "start", t)
-            throw t
-        }
+        faulted = false
+        execution = CommandHistory.start(name)
+        contained("start", Unit) { command.start() }
     }
 
     override fun execute() {
+        if (faulted) return
         execution?.let(CommandHistory::resume)
-        try {
-            command.execute()
-        } catch (t: Throwable) {
-            CommandHistory.fail(execution, name, "execute", t)
-            throw t
-        }
+        contained("execute", Unit) { command.execute() }
     }
 
-    override fun done(): Boolean = try {
-        command.done()
-    } catch (t: Throwable) {
-        CommandHistory.fail(execution, name, "done", t)
-        throw t
-    }
+    override fun done(): Boolean = faulted || contained("done", true) { command.done() }
 
     override fun end(endCondition: EndCondition) {
         val run = execution
-        try {
-            command.end(endCondition)
-        } catch (t: Throwable) {
-            CommandHistory.fail(run, name, "end", t)
-            throw t
-        }
+        // A faulted command was cut short: let its cleanup run as for an interrupt.
+        val condition = if (faulted && endCondition == EndCondition.NATURALLY) EndCondition.INTERRUPTED else endCondition
+        faulted = false
+        contained("end", Unit) { command.end(condition) }
         if (run != null) CommandHistory.ended(run, endCondition)
     }
 
+    private inline fun <T> contained(phase: String, fallback: T, block: () -> T): T = try {
+        block()
+    } catch (e: Exception) {
+        CommandHistory.fail(execution, name, phase, e)
+        faulted = phase != "end"
+        onFault(this, e)
+        fallback
+    } catch (t: Throwable) {
+        CommandHistory.fail(execution, name, phase, t)
+        throw t
+    }
+
     override fun toString(): String = name
+
+    companion object {
+        /** Set by [Robot][org.firstinspires.ftc.teamcode.core.Robot]: halt the command's subsystems and record the fault. */
+        internal var onFault: (LoggedCommand, Exception) -> Unit = { _, _ -> }
+    }
 }
 
 /**

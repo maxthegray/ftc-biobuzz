@@ -113,7 +113,7 @@ class CommandHistoryTest {
     }
 
     @Test
-    fun wrappingForwardsPoliciesResultsAndExceptionsUnchanged() {
+    fun wrappingForwardsPoliciesAndResultsAndContainsExceptions() {
         val boom = IllegalStateException("boom")
         val inner = armCommand { true }
             .setPriority(7)
@@ -128,63 +128,71 @@ class CommandHistoryTest {
         assertEquals(BlockedBehavior.QUEUE, wrapped.blockedBehavior())
         assertEquals(ConflictBehavior.QUEUE, wrapped.conflictBehavior())
         assertTrue(wrapped.done())
-        assertSame(boom, assertThrows(IllegalStateException::class.java) { wrapped.execute() })
+        wrapped.execute()
+        assertSame(boom, robot.lastCommandFault)
+        assertTrue("a faulted command reports done", wrapped.done())
+        // An Error (TODO()) is not contained.
+        val unfinished = logged("Unfinished", armCommand().setExecute { TODO() })
+        assertThrows(NotImplementedError::class.java) { unfinished.execute() }
         // Wrapping twice renames instead of tracing twice.
         val renamed = logged("Renamed", wrapped) as LoggedCommand
         assertSame(inner, renamed.command)
     }
 
     @Test
-    fun failuresInEachPhaseAreRecordedOnceAndUnrelatedCommandsAreAbortedNotFailed() {
+    fun aFailureInAnyPhaseEndsOnlyThatCommand() {
         val bystander = logged("Bystander", infinite {})
         Scheduler.schedule(bystander)
         tick()
 
-        val phases = listOf(
-            "start" to armCommand().setStart { error("start boom") },
-            "execute" to armCommand().setExecute { error("execute boom") },
-            "done" to armCommand().setDone { error("done boom") },
+        val bad = listOf(
+            logged("Bad start", armCommand().setStart { error("start boom") }),
+            logged("Bad execute", armCommand().setExecute { error("execute boom") }),
+            logged("Bad done", armCommand().setDone { error("done boom") }),
         )
-        for ((phase, inner) in phases) {
-            tick(input = { Scheduler.schedule(logged("Bad $phase", inner)) })
-            if (phase != "start") tick()
-            tick(input = { Scheduler.schedule(bystander) })
+        for (command in bad) {
+            arm.power = 0.5
+            tick(input = { Scheduler.schedule(command) })
+            assertFalse(Scheduler.isScheduled(command))
+            assertEquals("its subsystem was made safe", 0.0, arm.power, 0.0)
         }
         val badEnd = logged("Bad end", armCommand().setEnd { error("end boom") })
         tick(input = { Scheduler.schedule(badEnd) })
         tick(input = { Scheduler.cancel(badEnd) })
 
+        assertTrue(Scheduler.isScheduled(bystander))
         assertEquals(4, robot.commandFaultCount)
         assertEquals("end boom", robot.lastCommandFault?.message)
         val events = log().commandEvents()
         assertEquals(
             listOf(
                 "FAIL #2 Bad start in start: IllegalStateException: start boom",
-                "FAIL #4 Bad execute in execute: IllegalStateException: execute boom",
-                "FAIL #6 Bad done in done: IllegalStateException: done boom",
-                "FAIL #8 Bad end in end: IllegalStateException: end boom",
+                "FAIL #3 Bad execute in execute: IllegalStateException: execute boom",
+                "FAIL #4 Bad done in done: IllegalStateException: done boom",
+                "FAIL #5 Bad end in end: IllegalStateException: end boom",
             ),
             events.filter { it.startsWith("FAIL") },
         )
-        // The bystander is closed as a consequence of each fault, never as a failure.
-        assertEquals(
-            listOf("ABORT #1 Bystander: command fault", "ABORT #3 Bystander: command fault", "ABORT #5 Bystander: command fault", "ABORT #7 Bystander: command fault"),
-            events.filter { it.contains("Bystander") && !it.startsWith("START") },
-        )
-        assertEquals(4, events.count { it.startsWith("FAIL") })
+        assertEquals(listOf("START #1 Bystander", "ABORT #1 Bystander: op-mode stop"), events.filter { it.contains("Bystander") })
     }
 
     @Test
-    fun aFailingChildIsTheOriginAndItsTracedParentsSayWhereItCameFrom() {
-        val routine = logged("Routine", sequential(logged("Step", armCommand().setExecute { error("jammed") })))
+    fun aFailingStepEndsAloneAndTheRoutineMovesOn() {
+        val stepEnds = mutableListOf<EndCondition>()
+        val step = armCommand().setExecute { error("jammed") }.setEnd { stepEnds += it }
+        val routine = logged("Routine", sequential(logged("Step", step), logged("Next", armCommand { true })))
         Scheduler.schedule(routine)
-        tick()
+        repeat(3) { tick() }
+        assertFalse(Scheduler.isScheduled(routine))
+        assertEquals("cleanup runs as for an interrupt", listOf(EndCondition.INTERRUPTED), stepEnds)
         assertEquals(
             listOf(
                 "START #1 Routine",
                 "START #2 Step",
                 "FAIL #2 Step in execute: IllegalStateException: jammed",
-                "FAIL #1 Routine in execute: IllegalStateException: jammed (from #2)",
+                "START #3 Next",
+                "FINISH #3 Next",
+                "FINISH #1 Routine",
             ),
             log().commandEvents(),
         )

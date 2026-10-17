@@ -140,6 +140,10 @@ abstract class OpModeBase : LinearOpMode() {
                 val last = robot.lastCommandFault
                 put("command faults", "${robot.commandFaultCount} (last: ${last?.javaClass?.simpleName}: ${last?.message})")
             }
+            if (robot.subsystemFaultCount > 0) {
+                val last = robot.lastSubsystemFault
+                put("subsystem faults", "${robot.subsystemFaultCount} (last: ${last?.javaClass?.simpleName}: ${last?.message})")
+            }
             for (subsystem in robot.subsystems()) {
                 val health = subsystem.health()
                 if (health != null) put(subsystem.name, health)

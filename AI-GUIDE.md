@@ -248,19 +248,33 @@ drive.pose / drive.velocity / drive.atPose(target) / drive.toggleFieldCentric()
    they lock at start. A button held through init does not fire at start.
 5. **Register the drive before the localizer** (`registerAfter` enforces it):
    the localizer samples pose history after `Follower.update()`.
-6. **Fault policy.** An `Exception` from bindings or command execution
-   clears Ivy (no end handlers run), calls `onCommandFault()` on **every**
-   subsystem, records `COMMAND FAULT: …` in the WPILOG, and the loop
-   continues with defaults. An autonomous routine is then no longer scheduled
-   and the op-mode stops itself. An `Error` is not contained, wherever it is
-   thrown: Kotlin's `TODO()` throws `NotImplementedError`, so a `TODO()` left
-   in a command or binding **ends the op-mode**, as do exceptions from
-   `periodic()`, `onLoop()` and `writeHardware()`. `OpModeBase` then calls
-   `Robot.stopAfterCrash`: every subsystem is stopped first, `LOOP CRASHED`
-   and the stack trace are recorded, the log closes, and the error is
-   rethrown to the Driver Station. Telemetry and recorder failures are
-   contained. Use `error("…")` (an `IllegalStateException`) for a command
-   that should fail without ending the op-mode.
+6. **Fault policy: keep running.** Only an `Error` or an exception from
+   `onLoop()` ends the op-mode.
+   - An `Exception` from a `logged()` command ends **only that command**:
+     `FAIL` in `commands/events`, `onCommandFault()` on the subsystems it
+     requires, `COMMAND FAULT: <name>: …` in the WPILOG, then its end handler
+     runs as for an interrupt. A parent `sequential` moves on to its next
+     step, so one broken step never ends an auto. Wrap every routine step in
+     `logged()` (the drive factories already are).
+   - An `Exception` that escapes otherwise (a binding, an unlogged command)
+     clears Ivy (no end handlers run), calls `onCommandFault()` on **every**
+     subsystem, and records `COMMAND FAULT: … (commands cleared, subsystems
+     halted)`. Defaults resume; an auto whose routine is gone stops itself.
+   - An `Exception` from one subsystem's `periodic()` or `writeHardware()` is
+     recorded as `SUBSYSTEM FAULT: <name>.<phase>: …` and the other
+     subsystems still run. A failed write also calls that subsystem's
+     `onCommandFault()`, so the drive halts instead of keeping its last
+     power (and the path it was following ends).
+   - Repeating faults are logged once a second. Telemetry and recorder
+     failures are contained.
+   - An `Error` is never contained, and neither is an exception from
+     `onLoop()`. Kotlin's `TODO()` throws `NotImplementedError`, so a
+     `TODO()` left anywhere **ends the op-mode**: `OpModeBase` calls
+     `Robot.stopAfterCrash`, every subsystem is stopped first, `LOOP CRASHED`
+     and the stack trace are recorded, the log closes, and the error is
+     rethrown to the Driver Station. Use `error("…")` (an
+     `IllegalStateException`) for something that should fail without
+     ending the op-mode.
 7. **Localizer faults.** Two latches, each reported once. `fault`: the pose
    can't be driven on (non-finite, frozen while following, unreadable); calls
    `onFault` and ends the checks. `statusFault`: the Pinpoint reported a
