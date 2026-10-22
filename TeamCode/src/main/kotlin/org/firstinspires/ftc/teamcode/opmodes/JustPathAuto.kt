@@ -41,7 +41,8 @@ class JustPathAutoRed : OpModeBase() {
     private val start get() = poses.of(48.0, 9.0, 180.0)
     private val gardenSweep get() = poses.of(10.0, 10.0, 180.0)
     private val crossToFarSide get() = poses.of(48.0, 124.0, 90.0)
-    private val intoFarFlower get() = poses.of(48.0, 129.0, 90.0)
+    // Not 129: the FLOWER stops the sensorbot at y ≈ 128.8, short of where Pedro ends the path.
+    private val intoFarFlower get() = poses.of(48.0, 128.0, 90.0)
     private val parkInLoadingZone get() = poses.of(16.0, 106.0, 90.0)
 
     override fun configure() {
