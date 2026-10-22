@@ -10,7 +10,7 @@ checklist** at the end lists what still has to be checked on hardware.
 Run this after a fresh clone, a hardware rebuild, or a framework change. Do the
 steps in order, **robot on blocks until step 4.**
 
-`pedro/Constants.java` carries measured Pinpoint offsets and directions, the
+`pedro/Constants.java` carries the sensorbot's tuned Pinpoint offsets and directions, the
 existing motor names and directions, and the **sensorbot's** Foresight tuning
 (`FORESIGHT_TUNED = true`). On a new chassis, re-run the Foresight Tuner before
 any path; with `FORESIGHT_TUNED = false`, manual driving works and every path,
@@ -507,7 +507,7 @@ Record results in `PROGRESS.md`.
 **AutoTune and Pedro**
 - [ ] Mecanum Tuner confirms the four motor directions.
 - [ ] Pinpoint Tuner offsets/directions match `localizerConfig`
-      (xPodOffset 2.8346 in, yPodOffset 0, X REVERSED, Y FORWARD).
+      (xPodOffset −3.2204 in, yPodOffset 0.7179 in, X REVERSED, Y FORWARD).
 - [ ] Foresight Tuner completes; output pasted; `FORESIGHT_TUNED = true`.
       No path, hold or turn is run on the robot before this.
 - [ ] Tests → Hold resists pushing; Line and Curve repeat without drift.

@@ -29,15 +29,13 @@ import org.firstinspires.ftc.teamcode.subsystems.DriveConfig;
  *   <li>Motor names: {@link RobotConfig.Drive}. Motor directions: carried from the
  *       Pedro 2.1.1 constants (FL/BL reversed). Re-check with AutoTune's Mecanum
  *       procedure on the competition chassis.</li>
- *   <li>Pinpoint offsets and directions: measured on the sensorbot (CAD offsets,
- *       commit 4775780; frame redefinition and encoder directions confirmed on the
- *       hardware, commit 2f13376). Pedro 2's forwardPodY/strafePodX map to
- *       xPodOffset/yPodOffset: both versions pass them to
- *       {@code GoBildaPinpointDriver.setOffsets(x, y)} in that order.</li>
- *   <li>Foresight: AutoTune output for the sensorbot, copied from 23209-biobuzz
- *       (commit 1776795, tuned 2026-10-21). That tuning ran with PinpointTuner's
- *       offsets (x -3.22 in, y 0.72 in), not the measured ones above. Re-run
- *       AutoTune's Foresight procedure on the competition chassis.</li>
+ *   <li>Pinpoint offsets and directions: AutoTune's Pinpoint procedure on the
+ *       sensorbot, copied from 23209-biobuzz (commit ba7c04f). They replace the
+ *       CAD offsets (x 2.8346 in, y 0; commit 4775780), which disagree in sign;
+ *       the tuner can flip a pod's sign (Pedro issue #185).</li>
+ *   <li>Foresight: AutoTune's Foresight procedure on the sensorbot with those
+ *       offsets, copied from 23209-biobuzz (commit 1776795, tuned 2026-10-21).
+ *       Re-run AutoTune on the competition chassis.</li>
  * </ul>
  *
  * <p>Pedro 2's voltage compensation has no Pedro 3 equivalent.
@@ -67,11 +65,8 @@ public final class Constants {
 
     public static final PinpointConfig localizerConfig = new PinpointConfig(c -> {
         c.name.set(RobotConfig.Localization.PINPOINT);
-        // Both pods sit on the lateral centreline, 72 mm (2.8346 in) either side of
-        // the robot centre. The forward (X) pod is on the robot's left, so its
-        // lateral offset is positive; the strafe (Y) pod has no fore/aft offset.
-        c.xPodOffset.set(2.8346);
-        c.yPodOffset.set(0.0);
+        c.xPodOffset.set(-3.220380347544753);
+        c.yPodOffset.set(0.717855813935047);
         c.offsetUnits.set(DistanceUnit.INCH);
         c.globalDistanceUnit.set(DistanceUnit.INCH);
         c.xPodDirection.set(GoBildaPinpointDriver.EncoderDirection.REVERSED);
