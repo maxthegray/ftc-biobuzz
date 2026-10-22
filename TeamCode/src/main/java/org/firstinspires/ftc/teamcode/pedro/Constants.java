@@ -2,7 +2,10 @@ package org.firstinspires.ftc.teamcode.pedro;
 
 import com.pedropathing.algorithm.Foresight;
 import com.pedropathing.algorithm.ForesightConfig;
+import com.pedropathing.controllers.Controller;
 import com.pedropathing.follower.Follower;
+import com.pedropathing.math.Matrix;
+import com.pedropathing.math.Vector2D;
 import com.pedropathing.revhub.drivetrains.Mecanum;
 import com.pedropathing.revhub.drivetrains.MecanumConfig;
 import com.pedropathing.revhub.localizers.PinpointConfig;
@@ -31,11 +34,10 @@ import org.firstinspires.ftc.teamcode.subsystems.DriveConfig;
  *       hardware, commit 2f13376). Pedro 2's forwardPodY/strafePodX map to
  *       xPodOffset/yPodOffset: both versions pass them to
  *       {@code GoBildaPinpointDriver.setOffsets(x, y)} in that order.</li>
- *   <li>Foresight: <b>not tuned</b>. Pedro 2's mass, zero-power accelerations and
- *       velocities came from the starter scaffold, were never measured on this
- *       chassis, and have no Foresight equivalent. Run AutoTune's Foresight
- *       procedure, paste its output into {@link #foresightConfig}, then set
- *       {@link #FORESIGHT_TUNED} to true.</li>
+ *   <li>Foresight: AutoTune output for the sensorbot, copied from 23209-biobuzz
+ *       (commit 1776795, tuned 2026-10-21). That tuning ran with PinpointTuner's
+ *       offsets (x -3.22 in, y 0.72 in), not the measured ones above. Re-run
+ *       AutoTune's Foresight procedure on the competition chassis.</li>
  * </ul>
  *
  * <p>Pedro 2's voltage compensation has no Pedro 3 equivalent.
@@ -45,11 +47,11 @@ public final class Constants {
     private Constants() {}
 
     /**
-     * False until {@link #foresightConfig} holds AutoTune output. While false the
+     * True once {@link #foresightConfig} holds AutoTune output. While false the
      * follower has no path algorithm: manual driving works, and path, hold and turn
      * commands refuse to start.
      */
-    public static final boolean FORESIGHT_TUNED = false;
+    public static final boolean FORESIGHT_TUNED = true;
 
     public static final MecanumConfig drivetrainConfig = new MecanumConfig(c -> {
         c.frontLeftName.set(RobotConfig.Drive.FRONT_LEFT_MOTOR);
@@ -82,8 +84,29 @@ public final class Constants {
         c.resetMode.set(PinpointLocalizer.ResetMode.NONE);
     });
 
-    /** Paste AutoTune's Foresight output here. Required values are deliberately unset. */
+    /** AutoTune's Foresight output (sensorbot, 2026-10-21). */
     public static final ForesightConfig foresightConfig = new ForesightConfig(c -> {
+        Controller primaryTranslationalForward = Controller.proportional(0.3859305130404934);
+        Controller secondaryTranslationalForward = Controller.proportional(0.14259101231523041);
+        Controller primaryTranslationalLateral = Controller.proportional(0.649893858954874);
+        Controller secondaryTranslationalLateral = Controller.proportional(0.24011841540008994);
+
+        c.forwardTranslational.set(Controller.piecewise(secondaryTranslationalForward).put(2.5, primaryTranslationalForward));
+        c.strafeTranslational.set(Controller.piecewise(secondaryTranslationalLateral).put(2.5, primaryTranslationalLateral));
+
+        c.coast.set(Controller.proportionalFeedforward(0.008317315818631975));
+        c.brake.set(Controller.proportionalFeedforward(0.007069718445837179));
+
+        c.headingFeedback.set(Controller.proportional(7.0912011875081555));
+        c.headingBrakeCoefficients.set(Vector2D.cartesian(0.10744791340779461, 0.006264631361127194));
+
+        c.linearBrakeCoefficients.set(Matrix.diag(0.18552051491361324, 0.10012107419859242));
+        c.quadraticBrakeCoefficients.set(Matrix.diag(0.002071194869299692, 0.0022879444427973015));
+
+        c.maxAchievableForwardVelocity.set(68.3251044222146);
+        c.maxAchievableStrafeVelocity.set(61.181111299438065);
+        c.naturalForwardDeceleration.set(41.270915401949004);
+        c.naturalStrafeDeceleration.set(64.36119081305444);
     });
 
     /**

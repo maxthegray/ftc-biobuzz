@@ -11,9 +11,10 @@ Run this after a fresh clone, a hardware rebuild, or a framework change. Do the
 steps in order, **robot on blocks until step 4.**
 
 `pedro/Constants.java` carries measured Pinpoint offsets and directions, the
-existing motor names and directions, and **no Foresight tuning**
-(`FORESIGHT_TUNED = false`). Until AutoTune's Foresight output is pasted in,
-manual driving works and every path, hold and turn command refuses to start.
+existing motor names and directions, and the **sensorbot's** Foresight tuning
+(`FORESIGHT_TUNED = true`). On a new chassis, re-run the Foresight Tuner before
+any path; with `FORESIGHT_TUNED = false`, manual driving works and every path,
+hold and turn command refuses to start.
 
 ## 1. Configuration names
 

@@ -200,9 +200,10 @@ Verified 3.0.1 behaviour to respect:
 
 Configuration lives in `pedro/Constants.java` in AutoTune's layout
 (`drivetrainConfig`, `localizerConfig`, `foresightConfig`, `create()`).
-`FORESIGHT_TUNED` is false until AutoTune's Foresight output is pasted; until
-then the follower has no algorithm, manual driving works, and path, hold and
-turn commands throw at start. AutoTune procedures in `pedro/procedures/` are
+`foresightConfig` holds the sensorbot's AutoTune output (`FORESIGHT_TUNED`
+true); re-tune on the competition chassis. With `FORESIGHT_TUNED` false the
+follower has no algorithm, manual driving works, and path, hold and turn
+commands throw at start. AutoTune procedures in `pedro/procedures/` are
 copied unmodified from Pedro-Pathing/Quickstart b4312385; `pedro/Tuning.java`
 registers the Mecanum, Pinpoint, Foresight and Tests procedures.
 
@@ -410,8 +411,9 @@ loop keeps running.
 - **Mirroring:** `Alliance.poses()` / `Alliance.mirror`, field length
   `RobotConfig.Field.LENGTH_INCHES` (**141.5**), symmetry
   `RobotConfig.Field.SYMMETRY`. Not `PoseFactory.mirrorX`, which only reflects.
-- **Foresight constants are not tuned.** Never invent values; run AutoTune.
-  The Pedro docs' example ForesightConfig numbers are another robot's.
+- **Foresight constants are the sensorbot's AutoTune output.** Never invent
+  values; run AutoTune. The Pedro docs' example ForesightConfig numbers are
+  another robot's.
 - **Only `Field/Robot` is rotated.** Pedro's frame (origin at the corner on
   the audience's left, +X along the audience wall) and the FTC frame
   AdvantageScope draws (origin at the centre, +Y from the red wall to the
