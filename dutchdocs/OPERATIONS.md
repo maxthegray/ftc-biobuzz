@@ -493,8 +493,8 @@ Record results in `PROGRESS.md`.
 
 **Install and reload**
 - [ ] Full APK install succeeds; Driver Station shows Drive Only, Robot Centric
-      Drive, Ball Tracking Test, Limelight AprilTag Test, Hive Tag Survey (no Pedro
-      Tuning op-mode).
+      Drive, Ball Tracking Test, Limelight AprilTag Test, Hive Tag Survey,
+      Just Path RED (no Pedro Tuning op-mode).
 - [ ] AutoTune page loads at `http://192.168.43.1:10158` and lists Mecanum
       Tuner, Pinpoint Tuner, Foresight Tuner and Tests (Sloth 0.2.4 runtime).
 - [ ] Panels loads at `:8001`; a `DriveConfig` edit applies live and goes back
