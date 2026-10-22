@@ -65,7 +65,7 @@ class ExampleAuto : OpModeBase() {
     private val outTurned get() = poses.of(32.0, 56.0, 90.0)
 
     override fun configure() {
-        val follower = Constants.create(hardwareMap)
+        val follower = Constants.create(hardwareMap) { robot.hubPower.batteryVolts }
         // Drive first, localizer second: pose history is sampled after Follower.update().
         drive = robot.register(MecanumDriveSubsystem(follower))
         localizer = robot.register(

@@ -75,8 +75,10 @@ With the robot connected, open **http://192.168.43.1:10158**. Procedures
    follower. Line before Curve.
 
 Only values pasted into `pedro/Constants.java` persist. Record the date and
-chassis in a comment next to pasted values. Pedro 3 has no voltage
-compensation; tune on a full battery.
+chassis in a comment next to pasted values. Foresight and Tests drive through
+`VoltageCompensatedMecanum`, which scales every follower power by
+`NOMINAL_VOLTS` / battery volts, so the tuning holds on any battery; keep
+`NOMINAL_VOLTS` at 12.0 when tuning and don't change it afterwards.
 
 ## 6. First framework path (capped speed)
 

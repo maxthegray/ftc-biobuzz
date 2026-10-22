@@ -200,6 +200,12 @@ Verified 3.0.1 behaviour to respect:
 
 Configuration lives in `pedro/Constants.java` in AutoTune's layout
 (`drivetrainConfig`, `localizerConfig`, `foresightConfig`, `create()`).
+Pedro 3 has no voltage compensation for mecanum, so the drivetrain is
+`pedro/VoltageCompensatedMecanum.java`: every follower power (paths, holds,
+turns; not manual driving) is scaled by `Constants.NOMINAL_VOLTS` / the smoothed Control Hub voltage, and
+the scale is logged as `Drive/voltageScale`. AutoTune's Foresight and Tests
+procedures use it too, so `NOMINAL_VOLTS` is part of the tuning: change it
+only together with a re-tune.
 `foresightConfig` holds the sensorbot's AutoTune output (`FORESIGHT_TUNED`
 true); re-tune on the competition chassis. With `FORESIGHT_TUNED` false the
 follower has no algorithm, manual driving works, and path, hold and turn
