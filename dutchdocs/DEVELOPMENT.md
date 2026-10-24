@@ -152,16 +152,16 @@ private fun routine(): Command = logged(
     "Score preload",
     race(
         sequential(
-            logged("Start delay", monotonicWaitMs(startDelaySec * 1000.0)),
+            logged("Start delay", waitMs(startDelaySec * 1000.0)),
             race(
                 drive.followCommand(toScore(), name = "Drive to score"),
-                logged("Drive to score time limit", monotonicWaitMs(4_000.0)), // step timeout
+                logged("Drive to score time limit", waitMs(4_000.0)), // step timeout
             ),
             drive.holdCommand(score, name = "Settle at score"),               // wait for arrival
             instant { robot.recordEvent("AUTO: scored") },
             drive.turnToCommand(alliance.mirror(Math.toRadians(90.0)), name = "Face the wall"),
         ),
-        logged("Routine time limit", monotonicWaitMs(29_000.0)),             // whole-routine timeout
+        logged("Routine time limit", waitMs(29_000.0)),             // whole-routine timeout
     ),
 )
 ```
@@ -181,9 +181,7 @@ run if `!Constants.FORESIGHT_TUNED`. Then, from `onLoop`, start the routine once
 `Scheduler.isScheduled(...)`. Stop the op-mode once the routine is no longer
 scheduled.
 
-- **Waits:** use `monotonicWaitMs(ms)` from `core/`, not Ivy's `waitMs`,
-  which is timed by the wall clock and ends early or stalls if the hub's
-  time is set mid-match.
+- **Waits:** Ivy's `waitMs(ms)`.
 - **Markers** (do something part-way along a path, once):
   `deadline(drive.followCommand(path), sequential(waitUntil { drive.pathProgress() >= 0.5 }, instant { lift.up() }))`.
   If the path ends or is cancelled first, the marker is dropped.

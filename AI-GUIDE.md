@@ -23,7 +23,7 @@ Layout (flat on purpose; don't add one-file folders):
 - `vision/`: season vision logic (tag catalog, HIVE tracking, ball camera).
 - `opmodes/`: teleop and autos, plus `diagnostics/` and `skeletons/`.
 - `core/`: the framework students don't touch (`Robot`, `OpModeBase`,
-  `SubsystemBase`, `GamepadEx`, `Alliance`, `MonotonicWait`) and
+  `SubsystemBase`, `GamepadEx`, `Alliance`) and
   `core/logging/`.
 - Device adapters stay separate from game logic (e.g. `LimelightSubsystem`
   vs `vision/HiveTracker`). At season rollover keep `core/`, the drive,
@@ -76,8 +76,7 @@ dependencies first. Don't guess.
 ## Library workarounds (re-check on every Pedro or Ivy upgrade)
 
 Each workaround below exists because of a behaviour pinned in
-`TeamCode/src/test/kotlin/.../core/LibraryContractTest.kt`. The whole-file
-workaround is `core/MonotonicWait.kt`. After a version
+`TeamCode/src/test/kotlin/.../core/LibraryContractTest.kt`. After a version
 bump, run the unit tests: a failing contract test means the library changed,
 and its failure message points here. Confirm the new behaviour in the
 library's source, then do the listed cleanup in the same change. Don't just
@@ -85,7 +84,6 @@ flip the assertion.
 
 | Workaround | Library behaviour (upstream) | Contract test | When the test fails |
 |---|---|---|---|
-| `core/MonotonicWait.kt` (`monotonicWaitMs`) | Ivy 1.1.1 `Commands.waitMs` uses `System.currentTimeMillis()`. Not reported upstream | `ivyWaitMsIsTimedByTheWallClock` | If Ivy's wait is now monotonic: replace `monotonicWaitMs(ms)` with `waitMs(ms)`, delete the helper and `MonotonicWaitTest.kt`, update docs. Tests that need a fake clock may still want the helper. |
 | `MecanumDriveSubsystem.halt()` stops the drivetrain directly | Pedro 3.0.1 `Follower.stop()` changes mode only; motors update on the next `update()` | `pedroStopOnlyChangesModeUntilTheNextUpdate` | If `stop()` now zeroes motors immediately, the direct `drivetrain.stop()` is redundant but harmless. |
 | Drive commands instead of Ivy's `PedroCommands` (no `com.pedropathing.ivy:pedro` dependency) | Ivy 1.1.1 `follow` has no requirement and no interruption cleanup; `hold` reports no arrival | None (the artifact isn't a dependency) | On an Ivy upgrade, read `PedroCommands` in the new `ivy:pedro` sources before considering it. The drive commands also carry the logging and completion semantics. |
 | Once-per-start guards in drive commands; `LoggedCommand` ignoring unstarted or repeated ends; ABORT after `Scheduler.reset` | Ivy 1.1.1 ends unstarted group children, ends deadline children twice, forwards a lazy's end, skips `end` on reset, executes a command interrupted earlier in the tick | the `ivy…` tests | Re-check `MecanumDriveSubsystem`, `CommandHistory.kt`, `DriveCommandCancellationTest` and `CommandHistoryTest` against the new scheduler and groups. The guards stay harmless if Ivy stops doing this. |
@@ -109,8 +107,7 @@ stop, and ticks it once per loop. Op-modes never call `Scheduler.execute()`.
 ```kotlin
 import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.Scheduler
-import com.pedropathing.ivy.commands.Commands.*   // instant, waitUntil, infinite, lazy, conditional (not waitMs)
-import org.firstinspires.ftc.teamcode.core.monotonicWaitMs
+import com.pedropathing.ivy.commands.Commands.*   // instant, waitMs, waitUntil, infinite, lazy, conditional
 import com.pedropathing.ivy.groups.Groups.*       // sequential, parallel, race, deadline, repeat, loop
 
 Command.build()
@@ -145,8 +142,6 @@ Semantics verified against the 1.1.1 artifact (`LibraryContractTest` pins them):
   fault policies) or `onLoop()`, not from another command's execute.
 - Groups take the union of child requirements and the max child priority;
   nothing stops two drive commands in one `parallel`. Don't do that.
-- Use `monotonicWaitMs(ms)` (`core/MonotonicWait.kt`), not `waitMs`, which follows the
-  wall clock (**Library workarounds**); pass a `Clock` in tests.
 - There are no command names, no running-command registry and no lifecycle
   hooks. The one exception this repo adds is `logged(name, command)`
   (`core/logging/CommandHistory.kt`), a forwarding `Command` that traces its
@@ -231,7 +226,7 @@ drive.pose / drive.velocity / drive.atPose(target) / drive.toggleFieldCentric()
 - A mid-path marker is plain Ivy: `deadline(drive.followCommand(path),
   sequential(waitUntil { drive.pathProgress() >= 0.5 }, instant { … }))`.
   It fires once, and is dropped if the path ends or is cancelled first.
-- A step timeout is `race(step, monotonicWaitMs(ms))`; the loser is interrupted.
+- A step timeout is `race(step, waitMs(ms))`; the loser is interrupted.
 - `halt()` (stop, command fault) writes zero power immediately.
 
 ## Lifecycle rules (enforced by Robot/OpModeBase)

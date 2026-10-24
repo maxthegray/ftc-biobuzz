@@ -307,7 +307,7 @@ Robot use: `HiveTracker` (registered after the Limelight) with the turret's
 measured-angle lookup as `turretAngleAt`, `HiveTracker.MATCH_SETUP` priors in
 autonomous (teleop starts unknown), and the localizer's `poseAt` and
 pose so a held goal follows the robot's motion. Autonomous can wait for a tip
-with `race(waitUntil { hive.tipCount(RED) > before }, monotonicWaitMs(…))`;
+with `race(waitUntil { hive.tipCount(RED) > before }, waitMs(…))`;
 a tip is only seen while the camera can see that HIVE. Shooter speed comes from
 `ShotModel.rpmForDistance(goal.horizontalDistanceIn)`, which is not fitted yet.
 

@@ -4,13 +4,13 @@ import com.pedropathing.api.Paths.curve
 import com.pedropathing.api.Paths.line
 import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.Scheduler
+import com.pedropathing.ivy.commands.Commands.waitMs
 import com.pedropathing.ivy.groups.Groups.sequential
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous
 import com.qualcomm.robotcore.eventloop.opmode.Disabled
 import org.firstinspires.ftc.teamcode.core.Alliance
 import org.firstinspires.ftc.teamcode.core.OpModeBase
 import org.firstinspires.ftc.teamcode.core.logging.logged
-import org.firstinspires.ftc.teamcode.core.monotonicWaitMs
 import org.firstinspires.ftc.teamcode.pedro.Constants
 import org.firstinspires.ftc.teamcode.subsystems.LocalizerSubsystem
 import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem
@@ -58,7 +58,7 @@ open class TwoTipAutoRed : OpModeBase() {
     }
 
     /** A mechanism step that doesn't exist yet: waits [ms] and shows up in the log under [name]. */
-    private fun standIn(name: String, ms: Double): Command = logged(name, monotonicWaitMs(ms))
+    private fun standIn(name: String, ms: Double): Command = logged(name, waitMs(ms))
 
     // Planned, not built yet:
     //  - The turret tracks the HIVE all match as its default command, so the
