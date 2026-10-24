@@ -76,7 +76,7 @@ class VisionTestTeleOp : OpModeBase() {
         val hasLimelight = hardwareMap.tryGet(Limelight3A::class.java, RobotConfig.Vision.LIMELIGHT) != null
         val hasBallCamera = hardwareMap.tryGet(WebcamName::class.java, RobotConfig.Vision.BALL_CAMERA) != null
         if (VisionTestConfig.openBallCamera && hasBallCamera) {
-            ballCamera = robot.register(BallCameraSubsystem(eventSink = robot::recordEvent))
+            ballCamera = robot.register(BallCameraSubsystem())
         }
         if (VisionTestConfig.openLimelight && hasLimelight) {
             robot.recordEvent(SettingsChangeLog.describe("hive", HiveConfig))
@@ -88,7 +88,7 @@ class VisionTestTeleOp : OpModeBase() {
                 ),
             )
             limelight = ll
-            hive = robot.register(HiveTracker(ll, { 0.0 }, eventSink = robot::recordEvent, clock = robot.clock))
+            hive = robot.register(HiveTracker(ll, { 0.0 }, clock = robot.clock))
         }
         pages = buildList {
             if (ballCamera != null) add(Page.BALL)

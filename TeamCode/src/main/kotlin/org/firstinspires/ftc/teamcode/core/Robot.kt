@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.core
 
+import org.firstinspires.ftc.teamcode.core.logging.Events
+
 import com.pedropathing.ivy.Scheduler
 import com.qualcomm.hardware.lynx.LynxModule
 import com.qualcomm.robotcore.hardware.HardwareMap
@@ -42,6 +44,7 @@ class Robot(
         // and Sloth reloads. Nothing from a previous run may execute here.
         Scheduler.reset()
         CommandHistory.reset(clock)
+        Events.reset()
         LoggedCommand.onFault = ::containCommandFault
     }
 
@@ -119,18 +122,20 @@ class Robot(
             clock = clock,
             directory = directory,
         )
+        Events.sink = flightRecorder?.let { recorder -> recorder::event }
         if (flightRecorder != null) CommandHistory.startRecording()
     }
 
     /** Write a timestamped message to the WPILOG `events` channel. */
     fun recordEvent(message: String) {
-        flightRecorder?.event(message)
+        Events.record(message)
     }
 
     fun closeFlightRecorder() {
         try {
             flightRecorder?.close()
         } finally {
+            Events.reset()
             flightRecorder = null
             CommandHistory.stopRecording()
         }
@@ -338,6 +343,7 @@ class Robot(
         } catch (_: Throwable) {
             // The recorder has already faulted; shutdown is best-effort.
         }
+        Events.reset()
         flightRecorder = null
         CommandHistory.stopRecording()
     }

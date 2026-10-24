@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.subsystems
 
+import org.firstinspires.ftc.teamcode.core.logging.Events
+
 import com.pedropathing.math.Pose
 import kotlin.math.PI
 import org.firstinspires.ftc.teamcode.core.sim.FakeClock
@@ -14,10 +16,14 @@ class LocalizerSubsystemTest {
     private val clock = FakeClock(start = 0L)
     private val follower = PedroDriveFixture(tuned = false).follower
     private val events = mutableListOf<String>()
-    private val localizer = LocalizerSubsystem(follower, clock, onEvent = events::add, onFault = {}, onStatusFault = {})
+    private val localizer = LocalizerSubsystem(follower, clock, onFault = {}, onStatusFault = {})
+
+    @org.junit.Before
+    fun captureEvents() { Events.sink = events::add }
 
     @After
     fun restoreConfig() {
+        Events.reset()
         LocalizerConfig.frozenPoseTicks = 25
     }
 
@@ -38,9 +44,9 @@ class LocalizerSubsystemTest {
         val follower = PedroDriveFixture(tuned = false).follower
         var faults = 0
         val events = mutableListOf<String>()
+        init { Events.sink = events::add }
         val localizer = LocalizerSubsystem(
             follower,
-            onEvent = events::add,
             isFollowing = { following },
             onFault = { faults++ },
             onStatusFault = { faults++ },
@@ -114,7 +120,6 @@ class LocalizerSubsystemTest {
         val h = WatchdogHarness()
         val localizer = LocalizerSubsystem(
             h.follower,
-            onEvent = h.events::add,
             isFollowing = { true },
             onFault = { error("policy blew up") },
             onStatusFault = { error("policy blew up") },

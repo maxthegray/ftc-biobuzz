@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.subsystems
 
+import org.firstinspires.ftc.teamcode.core.logging.Events
+
 import com.bylazar.configurables.annotations.Configurable
 import com.pedropathing.follower.Follower
 import com.pedropathing.math.Pose
@@ -39,7 +41,6 @@ import org.firstinspires.ftc.teamcode.core.logging.StateLog
 class LocalizerSubsystem(
     private val follower: Follower,
     private val clock: Clock = Clock.SYSTEM,
-    private val onEvent: (String) -> Unit = {},
     private val isFollowing: () -> Boolean = { false },
     /** The pose can't be driven on. */
     private val onFault: () -> Unit,
@@ -196,13 +197,13 @@ class LocalizerSubsystem(
 
     private fun trip(reason: String) {
         fault = reason
-        onEvent("LOCALIZER FAULT: $reason")
+        Events.record("LOCALIZER FAULT: $reason")
         runPolicy(onFault)
     }
 
     private fun tripStatus(reason: String) {
         statusFault = reason
-        onEvent("LOCALIZER FAULT (pose still live): $reason")
+        Events.record("LOCALIZER FAULT (pose still live): $reason")
         runPolicy(onStatusFault)
     }
 

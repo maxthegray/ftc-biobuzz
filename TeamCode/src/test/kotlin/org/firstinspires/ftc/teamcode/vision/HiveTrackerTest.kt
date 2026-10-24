@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.vision
 
+import org.firstinspires.ftc.teamcode.core.logging.Events
+
 import com.pedropathing.math.Pose
 import kotlin.math.PI
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
@@ -34,6 +36,7 @@ class HiveTrackerTest {
 
     @Test
     fun fourTagsOfTheRaisedCellFuseIntoItsOpeningCentre() {
+        Events.reset()
         val rig = HiveRig()
         rig.frame(raised(Alliance.RED, CellLocation.AUDIENCE, 90.0, 12.0))
 

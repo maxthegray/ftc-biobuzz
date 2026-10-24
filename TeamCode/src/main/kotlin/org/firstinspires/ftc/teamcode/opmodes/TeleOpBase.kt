@@ -71,7 +71,6 @@ abstract class TeleOpBase : OpModeBase() {
         localizer = robot.register(
             LocalizerSubsystem(
                 follower,
-                onEvent = robot::recordEvent,
                 isFollowing = drive::isFollowing,
                 onFault = useFallback,
                 onStatusFault = useFallback,

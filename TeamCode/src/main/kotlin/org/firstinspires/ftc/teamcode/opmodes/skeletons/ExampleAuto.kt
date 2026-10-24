@@ -71,7 +71,6 @@ class ExampleAuto : OpModeBase() {
         localizer = robot.register(
             LocalizerSubsystem(
                 follower,
-                onEvent = robot::recordEvent,
                 isFollowing = drive::isFollowing,
                 // Driving blind is worse than parking: cancel the routine (its
                 // drive command stops the follower) and stay put.

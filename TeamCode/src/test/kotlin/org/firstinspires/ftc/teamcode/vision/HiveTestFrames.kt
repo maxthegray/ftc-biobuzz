@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.vision
 
+import org.firstinspires.ftc.teamcode.core.logging.Events
+
 import com.pedropathing.math.Pose
 import com.qualcomm.robotcore.hardware.HardwareMap
 import org.firstinspires.ftc.teamcode.core.sim.FakeClock
@@ -82,12 +84,12 @@ internal class HiveRig(priors: Map<Alliance, HiveState?> = HiveTracker.MATCH_SET
         priors,
         poseAt = { pose },
         currentPose = { pose },
-        eventSink = events::add,
         clock = clock,
     )
     private var frameTs = 100.0
 
     init {
+        Events.sink = events::add
         limelight.init(HardwareMap(null, null))
         source.isConnected = true
     }

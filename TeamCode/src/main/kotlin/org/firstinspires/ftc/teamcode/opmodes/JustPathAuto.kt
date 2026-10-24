@@ -52,7 +52,6 @@ class JustPathAutoRed : OpModeBase() {
         localizer = robot.register(
             LocalizerSubsystem(
                 follower,
-                onEvent = robot::recordEvent,
                 isFollowing = drive::isFollowing,
                 onFault = { routine?.let(Scheduler::cancel) },
                 onStatusFault = {},

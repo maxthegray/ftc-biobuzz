@@ -63,7 +63,7 @@ class FlightRecorderDriveIntegrationTest {
         val robot = Robot(hardware.hardwareMap, hardware.clock)
         val drive: MecanumDriveSubsystem = robot.register(hardware.drive)
         val localizer = robot.register(
-            LocalizerSubsystem(hardware.follower, hardware.clock, onEvent = robot::recordEvent, isFollowing = drive::isFollowing, onFault = {}, onStatusFault = {}),
+            LocalizerSubsystem(hardware.follower, hardware.clock, isFollowing = drive::isFollowing, onFault = {}, onStatusFault = {}),
         )
         val gamepad = Gamepad()
         val driver = GamepadEx(gamepad)
@@ -99,6 +99,23 @@ class FlightRecorderDriveIntegrationTest {
     private fun exportSampleIfRequested() {
         val dir = System.getenv("WPILOG_SAMPLE_DIR")?.takeIf { it.isNotBlank() } ?: return
         logFile().copyTo(File(dir, "IntegrationSample.wpilog").also { it.parentFile.mkdirs() }, overwrite = true)
+    }
+
+    @Test
+    fun globalEventsFollowTheRecorderLifetime() {
+        val stale = mutableListOf<String>()
+        Events.sink = stale::add
+        val s = Session(logDir)
+        Events.record("global marker")
+        assertTrue(stale.isEmpty())
+        s.robot.closeFlightRecorder()
+        assertEquals(null, Events.sink)
+        Events.record("after close")
+        s.robot.stop()
+
+        val events = readSingleLog().strings("events").map { it.second }
+        assertTrue("global marker" in events)
+        assertFalse("after close" in events)
     }
 
     @Test
