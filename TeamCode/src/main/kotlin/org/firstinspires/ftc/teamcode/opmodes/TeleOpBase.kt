@@ -59,17 +59,19 @@ abstract class TeleOpBase : OpModeBase() {
         }
         drive.defaultCommand = drive.teleopCommand(name = "Driver sticks", input = stickInput)
         val faultFallback = drive.robotCentricFallbackCommand(name = "Driver sticks (robot-centric fallback)", input = stickInput)
+        val useFallback: () -> Unit = {
+            // Runs in periodic(), outside Scheduler.execute(): preempt the
+            // current drive owner now and keep it from being reclaimed.
+            drive.defaultCommand = faultFallback
+            Scheduler.schedule(faultFallback)
+        }
         localizer = robot.register(
             LocalizerSubsystem(
                 follower,
                 onEvent = robot::recordEvent,
                 isFollowing = drive::isFollowing,
-                onFault = {
-                    // Runs in periodic(), outside Scheduler.execute(): preempt the
-                    // current drive owner now and keep assists from reclaiming it.
-                    drive.defaultCommand = faultFallback
-                    Scheduler.schedule(faultFallback)
-                },
+                onFault = useFallback,
+                onStatusFault = useFallback,
             ),
         )
         (driver.button(Button.CREATE) and driver.button(Button.TRIANGLE)).onTrue(

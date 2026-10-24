@@ -25,7 +25,7 @@ class FreshLocalizationTest {
         val robot = Robot(hardware.hardwareMap, hardware.clock)
         val drive = robot.register(hardware.drive)
         val localizer = robot.register(
-            LocalizerSubsystem(hardware.follower, hardware.clock, isFollowing = drive::isFollowing, startingPose = startingPose),
+            LocalizerSubsystem(hardware.follower, hardware.clock, isFollowing = drive::isFollowing, onFault = {}, onStatusFault = {}, startingPose = startingPose),
         )
         var input = TeleopInput(0.0, 0.0, 0.0)
 

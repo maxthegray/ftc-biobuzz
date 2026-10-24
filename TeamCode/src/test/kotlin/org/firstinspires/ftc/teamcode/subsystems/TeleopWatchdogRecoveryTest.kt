@@ -23,6 +23,11 @@ class TeleopWatchdogRecoveryTest {
         var input = TeleopInput(0.5, 0.0, 0.0)
         val normal = drive.teleopCommand { input }
         val fallback = drive.robotCentricFallbackCommand { input }
+
+        private fun useFallback() {
+            drive.defaultCommand = fallback
+            Scheduler.schedule(fallback)
+        }
         val localizer: LocalizerSubsystem
 
         init {
@@ -33,10 +38,8 @@ class TeleopWatchdogRecoveryTest {
                     hardware.follower,
                     hardware.clock,
                     isFollowing = drive::isFollowing,
-                    onFault = {
-                        drive.defaultCommand = fallback
-                        Scheduler.schedule(fallback)
-                    },
+                    onFault = ::useFallback,
+                    onStatusFault = ::useFallback,
                 ),
             )
             robot.init()

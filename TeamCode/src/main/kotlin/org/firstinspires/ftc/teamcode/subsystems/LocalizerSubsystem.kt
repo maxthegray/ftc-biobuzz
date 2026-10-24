@@ -28,8 +28,8 @@ import org.firstinspires.ftc.teamcode.core.logging.StateLog
  *    back to robot-centric sticks; an auto cancels its routine and parks.
  *  - [statusFault]: the Pinpoint reported a problem (bad status, start pose
  *    never confirmed) but the pose is still live, so the pose checks go on.
- *    Calls [onStatusFault], which defaults to [onFault]; autos pass `{}` and
- *    keep driving.
+ *    Calls [onStatusFault]. Teleop treats it like [onFault]; autos pass `{}`
+ *    and keep driving.
  *
  * **Pose history** for vision latency compensation ([poseAt]) is sampled in
  * [writeHardware], right after the drive's `Follower.update()`, so each sample
@@ -41,8 +41,10 @@ class LocalizerSubsystem(
     private val clock: Clock = Clock.SYSTEM,
     private val onEvent: (String) -> Unit = {},
     private val isFollowing: () -> Boolean = { false },
-    private val onFault: () -> Unit = {},
-    private val onStatusFault: () -> Unit = onFault,
+    /** The pose can't be driven on. */
+    private val onFault: () -> Unit,
+    /** The Pinpoint reported a problem but the pose is still live. */
+    private val onStatusFault: () -> Unit,
     /** Pose written at every init. Autonomous passes its field start pose. */
     val startingPose: Pose = Pose.zero(),
 ) : SubsystemBase("Localizer") {
@@ -108,7 +110,7 @@ class LocalizerSubsystem(
         if (fault != null) return
         // Started before a read confirmed the start pose (START pressed right after INIT).
         if (!startPoseConfirmed && statusFault == null) confirmStartPose()
-        if (fault != null || !LocalizerConfig.watchdogEnabled) return
+        if (fault != null) return
         if (statusFault == null) checkPinpointStatus(initializing = false)
         checkPose()
     }
@@ -261,9 +263,6 @@ class LocalizerSubsystem(
 /** Localizer tuning, live-editable in Panels; copy values you want to keep into this file. */
 @Configurable
 object LocalizerConfig {
-    /** Off switch in case the watchdog ever false-trips. */
-    @JvmField var watchdogEnabled = true
-
     /**
      * Ticks of a bit-identical pose while following before the watchdog calls
      * the localizer dead. A live Pinpoint jitters every read. 25 ≈ 0.5 s at 50 Hz.

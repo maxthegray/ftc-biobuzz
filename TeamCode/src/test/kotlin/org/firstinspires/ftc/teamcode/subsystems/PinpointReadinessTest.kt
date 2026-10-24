@@ -37,7 +37,7 @@ class PinpointReadinessTest {
         val localizer = if (autoPolicy) {
             LocalizerSubsystem(hardware.follower, clock, onFault = { faults++ }, onStatusFault = { statusFaults++ })
         } else {
-            LocalizerSubsystem(hardware.follower, clock, onFault = { faults++ })
+            LocalizerSubsystem(hardware.follower, clock, onFault = { faults++ }, onStatusFault = { faults++ })
         }
         val robot = Robot(hardware.hardwareMap, clock)
 

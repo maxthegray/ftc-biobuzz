@@ -63,7 +63,7 @@ class FlightRecorderDriveIntegrationTest {
         val robot = Robot(hardware.hardwareMap, hardware.clock)
         val drive: MecanumDriveSubsystem = robot.register(hardware.drive)
         val localizer = robot.register(
-            LocalizerSubsystem(hardware.follower, hardware.clock, onEvent = robot::recordEvent, isFollowing = drive::isFollowing),
+            LocalizerSubsystem(hardware.follower, hardware.clock, onEvent = robot::recordEvent, isFollowing = drive::isFollowing, onFault = {}, onStatusFault = {}),
         )
         val gamepad = Gamepad()
         val driver = GamepadEx(gamepad)

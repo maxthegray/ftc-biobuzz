@@ -14,11 +14,10 @@ class LocalizerSubsystemTest {
     private val clock = FakeClock(start = 0L)
     private val follower = PedroDriveFixture(tuned = false).follower
     private val events = mutableListOf<String>()
-    private val localizer = LocalizerSubsystem(follower, clock, onEvent = events::add)
+    private val localizer = LocalizerSubsystem(follower, clock, onEvent = events::add, onFault = {}, onStatusFault = {})
 
     @After
     fun restoreConfig() {
-        LocalizerConfig.watchdogEnabled = true
         LocalizerConfig.frozenPoseTicks = 25
     }
 
@@ -44,6 +43,7 @@ class LocalizerSubsystemTest {
             onEvent = events::add,
             isFollowing = { following },
             onFault = { faults++ },
+            onStatusFault = { faults++ },
         ).also(::initialized)
 
         fun setPose(x: Double, y: Double, heading: Double) {
@@ -110,18 +110,6 @@ class LocalizerSubsystemTest {
     }
 
     @Test
-    fun watchdogCanBeDisabled() {
-        LocalizerConfig.watchdogEnabled = false
-        val h = WatchdogHarness()
-        h.setPose(Double.NaN, 0.0, 0.0)
-
-        h.localizer.periodic()
-
-        assertNull(h.localizer.fault)
-        assertEquals(0, h.faults)
-    }
-
-    @Test
     fun watchdogSurvivesThrowingFaultPolicy() {
         val h = WatchdogHarness()
         val localizer = LocalizerSubsystem(
@@ -129,6 +117,7 @@ class LocalizerSubsystemTest {
             onEvent = h.events::add,
             isFollowing = { true },
             onFault = { error("policy blew up") },
+            onStatusFault = { error("policy blew up") },
         ).also(::initialized)
         h.setPose(Double.NaN, 0.0, 0.0)
 
