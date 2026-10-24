@@ -21,10 +21,6 @@ import kotlin.math.withSign
  */
 class GamepadEx(val raw: Gamepad) {
 
-    var leftStickDeadband: Double = 0.05
-    var rightStickDeadband: Double = 0.05
-    var triggerDeadband: Double = 0.05
-
     /**
      * Digital buttons. L2/R2 are analog: use [trigger] with a threshold. The
      * order is the bit order of the flight log's `gamepadN/buttons` channel.
@@ -84,13 +80,13 @@ class GamepadEx(val raw: Gamepad) {
         }
     }
 
-    val leftStickX: Double get() = applyDeadband(raw.left_stick_x.toDouble(), leftStickDeadband)
-    val leftStickY: Double get() = applyDeadband(-raw.left_stick_y.toDouble(), leftStickDeadband)
-    val rightStickX: Double get() = applyDeadband(raw.right_stick_x.toDouble(), rightStickDeadband)
-    val rightStickY: Double get() = applyDeadband(-raw.right_stick_y.toDouble(), rightStickDeadband)
+    val leftStickX: Double get() = applyDeadband(raw.left_stick_x.toDouble(), DEADBAND)
+    val leftStickY: Double get() = applyDeadband(-raw.left_stick_y.toDouble(), DEADBAND)
+    val rightStickX: Double get() = applyDeadband(raw.right_stick_x.toDouble(), DEADBAND)
+    val rightStickY: Double get() = applyDeadband(-raw.right_stick_y.toDouble(), DEADBAND)
 
-    val l2: Double get() = applyDeadband(raw.left_trigger.toDouble(), triggerDeadband)
-    val r2: Double get() = applyDeadband(raw.right_trigger.toDouble(), triggerDeadband)
+    val l2: Double get() = applyDeadband(raw.left_trigger.toDouble(), DEADBAND)
+    val r2: Double get() = applyDeadband(raw.right_trigger.toDouble(), DEADBAND)
 
     /** [button] is down this loop. */
     fun held(button: Button): Boolean = curr[button.ordinal]
@@ -139,6 +135,11 @@ class GamepadEx(val raw: Gamepad) {
         Button.R3 -> raw.right_stick_button
         Button.TOUCHPAD -> raw.touchpad
     }
+
+    private companion object {
+        /** Stick and L2/R2 travel that reads as zero. */
+        const val DEADBAND = 0.05
+    }
 }
 
 /**
@@ -163,7 +164,7 @@ internal fun applyDeadband(value: Double, deadband: Double): Double =
  * ```
  *
  * Create one through [GamepadEx.button] / [GamepadEx.trigger], or by composing
- * existing triggers with [and] / [or] / [not]. The owning [GamepadEx] samples
+ * existing triggers with [and] / [or]. The owning [GamepadEx] samples
  * every trigger once per loop in [GamepadEx.update], before Ivy's scheduler
  * runs. Composed triggers reuse their operands' samples.
  *
@@ -183,11 +184,6 @@ class Trigger internal constructor(
         if (!prev && curr) Scheduler.schedule(command)
     }
 
-    /** Schedule [command] on each falling edge. */
-    fun onFalse(command: Command): Trigger = bind { prev, curr ->
-        if (prev && !curr) Scheduler.schedule(command)
-    }
-
     /** Schedule [command] on the rising edge and cancel it on the falling edge. */
     fun whileTrue(command: Command): Trigger = bind { prev, curr ->
         if (!prev && curr) {
@@ -197,21 +193,11 @@ class Trigger internal constructor(
         }
     }
 
-    /** On each rising edge, cancel [command] if it is scheduled, otherwise schedule it. */
-    fun toggleOnTrue(command: Command): Trigger = bind { prev, curr ->
-        if (!prev && curr) {
-            if (Scheduler.isScheduled(command)) Scheduler.cancel(command) else Scheduler.schedule(command)
-        }
-    }
-
     /** Active only while both this and [other] are active. */
     infix fun and(other: Trigger): Trigger = host.trigger { read() && other.read() }
 
     /** Active while either this or [other] is active. */
     infix fun or(other: Trigger): Trigger = host.trigger { read() || other.read() }
-
-    /** Active exactly when this trigger is not. Also usable as `!trigger`. */
-    operator fun not(): Trigger = host.trigger { !read() }
 
     private fun bind(binding: (prev: Boolean, curr: Boolean) -> Unit): Trigger {
         host.requireBindingsUnlocked()

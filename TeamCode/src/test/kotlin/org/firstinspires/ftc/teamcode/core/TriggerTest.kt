@@ -49,20 +49,6 @@ class TriggerTest {
     }
 
     @Test
-    fun onFalseSchedulesOnFallingEdge() {
-        val cmd = endlessCommand()
-        host.trigger { condition }.onFalse(cmd)
-
-        condition = true
-        poll()
-        assertFalse(Scheduler.isScheduled(cmd))
-
-        condition = false
-        poll()
-        assertTrue(Scheduler.isScheduled(cmd))
-    }
-
-    @Test
     fun whileTrueCancelsOnFallingEdge() {
         val cmd = endlessCommand()
         host.trigger { condition }.whileTrue(cmd)
@@ -98,22 +84,6 @@ class TriggerTest {
     }
 
     @Test
-    fun toggleOnTrueAlternates() {
-        val cmd = endlessCommand()
-        host.trigger { condition }.toggleOnTrue(cmd)
-
-        condition = true
-        poll()
-        assertTrue(Scheduler.isScheduled(cmd))
-
-        condition = false
-        poll()
-        condition = true
-        poll()
-        assertFalse(Scheduler.isScheduled(cmd))
-    }
-
-    @Test
     fun andCompositionRequiresBoth() {
         var other = false
         val cmd = endlessCommand()
@@ -124,14 +94,6 @@ class TriggerTest {
         assertFalse(Scheduler.isScheduled(cmd))
 
         other = true
-        poll()
-        assertTrue(Scheduler.isScheduled(cmd))
-    }
-
-    @Test
-    fun notCompositionInverts() {
-        val cmd = endlessCommand()
-        (!host.trigger { condition }).onTrue(cmd)
         poll()
         assertTrue(Scheduler.isScheduled(cmd))
     }

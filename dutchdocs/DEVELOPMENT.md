@@ -127,7 +127,6 @@ In `configure()` / `configureTeleop()`, using Ivy commands:
 ```kotlin
 driver.button(Button.CROSS).onTrue(intake.grab())             // schedule on press
 driver.button(Button.L1).whileTrue(intake.eject())            // cancel on release
-driver.button(Button.SQUARE).toggleOnTrue(lift.raise())
 driver.trigger { driver.r2 > 0.5 }.whileTrue(shooter.spinUp())
 (driver.button(Button.CREATE) and driver.button(Button.TRIANGLE)).onTrue(instant { … })
 ```
