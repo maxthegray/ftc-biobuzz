@@ -32,7 +32,9 @@ Alongside arbitrary channels users select, built-in lookups depend on:
   `target/horizontalDeg`, `target/verticalDeg`; and `mount/measured`,
   `heightIn`, `pitchDownDeg`, `forwardIn`, `leftIn`, `yawDeg`.
   The Vision graph preset also reads `BallCamera/frame/ageMs` and
-  `BallCamera/frame/processingMs`.
+  `BallCamera/frame/processingMs`. The current `BallCameraSubsystem` does not
+  write `connected`, `frame/status`, `frame/processingMs` or
+  `candidates/rejections`.
 - `Hive/RED/state`, `Hive/BLUE/state`; `hubs/control/currentAmps`,
   `hubs/control/volts`; `pose`, `velocity`, `driveMode`, `battery`,
   `gamepad1/axes`, `gamepad1/buttons`, `gamepad2/axes`, `gamepad2/buttons`.
@@ -43,8 +45,8 @@ Alongside arbitrary channels users select, built-in lookups depend on:
   `BallAssist/targetTy`. `MaxScope/traction/*` and `MaxScope/battery/*` are
   derived by tools, rather than emitted by the robot.
 
-The analyzer recognizes exact `start` and the viewer exact `stop`; the viewer
-also recognizes the `LOOP OVERRUN` prefix. Fault classification searches for
+The analyzer and viewer anchor on the exact `start` event, and the viewer on
+exact `stop`; the viewer also recognizes the `LOOP OVERRUN` prefix. Fault classification searches for
 `FAULT`, `CRASH`, `FAIL`/`FAILED`/`FAILURE`, `LOST`, `INCOMPLETE`, `DISABLED`
 and `OVERRUN`. Keep the robot's `LOCALIZER FAULT`, `COMMAND FAULT`,
 `SUBSYSTEM FAULT`, `TELEMETRY FAULT`, `LOOP CRASHED`, `LOOP OVERRUN`,
@@ -97,6 +99,11 @@ an override replaces the automatic logging. Record events with `Events.record("t
 parallel values (a per-frame detection list); its length may change per tick,
 and it is written immediately, so a cached array can be passed again.
 
+Failure isolation: an I/O failure disables the recorder for the run; a
+non-I/O exception in one subsystem's `logState` disables that subsystem's
+channels and records why; anything else escaping the recorder closes it. The
+loop keeps running.
+
 ### Command history
 
 ```kotlin
@@ -139,12 +146,6 @@ drive.followCommand(path, name = "Drive to bar")   // drive factories are alread
   Localization Test's moves and `Driver takeover`, Example Auto's routine and
   steps. Instrument new mechanism commands and autonomous steps the same way;
   don't wrap trivial `instant`s or marker internals.
-
-Failure isolation: an I/O failure disables the recorder for the run; a
-non-I/O exception in one subsystem's `logState` disables that subsystem's
-channels and records why; anything else escaping the recorder closes it. The
-loop keeps running.
-
 - `#id` numbers each run from 1 per op-mode, so two runs of the same command,
   or two commands with the same name, stay apart.
 - **FINISH means the command's own `done` returned true**, not that the robot
@@ -173,11 +174,10 @@ fields, using the robot clock. Slider edits are merged to at most one event
 per second; an edit reverted within the window emits nothing, and an edit in
 the last second before stop can be missing.
 
-**Tuning in the flight log.** Both OpModes write the `visionDiagnostics`
-values as an event at init. The ball camera writes every `ballVision` value
-at init, then an event naming only the fields that changed (at most one per
-second; slider drags are merged). An edit in the last second before stop can
-be missing from the log.
+**Tuning in the flight log.** Vision Test writes its `visionTest` values, and
+`hive` when the Limelight is open, as events at init. The ball camera writes
+every `ballVision` value at init, then an event naming only the fields that
+changed.
 
 The ball camera's `BallCamera/mount/*` channels record measured status, height,
 pitch, forward/left offset and yaw each tick. MaxScope uses them to place
@@ -236,8 +236,11 @@ command tracing) or `"instrumented"` (current logs, `logged` commands only,
 with `commandExecutions`, `commandFailures`, `commandActive` and
 `commandHistoryIntact`/`commandHistoryLostRecords`). All its times, like MaxScope's, count from the
 op-mode start (`clock`, `opModeStartLogSec`; init is negative), so a time the user reads off
-MaxScope matches the bundle. When a log doesn't determine the cause, give ranked
-hypotheses and the one channel or reproduction that decides it.
+MaxScope matches the bundle. With no file the analyzer reads the newest log,
+usually the TeleOp; for an auton problem pass the auto's log
+(`robot-logs/*Auto*.wpilog`) explicitly. A loop crash's stack trace is in
+`events`. When a log doesn't determine the cause, give ranked hypotheses and
+the one channel or reproduction that decides it.
 
 ### Assistant workflow
 
@@ -352,13 +355,13 @@ Three separate levels; passing one says nothing about the next.
 | Auton wrong only on BLUE | Headings not through `Alliance.mirror`, or `PoseFactory.mirrorX` used (it reflects; this season rotates) |
 | Paths refuse to start | `FORESIGHT_TUNED` false, or `ROBOT_CENTRIC_FALLBACK` after a localizer fault |
 | Auton drifted | `follow/translationalErrorIn`: small error means localization; large means following |
-| Sudden pose jump | `pose correction applied` events and correction gates |
+| Sudden pose jump | `pose` and `velocity` around the jump; `Localizer/faulted`, `Localizer/fault` and `LOCALIZER FAULT` events |
 | Field-centric wrong | Robot faced elsewhere at INIT (heading starts at 0): Create+Triangle |
 | Driving robot-centric unexpectedly | `LOCALIZER FAULT` event, `Drive/odometryFallback` |
 | Loop rate collapsed | Phase maxima: `writeHardware` usually Pinpoint, `telemetry` Panels, `periodic` season I/O |
 | Tuned config reverted | Registration, public primitive `@JvmField`, config schema |
 | Pinpoint unhealthy | Init Health status (`waiting for start pose` = pose write not landing), I²C cable, robot still at power-up (IMU calibration) |
-| Ball target flickers or lingers | `BallCamera/frame/ageMs`, `rate/processedFps`, `target/status`, `candidates/accepted` |
+| Ball target flickers or lingers | `BallCamera/frame/ageMs`, `frame/new`, `camera/libraryReportedFps`, `candidates/selectedIndex` |
 | Tag diagnostic shows nothing | Limelight health (pipeline index/type), `Limelight/fiducial/count`, Full 3D and marker size |
 | HIVE goal missing or on the wrong CELL | `Hive/<ALLIANCE>/state`, `Hive/tags/heightIn` and `tags/class` against `settings/raisedMinHeightIn`, `mount/*`, `frames/withoutTurretAngle` |
 | HIVE goal spread large | `Hive/tags/deviationIn` per tag: one tag far off is an outlier; all off together is the mount or rotation convention |

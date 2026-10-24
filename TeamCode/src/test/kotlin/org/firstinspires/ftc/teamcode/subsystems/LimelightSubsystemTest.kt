@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.subsystems
 
 import com.qualcomm.robotcore.hardware.HardwareMap
+import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.sim.FakeClock
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -48,6 +49,31 @@ class LimelightSubsystemTest {
         assertEquals(2, subsystem.targetCount)
         assertEquals(-4.5, subsystem.primaryTarget!!.txDegrees, 0.0)
         assertEquals("tracking 2 target(s)", subsystem.health())
+    }
+
+    /** MaxScope looks these up by exact name; renaming one empties its graphs. */
+    @Test
+    fun toolReadChannelsKeepTheirExactNames() {
+        startWith(
+            LimelightReading(
+                receiptTimestampMs = 10L,
+                ageMs = 15L,
+                valid = true,
+                pipelineIndex = 0,
+                pipelineType = "color",
+                txDegrees = -4.5,
+                tyDegrees = 7.0,
+                areaPercent = 3.25,
+                colorTargets = listOf(LimelightColorTarget(-4.5, 7.0, 3.25)),
+            ),
+        )
+        val log = RecordingStateLog()
+        subsystem.logState(log)
+
+        assertEquals(true, log.channels["connected"])
+        assertEquals(true, log.channels["target/visible"])
+        assertEquals(-4.5, log.channels["target/txDegrees"])
+        assertEquals(7.0, log.channels["target/tyDegrees"])
     }
 
     @Test
@@ -264,6 +290,15 @@ class LimelightSubsystemTest {
         subsystem.init(HardwareMap(null, null))
         source.isConnected = true
         subsystem.periodic()
+    }
+
+    private class RecordingStateLog : StateLog {
+        val channels = HashMap<String, Any>()
+        override fun put(channel: String, value: Double) { channels[channel] = value }
+        override fun put(channel: String, value: Long) { channels[channel] = value }
+        override fun put(channel: String, value: Boolean) { channels[channel] = value }
+        override fun put(channel: String, value: String) { channels[channel] = value }
+        override fun put(channel: String, value: DoubleArray) { channels[channel] = value }
     }
 
     private class FakeLimelightSource : LimelightSource {

@@ -22,5 +22,4 @@ class TurretSubsystem : SubsystemBase("Turret") {
     }
 
     override fun health(): String = "Hardware not configured"
-
 }

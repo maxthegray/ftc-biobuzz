@@ -55,7 +55,6 @@ class IntakeSubsystem : SubsystemBase("Intake") {
         motors.forEach { it.power = 0.0 }
     }
 
-
     private companion object {
         /** Motor names whose positive power runs against collecting. */
         val REVERSED = emptySet<String>()

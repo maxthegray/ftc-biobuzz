@@ -8,6 +8,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 class LocalizerSubsystemTest {
@@ -17,8 +18,10 @@ class LocalizerSubsystemTest {
     private val events = mutableListOf<String>()
     private val localizer = LocalizerSubsystem(follower, clock, onFault = {}, onStatusFault = {})
 
-    @org.junit.Before
-    fun captureEvents() { Events.sink = events::add }
+    @Before
+    fun captureEvents() {
+        Events.sink = events::add
+    }
 
     @After
     fun restoreConfig() {

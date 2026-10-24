@@ -12,7 +12,6 @@ class ShooterSubsystem : SubsystemBase("Shooter") {
     }
 
     override fun health(): String = "Hardware not configured"
-
 }
 
 /**

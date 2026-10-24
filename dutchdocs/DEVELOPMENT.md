@@ -240,6 +240,8 @@ Everything else is Ivy or Pedro. Each remaining helper has one job:
 | `LocalizerSubsystem`, `PoseHistory` | Start pose written at every INIT, Pinpoint readiness/fault watchdog, pose history for camera latency |
 | `GamepadEx`, `Trigger` | Deadbanded sticks, edges, and button bindings that schedule Ivy commands (Ivy has none) |
 | `Alliance` | RED→BLUE transform with the season's symmetry (mirror or rotate; Pedro's `mirrorX` only mirrors) |
+| `FlightRecorder`, `WpiLogWriter`, `WpiStruct`, `StateLog`, `AutomaticStateLog`, `Events` | WPILOG files for MaxScope and AdvantageScope: automatic subsystem state and timestamped events ([Logging](LOGGING.md)) |
+| `logged`, `CommandHistory` | Command history for traced commands (Ivy has no lifecycle hooks or names) |
 | `TelemetryBag`, `FieldView` | Throttled DS/Panels telemetry and Panels field drawing |
 | `Preflight`, `LoopProfile` | Missing-device listing, loop timing |
 | `pedro/Constants.java`, `pedro/Tuning.java` | Pedro's configuration and AutoTune registration, in the Quickstart layout |

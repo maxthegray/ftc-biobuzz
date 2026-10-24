@@ -118,7 +118,6 @@ class TransferSubsystem(private val clock: Clock = Clock.SYSTEM) : SubsystemBase
         motors.forEach { it.power = 0.0 }
     }
 
-
     private companion object {
         /** Motor names whose positive power runs balls down instead of up. */
         val REVERSED = emptySet<String>()
