@@ -43,14 +43,6 @@ abstract class SubsystemBase(val name: String) {
         }
     }
 
-    /**
-     * Subsystem type that must already be registered before this one.
-     * [Robot.register] enforces it, turning a silent ordering bug (e.g. a
-     * localizer sampling pose history before the drive has updated the
-     * follower) into an init-time error.
-     */
-    open val registerAfter: Class<out SubsystemBase>? get() = null
-
     /** Called once when the op-mode initialises. Resolve hardware here; failures should throw. */
     open fun init(hardwareMap: HardwareMap) {}
 

@@ -4,9 +4,12 @@ import com.bylazar.configurables.annotations.Configurable
 import com.pedropathing.follower.Follower
 import com.pedropathing.math.Pose
 import com.pedropathing.math.Velocity
+import com.pedropathing.utils.Angle
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver.DeviceStatus
 import com.qualcomm.robotcore.hardware.HardwareMap
+import kotlin.math.PI
+import kotlin.math.abs
 import org.firstinspires.ftc.teamcode.RobotConfig
 import org.firstinspires.ftc.teamcode.core.Clock
 import org.firstinspires.ftc.teamcode.core.SubsystemBase
@@ -31,11 +34,6 @@ import org.firstinspires.ftc.teamcode.core.logging.StateLog
  *    never confirmed) but the pose is still live, so the pose checks go on.
  *    Calls [onStatusFault]. Teleop treats it like [onFault]; autos pass `{}`
  *    and keep driving.
- *
- * **Pose history** for vision latency compensation ([poseAt]) is sampled in
- * [writeHardware], right after the drive's `Follower.update()`, so each sample
- * is stamped when it was measured. That is why this must be registered after
- * the drive ([registerAfter]).
  */
 class LocalizerSubsystem(
     private val follower: Follower,
@@ -48,11 +46,6 @@ class LocalizerSubsystem(
     /** Pose written at every init. Autonomous passes its field start pose. */
     val startingPose: Pose = Pose.zero(),
 ) : SubsystemBase("Localizer") {
-
-    private val history = PoseHistory()
-
-    override val registerAfter: Class<out SubsystemBase>
-        get() = MecanumDriveSubsystem::class.java
 
     /** Latched pose fault, or null while healthy. Cleared only by re-init. */
     var fault: String? = null
@@ -124,7 +117,7 @@ class LocalizerSubsystem(
         }
         val offBy = p.distance(startingPose)
         if (offBy <= START_POSE_TOLERANCE_INCHES &&
-            kotlin.math.abs(shortestAngleDelta(p.heading(), startingPose.heading())) <= START_POSE_TOLERANCE_RADIANS
+            abs(shortestAngleDelta(p.heading(), startingPose.heading())) <= START_POSE_TOLERANCE_RADIANS
         ) {
             startPoseConfirmed = true
             return
@@ -227,14 +220,6 @@ class LocalizerSubsystem(
         (fault ?: statusFault)?.let { log.put("fault", it) }
     }
 
-    override fun writeHardware() {
-        // Not a hardware write: this is the first point after Follower.update().
-        history.add(clock.nanos(), pose)
-    }
-
-    /** The pose at a past [Clock] time, interpolated; null outside the last 512 samples (a few seconds). */
-    fun poseAt(timestampNanos: Long): Pose? = history.lookup(timestampNanos)
-
     /** Field pose: inches, radians. */
     val pose: Pose get() = follower.pose()
 
@@ -269,3 +254,14 @@ object LocalizerConfig {
      */
     @JvmField var frozenPoseTicks = 25
 }
+
+/**
+ * Shortest signed rotation taking [from] to [to], in (-π, π]. An exact
+ * half-turn resolves to +π so a correction never flips direction on noise.
+ */
+internal fun shortestAngleDelta(from: Double, to: Double): Double {
+    val delta = Angle.normalizeSigned(to - from)
+    return if (abs(delta + PI) < 1e-12) PI else delta
+}
+
+internal fun Pose.isFinite(): Boolean = x().isFinite() && y().isFinite() && heading().isFinite()

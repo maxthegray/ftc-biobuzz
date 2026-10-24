@@ -114,226 +114,42 @@ error is following or battery.
 
 ## 8. Vision diagnostics (stationary, no motors)
 
-One Diagnostics OpMode, **Vision Test**, brings up the season's cameras. It
-commands no motor and applies no pose correction. It opens every camera in the
-active configuration, runs them during INIT, and shows one page at a time:
-gamepad 1 **dpad left/right** changes page, in INIT too.
-
-| Page | Camera | Purpose |
-|---|---|---|
-| **Ball camera** | goBILDA 3122-0004-0001 `ballCamera` | Yellow POLLEN color/shape detection, Panels tuning, RC preview |
-| **Limelight tags** | Limelight 3A `limelight` | Every HIVE tag: ID, BIOBUZZ meaning, camera-relative measurements, freshness |
-| **HIVE survey** | Limelight 3A `limelight` on a tripod | Every tag's height and implied goal, each CELL's fused goal, each HIVE's state (the only page that infers HIVE state) |
+The Diagnostics OpMode **Vision Test** opens the Limelight and commands no
+motors. It shows every tag in view (`id: tx … ty …`) and the goal `GoalAim`
+picks for each alliance (see [Development](DEVELOPMENT.md#vision)).
 
 ### Hardware and configuration
 
-1. **Limelight 3A** → USB-C to the Control Hub **USB 3.0** port (Limelight's
-   instruction). Driver Station → Configure Robot → Scan → the new
-   **Ethernet Device** → rename `limelight`.
-2. **goBILDA Global Shutter USB Camera, SKU 3122-0004-0001** (Arducam OV9782)
-   → Control Hub **USB 2.0** port when the Limelight holds the 3.0 port (the
-   camera is a USB 2.0 device). Scan → **Webcam 1** → rename `ballCamera`.
-3. Save and activate the configuration. **Full APK install** — the lens
-   calibration lives in `res/xml/teamwebcamcalibrations.xml`, which a Sloth hot
-   reload does not deploy.
-4. Verify the calibration matched: Vision Test, ball camera page → *Ball Camera → lens
-   calibration* must read `exact 640x480 entry`. `none …` means the camera's
-   USB IDs differ from goBILDA's published `VID 0xC45, PID 0x366`; read the
-   real ones and fix the `<Camera vid pid>` entry:
-
-   ```sh
-   adb shell 'for d in /sys/bus/usb/devices/*; do [ -f $d/idVendor ] && echo "$(cat $d/idVendor):$(cat $d/idProduct) $(cat $d/product 2>/dev/null)"; done'
-   ```
-
-The calibration entry is goBILDA's user-guide table (May 14 2026), a
-manufacturer starting point rather than a calibration of our unit. goBILDA's
-downloadable calibration zip has a `480, 320` typo for the 320×240 entry; the
-comment in the XML records why the guide values are used. The ball processor
-receives these intrinsics only through `VisionProcessor.init` and uses them
-for the *ray angle* telemetry (principal point = 0°, +right, +down). They say
-nothing about where the camera sits on the robot.
+**Limelight 3A** → USB-C to the Control Hub **USB 3.0** port (Limelight's
+instruction). Driver Station → Configure Robot → Scan → the new **Ethernet
+Device** → rename `limelight`. Save and activate the configuration.
 
 ### Limelight pipeline (web interface)
 
 Configure over a laptop USB connection at `http://limelight.local:5801`
-(Limelight 3A quick-start). Reaching the web interface through the Control Hub
-has not been verified here. Use **pipeline 0** (`visionDiagnostics.limelightTagPipelineIndex`):
+(Limelight 3A quick-start). Use **pipeline 0**:
 
 | Tab | Setting | Value |
 |---|---|---|
 | Input | Pipeline Type | AprilTags |
-| Input | Resolution | Record what you choose; Limelight suggests highest for 3D, 640×480 for 2D-only |
 | Input | Exposure / Black Level / Sensor Gain | Start low exposure (motion blur), black level 0, gain 15; tune while holding a tag |
 | Standard | Family | AprilTag Classic 36h11 |
 | Standard | Marker Size | **82.55 mm** (3.25 in black square, manual §9.9) |
-| Standard | ID Filter | Blank for the first session, so stray tags show as `NOT A BIOBUZZ TAG`; later `30,31,…,45` |
-| Standard | Detector Downscale | Start 1–2 and record it |
-| Advanced | Full 3D | **On** — required for camera-space pose |
-| Advanced | Camera pose in robot space / field map | Leave unset; the robot code places tags itself from `HiveConfig`, and the HIVES pivot |
+| Standard | ID Filter | `30,31,…,45` |
+| Advanced | Camera pose in robot space / field map | Leave unset; tags are never used for localization |
 
 Download the pipeline file from the web interface after tuning and commit it.
 
-Units reported: `tx`/`ty` degrees from the crosshair, as the Limelight reports
-them (tx positive right; Limelight's JSON spec says ty positive down — confirm
-by raising a tag); `ta` as the SDK reports it; camera-space pose in metres and
-degrees, Limelight camera space +X right, +Y down, +Z out of the lens.
-Timing: *receipt age* is Control Hub wall-clock time since the SDK parsed the
-latest poll; *frame age* retains the first receipt age for each Limelight `ts`
-and advances on the robot's monotonic clock. Duplicate polls cannot reset it:
-tags are cleared when frame age reaches `limelightMaxResultAgeMs`.
-*Est. capture age* adds the Limelight's capture and targeting latency to frame
-age and still excludes USB transport and the wait before the first poll.
-Without a device `ts`, identity falls back to receipt timestamps, so duplicates
-across polls cannot be distinguished.
+### Checks on a real field
 
-Tags identify a CELL. The tag page does not say which CELL faces up; the
-HIVE survey page infers that from measured tag heights. A raised CELL is the
-goal, not a promise that it can take a score.
-
-### Panels and the camera preview
-
-- **Panels:** robot powered, laptop on the Control Hub Wi-Fi,
-  `http://192.168.43.1:8001`. Configurables `BallCameraConfig` and
-  `HiveConfig`; the same telemetry sections as the Driver Station.
-  `VisionTestConfig` is deliberately not in Panels: change its defaults
-  in code. Panels does not stream camera images.
-- **Preview:** on the **Robot Controller** screen while Vision Test has the
-  ball camera open (INIT or running): plug an HDMI monitor into the Control
-  Hub, or `tools/hub-connect.sh` then `scrcpy`. The SDK's ColorBlobLocatorProcessor
-  outlines every blob that passed the filters. On the ball camera page, gamepad 1
-  **Circle** toggles rendering (`previewEnabled`); off saves CPU for timing comparisons.
-
-### What applies live
-
-| Live in Panels (next robot loop) | In code, then `make hot` and re-init |
-|---|---|
-| Area/circularity/aspect/density filters, max observation age, preview | Color space and channel thresholds, ROI, blur/erode/dilate, contour mode, exposure, everything in `VisionTestConfig` |
-
-The SDK builds the color range, region and morphology into the processor at
-init, and Panels edits are gone by the next init, so those are changed in
-code. The capture resolution is fixed at 640×480 MJPEG.
-
-**Camera mount.** The `ballVision.mount*` fields record where the lens sits:
-`mountHeightIn` above the floor, `mountPitchDownDeg` below horizontal,
-`mountForwardIn`/`mountLeftIn` from the robot's pose point, `mountYawDeg` from
-its front, and `mountMeasured` once the numbers are real. Nothing on the robot
-uses them. Re-measure after moving the camera; see [Logging](LOGGING.md)
-for recorded mount values and field playback.
-
-**Panels edits are not saved.** They last until the op-mode stops. Copy
-values worth keeping into the config object before then.
-
-**Frame age.** The SDK processor publishes no capture timestamp, so *frame
-age* is robot-clock time since the latest new frame reached the loop.
-Detections clear when it passes `maxObservationAgeMs`.
-
-### Lab procedure
-
-Robot stationary, on blocks. Note the values after each step that settles
-something.
-
-1. **Exposure.** One POLLEN ball ~1 m away. With `exposureManual` true, lower
-   `exposureMicros` in code until a rolled ball is not smeared; `make hot` and
-   re-init after each change. *Ball Camera → exposure* shows what the camera accepted.
-2. **Color range.** Adjust `channel*Min/Max` in code, `make hot`, re-init, and check the preview
-   until the ball is outlined and tiles, walls, and red/blue NECTAR are not —
-   near, far, in shadow, under the brightest light.
-3. **Region and blob filters.** Set the ROI to where POLLEN can appear (in
-   code, `make hot`). Then, live in Panels: raise `minAreaPercent` just below the farthest useful
-   ball's area and tighten `minCircularity` (1.0 is a perfect circle, which a
-   traced contour rarely reaches), `maxAspectRatio`, `minDensity` while testing
-   two touching balls, a half-hidden ball, and a ball at the frame edge.
-4. **Moving and multiple balls.** Roll a ball across the frame: frame age stays
-   small and the target never lingers after the ball leaves. With several
-   balls, the target is the largest. Cover the lens: the target goes to none.
-5. **Both cameras.** Vision Test opens both cameras when both are configured.
-   Run it once like that and once with `VisionTestConfig.openLimelight` false
-   (in code, `make hot`). Compare *Timing*, library fps, Limelight new-frame
-   rate and ages, then compare loop percentiles using the
-   [logging workflow](LOGGING.md#review-a-wpilog-in-maxscope).
-6. **Limelight tags.** Vision Test, tag page: hold each tag still; confirm ID
-   and meaning against its sticker, the signs of tx/ty, and |d| against a tape
-   measure; record whether the cluster's four tags appear together.
-
-Then copy the values tuned live in Panels into `BallCameraConfig` and commit.
-
-### HIVE survey (real CELL and field)
-
-Each HIVE is one alliance's. It sits tipped 30° with one CELL raised (the
-goal) and the other lowered, and a tip swaps them. Each CELL's four tags are on
-its bottom face, below and in front of the opening. FIRST's cluster definition
-(SDK 12.0.0) gives every tag's offset to the centre of its CELL's opening, so
-each tag implies the same goal point from a different offset. See
-`BiobuzzAprilTags`.
-
-Setup:
-
-1. Limelight on a tripod, upright (image not flipped), pipeline 0 as above
-   with **Full 3D on**.
-2. Measure and set `hive` in Panels (`HiveConfig`): `cameraHeightIn` (lens
-   centre above the tiles), `cameraPitchUpDeg` (optical axis above horizontal;
-   a phone level on the housing), `cameraYawDeg` 0,
-   `cameraForwardIn`/`cameraLeftIn`/`axisForwardIn`/`axisLeftIn` 0 (the tripod
-   point is the reference). Set `mountMeasured` true. The turret angle is held
-   at 0.
-3. Open **Vision Test** and go to the HIVE survey page; *Survey Setup* must read `measured`.
-
-Procedure (**Circle** clears the survey memory):
-
-1. **One CELL head-on.** Aim at your raised CELL from 1.5–2.5 m. *CELL Goals*
-   spread under ~1 in with all four tags used. A consistent spread that grows
-   as you move sideways means the Limelight rotation convention in
-   `GoalGeometry.tagRotation()` is wrong; record the rows and fix that
-   function, nothing else.
-2. **Distance.** Tape-measure the horizontal distance from the tripod point to
-   the centre of the CELL opening; compare *horizontal*. Compare *height* with
-   the opening centre's height.
-3. **Raised vs lowered.** With both CELLs of a HIVE in view, note the tag heights
-   *Tags (latest)* reports for each. Tip the HIVE and repeat. Set
-   `hive.raisedMinHeightIn` midway between the raised and lowered heights,
-   and keep `classificationMarginIn` well under half the gap. *HIVEs* must
-   flip after a tip (event `HIVE TIP: …`) and never flip on a still HIVE.
-   *faces … below horizontal* should differ between raised and lowered tags;
-   it is a cross-check, not an input.
-4. **Match setup.** Stage the field per manual §10.3.1: *HIVEs* must read RED
-   audience CELL raised, BLUE far CELL raised (`HiveState.matchSetup`, the
-   autonomous prior). If not, fix `matchSetup`.
-5. **Every tag.** Walk the tripod round so all 16 tags appear in *Tags
-   (latest)*; note any that disagree.
-
-Robot use: `HiveTracker` (registered after the Limelight) with the turret's
-measured-angle lookup as `turretAngleAt`, `HiveTracker.MATCH_SETUP` priors in
-autonomous (teleop starts unknown), and the localizer's `poseAt` and
-pose so a held goal follows the robot's motion. Autonomous can wait for a tip
-with `race(waitUntil { hive.tipCount(RED) > before }, waitMs(…))`;
-a tip is only seen while the camera can see that HIVE. Shooter speed comes from
-`ShotModel.rpmForDistance(goal.horizontalDistanceIn)`, which is not fitted yet.
-
-Aiming reads `hive.aimGoal(alliance)`, not `goal(alliance)`. With no vision
-goal (none seen, or lost for over `lostTimeoutMs`) it falls back to
-`HiveField`'s approximate field point for the raised CELL, placed with the
-current pose (`source = ODOMETRY`). The CELL is the one the tracker believes is
-raised, or, with the state unknown, the one on the robot's half of the field.
-The points are derived from the manual's drawings, not published coordinates:
-on a real field, `Hive/<A>/fieldGoalErrorIn` (vision goal vs `HiveField`, per
-frame) should be a few inches. Only shoot on `source = VISION`.
-
-### Not measured yet — needed before powered ball assists
-
-- Camera mounting: height above the tiles, pitch/roll, and lateral/forward
-  offset from the robot centre, for both cameras.
-- A per-unit lens calibration at the chosen resolution, if the goBILDA table
-  disagrees with a checkerboard test.
-- Ball image size and ray angle against measured distance, to choose a
-  controller measurement and a stopping point. No approach setpoint exists.
-- The actual processed frame rate and capture-to-robot latency under match
-  load, with drive, Pinpoint, and telemetry running.
-- The OV9782 USB IDs.
-
-Follow-up for powered assists: a USB-camera target source with the same
-validity gates as `LimelightSubsystem`; controller updates driven by
-`BallCameraSubsystem.newFrame`, with the output held between frames; an explicit lost-target timeout; a
-latency budget from the measurements above; and on-blocks tests before carpet.
+1. **`ty` sign.** Hold a tag and raise it: its `ty` must grow. The
+   "higher CELL wins" rule depends on it; if it shrinks, flip the comparison
+   in `GoalAim.goal`.
+2. **Lowered tags.** With a HIVE tipped, look at the lowered CELL from around
+   the field. If its tags ever appear, check that the goal line still names the
+   raised CELL whenever both are in view.
+3. **Pivot aim.** From several spots, turn the robot to
+   `GoalAim.pivotBearingRad`: the raised CELL's tags should be in view each time.
 
 ## Logging
 
@@ -392,9 +208,7 @@ Record results in `PROGRESS.md`.
 - [ ] Unplugged Pinpoint at init: Health reports it; auto still runs and logs
       `AUTO: starting without a ready localizer`, unless the pose itself is lost.
 
-**HIVE tags** (HIVE survey, above)
-- [ ] Four tags of one CELL agree on its goal within ~1 in, head-on and from the side.
-- [ ] Horizontal distance and goal height match a tape measure.
-- [ ] Raised and lowered tags separate cleanly; `raisedMinHeightIn` set between them.
-- [ ] A tip is reported once; a still HIVE never flips.
-- [ ] Staged field reads RED audience / BLUE far raised.
+**Vision** (checks on a real field, above)
+- [ ] `ty` grows as a tag rises.
+- [ ] Vision Test names the raised CELL whenever our tags are in view.
+- [ ] The raised CELL's tags are in view when aimed at the pivot.

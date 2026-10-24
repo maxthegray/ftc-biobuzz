@@ -194,13 +194,11 @@ scheduled.
 - **Alliances:** one `@Autonomous` class per alliance/routine; the BLUE copy
   overrides `initialAlliance` only. Map poses with `alliance.poses()`, not
   `PoseFactory.mirrorX`.
-- **Where was the robot when the camera saw that?** `localizer.poseAt(captureNanos)`
-  interpolates the last few seconds of poses.
 
 ## Logging
 
 Logging is automatic; see [dutchdocs/LOGGING.md](LOGGING.md) for state logging,
-WPILOG channels, command history, settings, viewers and post-match debugging.
+WPILOG channels, command history, viewers and post-match debugging.
 
 ## Commands and faults
 
@@ -237,7 +235,7 @@ Everything else is Ivy or Pedro. Each remaining helper has one job:
 | `core/Robot`, `OpModeBase` | Loop order (bulk reads → reads → input → commands → writes → telemetry → log), init lockout, Ivy reset, fault policy, shutdown order |
 | `SubsystemBase` | The read/write/stop/log lifecycle and passive default commands |
 | `MecanumDriveSubsystem` | The one drive owner: stick shaping, field-centric, drive commands with requirements, interruption cleanup and measured completion |
-| `LocalizerSubsystem`, `PoseHistory` | Start pose written at every INIT, Pinpoint readiness/fault watchdog, pose history for camera latency |
+| `LocalizerSubsystem` | Start pose written at every INIT, Pinpoint readiness/fault watchdog |
 | `GamepadEx`, `Trigger` | Deadbanded sticks, edges, and button bindings that schedule Ivy commands (Ivy has none) |
 | `Alliance` | RED→BLUE transform with the season's symmetry (mirror or rotate; Pedro's `mirrorX` only mirrors) |
 | `FlightRecorder`, `WpiLogWriter`, `WpiStruct`, `StateLog`, `AutomaticStateLog`, `Events` | WPILOG files for MaxScope and AdvantageScope: automatic subsystem state and timestamped events ([Logging](LOGGING.md)) |
@@ -290,9 +288,9 @@ explicitly.
 - Shooter will accept target RPM from `ShotModel.rpmForDistance` (in `ShooterSubsystem.kt`), a
   distance-to-speed function still to be fitted from shots at measured
   distances (it returns null until then).
-- Turret owns all mechanically linked turret servos. It will keep a short
-  timestamped history of its servo-encoder angle and give `HiveTracker` a
-  lookup into it, so each camera frame is placed at its capture time.
+- Turret owns all mechanically linked turret servos. It will aim with
+  `GoalAim` (below) and command angles through `TurretSubsystem.wrapToTravel`
+  so it never winds past its travel.
 - Once CAD defines their actuators: resolve them with `hardwareMap.get` in
   `init`, add logged Ivy command factories requiring the subsystem, implement
   reads/writes and fault/stop cleanup, then register in `configure()`.
@@ -303,23 +301,24 @@ tests put fake devices (`MotorProbe`, `ServoProbe` in `test/…/core/sim/`)
 into a `FakeHardwareMap`. Add closed-loop control, homing, soft limits or profiles only once you can
 validate them on the mechanism.
 
-## Vision layout
+## Vision
 
-Season vision code that runs in a match is in `vision/`:
+The Limelight 3A rides on the turret. `subsystems/LimelightSubsystem.kt` is
+the device adapter: freshness and every AprilTag's `tx`/`ty`. `vision/GoalAim.kt`
+decides where to aim:
 
-- `BallCamera*`, `LensIntrinsics`: the USB ball camera on the SDK's color-blob processor, its Panels
-  settings, and lens calibration.
-- `BiobuzzAprilTags`: season tag identities and FIRST's cluster geometry.
-- `Hive*`, `GoalGeometry`: HIVE goal tracking for the turret-mounted Limelight. `HiveConfig`
-  holds the camera mount and thresholds; `GoalGeometry` places each tag's
-  implied goal (its CELL's opening centre) on the robot through that mount and
-  the turret angle at capture time; `HiveState` infers which CELL of each HIVE
-  is raised from tag heights, with hysteresis and tip counts; `HiveTracker`, a
-  subsystem, fuses each alliance's goal and exposes both alliances to op-modes.
-Tests mirror these packages. The reusable Limelight device adapter is
-`subsystems/LimelightSubsystem.kt`. The Vision Test op-mode and its tooling
-(tag-sighting history, survey memory, `VisionTestConfig`) live together in
-`opmodes/diagnostics/VisionTestTeleOp.kt`.
+- **Our tags in view** (RED 30–37, BLUE 38–45): their CELL is raised (a
+  lowered CELL's tags face away). Aim at the average `tx` of its visible tags.
+  If both of our CELLs show, the higher one (larger `ty`) wins.
+- **No goal in view:** aim at our HIVE's pivot from the odometry pose
+  (`GoalAim.pivotBearingRad`). Both CELLs are near it, so whichever is raised
+  comes into view. Never shoot without a goal.
+
+That is all of it on purpose. The earlier HIVE estimator (3D goal from tag
+poses, raised/lowered voting, held goals, latency compensation) and the USB
+ball camera are at git tag `vision-full`; restore files from there if they
+are ever needed. The **Vision Test** op-mode (`opmodes/diagnostics/`) shows
+every tag and each alliance's goal.
 
 ## Sensors and I²C
 

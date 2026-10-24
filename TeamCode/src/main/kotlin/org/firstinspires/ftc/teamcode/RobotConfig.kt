@@ -29,9 +29,6 @@ object RobotConfig {
     object Vision {
         /** Limelight 3A (an Ethernet Device in the configuration). */
         const val LIMELIGHT = "limelight"
-
-        /** goBILDA USB ball camera (a Webcam in the configuration). */
-        const val BALL_CAMERA = "ballCamera"
     }
 
     /** Intake motors; add a name when a second motor is fitted. */

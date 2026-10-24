@@ -21,13 +21,13 @@ Layout (flat on purpose; don't add one-file folders):
 
 - `subsystems/`: every mechanism, season or not (drive, localizer, Limelight,
   intake, transfer, shooter, turret).
-- `vision/`: season vision logic (tag catalog, HIVE tracking, ball camera).
+- `vision/`: season vision logic (`GoalAim`: which tags are the goal, pivot fallback).
 - `opmodes/`: teleop and autos, plus `diagnostics/` and `skeletons/`.
 - `core/`: the framework students don't touch (`Robot`, `OpModeBase`,
   `SubsystemBase`, `GamepadEx`, `Alliance`) and
   `core/logging/`.
 - Device adapters stay separate from game logic (e.g. `LimelightSubsystem`
-  vs `vision/HiveTracker`). At season rollover keep `core/`, the drive,
+  vs `vision/GoalAim`). At season rollover keep `core/`, the drive,
   localizer and Limelight; replace the rest.
 
 The code currently runs on a **sensorbot**: a temporary chassis to develop
@@ -249,9 +249,7 @@ drive.pose / drive.velocity / drive.atPose(target) / drive.toggleFieldCentric()
    `writeHardware()` → telemetry → flight recorder.
 4. **Bindings are init-only.** Wire `GamepadEx` triggers in `configure()`;
    they lock at start. A button held through init does not fire at start.
-5. **Register the drive before the localizer** (`registerAfter` enforces it):
-   the localizer samples pose history after `Follower.update()`.
-6. **Fault policy: keep running.** Only an `Error` or an exception from
+5. **Fault policy: keep running.** Only an `Error` or an exception from
    `onLoop()` ends the op-mode.
    - An `Exception` from a `logged()` command ends **only that command**:
      `FAIL` in `commands/events`, `onCommandFault()` on the subsystems it
@@ -279,7 +277,7 @@ drive.pose / drive.velocity / drive.atPose(target) / drive.toggleFieldCentric()
      rethrown to the Driver Station. Use `error("…")` (an
      `IllegalStateException`) for something that should fail without
      ending the op-mode.
-7. **Localizer faults.** Two latches, each reported once. `fault`: the pose
+6. **Localizer faults.** Two latches, each reported once. `fault`: the pose
    can't be driven on (non-finite, frozen while following, unreadable); calls
    `onFault` and ends the checks. `statusFault`: the Pinpoint reported a
    problem but the pose is live (bad status; `FAULT_BAD_READ`, the driver
@@ -292,7 +290,7 @@ drive.pose / drive.velocity / drive.atPose(target) / drive.toggleFieldCentric()
    routine keeps driving. Autos are built to keep going: a turn that times
    out moves on, and a localizer not ready at START gets a second, then the
    routine runs anyway.
-8. **Fresh localization.** `LocalizerSubsystem.init()` writes `startingPose`
+7. **Fresh localization.** `LocalizerSubsystem.init()` writes `startingPose`
    (default `Pose.zero()`; an autonomous passes its field start pose) to the
    Pinpoint at every INIT. A read that disagrees before one confirms it is a
    pre-reset sample: the pose is written again, and `ready` stays false until
@@ -300,7 +298,7 @@ drive.pose / drive.velocity / drive.atPose(target) / drive.toggleFieldCentric()
    is written, not recalibrated: `Constants` sets Pedro's Pinpoint
    `ResetMode.NONE`, so the IMU keeps its power-up calibration and INIT has
    no stationary requirement. No pose is restored from a previous op-mode.
-9. **Shutdown.** `Robot.stop()` stops every subsystem first, then runs the
+8. **Shutdown.** `Robot.stop()` stops every subsystem first, then runs the
    crash-report callback, clears Ivy without end handlers (so cleanup cannot
    re-energize hardware), closes the recorder (the last logged pose is the
    last real one). Nothing carries over. `stop()` must zero actuators and
@@ -328,7 +326,7 @@ Logging is automatic; see [dutchdocs/LOGGING.md](dutchdocs/LOGGING.md) for
 state logging, WPILOG channels, events, command history, power sampling, viewers
 and post-match debugging. Never rename tool-read channels (exact-name lookups),
 and never remove, bypass or weaken `logged(...)` or its exception handling: it
-implements the fault policy in lifecycle rule 6.
+implements the fault policy in lifecycle rule 5.
 
 ## Things AI assistants get wrong often
 
@@ -358,30 +356,13 @@ implements the fault policy in lifecycle rule 6.
   Square, Triangle, L1/R1, L2/R2 analog, L3/R3, Options, Create, Touchpad).
   Never write Xbox names (A/B/X/Y, Back/Start). Options+Cross/Circle are the
   Driver Station's re-bind chords, so driver chords use Create.
-- **VisionPortal processors are single-use.** Build a new processor every
-  run. Never let an exception leave `processFrame`.
-- **The ball camera is the SDK's `ColorBlobLocatorProcessor`.** Its color
-  range, region and morphology are fixed when it is built (applied at init);
-  only its filters change live. Don't add a custom processor back without
-  asking.
-- **Vision timestamps are not interchangeable.** Limelight `staleness` is
-  receipt age, `ts` is device clock (identity only), VisionPortal capture
-  time is `System.nanoTime()`. Label which age a number is.
-- **A BIOBUZZ tag sighting is not HIVE state.** HIVE state is inferred only by
-  `HiveStateEstimator`, from measured tag heights with hysteresis; a raised
-  CELL is the goal, not a claim that it can take a score. Tags have no field
-  poses (the HIVES pivot) and are never used for localization.
-- **The Limelight rotation convention is unverified.** Every use of a tag's
-  orientation goes through `GoalGeometry.tagRotation()`; if the Vision Test's HIVE survey
-  shows four tags of one CELL disagreeing, fix that one function. Raised/lowered
-  uses tag position only, so it does not depend on it.
-- **HIVE goal offsets are FIRST's** (SDK 12.0.0 `AprilTagGameDatabase`), in
-  `BiobuzzAprilTags`; don't make them tunable or re-derive them from figures.
-- **`HiveField` goal points are approximate aim hints.** Derived from the
-  manual's drawings; `aimGoal` uses them only until tags are seen. Never shoot
-  on `GoalSource.ODOMETRY`, and never use them for localization.
-- **Camera frames use the turret angle at capture time**, from
-  `HiveTracker`'s `turretAngleAt` lookup, never the commanded angle.
+- **Vision is deliberately simple.** `GoalAim` filters the Limelight's tags
+  by our alliance's IDs; a visible CELL is the raised one (lowered tags face
+  away), and if both of our CELLs show, the higher `ty` wins. With no goal in
+  view the turret aims at the HIVE pivot from odometry; never shoot without a
+  goal. No 3D tag poses, HIVE state or stored sightings: the full estimator is
+  at git tag `vision-full`; don't rebuild it unless asked.
+- **Tags are never used for localization.**
 
 ## When the user asks you to add a subsystem
 

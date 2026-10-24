@@ -8,7 +8,7 @@ events, hub power and command history. Ivy remains the only scheduler.
 
 - Never rename a channel read by `tools/`: lookups use exact names and a rename
   silently empties graphs or removes fault flags. Preserve explicit channel
-  layouts for drive, localizer, Limelight, ball camera and HIVE tracking.
+  layouts for drive, localizer and Limelight.
 - Never remove, bypass or weaken `logged(...)`. It implements command fault
   containment: only the failing command ends, its requirements receive
   `onCommandFault()`, and a parent sequential continues to its next step.
@@ -25,24 +25,17 @@ Alongside arbitrary channels users select, built-in lookups depend on:
   `Drive/odometryFallback` and `Localizer/faulted`.
 - `Limelight/target/visible`, `Limelight/target/txDegrees`,
   `Limelight/target/tyDegrees`, and any subsystem's `connected` channel
-  (including `Limelight/connected` and `BallCamera/connected`).
-- Camera channels under `BallCamera/` (or any camera subsystem prefix):
-  `candidates/xPx`, `yPx`, `radiusPx`, `horizontalDeg`, `verticalDeg`,
-  `rejections`, `selectedIndex`; `frame/widthPx`, `heightPx`, `status`;
-  `target/horizontalDeg`, `target/verticalDeg`; and `mount/measured`,
-  `heightIn`, `pitchDownDeg`, `forwardIn`, `leftIn`, `yawDeg`.
-  The Vision graph preset also reads `BallCamera/frame/ageMs` and
-  `BallCamera/frame/processingMs`. The current `BallCameraSubsystem` does not
-  write `connected`, `frame/status`, `frame/processingMs` or
-  `candidates/rejections`.
-- `Hive/RED/state`, `Hive/BLUE/state`; `hubs/control/currentAmps`,
+  (including `Limelight/connected`).
+- `hubs/control/currentAmps`,
   `hubs/control/volts`; `pose`, `velocity`, `driveMode`, `battery`,
   `gamepad1/axes`, `gamepad1/buttons`, `gamepad2/axes`, `gamepad2/buttons`.
 - `follow/translationalErrorIn`, `follow/headingErrorRad`, `loop/totalNanos`,
   `loop/windowMaxTotalNanos`, `loop/<phase>Nanos`, `loop/windowMax/<phase>Nanos`;
   `events`, `commands/events`, `commands/active`, `commands/lost`.
 - Older logs: `commands/running`, `BallAssist/tx`, `BallAssist/ty`,
-  `BallAssist/targetTy`. `MaxScope/traction/*` and `MaxScope/battery/*` are
+  `BallAssist/targetTy`, `Hive/RED/state`, `Hive/BLUE/state`, and the
+  `BallCamera/` camera channels (`candidates/…`, `frame/…`, `target/…`,
+  `mount/…`), written before the vision rewrite (git tag `vision-full`). `MaxScope/traction/*` and `MaxScope/battery/*` are
   derived by tools, rather than emitted by the robot.
 
 The analyzer and viewer anchor on the exact `start` event, and the viewer on
@@ -51,7 +44,7 @@ exact `stop`; the viewer also recognizes the `LOOP OVERRUN` prefix. Fault classi
 and `OVERRUN`. Keep the robot's `LOCALIZER FAULT`, `COMMAND FAULT`,
 `SUBSYSTEM FAULT`, `TELEMETRY FAULT`, `LOOP CRASHED`, `LOOP OVERRUN`,
 `SUBSYSTEM LOGGING DISABLED` and `HISTORY INCOMPLETE` messages unchanged.
-`HIVE TIP` and `ballVision` settings text are preserved too.
+Older logs also carry `HIVE TIP` and `ballVision` settings events.
 
 ## Flight recorder and WPILOG channels
 
@@ -73,11 +66,7 @@ and `OVERRUN`. Keep the robot's `LOCALIZER FAULT`, `COMMAND FAULT`,
 | `Drive/motors/power`, `Drive/motors/velocityTps` | `double[]` | every tick, `[leftFront, rightFront, leftRear, rightRear]` (Pedro's mixer order): the power Pedro commanded (0 once the drivetrain stops) and the encoder velocity in ticks/s from the bulk read |
 | `Drive/motors/<wheel>/currentAmps` | double | one motor sampled every 200 ms round-robin (each every 800 ms), logged once at the next sample; `getCurrent` is a real Lynx transaction |
 | `hubs/<hub>/currentAmps`, `hubs/<hub>/volts` | double | `<hub>` is `control` or `expansion<address>`: each hub's input current and voltage, read back to back by `Robot.hubPower`, one hub every 50 ms round-robin, logged once at the next sample; a 0 V reading (the hub after stop) is dropped. Counts everything the hub powers; MaxScope's battery analysis uses it. The Control Hub's voltage also feeds `battery` |
-| `BallCamera/candidates/…` | `double[]` | every blob that passed the filters in the current frame, largest first: `xPx`, `yPx`, `radiusPx`, `areaPx`, `circularity`, `horizontalDeg`, `verticalDeg` (+ below the axis), and `selectedIndex` (0, or −1 when none) |
-| `BallCamera/mount/…` | double/boolean | `BallCamera.mount*` as recorded: `measured`, `heightIn`, `pitchDownDeg`, `forwardIn`, `leftIn`, `yawDeg` |
-| `Hive/<RED\|BLUE>/…` | mixed | `state` (`AUDIENCE_RAISED`, `FAR_RAISED`, `UNKNOWN`), `stateAssumed`, `tipCount`, and the goal: `visible`, `cell`, `turretBearingDeg`, `robotBearingDeg`, `distanceIn` (horizontal, from the turret axis), `heightIn`, `spreadIn`, `ageMs` (since estimated capture), `tagIds`, `reprojected`; the aim goal: `aimSource` (`VISION`/`ODOMETRY`), `aimTurretBearingDeg`, `aimRobotBearingDeg`; `fieldGoalErrorIn` (vision goal vs `HiveField`) |
-| `Hive/tags/…` | `double[]` | every season tag of the latest processed frame: `id`, `heightIn`, `class` (1 raised, −1 lowered, 0 ambiguous), `deviationIn` (implied goal's distance from its CELL's fused goal) |
-| `Hive/mount/…`, `Hive/settings/raisedMinHeightIn`, `Hive/frames/…` | mixed | `HiveConfig` camera mount and threshold as recorded; frames processed and dropped for want of a turret angle |
+| `Limelight/tags/id`, `tags/txDegrees`, `tags/tyDegrees` | `double[]` | every AprilTag in the latest fresh result (empty when stale) |
 | `events` | string | explicit events with their own timestamps (not sampled); strictly increasing, a same-microsecond event moves 1 µs later |
 | `commands/events` | string | lifecycle records of `logged` commands, own timestamps, strictly increasing (see below) |
 | `commands/active` | string | traced executions open after each record, `#id name` per line, `(suspended)` suffix |
@@ -160,7 +149,7 @@ drive.followCommand(path, name = "Drive to bar")   // drive factories are alread
   timeout, cancel) or that a schedule was rejected: Ivy doesn't say. Read the
   surrounding records and `events`.
 
-## Events and settings
+## Events
 
 `Events` is static like Ivy's Scheduler and CommandHistory. Robot resets its
 sink at construction, wires it when the recorder opens, and clears it at close
@@ -168,21 +157,6 @@ or stop. `Robot.recordEvent` delegates to `Events.record`. Tests without a Robot
 can set the internal sink and reset it in setup/teardown. Event text is a tool
 interface: preserve parsed prefixes such as `LOCALIZER FAULT`, `LOOP OVERRUN`
 and `TELEMETRY FAULT` verbatim.
-
-`SettingsChangeLog` records a config section initially, then only changed
-fields, using the robot clock. Slider edits are merged to at most one event
-per second; an edit reverted within the window emits nothing, and an edit in
-the last second before stop can be missing.
-
-**Tuning in the flight log.** Vision Test writes its `visionTest` values, and
-`hive` when the Limelight is open, as events at init. The ball camera writes
-every `ballVision` value at init, then an event naming only the fields that
-changed.
-
-The ball camera's `BallCamera/mount/*` channels record measured status, height,
-pitch, forward/left offset and yaw each tick. MaxScope uses them to place
-candidates on the field. Copy tuned values into config code before restarting;
-Panels edits are not persisted.
 
 ## Hub power sampling
 
@@ -361,10 +335,7 @@ Three separate levels; passing one says nothing about the next.
 | Loop rate collapsed | Phase maxima: `writeHardware` usually Pinpoint, `telemetry` Panels, `periodic` season I/O |
 | Tuned config reverted | Registration, public primitive `@JvmField`, config schema |
 | Pinpoint unhealthy | Init Health status (`waiting for start pose` = pose write not landing), I²C cable, robot still at power-up (IMU calibration) |
-| Ball target flickers or lingers | `BallCamera/frame/ageMs`, `frame/new`, `camera/libraryReportedFps`, `candidates/selectedIndex` |
-| Tag diagnostic shows nothing | Limelight health (pipeline index/type), `Limelight/fiducial/count`, Full 3D and marker size |
-| HIVE goal missing or on the wrong CELL | `Hive/<ALLIANCE>/state`, `Hive/tags/heightIn` and `tags/class` against `settings/raisedMinHeightIn`, `mount/*`, `frames/withoutTurretAngle` |
-| HIVE goal spread large | `Hive/tags/deviationIn` per tag: one tag far off is an outlier; all off together is the mount or rotation convention |
+| Tag diagnostic shows nothing | Limelight health (`disconnected` / `no fresh result`), `Limelight/tags/id`, pipeline 0 is AprilTags with the right family and ID filter |
 
 - Repeated `LOOP OVERRUN` events matter; one at init/stop is usually warm-up.
 - Swap a battery below 12.0 V resting. Normal operation should not sag below ~10 V.

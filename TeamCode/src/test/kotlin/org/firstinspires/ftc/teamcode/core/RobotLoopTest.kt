@@ -280,18 +280,4 @@ class RobotLoopTest {
         robot.stop()
         assertEquals(listOf("stop", "thrower", "stop"), events)
     }
-
-    @Test
-    fun registerAfterContractIsEnforced() {
-        class First : SubsystemBase("first")
-        class Second : SubsystemBase("second") {
-            override val registerAfter: Class<out SubsystemBase> get() = First::class.java
-        }
-
-        val fresh = Robot(HardwareMap(null, null), clock)
-        assertThrows(IllegalStateException::class.java) { fresh.register(Second()) }
-        fresh.register(First())
-        fresh.register(Second())
-        assertEquals(2, fresh.subsystems().size)
-    }
 }

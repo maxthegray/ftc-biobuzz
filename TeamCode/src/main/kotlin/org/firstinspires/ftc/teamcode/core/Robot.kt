@@ -94,12 +94,6 @@ class Robot(
         check(!initialized) {
             "Cannot register ${subsystem.name} after Robot.init() — register subsystems in configure()."
         }
-        subsystem.registerAfter?.let { required ->
-            check(subsystems.any { required.isInstance(it) }) {
-                "${subsystem.name} must be registered after a ${required.simpleName} — " +
-                    "its writeHardware() depends on the ${required.simpleName} having run first this tick."
-            }
-        }
         subsystems += subsystem
         return subsystem
     }
