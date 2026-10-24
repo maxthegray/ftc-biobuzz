@@ -19,8 +19,8 @@ import org.junit.Test
 
 /**
  * Ivy 1.1.1 ends group children that never started and can end a child
- * twice (pinned in LibraryContractTest). Drive cleanup must run once per
- * start and never energize the drivetrain.
+ * twice (pinned in LibraryContractTest). A drive command must never drive
+ * after it ends, and its cleanup must never energize the drivetrain.
  */
 class DriveCommandCancellationTest {
 
@@ -30,17 +30,18 @@ class DriveCommandCancellationTest {
         it.register(drive)
         it.start()
     }
-    private val events = mutableListOf<String>()
+    private val executions = mutableMapOf<String, Int>()
 
     private fun tick() {
         hardware.clock.advanceMs(20.0)
         robot.loop()
     }
 
-    private fun assist(name: String = "assist") = drive.teleopCommand(
-        onStart = { events += "$name start" },
-        onEnd = { events += "$name end $it" },
-    ) { TeleopInput(1.0, 0.0, 0.0) }
+    /** Full-forward sticks; counts the ticks it actually drives. */
+    private fun assist(name: String = "assist") = drive.teleopCommand {
+        executions[name] = (executions[name] ?: 0) + 1
+        TeleopInput(1.0, 0.0, 0.0)
+    }
 
     @Test
     fun cancellingASequenceEndsItsUnstartedDriveStepsWithoutEffect() {
@@ -61,8 +62,8 @@ class DriveCommandCancellationTest {
 
         assertArrayEquals(DoubleArray(4), hardware.powers(), 0.0)
         assertEquals("IDLE", drive.driveModeName)
-        // The assist never started, so its cleanup callback never ran.
-        assertTrue(events.isEmpty())
+        // The assist never started, so it never drove.
+        assertTrue(executions.isEmpty())
     }
 
     @Test
@@ -74,10 +75,12 @@ class DriveCommandCancellationTest {
         assertTrue(hardware.powers().all { it > 0.0 })
 
         deadlineDone = true
+        tick()
+        val driven = executions.getValue("assist")
         repeat(3) { tick() }
 
         assertFalse(Scheduler.isScheduled(group))
-        assertEquals(listOf("assist start", "assist end INTERRUPTED"), events)
+        assertEquals(driven, executions.getValue("assist"))
         assertArrayEquals(DoubleArray(4), hardware.powers(), 0.0)
     }
 
@@ -95,7 +98,7 @@ class DriveCommandCancellationTest {
         takeOver = true
         tick()
 
-        assertEquals(listOf("assist start", "assist end INTERRUPTED"), events)
+        assertFalse(Scheduler.isScheduled(victim))
         assertTrue(Scheduler.isScheduled(override))
         assertArrayEquals(DoubleArray(4), hardware.powers(), 0.0)
     }
@@ -106,7 +109,7 @@ class DriveCommandCancellationTest {
         Scheduler.schedule(stepped)
         tick()
         Scheduler.cancel(stepped)
-        assertEquals(listOf("lazy start", "lazy end INTERRUPTED"), events)
+        assertEquals(1, executions.getValue("lazy"))
 
         // Same lazy, reused as a later step that is never reached.
         val group = sequential(waitUntil { false }, stepped)
@@ -115,7 +118,7 @@ class DriveCommandCancellationTest {
         Scheduler.cancel(group)
         tick()
 
-        assertEquals(listOf("lazy start", "lazy end INTERRUPTED"), events)
+        assertEquals(1, executions.getValue("lazy"))
         assertArrayEquals(DoubleArray(4), hardware.powers(), 0.0)
     }
 

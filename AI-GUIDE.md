@@ -210,7 +210,7 @@ interruption cleanup (a cancelled path keeps driving), and `hold` reports
 nothing about arrival.
 
 ```kotlin
-drive.teleopCommand { TeleopInput(fwd, strafe, turn, precision, turnPower, forwardPower) }
+drive.teleopCommand { TeleopInput(fwd, strafe, turn, precision) }
 drive.followCommand(path, holdEnd = false)       // ends when Pedro leaves FOLLOW (parametric end)
 drive.holdCommand(pose, timeoutMs = 2000.0)      // ends on measured arrival, or timeout (bounded wait)
 drive.turnToCommand(radians, timeoutMs = 2000.0) // ends on measured heading, or timeout (bounded wait)
@@ -222,7 +222,7 @@ drive.pose / drive.velocity / drive.atPose(target) / drive.toggleFieldCentric()
 - Arrival uses `DriveConfig.holdToleranceInches/Radians`.
 - Teleop input is staged by the command and applied in `writeHardware()`.
   Field-centric rotation uses the measured heading; a non-finite heading is
-  never used. `forwardPower` forces robot-centric for that tick.
+  never used.
 - A mid-path marker is plain Ivy: `deadline(drive.followCommand(path),
   sequential(waitUntil { drive.pathProgress() >= 0.5 }, instant { … }))`.
   It fires once, and is dropped if the path ends or is cancelled first.

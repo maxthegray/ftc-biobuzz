@@ -116,13 +116,13 @@ class DriveCommandTest {
         h.tick()
 
         val takeover = h.drive.teleopCommand {
-            TeleopInput(0.0, 0.0, 0.0, turnPower = 0.4)
+            TeleopInput(0.0, 0.0, -1.0) // full CCW turn
         }
         Scheduler.schedule(takeover)
         assertFalse(Scheduler.isScheduled(follow))
         h.tick()
         assertEquals("TELEOP", h.drive.driveModeName)
-        assertArrayEquals(doubleArrayOf(-0.4, 0.4, -0.4, 0.4), h.hardware.powers(), 1e-9)
+        assertArrayEquals(doubleArrayOf(-1.0, 1.0, -1.0, 1.0), h.hardware.powers(), 1e-9)
     }
 
     @Test

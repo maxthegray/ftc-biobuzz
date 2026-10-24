@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode.subsystems
 
 import com.pedropathing.api.Paths
 import com.pedropathing.ivy.Scheduler
-import com.pedropathing.ivy.behaviors.EndCondition
 import com.pedropathing.ivy.groups.Groups.sequential
 import com.pedropathing.math.Pose
 import com.qualcomm.robotcore.hardware.DcMotorSimple.Direction
@@ -92,10 +91,7 @@ class TeleopWatchdogRecoveryTest {
     @Test
     fun faultPreemptsAGroupedAssistAndAPathAndBlocksReentry() {
         val h = Harness()
-        var ended: EndCondition? = null
-        val assist = h.drive.teleopCommand(onEnd = { ended = it }) {
-            TeleopInput(0.0, 0.0, 0.0, turnPower = 0.2)
-        }
+        val assist = h.drive.teleopCommand { TeleopInput(0.0, 0.0, -1.0) }
         val group = sequential(assist)
         Scheduler.schedule(group)
         h.tick()
@@ -103,7 +99,6 @@ class TeleopWatchdogRecoveryTest {
         h.failOdometry()
         h.tick()
 
-        assertEquals(EndCondition.INTERRUPTED, ended)
         assertFalse(Scheduler.isScheduled(group))
         Scheduler.schedule(assist)
         assertFalse(Scheduler.isScheduled(assist))

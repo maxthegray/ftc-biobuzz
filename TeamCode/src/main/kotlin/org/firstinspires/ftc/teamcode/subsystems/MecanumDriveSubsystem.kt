@@ -52,20 +52,6 @@ class MecanumDriveSubsystem(
         val strafe: Double,
         val turn: Double,
         val precision: Boolean = false,
-        /**
-         * When non-null, replaces the curved-and-scaled stick [turn] with a
-         * direct motor power, CCW-positive (Pedro's convention, unlike [turn]
-         * which is stick-convention +right/CW). For heading assists whose
-         * controller output is already a power.
-         */
-        val turnPower: Double? = null,
-        /**
-         * When non-null, replaces the curved-and-scaled stick [forward] with a
-         * direct motor power (+forward) **and forces robot-centric drive for
-         * that tick**: a camera-derived forward means "towards what the camera
-         * sees", which is robot-relative by construction.
-         */
-        val forwardPower: Double? = null,
     )
 
     /** Per-op-mode driver state, seeded from [DriveConfig.fieldCentricDefault]. */
@@ -97,19 +83,11 @@ class MecanumDriveSubsystem(
         }
     }
 
-    /**
-     * Stick-driven manual drive: [DriveConfig] curve, scaling, precision and
-     * field-centric selection. Assists reuse it with the
-     * [TeleopInput.turnPower]/[TeleopInput.forwardPower] overrides.
-     */
-    fun teleopCommand(
-        onStart: () -> Unit = {},
-        onEnd: (EndCondition) -> Unit = {},
-        name: String = "Drive teleop",
-        input: () -> TeleopInput,
-    ): Command = logged(name, teleop(onStart, onEnd, input))
+    /** Stick-driven manual drive: [DriveConfig] curve, scaling, precision and field-centric selection. */
+    fun teleopCommand(name: String = "Drive teleop", input: () -> TeleopInput): Command =
+        logged(name, teleop(onStart = {}, input = input))
 
-    private fun teleop(onStart: () -> Unit, onEnd: (EndCondition) -> Unit, input: () -> TeleopInput): CommandBuilder {
+    private fun teleop(onStart: () -> Unit, input: () -> TeleopInput): CommandBuilder {
         var running = false
         return Command.build()
             .requiring(this)
@@ -119,12 +97,11 @@ class MecanumDriveSubsystem(
             }
             // Ivy still executes a command interrupted earlier in the same tick.
             .setExecute { if (running) stageTeleop(input()) }
-            .setEnd { endCondition ->
+            .setEnd {
                 if (running) {
                     running = false
                     stagedManual = null
                     follower.stop()
-                    onEnd(endCondition)
                 }
             }
     }
@@ -136,24 +113,23 @@ class MecanumDriveSubsystem(
      * Make it the default command too.
      */
     fun robotCentricFallbackCommand(name: String = "Drive robot-centric fallback", input: () -> TeleopInput): Command =
-        logged(name, teleop(onStart = { odometryFallback = true }, onEnd = {}, input = input).setPriority(Int.MAX_VALUE))
+        logged(name, teleop(onStart = { odometryFallback = true }, input = input).setPriority(Int.MAX_VALUE))
 
     private fun stageTeleop(i: TeleopInput) {
         val scale = DriveConfig.teleopPowerScale *
             (if (i.precision) DriveConfig.precisionPowerScale else 1.0)
         val exp = DriveConfig.inputExponent.takeIf { it.isFinite() && it > 0.0 } ?: 1.0
-        val forward = i.forwardPower?.asDirectPower() ?: (i.forward.curve(exp) * scale)
+        var fwd = i.forward.curve(exp) * scale
         // FTC sticks use +x right/CW turn; Pedro uses +lateral left/CCW-positive heading.
         var strafe = -i.strafe.curve(exp) * scale
-        var fwd = forward
         // Pedro 2 capped the translation vector at magnitude 1; keep the same driver feel.
         val magnitude = hypot(fwd, strafe)
         if (magnitude > 1.0) {
             fwd /= magnitude
             strafe /= magnitude
         }
-        val turn = i.turnPower?.asDirectPower() ?: (-i.turn.curve(exp) * scale)
-        val robotCentric = i.forwardPower != null || !fieldCentric || odometryFallback
+        val turn = -i.turn.curve(exp) * scale
+        val robotCentric = !fieldCentric || odometryFallback
         // An invalid heading must never rotate the sticks: NaN powers are
         // dropped by Pedro's motor cache, which would leave the last power applied.
         val heading = if (robotCentric) Double.NaN else follower.pose().heading()
@@ -195,7 +171,7 @@ class MecanumDriveSubsystem(
      * the timeout only bounds how long a routine waits, so FINISH in the log is
      * not proof of arrival.
      */
-    fun holdCommand(pose: Pose, timeoutMs: Double = DEFAULT_HOLD_TIMEOUT_MS, name: String = "Drive hold"): Command {
+    fun holdCommand(pose: Pose, timeoutMs: Double = DEFAULT_TIMEOUT_MS, name: String = "Drive hold"): Command {
         require(timeoutMs.isFinite() && timeoutMs >= 0.0) { "hold timeout must be finite and non-negative" }
         var updatesAtStart = 0L
         var startNs = 0L
@@ -227,7 +203,7 @@ class MecanumDriveSubsystem(
      * the routine; FINISH in the log is not proof it got there. Always stops
      * the follower when it ends.
      */
-    fun turnToCommand(radians: Double, timeoutMs: Double = 2_000.0, name: String = "Drive turn"): Command {
+    fun turnToCommand(radians: Double, timeoutMs: Double = DEFAULT_TIMEOUT_MS, name: String = "Drive turn"): Command {
         require(radians.isFinite()) { "turn heading must be finite" }
         require(timeoutMs.isFinite() && timeoutMs >= 0.0) { "turn timeout must be finite and non-negative" }
         var startNs = 0L
@@ -451,12 +427,10 @@ class MecanumDriveSubsystem(
             "rightRear" to RobotConfig.Drive.BACK_RIGHT_MOTOR,
         )
         const val CURRENT_SAMPLE_INTERVAL_NS = 200_000_000L
-        const val DEFAULT_HOLD_TIMEOUT_MS = 2_000.0
+        /** How long a hold or turn waits for arrival before the routine moves on. */
+        const val DEFAULT_TIMEOUT_MS = 2_000.0
     }
 }
-
-/** A controller output consumed directly as a motor power. A dead controller must not NaN the motors. */
-private fun Double.asDirectPower(): Double = if (isFinite()) coerceIn(-1.0, 1.0) else 0.0
 
 /** Applies a signed power curve: preserves sign, scales magnitude by x^exponent. */
 private fun Double.curve(exponent: Double): Double = Math.copySign(Math.pow(Math.abs(this), exponent), this)
