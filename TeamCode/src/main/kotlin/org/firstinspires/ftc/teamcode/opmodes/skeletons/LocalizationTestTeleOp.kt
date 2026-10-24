@@ -10,7 +10,6 @@ import com.pedropathing.math.Pose
 import com.qualcomm.robotcore.eventloop.opmode.Disabled
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import kotlin.math.abs
-import org.firstinspires.ftc.teamcode.core.RumbleAlert
 import org.firstinspires.ftc.teamcode.core.logging.logged
 import org.firstinspires.ftc.teamcode.opmodes.TeleOpBase
 import org.firstinspires.ftc.teamcode.pedro.Constants
@@ -45,8 +44,6 @@ import org.firstinspires.ftc.teamcode.subsystems.shortestAngleDelta
 @Disabled
 @TeleOp(name = "Localization Test", group = "Diagnostics")
 class LocalizationTestTeleOp : TeleOpBase() {
-
-    override val rumbleAlerts: List<RumbleAlert> get() = emptyList()
 
     companion object {
         /** X coordinate of waypoint A (inches). */

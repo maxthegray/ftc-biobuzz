@@ -66,9 +66,6 @@ abstract class OpModeBase : LinearOpMode() {
     /** Set false to suppress the live robot/path drawing on the Panels field view. */
     protected open val publishFieldView: Boolean get() = true
 
-    /** Timed cues for both gamepads; empty for autonomous and diagnostics. */
-    protected open val rumbleAlerts: List<RumbleAlert> get() = emptyList()
-
     private var voltageSensor: VoltageSensor? = null
     private var cachedVoltage = Double.NaN
     private var lastVoltageReadNs = Long.MIN_VALUE
@@ -210,8 +207,6 @@ abstract class OpModeBase : LinearOpMode() {
 
         try {
             robot.start()
-            val startNanos = robot.clock.nanos()
-            val alerts = RumbleAlerts(rumbleAlerts)
             robot.recordEvent("start")
             onStart()
             while (opModeIsActive()) {
@@ -220,13 +215,7 @@ abstract class OpModeBase : LinearOpMode() {
                         driver.update()
                         operator.update()
                     },
-                    control = {
-                        onLoop()
-                        alerts.poll(robot.clock.nanos() - startNanos)?.let { alert ->
-                            driver.rumbleBlips(alert.blips)
-                            operator.rumbleBlips(alert.blips)
-                        }
-                    },
+                    control = { onLoop() },
                     telemetry = {
                         refreshVoltage()
                         publishLoopTiming()
