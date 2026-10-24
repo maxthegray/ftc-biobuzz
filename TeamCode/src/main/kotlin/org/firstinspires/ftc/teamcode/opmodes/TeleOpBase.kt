@@ -60,8 +60,8 @@ abstract class TeleOpBase : OpModeBase() {
                 precision = driver.r2 > 0.1,
             )
         }
-        drive.defaultCommand = drive.teleopCommand(name = "Driver sticks", input = stickInput)
-        val faultFallback = drive.robotCentricFallbackCommand(name = "Driver sticks (robot-centric fallback)", input = stickInput)
+        drive.defaultCommand = drive.teleopCommand(input = stickInput)
+        val faultFallback = drive.robotCentricFallbackCommand(input = stickInput)
         val useFallback: () -> Unit = {
             // Runs in periodic(), outside Scheduler.execute(): preempt the
             // current drive owner now and keep it from being reclaimed.

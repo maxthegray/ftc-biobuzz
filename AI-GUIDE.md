@@ -395,7 +395,8 @@ drive.followCommand(path, name = "Drive to bar")   // drive factories are alread
   `commands/events` as a complete command history.
 - Instrumented today: the five drive factories (default names `Drive
   teleop`, `Drive follow`, `Drive hold`, `Drive turn`, `Drive robot-centric
-  fallback`), TeleOpBase's `Driver sticks`, fallback and `Reset heading`,
+  fallback`), TeleOpBase's default `Drive teleop`, `Drive robot-centric
+  fallback` and `Reset heading`,
   Localization Test's moves and `Driver takeover`, Example Auto's routine and
   steps. Instrument new mechanism commands and autonomous steps the same way;
   don't wrap trivial `instant`s or marker internals.
