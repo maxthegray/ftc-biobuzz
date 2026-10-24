@@ -81,7 +81,6 @@ class Robot(
     private var initialized = false
     private var stopped = false
     private var lastOverrunEventNs = Long.MIN_VALUE
-    private var lastTelemetryFaultEventNs = Long.MIN_VALUE
     private var lastFaultEventNs = Long.MIN_VALUE
     private var lastFaultMessage: String? = null
 
@@ -316,7 +315,7 @@ class Robot(
     }
 
     /** A repeating fault (one per tick) is logged once a second. */
-    private fun recordFault(e: Exception, message: String) {
+    private fun recordFault(e: Throwable, message: String) {
         val now = clock.nanos()
         if (message != lastFaultMessage || throttle(lastFaultEventNs, now)) {
             lastFaultMessage = message
@@ -328,14 +327,7 @@ class Robot(
 
     private fun recordTelemetryFault(t: Throwable) {
         telemetryFaultCount++
-        if (telemetryFaultCount <= 5) {
-            RobotLog.ee("Robot", t, "Telemetry fault contained (#$telemetryFaultCount)")
-        }
-        val now = clock.nanos()
-        if (throttle(lastTelemetryFaultEventNs, now)) {
-            lastTelemetryFaultEventNs = now
-            recordEvent("TELEMETRY FAULT: ${t.javaClass.simpleName}: ${t.message}")
-        }
+        recordFault(t, "TELEMETRY FAULT: ${t.javaClass.simpleName}: ${t.message}")
     }
 
     private fun recordRecorderFault(t: Throwable) {

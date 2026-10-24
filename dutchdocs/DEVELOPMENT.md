@@ -327,7 +327,7 @@ Everything else is Ivy or Pedro. Each remaining helper has one job:
 | `Alliance` | RED→BLUE transform with the season's symmetry (mirror or rotate; Pedro's `mirrorX` only mirrors) |
 | `FlightRecorder`, `WpiLogWriter`, `WpiStruct`, `StateLog` | WPILOG files for AdvantageScope |
 | `logged`, `CommandHistory` | Command history for traced commands (Ivy has no lifecycle hooks or names) |
-| `FieldView`, `TelemetryBag` | Panels field drawing and throttled DS/Panels telemetry |
+| `TelemetryBag`, field view in `OpModeBase` | Throttled DS/Panels telemetry and Panels field drawing |
 | `Preflight`, `LoopProfile` | Missing-device listing, loop timing |
 | `pedro/Constants.java`, `pedro/Tuning.java` | Pedro's configuration and AutoTune registration, in the Quickstart layout |
 
