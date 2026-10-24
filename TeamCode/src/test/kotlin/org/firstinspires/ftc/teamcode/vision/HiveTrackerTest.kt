@@ -31,11 +31,13 @@ class HiveTrackerTest {
     }
 
     @After
-    fun tearDown() = savedConfig.restore()
+    fun tearDown() {
+        savedConfig.restore()
+        Events.reset()
+    }
 
     @Test
     fun fourTagsOfTheRaisedCellFuseIntoItsOpeningCentre() {
-        Events.reset()
         val rig = HiveRig()
         rig.frame(raised(Alliance.RED, CellLocation.AUDIENCE, 90.0, 12.0))
 

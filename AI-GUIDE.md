@@ -448,14 +448,18 @@ No team or season prefix. `"Match"` or `"Diagnostics"` groups. Title Case, no
 
 ### Post-match debugging (the AI runs this)
 
-When plugged into the hub and the user reports a match problem, run
-`make pull-logs 2`, analyze the relevant file with
-`python3 tools/logs/analyze_wpilog.py --json robot-logs/<file>`, then drill into
-channels around the stated symptom. Read command failures and overlapping
-executions, then `commands/active,driveMode,pose`; state the instrumented-only
-coverage. If evidence is inconclusive, give ranked hypotheses and the one
-channel or reproduction that decides it. See [Logging](dutchdocs/LOGGING.md)
-for commands, time conventions and the full workflow.
+When the user is plugged into the hub and reports a match problem, run
+**`make pull-logs 2`**, then
+`python3 tools/logs/analyze_wpilog.py --json robot-logs/<file>`, anchor on the stated symptom, and drill into channels with
+`python3 tools/logs/analyze_wpilog.py --json --channel <name,name> robot-logs/<file>`.
+The auton run is usually the second pulled file. For "what was it doing":
+read `commandFailures`, then the `commandExecutions` overlapping the symptom
+time, then `--channel commands/active,driveMode,pose` around it. State the
+coverage: an absent command may simply be unlogged. When a log doesn't
+determine the cause, give ranked hypotheses and the one channel or
+reproduction that decides it. Times count from the op-mode start (init is
+negative); see [Logging](dutchdocs/LOGGING.md#post-match-debugging) for the
+bundle's fields and the full workflow.
 
 ## Running the project
 

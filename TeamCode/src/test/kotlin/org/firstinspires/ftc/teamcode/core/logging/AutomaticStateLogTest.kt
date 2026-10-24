@@ -5,6 +5,7 @@ import org.firstinspires.ftc.teamcode.subsystems.IntakeSubsystem
 import org.firstinspires.ftc.teamcode.subsystems.TransferSubsystem
 import org.firstinspires.ftc.teamcode.subsystems.TurretSubsystem
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -29,6 +30,7 @@ class AutomaticStateLogTest {
         val broken: Double get() = error("unreadable")
         val zAfterBroken = 7.0
         private val secret = 8.0
+        internal val hidden = 13.0
         var writable = 10.0
         var privateSetter = 11.0
             private set
@@ -62,8 +64,13 @@ class AutomaticStateLogTest {
         assertEquals(mapOf("configured" to false), shooter.values)
     }
 
+    @After
+    fun resetEvents() = Events.reset()
+
     @Test
-    fun onlyDeclaredPublicReadOnlyScalarsAreLoggedAndBrokenGettersAreSkipped() {
+    fun onlyDeclaredPublicReadOnlyScalarsAreLoggedAndABrokenGetterIsDroppedOnce() {
+        val events = mutableListOf<String>()
+        Events.sink = events::add
         val state = State()
         repeat(2) {
             val log = Capture()
@@ -78,5 +85,10 @@ class AutomaticStateLogTest {
                 log.values,
             )
         }
+        assertEquals(listOf("SUBSYSTEM LOGGING DISABLED: Test/broken: IllegalStateException: unreadable"), events)
+
+        // A new instance (the next op-mode) tries the getter again.
+        State().logState(Capture())
+        assertEquals(2, events.size)
     }
 }

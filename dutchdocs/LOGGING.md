@@ -84,11 +84,15 @@ and `OVERRUN`. Keep the robot's `LOCALIZER FAULT`, `COMMAND FAULT`,
 Subsystem state logging is automatic: public read-only scalar getters declared on
 the subsystem class become property-name channels. Double, Float, Int, Long,
 Boolean, String and enum getters are supported; enums use their names and nulls
-are skipped. Private, inherited, static, synthetic and publicly writable state
-is excluded. Discovery uses cached Java reflection, without kotlin-reflect.
-`getPower` becomes `power`, and `isReady` becomes `ready`. A throwing getter's
-Exception skips that value and the remaining getters still run; Errors retain
-the normal lifecycle policy. Override `logState(log)` only for arrays or specific channel names;
+are skipped. Private, internal, inherited, static, synthetic and publicly
+writable state is excluded. Discovery uses cached Java reflection, without
+kotlin-reflect. `getPower` becomes `power`, and `isReady` becomes `ready`.
+Every matching getter runs up to 100 times a second, so keep them cheap. A
+getter that throws an Exception is dropped for the rest of the op-mode and
+recorded once as `SUBSYSTEM LOGGING DISABLED: <Subsystem>/<channel>: …`; the
+other getters keep logging. An Error disables all of that subsystem's channels
+(the recorder's `logState` policy below); the loop keeps running either way.
+Override `logState(log)` only for arrays or specific channel names;
 an override replaces the automatic logging. Record events with `Events.record("text")`. `put` also takes a `DoubleArray` for one row of
 parallel values (a per-frame detection list); its length may change per tick,
 and it is written immediately, so a cached array can be passed again.
