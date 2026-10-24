@@ -136,6 +136,8 @@ start. Read sticks directly (`driver.leftStickY` is +up), and buttons with
 `driver.held(Button.X)` / `driver.pressed(Button.X)` (edge since last loop).
 `TeleOpBase` already binds Create+Triangle (heading reset), Create+Circle
 (field-centric) and installs stick driving as the drive's default command.
+Match teleop also buzzes both controllers twice at 1:00 left (FLOWER
+ownership unlocks) and three times at 0:20 left (`TeleOpBase.onStart`).
 
 ## Compose an autonomous
 

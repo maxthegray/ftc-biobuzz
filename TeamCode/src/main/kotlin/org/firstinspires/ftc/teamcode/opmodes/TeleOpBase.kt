@@ -2,6 +2,9 @@ package org.firstinspires.ftc.teamcode.opmodes
 
 import com.pedropathing.ivy.Scheduler
 import com.pedropathing.ivy.commands.Commands.instant
+import com.pedropathing.ivy.commands.Commands.waitMs
+import com.pedropathing.ivy.groups.Groups.sequential
+import org.firstinspires.ftc.teamcode.RobotConfig
 import org.firstinspires.ftc.teamcode.core.GamepadEx.Button
 import org.firstinspires.ftc.teamcode.core.OpModeBase
 import org.firstinspires.ftc.teamcode.core.logging.logged
@@ -30,7 +33,7 @@ import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem.TeleopInp
  * robot-centric sticks that bypass odometry; paths, holds and turns refuse.
  *
  * Subclass contract: register season subsystems and trigger bindings in
- * [configureTeleop]. The drive default resumes after any other
+ * [configureTeleop]; call `super.onStart()` if you override [onStart]. The drive default resumes after any other
  * drive command ends; there is nothing to call from [onLoop].
  */
 abstract class TeleOpBase : OpModeBase() {
@@ -90,4 +93,15 @@ abstract class TeleOpBase : OpModeBase() {
 
     /** Register additional subsystems and wire trigger bindings here. */
     protected open fun configureTeleop() {}
+
+    /** Buzzes both controllers twice at FLOWER unlock (1:00 left) and three times at 0:20 left. */
+    override fun onStart() {
+        fun rumble(blips: Int) = instant {
+            driver.raw.rumbleBlips(blips)
+            operator.raw.rumbleBlips(blips)
+        }
+        val unlockMs = RobotConfig.Match.FLOWER_UNLOCK_NANOS / 1e6
+        val finalTwentyMs = RobotConfig.Match.FINAL_TWENTY_NANOS / 1e6
+        Scheduler.schedule(sequential(waitMs(unlockMs), rumble(2), waitMs(finalTwentyMs - unlockMs), rumble(3)))
+    }
 }
