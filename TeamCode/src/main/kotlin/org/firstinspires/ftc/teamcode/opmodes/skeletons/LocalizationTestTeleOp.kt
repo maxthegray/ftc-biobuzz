@@ -10,6 +10,7 @@ import com.pedropathing.math.Pose
 import com.qualcomm.robotcore.eventloop.opmode.Disabled
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import kotlin.math.abs
+import org.firstinspires.ftc.teamcode.core.GamepadEx.Button
 import org.firstinspires.ftc.teamcode.core.logging.logged
 import org.firstinspires.ftc.teamcode.opmodes.TeleOpBase
 import org.firstinspires.ftc.teamcode.pedro.Constants
@@ -116,12 +117,12 @@ class LocalizationTestTeleOp : TeleOpBase() {
     override fun configureTeleop() {
         // Triangle only when it isn't the Create+Triangle heading-reset chord;
         // Cross only when it isn't the Driver Station's Options+Cross re-bind chord.
-        driver.trigger { driver.triangle && !driver.create }.onTrue(
+        driver.trigger { driver.held(Button.TRIANGLE) && !driver.held(Button.CREATE) }.onTrue(
             moveOnPress("Triangle", { "(%.1f, %.1f)".format(waypointAX, waypointAY) }) {
                 Pose(waypointAX, waypointAY, Math.toRadians(waypointAHeadingDegrees))
             },
         )
-        driver.trigger { driver.cross && !driver.options }.onTrue(
+        driver.trigger { driver.held(Button.CROSS) && !driver.held(Button.OPTIONS) }.onTrue(
             moveOnPress("Cross", { "(%.1f, %.1f)".format(returnX, returnY) }) {
                 Pose(returnX, returnY, Math.toRadians(returnHeadingDegrees))
             },

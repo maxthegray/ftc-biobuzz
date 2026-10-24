@@ -13,6 +13,7 @@ import com.pedropathing.paths.Path
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous
 import com.qualcomm.robotcore.eventloop.opmode.Disabled
 import org.firstinspires.ftc.teamcode.core.Alliance
+import org.firstinspires.ftc.teamcode.core.GamepadEx.Button
 import org.firstinspires.ftc.teamcode.core.OpModeBase
 import org.firstinspires.ftc.teamcode.core.logging.logged
 import org.firstinspires.ftc.teamcode.pedro.Constants
@@ -116,8 +117,8 @@ class ExampleAuto : OpModeBase() {
     )
 
     override fun onInitLoop() {
-        if (driver.dpadRightPressed) startDelaySec = (startDelaySec + 1).coerceAtMost(10)
-        if (driver.dpadLeftPressed) startDelaySec = (startDelaySec - 1).coerceAtLeast(0)
+        if (driver.pressed(Button.DPAD_RIGHT)) startDelaySec = (startDelaySec + 1).coerceAtMost(10)
+        if (driver.pressed(Button.DPAD_LEFT)) startDelaySec = (startDelaySec - 1).coerceAtLeast(0)
         telemetryBag.section("Auto") { put("start delay s", startDelaySec) }
     }
 

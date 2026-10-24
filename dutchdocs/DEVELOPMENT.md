@@ -133,7 +133,8 @@ driver.trigger { driver.r2 > 0.5 }.whileTrue(shooter.spinUp())
 ```
 
 We only use PS5 controllers, so buttons have PS5 names. Bindings lock at
-start. Read sticks directly (`driver.leftStickY` is +up).
+start. Read sticks directly (`driver.leftStickY` is +up), and buttons with
+`driver.held(Button.X)` / `driver.pressed(Button.X)` (edge since last loop).
 `TeleOpBase` already binds Create+Triangle (heading reset), Create+Circle
 (field-centric) and installs stick driving as the drive's default command.
 

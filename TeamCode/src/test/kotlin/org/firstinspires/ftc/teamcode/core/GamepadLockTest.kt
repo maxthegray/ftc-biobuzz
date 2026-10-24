@@ -105,6 +105,6 @@ class GamepadLockTest {
         // Edge detection on raw buttons still works in init mode.
         host.raw.cross = true
         host.update(pollTriggers = false)
-        assertTrue(host.crossPressed)
+        assertTrue(host.pressed(GamepadEx.Button.CROSS))
     }
 }
