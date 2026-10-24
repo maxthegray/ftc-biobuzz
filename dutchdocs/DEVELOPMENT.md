@@ -197,91 +197,10 @@ scheduled.
 - **Where was the robot when the camera saw that?** `localizer.poseAt(captureNanos)`
   interpolates the last few seconds of poses.
 
-## Log a value
+## Logging
 
-Public read-only scalar properties declared on your subsystem are logged
-at most 100 times a second as `<Subsystem>/<property>`. Double, Float, Int,
-Long, Boolean, String and enum values work automatically; nulls are skipped.
-Inherited, private and publicly writable properties are excluded. A broken
-getter is skipped without losing the rest of the state.
-
-Override `logState(log)` only for arrays or specific channel names. An override
-replaces automatic logging; existing tool-read names must stay exact.
-
-## Trace commands in the log
-
-Wrap a command with `logged` (`core/logging`) to put its runs in the WPILOG:
-
-```kotlin
-import org.firstinspires.ftc.teamcode.core.logging.logged
-
-fun raise(): Command = logged("Lift raise", Command.build().requiring(this).setDone { atTop })
-val auto = logged("Left auto", sequential(drive.followCommand(path, name = "Drive to bar"), lift.raise()))
-Scheduler.schedule(auto)   // schedule, cancel, bind and compare this instance
-```
-
-- The drive's `teleopCommand`, `followCommand`, `holdCommand`,
-  `turnToCommand` and `robotCentricFallbackCommand` are already logged; give
-  them a `name` instead of wrapping them again.
-- **Only wrapped commands appear.** A logged group does not show its children:
-  wrap each step you want to see. Skip trivial internals (`instant` markers,
-  a `waitUntil` inside a marker); record an event for a moment instead.
-- Keep the instance: `Scheduler.cancel(inner)` or `isScheduled(inner)` on the
-  unwrapped command does nothing, because Ivy only knows the wrapper.
-  `logged` on an already logged command renames it.
-
-Channels:
-
-| Channel | Meaning |
-|---|---|
-| `commands/events` | One record per change: `START #7 Drive to bar`, `FINISH #7 …`, `INTERRUPT #7 …`, `SUSPEND`/`RESUME #7 …`, `FAIL #7 … in execute: IllegalStateException: …`, `ABORT #7 …: command fault` / `op-mode stop` |
-| `commands/active` | The traced executions running after each record, one `#id name` per line (`(suspended)` when suspended) |
-| `commands/lost` | Records dropped because too much happened between two loops; above 0 the history is incomplete |
-
-- `#id` numbers each run from 1 per op-mode, so two runs of the same command,
-  or two commands with the same name, stay apart.
-- **FINISH means the command's own `done` returned true**, not that the robot
-  arrived: a hold that timed out, or a path at its parametric end, also
-  finishes. Check pose and `follow/*` for arrival.
-- **FAIL** is the command whose `start`, `execute`, `done` or `end` threw; a
-  logged group it ran inside also fails, marked `(from #child)`. **ABORT** is
-  bookkeeping for commands that were still running when the fault policy or
-  the op-mode stop cleared Ivy: they did not fail, and their end handlers did
-  not run.
-- Nothing records why a command was interrupted (driver takeover, a group's
-  timeout, cancel) or that a schedule was rejected: Ivy doesn't say. Read the
-  surrounding records and `events`.
-
-## Review a WPILOG in MaxScope
-
-Run `make viewer` and open `http://127.0.0.1:8008`. Choose an already-pulled
-run or **Open WPILOG** to inspect another file. Field playback, graphs,
-commands, events and gamepads share one time cursor. The field reads raw
-Pedro `pose` in inches/radians: origin at the audience-left corner, +X right,
-+Y away, heading counterclockwise. No AdvantageScope coordinate conversion
-is needed. Robot logging remains compatible with both viewers.
-
-The first draft runs locally with Python 3.10+ and no extra dependencies.
-See [MaxScope](../tools/maxscope/README.md) for controls, limits and tests.
-
-## Download a WPILOG and open it in AdvantageScope
-
-1. Connect to the Control Hub over USB or join its Wi-Fi.
-2. `make pull-logs 2` pulls the newest match's logs into `robot-logs/`;
-   `make pull-logs` copies all of them. `make viewer` summarizes them.
-3. Open the `.wpilog` in AdvantageScope (File → Open Log).
-4. **2D field:** drag `Field/Robot` onto a 2D Field tab with an FTC field
-   (default *Center/Rotated* coordinates). It is already in the FTC frame:
-   Pedro's (0, 0) draws at the bottom-left corner as seen from the audience,
-   and heading 0 points right along the audience wall. Don't drag `pose`:
-   AdvantageScope reads its inches as metres. **Graphs:** use `pose` (inches),
-   `velocity`, `driveMode`, `follow/translationalErrorIn`, `battery`,
-   `loop/totalNanos`, and your subsystem channels. `events` is the timeline.
-5. **What was the robot trying to do?** Open `commands/events` in a table
-   (or drag it onto a line graph) next to `driveMode`, `pose` and motor
-   channels, and scrub to the moment in question; `commands/active` shows
-   every traced command running then. MaxScope (`make viewer`) lists each execution
-   with start, end and outcome, and failures first.
+Logging is automatic; see [dutchdocs/LOGGING.md](LOGGING.md) for state logging,
+WPILOG channels, command history, settings, viewers and post-match debugging.
 
 ## Commands and faults
 
@@ -321,9 +240,7 @@ Everything else is Ivy or Pedro. Each remaining helper has one job:
 | `LocalizerSubsystem`, `PoseHistory` | Start pose written at every INIT, Pinpoint readiness/fault watchdog, pose history for camera latency |
 | `GamepadEx`, `Trigger` | Deadbanded sticks, edges, and button bindings that schedule Ivy commands (Ivy has none) |
 | `Alliance` | RED→BLUE transform with the season's symmetry (mirror or rotate; Pedro's `mirrorX` only mirrors) |
-| `FlightRecorder`, `WpiLogWriter`, `WpiStruct`, `StateLog` | WPILOG files for AdvantageScope |
-| `logged`, `CommandHistory` | Command history for traced commands (Ivy has no lifecycle hooks or names) |
-| `TelemetryBag`, field view in `OpModeBase` | Throttled DS/Panels telemetry and Panels field drawing |
+| `TelemetryBag`, `FieldView` | Throttled DS/Panels telemetry and Panels field drawing |
 | `Preflight`, `LoopProfile` | Missing-device listing, loop timing |
 | `pedro/Constants.java`, `pedro/Tuning.java` | Pedro's configuration and AutoTune registration, in the Quickstart layout |
 
@@ -400,7 +317,7 @@ Season vision code that runs in a match is in `vision/`:
 Tests mirror these packages. The reusable Limelight device adapter is
 `subsystems/LimelightSubsystem.kt`. The Vision Test op-mode and its tooling
 (tag-sighting history, survey memory, `VisionTestConfig`) live together in
-`opmodes/diagnostics/VisionTestTeleOp.kt`; `SettingsChangeLog` is in `core/logging/`.
+`opmodes/diagnostics/VisionTestTeleOp.kt`.
 
 ## Sensors and I²C
 

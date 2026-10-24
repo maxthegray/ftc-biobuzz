@@ -35,7 +35,7 @@ import org.junit.Test
  * AdvantageScope layouts and `tools/logs/analyze_wpilog.py` rely on.
  *
  * Set `WPILOG_SAMPLE_DIR` to keep that session's log for AdvantageScope and
- * the analyzer (see dutchdocs/OPERATIONS.md, "Flight recorder validation").
+ * the analyzer (see dutchdocs/LOGGING.md, "Flight recorder validation").
  */
 class FlightRecorderDriveIntegrationTest {
 

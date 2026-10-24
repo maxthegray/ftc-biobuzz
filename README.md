@@ -39,7 +39,8 @@ Paths require Foresight tuning before they can run.
 
 ## Docs
 
-- [Development](dutchdocs/DEVELOPMENT.md) — subsystems, controls, autos, logging
+- [Development](dutchdocs/DEVELOPMENT.md) — subsystems, controls, autos
 - [Operations](dutchdocs/OPERATIONS.md) — hardware, tuning, diagnostics
+- [Logging](dutchdocs/LOGGING.md) — automatic state, channels, command history, MaxScope, post-match debugging
 - [Progress](dutchdocs/PROGRESS.md) — lab notes
 - [AI guide](AI-GUIDE.md) — framework contract for coding assistants

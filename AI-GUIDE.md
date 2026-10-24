@@ -3,11 +3,12 @@
 Canonical instructions for every AI assistant working in this repository.
 Read this entire file before changing code.
 
-Human documentation has three entry points:
+Human documentation has four entry points:
 
 - `README.md` — setup and repository map
-- `dutchdocs/DEVELOPMENT.md` — student workflows: subsystems, buttons, autos, logging
-- `dutchdocs/OPERATIONS.md` — hardware bring-up, AutoTune, logs, diagnosis, validation
+- `dutchdocs/DEVELOPMENT.md` — student workflows: subsystems, buttons, autos
+- `dutchdocs/OPERATIONS.md` — hardware bring-up, AutoTune, diagnosis, validation
+- `dutchdocs/LOGGING.md` — automatic logs, channel contract, viewers and post-match debugging
 
 ## What this repo is
 
@@ -145,7 +146,7 @@ Semantics verified against the 1.1.1 artifact (`LibraryContractTest` pins them):
 - There are no command names, no running-command registry and no lifecycle
   hooks. The one exception this repo adds is `logged(name, command)`
   (`core/logging/CommandHistory.kt`), a forwarding `Command` that traces its
-  lifecycle into the flight log (see **Command history**).
+  lifecycle into the flight log (see [Logging](dutchdocs/LOGGING.md#command-history)).
 
 **No priorities.** Every command uses Ivy's default priority 0, so the newest
 command for a subsystem replaces the running one. The only exception is
@@ -321,90 +322,13 @@ There are no `@Pinned` classes. Don't pin config objects. Ivy's
 static scheduler is reset by every `Robot`, so commands created before a
 reload never run.
 
-## Flight recorder (WPILOG for AdvantageScope)
+## Logging
 
-`FlightRecorder` writes `/sdcard/FIRST/logs/<OpMode>-<timestamp>-<n>.wpilog`
-(30 files kept). Channels (sampled at ≤ 100 Hz unless noted):
-
-| Channel | Type | Meaning |
-|---|---|---|
-| `Field/Robot` | `struct:Pose2d` | Pose in the FTC field frame for AdvantageScope's 2D field: metres about the centre, axes and heading turned by `RobotConfig.Field.FIELD_VIEW_QUARTER_TURNS` (display only) |
-| `pose` | `double[]` | `[x in, y in, heading rad]`, raw Pedro frame |
-| `velocity` | `double[]` | `[vx in/s, vy in/s, omega rad/s]`, field frame |
-| `driveMode` | string | `IDLE`, `TELEOP`, `FOLLOWING`, `HOLDING`, `ROBOT_CENTRIC_FALLBACK` |
-| `follow/translationalErrorIn`, `follow/headingErrorRad` | double | Foresight errors, only while following/holding |
-| `gamepad1/axes`, `gamepad2/axes` | `double[]` | `[lx, ly(+up), rx, ry(+up), L2, R2]` after deadband |
-| `gamepad1/buttons`, `gamepad2/buttons` | int64 | bits: Cross Circle Square Triangle L1 R1 up down left right Options Create L3 R3 Touchpad |
-| `battery` | double | volts: the Control Hub's input voltage from `Robot.hubPower` |
-| `loop/totalNanos`, `loop/<phase>Nanos`, `loop/windowMax…` | int64 | loop timing and per-window peaks |
-| `<Subsystem>/…` | any | `SubsystemBase.logState` channels |
-| `Drive/motors/power`, `Drive/motors/velocityTps` | `double[]` | every tick, `[leftFront, rightFront, leftRear, rightRear]` (Pedro's mixer order): the power Pedro commanded (0 once the drivetrain stops) and the encoder velocity in ticks/s from the bulk read |
-| `Drive/motors/<wheel>/currentAmps` | double | one motor sampled every 200 ms round-robin (each every 800 ms), logged once at the next sample; `getCurrent` is a real Lynx transaction |
-| `hubs/<hub>/currentAmps`, `hubs/<hub>/volts` | double | `<hub>` is `control` or `expansion<address>`: each hub's input current and voltage, read back to back by `Robot.hubPower`, one hub every 50 ms round-robin, logged once at the next sample; a 0 V reading (the hub after stop) is dropped. Counts everything the hub powers; MaxScope's battery analysis uses it. The Control Hub's voltage also feeds `battery` |
-| `BallCamera/candidates/…` | `double[]` | every blob that passed the filters in the current frame, largest first: `xPx`, `yPx`, `radiusPx`, `areaPx`, `circularity`, `horizontalDeg`, `verticalDeg` (+ below the axis), and `selectedIndex` (0, or −1 when none) |
-| `BallCamera/mount/…` | double/boolean | `BallCamera.mount*` as recorded: `measured`, `heightIn`, `pitchDownDeg`, `forwardIn`, `leftIn`, `yawDeg` |
-| `Hive/<RED\|BLUE>/…` | mixed | `state` (`AUDIENCE_RAISED`, `FAR_RAISED`, `UNKNOWN`), `stateAssumed`, `tipCount`, and the goal: `visible`, `cell`, `turretBearingDeg`, `robotBearingDeg`, `distanceIn` (horizontal, from the turret axis), `heightIn`, `spreadIn`, `ageMs` (since estimated capture), `tagIds`, `reprojected`; the aim goal: `aimSource` (`VISION`/`ODOMETRY`), `aimTurretBearingDeg`, `aimRobotBearingDeg`; `fieldGoalErrorIn` (vision goal vs `HiveField`) |
-| `Hive/tags/…` | `double[]` | every season tag of the latest processed frame: `id`, `heightIn`, `class` (1 raised, −1 lowered, 0 ambiguous), `deviationIn` (implied goal's distance from its CELL's fused goal) |
-| `Hive/mount/…`, `Hive/settings/raisedMinHeightIn`, `Hive/frames/…` | mixed | `HiveConfig` camera mount and threshold as recorded; frames processed and dropped for want of a turret angle |
-| `events` | string | explicit events with their own timestamps (not sampled); strictly increasing, a same-microsecond event moves 1 µs later |
-| `commands/events` | string | lifecycle records of `logged` commands, own timestamps, strictly increasing (see below) |
-| `commands/active` | string | traced executions open after each record, `#id name` per line, `(suspended)` suffix |
-| `commands/lost` | int64 | records dropped from the bounded queue; 0 at open, rewritten when it grows |
-
-Subsystem state logging is automatic: public read-only scalar getters declared on
-the subsystem class become property-name channels (enums use their names; nulls
-are skipped). Override `logState(log)` only for arrays or specific channel names;
-an override replaces the automatic logging. Record events with `Events.record("text")`. `put` also takes a `DoubleArray` for one row of
-parallel values (a per-frame detection list); its length may change per tick,
-and it is written immediately, so a cached array can be passed again.
-
-### Command history
-
-```kotlin
-fun raise(): Command = logged("Lift raise", Command.build().requiring(this).setDone { atTop })
-drive.followCommand(path, name = "Drive to bar")   // drive factories are already logged
-```
-
-- `logged` returns a `LoggedCommand` that forwards requirements, priority, the
-  three behaviours, return values and exceptions to the wrapped command on
-  every call. Schedule, cancel, bind and compare **the returned instance**;
-  Ivy never sees the inner one. `logged` on a logged command renames it.
-  `SubsystemBase.defaultCommand` takes any `Command` and sets CANCEL on the
-  builder inside a `LoggedCommand`.
-- Records: `START #id name`, `FINISH` (its `done` returned true, not
-  arrival), `INTERRUPT`, `SUSPEND`/`RESUME` (Ivy's SUSPEND behaviour; resume is
-  seen at the next `execute`), `FAIL #id name in <start|execute|done|end>:
-  <Exception>: <message>` with `(from #child)` when a logged parent sees its
-  child's exception, `FAIL #- name …` when a command threw outside a traced
-  run, and `ABORT #id name: command fault | op-mode stop | restarted without an
-  end` for runs Ivy dropped without `end`.
-- Ivy quirks handled: `end` without `start` and a second `end` record nothing;
-  `loop`/`repeat` restarting the same instance is a new id; `Scheduler.reset`
-  skips `end`, so `Robot` closes open runs with ABORT **after** subsystems are
-  halted (fault policy) or stopped (op-mode stop). ABORT never calls command
-  code.
-- `CommandHistory` is static like Ivy's scheduler and reset by every `Robot`.
-  Its open runs (≤ 64) are the truth; each change is timestamped on the robot
-  clock and queued (≤ 512) with the resulting active set, then written by the
-  recorder each loop and at close. Overflow and tracing errors increment
-  `lost` and write `HISTORY INCOMPLETE: N command records lost`; the command
-  itself is unaffected, and its exception is always rethrown unchanged.
-- **Coverage is instrumented commands only.** A logged group does not expose
-  unlogged children. There are no blocked-schedule events and no interruption
-  causes: Ivy's public API does not reveal them. Never describe
-  `commands/events` as a complete command history.
-- Instrumented today: the five drive factories (default names `Drive
-  teleop`, `Drive follow`, `Drive hold`, `Drive turn`, `Drive robot-centric
-  fallback`), TeleOpBase's default `Drive teleop`, `Drive robot-centric
-  fallback` and `Reset heading`,
-  Localization Test's moves and `Driver takeover`, Example Auto's routine and
-  steps. Instrument new mechanism commands and autonomous steps the same way;
-  don't wrap trivial `instant`s or marker internals.
-
-Failure isolation: an I/O failure disables the recorder for the run; a
-non-I/O exception in one subsystem's `logState` disables that subsystem's
-channels and records why; anything else escaping the recorder closes it. The
-loop keeps running.
+Logging is automatic; see [dutchdocs/LOGGING.md](dutchdocs/LOGGING.md) for
+state logging, WPILOG channels, events, command history, power sampling, viewers
+and post-match debugging. Never rename tool-read channels (exact-name lookups),
+and never remove, bypass or weaken `logged(...)` or its exception handling: it
+implements the fault policy in lifecycle rule 6.
 
 ## Things AI assistants get wrong often
 
@@ -522,27 +446,16 @@ No team or season prefix. `"Match"` or `"Diagnostics"` groups. Title Case, no
 - **Hot reload** (`make hot`, `./gradlew deploySloth`): ordinary TeamCode
   iteration, including `pedro/Constants.java`.
 
-Logs: `make pull-logs [N]` pulls the newest N (default all 30 the hub keeps);
-`make viewer` opens MaxScope; `python3 tools/logs/analyze_wpilog.py --json`
-emits the JSON bundle (default: newest log under `robot-logs/`). It reports `commandHistoryCoverage`:
-`"all scheduled"` (pre-Ivy logs, `commands/running`), `"none"` (Ivy logs before
-command tracing) or `"instrumented"` (current logs, `logged` commands only,
-with `commandExecutions`, `commandFailures`, `commandActive` and
-`commandHistoryIntact`/`commandHistoryLostRecords`). All its times, like MaxScope's, count from the
-op-mode start (`clock`, `opModeStartLogSec`; init is negative), so a time the user reads off
-MaxScope matches the bundle. When a log doesn't determine the cause, give ranked
-hypotheses and the one channel or reproduction that decides it.
-
 ### Post-match debugging (the AI runs this)
 
-When the user is plugged into the hub and reports a match problem, run
-**`make pull-logs 2`**, then
-`python3 tools/logs/analyze_wpilog.py --json robot-logs/<file>`, anchor on the stated symptom, and drill into channels with
-`python3 tools/logs/analyze_wpilog.py --json --channel <name,name> robot-logs/<file>`.
-The auton run is usually the second pulled file. For "what was it doing":
-read `commandFailures`, then the `commandExecutions` overlapping the symptom
-time, then `--channel commands/active,driveMode,pose` around it. State the
-coverage: an absent command may simply be unlogged.
+When plugged into the hub and the user reports a match problem, run
+`make pull-logs 2`, analyze the relevant file with
+`python3 tools/logs/analyze_wpilog.py --json robot-logs/<file>`, then drill into
+channels around the stated symptom. Read command failures and overlapping
+executions, then `commands/active,driveMode,pose`; state the instrumented-only
+coverage. If evidence is inconclusive, give ranked hypotheses and the one
+channel or reproduction that decides it. See [Logging](dutchdocs/LOGGING.md)
+for commands, time conventions and the full workflow.
 
 ## Running the project
 
