@@ -14,7 +14,8 @@ import kotlin.math.withSign
  * input helper. Names follow the PS5 labels; the SDK calls Create `share`.
  *
  * ```kotlin
- * driver.button(GamepadEx.Button.CROSS).onTrue(intake.grab())
+ * driver.button(Button.CROSS).onTrue(intake.grab())   // bind in configure()
+ * if (driver.pressed(Button.DPAD_UP)) delay++         // edge, e.g. in onInitLoop()
  * val forward = driver.leftStickY
  * ```
  */
@@ -24,10 +25,10 @@ class GamepadEx(val raw: Gamepad) {
     var rightStickDeadband: Double = 0.05
     var triggerDeadband: Double = 0.05
 
-    private val prev = ButtonState()
-    private val curr = ButtonState()
-
-    /** Buttons that can back a [Trigger]. L2/R2 are analog: use [trigger] with a threshold. */
+    /**
+     * Digital buttons. L2/R2 are analog: use [trigger] with a threshold. The
+     * order is the bit order of the flight log's `gamepadN/buttons` channel.
+     */
     enum class Button {
         CROSS, CIRCLE, SQUARE, TRIANGLE,
         L1, R1,
@@ -36,6 +37,9 @@ class GamepadEx(val raw: Gamepad) {
         L3, R3,
         TOUCHPAD,
     }
+
+    private val prev = BooleanArray(Button.entries.size)
+    private val curr = BooleanArray(Button.entries.size)
 
     private val triggers = mutableListOf<Trigger>()
     private val buttonTriggers = HashMap<Button, Trigger>()
@@ -64,7 +68,7 @@ class GamepadEx(val raw: Gamepad) {
     }
 
     /**
-     * Call once per loop before reading any `*Pressed` / `*Released` flags.
+     * Call once per loop before reading [held] / [pressed] / [released].
      * Also samples every registered [Trigger] (unless [pollTriggers] is
      * false — the init loop disables it so bindings can't start commands
      * before the match), so trigger-bound commands are scheduled or
@@ -73,8 +77,8 @@ class GamepadEx(val raw: Gamepad) {
      * which aborts all commands and halts the subsystems.
      */
     fun update(pollTriggers: Boolean = true) {
-        prev.copyFrom(curr)
-        curr.read(raw)
+        curr.copyInto(prev)
+        for (b in Button.entries) curr[b.ordinal] = read(b)
         if (pollTriggers) {
             for (t in triggers) t.poll()
         }
@@ -88,47 +92,17 @@ class GamepadEx(val raw: Gamepad) {
     val l2: Double get() = applyDeadband(raw.left_trigger.toDouble(), triggerDeadband)
     val r2: Double get() = applyDeadband(raw.right_trigger.toDouble(), triggerDeadband)
 
-    val cross: Boolean get() = curr.cross
-    val circle: Boolean get() = curr.circle
-    val square: Boolean get() = curr.square
-    val triangle: Boolean get() = curr.triangle
-    val l1: Boolean get() = curr.l1
-    val r1: Boolean get() = curr.r1
-    val dpadUp: Boolean get() = curr.up
-    val dpadDown: Boolean get() = curr.down
-    val dpadLeft: Boolean get() = curr.left
-    val dpadRight: Boolean get() = curr.right
-    val options: Boolean get() = curr.options
-    val create: Boolean get() = curr.create
-    val l3: Boolean get() = curr.l3
-    val r3: Boolean get() = curr.r3
-    val touchpad: Boolean get() = curr.touchpad
+    /** [button] is down this loop. */
+    fun held(button: Button): Boolean = curr[button.ordinal]
 
-    val crossPressed: Boolean get() = curr.cross && !prev.cross
-    val circlePressed: Boolean get() = curr.circle && !prev.circle
-    val squarePressed: Boolean get() = curr.square && !prev.square
-    val trianglePressed: Boolean get() = curr.triangle && !prev.triangle
-    val l1Pressed: Boolean get() = curr.l1 && !prev.l1
-    val r1Pressed: Boolean get() = curr.r1 && !prev.r1
-    val dpadUpPressed: Boolean get() = curr.up && !prev.up
-    val dpadDownPressed: Boolean get() = curr.down && !prev.down
-    val dpadLeftPressed: Boolean get() = curr.left && !prev.left
-    val dpadRightPressed: Boolean get() = curr.right && !prev.right
-    val l3Pressed: Boolean get() = curr.l3 && !prev.l3
-    val r3Pressed: Boolean get() = curr.r3 && !prev.r3
-    val touchpadPressed: Boolean get() = curr.touchpad && !prev.touchpad
+    /** [button] went down since the last [update]. */
+    fun pressed(button: Button): Boolean = curr[button.ordinal] && !prev[button.ordinal]
 
-    val crossReleased: Boolean get() = !curr.cross && prev.cross
-    val circleReleased: Boolean get() = !curr.circle && prev.circle
-    val squareReleased: Boolean get() = !curr.square && prev.square
-    val triangleReleased: Boolean get() = !curr.triangle && prev.triangle
+    /** [button] came up since the last [update]. */
+    fun released(button: Button): Boolean = !curr[button.ordinal] && prev[button.ordinal]
 
     fun rumble(ms: Int) {
         raw.rumble(ms)
-    }
-
-    fun rumbleBlips(count: Int) {
-        raw.rumbleBlips(count)
     }
 
     /**
@@ -136,7 +110,7 @@ class GamepadEx(val raw: Gamepad) {
      * button return the same Trigger, so bindings accumulate on one instance.
      */
     fun button(button: Button): Trigger =
-        buttonTriggers.getOrPut(button) { trigger { stateOf(button) } }
+        buttonTriggers.getOrPut(button) { trigger { held(button) } }
 
     /**
      * A [Trigger] backed by an arbitrary condition — an analog stick or trigger
@@ -148,49 +122,22 @@ class GamepadEx(val raw: Gamepad) {
         return Trigger(this, condition).also { triggers += it }
     }
 
-    private fun stateOf(button: Button): Boolean = when (button) {
-        Button.CROSS -> curr.cross
-        Button.CIRCLE -> curr.circle
-        Button.SQUARE -> curr.square
-        Button.TRIANGLE -> curr.triangle
-        Button.L1 -> curr.l1
-        Button.R1 -> curr.r1
-        Button.DPAD_UP -> curr.up
-        Button.DPAD_DOWN -> curr.down
-        Button.DPAD_LEFT -> curr.left
-        Button.DPAD_RIGHT -> curr.right
-        Button.OPTIONS -> curr.options
-        Button.CREATE -> curr.create
-        Button.L3 -> curr.l3
-        Button.R3 -> curr.r3
-        Button.TOUCHPAD -> curr.touchpad
-    }
-
-    private class ButtonState {
-        var cross = false; var circle = false; var square = false; var triangle = false
-        var l1 = false; var r1 = false
-        var up = false; var down = false; var left = false; var right = false
-        var options = false; var create = false
-        var l3 = false; var r3 = false
-        var touchpad = false
-
-        fun read(g: Gamepad) {
-            cross = g.cross; circle = g.circle; square = g.square; triangle = g.triangle
-            l1 = g.left_bumper; r1 = g.right_bumper
-            up = g.dpad_up; down = g.dpad_down; left = g.dpad_left; right = g.dpad_right
-            options = g.options; create = g.share
-            l3 = g.left_stick_button; r3 = g.right_stick_button
-            touchpad = g.touchpad
-        }
-
-        fun copyFrom(o: ButtonState) {
-            cross = o.cross; circle = o.circle; square = o.square; triangle = o.triangle
-            l1 = o.l1; r1 = o.r1
-            up = o.up; down = o.down; left = o.left; right = o.right
-            options = o.options; create = o.create
-            l3 = o.l3; r3 = o.r3
-            touchpad = o.touchpad
-        }
+    private fun read(button: Button): Boolean = when (button) {
+        Button.CROSS -> raw.cross
+        Button.CIRCLE -> raw.circle
+        Button.SQUARE -> raw.square
+        Button.TRIANGLE -> raw.triangle
+        Button.L1 -> raw.left_bumper
+        Button.R1 -> raw.right_bumper
+        Button.DPAD_UP -> raw.dpad_up
+        Button.DPAD_DOWN -> raw.dpad_down
+        Button.DPAD_LEFT -> raw.dpad_left
+        Button.DPAD_RIGHT -> raw.dpad_right
+        Button.OPTIONS -> raw.options
+        Button.CREATE -> raw.share
+        Button.L3 -> raw.left_stick_button
+        Button.R3 -> raw.right_stick_button
+        Button.TOUCHPAD -> raw.touchpad
     }
 }
 

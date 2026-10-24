@@ -4,6 +4,7 @@ import com.pedropathing.api.Paths.line
 import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.Scheduler
 import com.pedropathing.ivy.commands.Commands.instant
+import com.pedropathing.ivy.commands.Commands.waitMs
 import com.pedropathing.ivy.commands.Commands.waitUntil
 import com.pedropathing.ivy.groups.Groups.deadline
 import com.pedropathing.ivy.groups.Groups.race
@@ -12,9 +13,9 @@ import com.pedropathing.paths.Path
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous
 import com.qualcomm.robotcore.eventloop.opmode.Disabled
 import org.firstinspires.ftc.teamcode.core.Alliance
+import org.firstinspires.ftc.teamcode.core.GamepadEx.Button
 import org.firstinspires.ftc.teamcode.core.OpModeBase
 import org.firstinspires.ftc.teamcode.core.logging.logged
-import org.firstinspires.ftc.teamcode.core.monotonicWaitMs
 import org.firstinspires.ftc.teamcode.pedro.Constants
 import org.firstinspires.ftc.teamcode.subsystems.LocalizerSubsystem
 import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem
@@ -29,8 +30,7 @@ import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem
  *  - Paths come from Pedro's `Paths` API; `.linear(a, b)` turns along a path.
  *  - The routine is plain Ivy composition: `sequential`, `race` for timeouts,
  *    `deadline` for a mid-path marker that fires once and is dropped if the
- *    path ends first. Waits and timeouts use [monotonicWaitMs], never Ivy's
- *    wall-clock `waitMs`.
+ *    path ends first. Waits and timeouts use Ivy's `waitMs`.
  *  - The routine and its meaningful steps are [logged], so `commands/events`
  *    shows which step ran, finished, was interrupted or failed.
  *  - One op-mode per alliance and routine: copy this file and override
@@ -95,7 +95,7 @@ class ExampleAuto : OpModeBase() {
         "Example Auto routine",
         race(
             sequential(
-                logged("Start delay", monotonicWaitMs(startDelaySec * 1000.0)),
+                logged("Start delay", waitMs(startDelaySec * 1000.0)),
                 race(
                     deadline(
                         drive.followCommand(outPath(), name = "Drive out"),
@@ -104,21 +104,21 @@ class ExampleAuto : OpModeBase() {
                             instant { robot.recordEvent("AUTO: outbound midpoint") },
                         ),
                     ),
-                    logged("Drive out time limit", monotonicWaitMs(4_000.0)),
+                    logged("Drive out time limit", waitMs(4_000.0)),
                 ),
                 drive.holdCommand(out, name = "Settle at out"),
-                logged("Score", monotonicWaitMs(300.0)), // stand-in for "score"
+                logged("Score", waitMs(300.0)), // stand-in for "score"
                 drive.turnToCommand(alliance.mirror(Math.toRadians(90.0)), name = "Turn to 90 deg"),
                 drive.followCommand(backPath(), holdEnd = true, name = "Drive back"),
                 instant { robot.recordEvent("AUTO: complete") },
             ),
-            logged("Routine time limit", monotonicWaitMs(29_000.0)),
+            logged("Routine time limit", waitMs(29_000.0)),
         ),
     )
 
     override fun onInitLoop() {
-        if (driver.dpadRightPressed) startDelaySec = (startDelaySec + 1).coerceAtMost(10)
-        if (driver.dpadLeftPressed) startDelaySec = (startDelaySec - 1).coerceAtLeast(0)
+        if (driver.pressed(Button.DPAD_RIGHT)) startDelaySec = (startDelaySec + 1).coerceAtMost(10)
+        if (driver.pressed(Button.DPAD_LEFT)) startDelaySec = (startDelaySec - 1).coerceAtLeast(0)
         telemetryBag.section("Auto") { put("start delay s", startDelaySec) }
     }
 

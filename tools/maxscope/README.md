@@ -98,9 +98,7 @@ reduced trail; the coordinate readout always uses the full pose series.
   named `…Auto`), then time past the end. Start, FLOWER ownership unlocked
   at 1:00 left, the final 20 seconds, and the end of the period are marked
   under the slider and on every graph. Timing comes from `RobotConfig.Match`,
-  with BIOBUZZ defaults if its source is unavailable. Match teleop rumbles
-  both controllers twice at 1:00 left and three times at 0:20 left;
-  autonomous and diagnostics have no match rumbles. A run is opened at its start.
+  with BIOBUZZ defaults if its source is unavailable. A run is opened at its start.
 - Scrub the shared time slider, click a graph, event, or command bar to seek.
 - Click the field to jump to when the robot was there. If it passed that spot
   more than once, the note says how many times and each click goes to the

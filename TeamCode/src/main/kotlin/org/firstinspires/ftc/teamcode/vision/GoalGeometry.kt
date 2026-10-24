@@ -70,7 +70,7 @@ internal fun LimelightPose.positionInches() =
  * pitch = a[4], yaw = a[5], which rotate about camera X, Y and Z. Assumed:
  * a tag squarely facing the lens reports zero rotation, and the angles compose
  * extrinsically X, then Y, then Z (WPILib `Rotation3d`, which Limelight uses).
- * Unverified on hardware; the Hive Tag Survey checks it (four tags of one
+ * Unverified on hardware; the Vision Test's HIVE survey checks it (four tags of one
  * cluster agree on the goal only if this is right).
  */
 internal fun LimelightPose.tagRotation(): Rotation3 =

@@ -11,7 +11,6 @@ import com.pedropathing.ivy.groups.Groups.sequential
 import com.pedropathing.math.Pose
 import kotlin.math.PI
 import org.firstinspires.ftc.teamcode.core.Robot
-import org.firstinspires.ftc.teamcode.core.monotonicWaitMs
 import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem.TeleopInput
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -224,7 +223,9 @@ class DriveCommandTest {
     fun aRaceTimeoutInterruptsTheStepAndTheRoutineContinues() {
         val h = Harness()
         var next = false
-        val routine = sequential(race(h.drive.followCommand(h.line()), monotonicWaitMs(30.0, h.hardware.clock)), instant { next = true })
+        val timeoutNs = h.hardware.clock.nanos() + 30_000_000L
+        val timeout = waitUntil { h.hardware.clock.nanos() >= timeoutNs }
+        val routine = sequential(race(h.drive.followCommand(h.line()), timeout), instant { next = true })
         Scheduler.schedule(routine)
         h.tick()
         assertTrue(h.hardware.powers().any { it != 0.0 })

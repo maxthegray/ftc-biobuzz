@@ -322,26 +322,12 @@ class FlightRecorder private constructor(
         writer.appendInt64(buttonsEntry, buttonMask(pad), timestampUs)
     }
 
+    /** One bit per [GamepadEx.Button], in enum order (Cross = bit 0). */
     private fun buttonMask(pad: GamepadEx): Long {
         var mask = 0L
-        fun bit(index: Int, value: Boolean) {
-            if (value) mask = mask or (1L shl index)
+        for (b in GamepadEx.Button.entries) {
+            if (pad.held(b)) mask = mask or (1L shl b.ordinal)
         }
-        bit(0, pad.cross)
-        bit(1, pad.circle)
-        bit(2, pad.square)
-        bit(3, pad.triangle)
-        bit(4, pad.l1)
-        bit(5, pad.r1)
-        bit(6, pad.dpadUp)
-        bit(7, pad.dpadDown)
-        bit(8, pad.dpadLeft)
-        bit(9, pad.dpadRight)
-        bit(10, pad.options)
-        bit(11, pad.create)
-        bit(12, pad.l3)
-        bit(13, pad.r3)
-        bit(14, pad.touchpad)
         return mask
     }
 

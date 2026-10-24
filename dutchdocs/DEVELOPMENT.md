@@ -133,13 +133,10 @@ driver.trigger { driver.r2 > 0.5 }.whileTrue(shooter.spinUp())
 ```
 
 We only use PS5 controllers, so buttons have PS5 names. Bindings lock at
-start. Read sticks directly (`driver.leftStickY` is +up).
+start. Read sticks directly (`driver.leftStickY` is +up), and buttons with
+`driver.held(Button.X)` / `driver.pressed(Button.X)` (edge since last loop).
 `TeleOpBase` already binds Create+Triangle (heading reset), Create+Circle
 (field-centric) and installs stick driving as the drive's default command.
-BIOBUZZ match teleop also rumbles both controllers twice at 1:00 left
-(FLOWER ownership unlocked) and three times at 0:20 left. Timing lives in
-`RobotConfig.Match`; diagnostic subclasses of `TeleOpBase` disable the cues
-by overriding `rumbleAlerts` with an empty list.
 
 ## Compose an autonomous
 
@@ -156,16 +153,16 @@ private fun routine(): Command = logged(
     "Score preload",
     race(
         sequential(
-            logged("Start delay", monotonicWaitMs(startDelaySec * 1000.0)),
+            logged("Start delay", waitMs(startDelaySec * 1000.0)),
             race(
                 drive.followCommand(toScore(), name = "Drive to score"),
-                logged("Drive to score time limit", monotonicWaitMs(4_000.0)), // step timeout
+                logged("Drive to score time limit", waitMs(4_000.0)), // step timeout
             ),
             drive.holdCommand(score, name = "Settle at score"),               // wait for arrival
             instant { robot.recordEvent("AUTO: scored") },
             drive.turnToCommand(alliance.mirror(Math.toRadians(90.0)), name = "Face the wall"),
         ),
-        logged("Routine time limit", monotonicWaitMs(29_000.0)),             // whole-routine timeout
+        logged("Routine time limit", waitMs(29_000.0)),             // whole-routine timeout
     ),
 )
 ```
@@ -185,9 +182,7 @@ run if `!Constants.FORESIGHT_TUNED`. Then, from `onLoop`, start the routine once
 `Scheduler.isScheduled(...)`. Stop the op-mode once the routine is no longer
 scheduled.
 
-- **Waits:** use `monotonicWaitMs(ms)` from `core/`, not Ivy's `waitMs`,
-  which is timed by the wall clock and ends early or stalls if the hub's
-  time is set mid-match.
+- **Waits:** Ivy's `waitMs(ms)`.
 - **Markers** (do something part-way along a path, once):
   `deadline(drive.followCommand(path), sequential(waitUntil { drive.pathProgress() >= 0.5 }, instant { lift.up() }))`.
   If the path ends or is cancelled first, the marker is dropped.
@@ -332,7 +327,7 @@ Everything else is Ivy or Pedro. Each remaining helper has one job:
 | `Alliance` | RED→BLUE transform with the season's symmetry (mirror or rotate; Pedro's `mirrorX` only mirrors) |
 | `FlightRecorder`, `WpiLogWriter`, `WpiStruct`, `StateLog` | WPILOG files for AdvantageScope |
 | `logged`, `CommandHistory` | Command history for traced commands (Ivy has no lifecycle hooks or names) |
-| `FieldView`, `TelemetryBag` | Panels field drawing and throttled DS/Panels telemetry |
+| `TelemetryBag`, field view in `OpModeBase` | Throttled DS/Panels telemetry and Panels field drawing |
 | `Preflight`, `LoopProfile` | Missing-device listing, loop timing |
 | `pedro/Constants.java`, `pedro/Tuning.java` | Pedro's configuration and AutoTune registration, in the Quickstart layout |
 
@@ -407,9 +402,9 @@ Season vision code that runs in a match is in `vision/`:
   is raised from tag heights, with hysteresis and tip counts; `HiveTracker`, a
   subsystem, fuses each alliance's goal and exposes both alliances to op-modes.
 Tests mirror these packages. The reusable Limelight device adapter is
-`subsystems/LimelightSubsystem.kt`. The diagnostic op-modes and their tooling (lab
-records, tag-sighting history, `VisionDiagnosticsConfig`) live together in
-`opmodes/diagnostics/`; `SettingsChangeLog` is in `core/logging/`.
+`subsystems/LimelightSubsystem.kt`. The Vision Test op-mode and its tooling
+(tag-sighting history, survey memory, `VisionTestConfig`) live together in
+`opmodes/diagnostics/VisionTestTeleOp.kt`; `SettingsChangeLog` is in `core/logging/`.
 
 ## Sensors and I²C
 
