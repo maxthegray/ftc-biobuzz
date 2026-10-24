@@ -9,16 +9,15 @@ import org.firstinspires.ftc.teamcode.core.Clock
  * only the fields that changed.
  *
  * Panels sliders can change a value many times a second, so change events are
- * limited to one per [minIntervalMs]; edits inside the window are merged and
+ * limited to one per [MIN_INTERVAL_MS]; edits inside the window are merged and
  * written when it expires, and an edit reverted inside the window writes
- * nothing. An edit made in the last [minIntervalMs] before stop may therefore
+ * nothing. An edit made in the last [MIN_INTERVAL_MS] before stop may therefore
  * be missing from the log.
  */
 class SettingsChangeLog(
     private val section: String,
     private val clock: Clock,
     private val sink: (String) -> Unit,
-    private val minIntervalMs: Double = 1000.0,
 ) {
     private var logged: Map<String, String>? = null
     private var pending: Map<String, String>? = null
@@ -36,7 +35,7 @@ class SettingsChangeLog(
         }
         pending = values.takeIf { it != base }
         val next = pending ?: return
-        if (lastEventNs != Long.MIN_VALUE && (now - lastEventNs) / 1e6 < minIntervalMs) return
+        if (lastEventNs != Long.MIN_VALUE && (now - lastEventNs) / 1e6 < MIN_INTERVAL_MS) return
         val changes = next.entries.filter { base[it.key] != it.value }
             .joinToString(", ") { "${it.key} ${base[it.key]}→${it.value}" }
         emit("$section changed ($label): $changes", next, now)
@@ -50,6 +49,8 @@ class SettingsChangeLog(
     }
 
     companion object {
+        const val MIN_INTERVAL_MS = 1000.0
+
         /** Public mutable primitive fields of a config object, in declaration order, shortest formatting. */
         fun valuesOf(config: Any): Map<String, String> {
             val values = LinkedHashMap<String, String>()

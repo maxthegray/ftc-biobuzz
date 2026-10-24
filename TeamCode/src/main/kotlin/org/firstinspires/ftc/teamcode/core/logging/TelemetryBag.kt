@@ -11,7 +11,7 @@ import org.firstinspires.ftc.teamcode.core.Clock
 
 /**
  * Telemetry for the Driver Station and Panels at once. `OpModeBase` flushes it
- * every loop; it only sends every [transmitIntervalMs] (20 Hz), because nobody
+ * every loop; it only sends every [TRANSMIT_INTERVAL_MS] (20 Hz), because nobody
  * reads faster and sending is slow. Values are formatted when sent.
  *
  * ```kotlin
@@ -33,7 +33,6 @@ class TelemetryBag internal constructor(
     constructor(
         dsTelemetry: Telemetry,
         panels: TelemetryManager,
-        transmitIntervalMs: Double = 50.0,
     ) : this(
         listOf(
             object : Sink {
@@ -47,7 +46,7 @@ class TelemetryBag internal constructor(
                 override fun update() { panels.update() }
             },
         ),
-        transmitIntervalMs,
+        TRANSMIT_INTERVAL_MS,
         Clock.SYSTEM,
     )
 
@@ -120,6 +119,8 @@ class TelemetryBag internal constructor(
     private class Decimal(val value: Double, val decimals: Int)
 
     companion object {
+        const val TRANSMIT_INTERVAL_MS = 50.0
+
         // Locale pinned so a hub or laptop locale can't switch to comma decimals.
         internal fun formatValue(value: Any?): String = when (value) {
             null -> "null"
