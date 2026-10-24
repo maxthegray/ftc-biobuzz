@@ -8,6 +8,7 @@ import java.util.concurrent.TimeUnit
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName
 import org.firstinspires.ftc.robotcore.external.hardware.camera.controls.ExposureControl
 import org.firstinspires.ftc.robotcore.internal.camera.calibration.CameraCalibration
+import org.firstinspires.ftc.teamcode.RobotConfig
 import org.firstinspires.ftc.teamcode.core.Clock
 import org.firstinspires.ftc.teamcode.core.HardwareConfigError
 import org.firstinspires.ftc.teamcode.core.SubsystemBase
@@ -193,7 +194,6 @@ fun blobFilters(frameAreaPx: Double): List<BlobFilter> = with(BallCameraConfig) 
  * filters apply live (the SDK guards its filter list).
  */
 class BallCameraSubsystem(
-    val hardwareName: String = DEFAULT_HARDWARE_NAME,
     private val clock: Clock = Clock.SYSTEM,
     /** Flight-log event sink, normally `robot::recordEvent`; receives the tuning values in force. */
     eventSink: (String) -> Unit = {},
@@ -231,8 +231,8 @@ class BallCameraSubsystem(
     val lensReport: LensReport get() = lensProbe.report
 
     override fun init(hardwareMap: HardwareMap) {
-        val webcam = hardwareMap.tryGet(WebcamName::class.java, hardwareName)
-            ?: throw HardwareConfigError("Missing Webcam named \"$hardwareName\" in active configuration.")
+        val webcam = hardwareMap.tryGet(WebcamName::class.java, RobotConfig.Vision.BALL_CAMERA)
+            ?: throw HardwareConfigError("Missing Webcam named \"${RobotConfig.Vision.BALL_CAMERA}\" in active configuration.")
         val s = DetectionSetup.fromConfig(WIDTH_PX, HEIGHT_PX)
         setup = s
         val built = ColorBlobLocatorProcessor.Builder()
@@ -418,7 +418,6 @@ class BallCameraSubsystem(
     }
 
     companion object {
-        const val DEFAULT_HARDWARE_NAME = "ballCamera"
         const val WIDTH_PX = 640
         const val HEIGHT_PX = 480
     }

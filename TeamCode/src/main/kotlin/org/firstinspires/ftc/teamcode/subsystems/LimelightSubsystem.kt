@@ -6,6 +6,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D
+import org.firstinspires.ftc.teamcode.RobotConfig
 import org.firstinspires.ftc.teamcode.core.Clock
 import org.firstinspires.ftc.teamcode.core.HardwareConfigError
 import org.firstinspires.ftc.teamcode.core.SubsystemBase
@@ -24,7 +25,6 @@ import org.firstinspires.ftc.teamcode.core.logging.StateLog
  * it excludes HTTP transport and the wait before the first poll.
  */
 class LimelightSubsystem(
-    val hardwareName: String = DEFAULT_HARDWARE_NAME,
     val pipelineIndex: Int = DEFAULT_PIPELINE_INDEX,
     val pollRateHz: Int = DEFAULT_POLL_RATE_HZ,
     val maxResultAgeMs: Long = DEFAULT_MAX_RESULT_AGE_MS,
@@ -97,9 +97,9 @@ class LimelightSubsystem(
 
     override fun init(hardwareMap: HardwareMap) {
         source = injectedSource ?: run {
-            val device = hardwareMap.tryGet(Limelight3A::class.java, hardwareName)
+            val device = hardwareMap.tryGet(Limelight3A::class.java, RobotConfig.Vision.LIMELIGHT)
                 ?: throw HardwareConfigError(
-                    "Missing Limelight3A named \"$hardwareName\" in active configuration.",
+                    "Missing Limelight3A named \"${RobotConfig.Vision.LIMELIGHT}\" in active configuration.",
                 )
             RealLimelightSource(device)
         }
@@ -230,7 +230,6 @@ class LimelightSubsystem(
     }
 
     companion object {
-        const val DEFAULT_HARDWARE_NAME = "limelight"
         const val DEFAULT_PIPELINE_INDEX = 0
         const val DEFAULT_POLL_RATE_HZ = 100
         const val DEFAULT_MAX_RESULT_AGE_MS = 100L

@@ -5,6 +5,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp
 import java.util.Locale
 import java.util.TreeMap
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName
+import org.firstinspires.ftc.teamcode.RobotConfig
 import org.firstinspires.ftc.teamcode.core.GamepadEx.Button
 import org.firstinspires.ftc.teamcode.core.HardwareConfigError
 import org.firstinspires.ftc.teamcode.core.LoopPhase
@@ -72,8 +73,8 @@ class VisionTestTeleOp : OpModeBase() {
 
     override fun configure() {
         robot.recordEvent(SettingsChangeLog.describe("visionTest", VisionTestConfig))
-        val hasLimelight = hardwareMap.tryGet(Limelight3A::class.java, LimelightSubsystem.DEFAULT_HARDWARE_NAME) != null
-        val hasBallCamera = hardwareMap.tryGet(WebcamName::class.java, BallCameraSubsystem.DEFAULT_HARDWARE_NAME) != null
+        val hasLimelight = hardwareMap.tryGet(Limelight3A::class.java, RobotConfig.Vision.LIMELIGHT) != null
+        val hasBallCamera = hardwareMap.tryGet(WebcamName::class.java, RobotConfig.Vision.BALL_CAMERA) != null
         if (VisionTestConfig.openBallCamera && hasBallCamera) {
             ballCamera = robot.register(BallCameraSubsystem(eventSink = robot::recordEvent))
         }
@@ -95,8 +96,8 @@ class VisionTestTeleOp : OpModeBase() {
         }
         if (pages.isEmpty()) {
             throw HardwareConfigError(
-                "No camera to test: need Limelight 3A \"${LimelightSubsystem.DEFAULT_HARDWARE_NAME}\" or webcam " +
-                    "\"${BallCameraSubsystem.DEFAULT_HARDWARE_NAME}\" in the active configuration " +
+                "No camera to test: need Limelight 3A \"${RobotConfig.Vision.LIMELIGHT}\" or webcam " +
+                    "\"${RobotConfig.Vision.BALL_CAMERA}\" in the active configuration " +
                     "(and openLimelight / openBallCamera on in VisionTestConfig)",
             )
         }
