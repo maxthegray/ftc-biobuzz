@@ -5,14 +5,15 @@ import com.pedropathing.api.Paths.line
 import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.Scheduler
 import com.pedropathing.ivy.commands.Commands.instant
+import com.pedropathing.ivy.commands.Commands.waitMs
 import com.pedropathing.ivy.groups.Groups.race
 import com.pedropathing.ivy.groups.Groups.sequential
 import com.pedropathing.paths.Path
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous
 import org.firstinspires.ftc.teamcode.core.Alliance
+import org.firstinspires.ftc.teamcode.core.GamepadEx.Button
 import org.firstinspires.ftc.teamcode.core.OpModeBase
 import org.firstinspires.ftc.teamcode.core.logging.logged
-import org.firstinspires.ftc.teamcode.core.monotonicWaitMs
 import org.firstinspires.ftc.teamcode.pedro.Constants
 import org.firstinspires.ftc.teamcode.subsystems.LocalizerSubsystem
 import org.firstinspires.ftc.teamcode.subsystems.MecanumDriveSubsystem
@@ -81,7 +82,7 @@ class JustPathAutoRed : OpModeBase() {
         "Just Path routine",
         race(
             sequential(
-                logged("Start delay", monotonicWaitMs(startDelaySec * 1000.0)),
+                logged("Start delay", waitMs(startDelaySec * 1000.0)),
                 drive.followCommand(gardenSweepPath(), name = "Garden sweep"),
                 drive.followCommand(crossToFarSidePath(), name = "Cross to far side"),
                 drive.followCommand(intoFarFlowerPath(), name = "Into far FLOWER"),
@@ -89,13 +90,13 @@ class JustPathAutoRed : OpModeBase() {
                 drive.holdCommand(parkInLoadingZone, name = "Settle in LOADING ZONE"),
                 instant { robot.recordEvent("AUTO: complete") },
             ),
-            logged("Routine time limit", monotonicWaitMs(29_000.0)),
+            logged("Routine time limit", waitMs(29_000.0)),
         ),
     )
 
     override fun onInitLoop() {
-        if (driver.dpadRightPressed) startDelaySec = (startDelaySec + 1).coerceAtMost(10)
-        if (driver.dpadLeftPressed) startDelaySec = (startDelaySec - 1).coerceAtLeast(0)
+        if (driver.pressed(Button.DPAD_RIGHT)) startDelaySec = (startDelaySec + 1).coerceAtMost(10)
+        if (driver.pressed(Button.DPAD_LEFT)) startDelaySec = (startDelaySec - 1).coerceAtLeast(0)
         telemetryBag.section("Auto") { put("start delay s", startDelaySec) }
     }
 
