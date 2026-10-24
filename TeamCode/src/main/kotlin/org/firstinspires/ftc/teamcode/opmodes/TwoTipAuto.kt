@@ -43,7 +43,7 @@ open class TwoTipAutoRed : OpModeBase() {
     private val park get() = poses.of(16.0, 106.0, 90.0)
 
     override fun configure() {
-        val follower = Constants.create(hardwareMap)
+        val follower = Constants.create(hardwareMap) { robot.hubPower.batteryVolts }
         drive = robot.register(MecanumDriveSubsystem(follower))
         localizer = robot.register(
             LocalizerSubsystem(

@@ -23,6 +23,7 @@ import org.firstinspires.ftc.teamcode.core.Clock
 import org.firstinspires.ftc.teamcode.core.SubsystemBase
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.logging.logged
+import org.firstinspires.ftc.teamcode.pedro.VoltageCompensatedMecanum
 
 /**
  * The one owner of the drivetrain. Every drive command requires this
@@ -368,6 +369,7 @@ class MecanumDriveSubsystem(
         log.put("odometryFallback", odometryFallback)
         log.put("motors/power", commandedPower)
         log.put("motors/velocityTps", wheelVelocity)
+        (follower.drivetrain as? VoltageCompensatedMecanum)?.let { log.put("voltageScale", it.scale()) }
         val index = sampledCurrentIndex
         if (index >= 0) {
             log.put("motors/${MOTOR_NAMES[index].first}/currentAmps", sampledCurrentAmps)

@@ -2,14 +2,18 @@ package org.firstinspires.ftc.teamcode.pedro;
 
 import com.pedropathing.algorithm.Foresight;
 import com.pedropathing.algorithm.ForesightConfig;
+import com.pedropathing.controllers.Controller;
 import com.pedropathing.follower.Follower;
-import com.pedropathing.revhub.drivetrains.Mecanum;
+import com.pedropathing.math.Matrix;
+import com.pedropathing.math.Vector2D;
 import com.pedropathing.revhub.drivetrains.MecanumConfig;
 import com.pedropathing.revhub.localizers.PinpointConfig;
 import com.pedropathing.revhub.localizers.PinpointLocalizer;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+
+import java.util.function.DoubleSupplier;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.RobotConfig;
@@ -30,26 +34,37 @@ import org.firstinspires.ftc.teamcode.subsystems.DriveConfig;
  *       commit 4775780; frame redefinition and encoder directions confirmed on the
  *       hardware, commit 2f13376). Pedro 2's forwardPodY/strafePodX map to
  *       xPodOffset/yPodOffset: both versions pass them to
- *       {@code GoBildaPinpointDriver.setOffsets(x, y)} in that order.</li>
- *   <li>Foresight: <b>not tuned</b>. Pedro 2's mass, zero-power accelerations and
- *       velocities came from the starter scaffold, were never measured on this
- *       chassis, and have no Foresight equivalent. Run AutoTune's Foresight
- *       procedure, paste its output into {@link #foresightConfig}, then set
- *       {@link #FORESIGHT_TUNED} to true.</li>
+ *       {@code GoBildaPinpointDriver.setOffsets(x, y)} in that order. In-place
+ *       spins in the April RobotCentricDrive logs hold position within 1 in with
+ *       these offsets; PinpointTuner's x -3.22 in (23209-biobuzz) has the wrong
+ *       sign and would swing the pose through about a foot.</li>
+ *   <li>Foresight: AutoTune output for the sensorbot, copied from 23209-biobuzz
+ *       (commit 1776795, tuned 2026-10-21). That tuning ran with PinpointTuner's
+ *       offsets, not the measured ones above. Re-run AutoTune's Foresight
+ *       procedure on the competition chassis.</li>
  * </ul>
  *
- * <p>Pedro 2's voltage compensation has no Pedro 3 equivalent.
+ * <p>Pedro 3 has no voltage compensation for mecanum; {@link VoltageCompensatedMecanum}
+ * adds it, for the op-modes and AutoTune alike.
  */
 public final class Constants {
 
     private Constants() {}
 
     /**
-     * False until {@link #foresightConfig} holds AutoTune output. While false the
+     * True once {@link #foresightConfig} holds AutoTune output. While false the
      * follower has no path algorithm: manual driving works, and path, hold and turn
      * commands refuse to start.
      */
-    public static final boolean FORESIGHT_TUNED = false;
+    public static final boolean FORESIGHT_TUNED = true;
+
+    /**
+     * The battery voltage {@link #foresightConfig} is expressed at: every follower power
+     * is scaled by NOMINAL_VOLTS / battery volts. 9.5 V is the battery under load in the
+     * runs where the current sensorbot tuning behaved (2026-10-22 logs). Set it to 12.0
+     * before re-running AutoTune, which drives through the same compensation.
+     */
+    public static final double NOMINAL_VOLTS = 9.5;
 
     public static final MecanumConfig drivetrainConfig = new MecanumConfig(c -> {
         c.frontLeftName.set(RobotConfig.Drive.FRONT_LEFT_MOTOR);
@@ -82,8 +97,29 @@ public final class Constants {
         c.resetMode.set(PinpointLocalizer.ResetMode.NONE);
     });
 
-    /** Paste AutoTune's Foresight output here. Required values are deliberately unset. */
+    /** AutoTune's Foresight output (sensorbot, 2026-10-21). */
     public static final ForesightConfig foresightConfig = new ForesightConfig(c -> {
+        Controller primaryTranslationalForward = Controller.proportional(0.3859305130404934);
+        Controller secondaryTranslationalForward = Controller.proportional(0.14259101231523041);
+        Controller primaryTranslationalLateral = Controller.proportional(0.649893858954874);
+        Controller secondaryTranslationalLateral = Controller.proportional(0.24011841540008994);
+
+        c.forwardTranslational.set(Controller.piecewise(secondaryTranslationalForward).put(2.5, primaryTranslationalForward));
+        c.strafeTranslational.set(Controller.piecewise(secondaryTranslationalLateral).put(2.5, primaryTranslationalLateral));
+
+        c.coast.set(Controller.proportionalFeedforward(0.008317315818631975));
+        c.brake.set(Controller.proportionalFeedforward(0.007069718445837179));
+
+        c.headingFeedback.set(Controller.proportional(7.0912011875081555));
+        c.headingBrakeCoefficients.set(Vector2D.cartesian(0.10744791340779461, 0.006264631361127194));
+
+        c.linearBrakeCoefficients.set(Matrix.diag(0.18552051491361324, 0.10012107419859242));
+        c.quadraticBrakeCoefficients.set(Matrix.diag(0.002071194869299692, 0.0022879444427973015));
+
+        c.maxAchievableForwardVelocity.set(68.3251044222146);
+        c.maxAchievableStrafeVelocity.set(61.181111299438065);
+        c.naturalForwardDeceleration.set(41.270915401949004);
+        c.naturalStrafeDeceleration.set(64.36119081305444);
     });
 
     /**
@@ -96,12 +132,16 @@ public final class Constants {
      * writes, so a background poll starves on link contention (~12–25 ms per
      * read) while the main loop spins on a stale pose.
      */
-    public static Follower create(HardwareMap hardwareMap) {
+    public static Follower create(HardwareMap hardwareMap, DoubleSupplier batteryVolts) {
         drivetrainConfig.manualBrakeMode.set(DriveConfig.brakeOnTeleop);
         return new Follower(
                 new PinpointLocalizer(hardwareMap, localizerConfig),
-                new Mecanum(hardwareMap, drivetrainConfig),
+                drivetrain(hardwareMap, batteryVolts),
                 FORESIGHT_TUNED ? new Foresight(foresightConfig) : null
         );
+    }
+
+    public static VoltageCompensatedMecanum drivetrain(HardwareMap hardwareMap, DoubleSupplier batteryVolts) {
+        return new VoltageCompensatedMecanum(hardwareMap, drivetrainConfig, NOMINAL_VOLTS, batteryVolts);
     }
 }

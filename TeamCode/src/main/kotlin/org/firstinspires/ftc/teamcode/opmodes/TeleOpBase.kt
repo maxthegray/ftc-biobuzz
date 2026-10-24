@@ -48,7 +48,7 @@ abstract class TeleOpBase : OpModeBase() {
         private set
 
     final override fun configure() {
-        val follower = Constants.create(hardwareMap)
+        val follower = Constants.create(hardwareMap) { robot.hubPower.batteryVolts }
         // Drive first, localizer second: the localizer samples pose history
         // right after the drive's writeHardware() runs Follower.update().
         drive = robot.register(MecanumDriveSubsystem(follower))
