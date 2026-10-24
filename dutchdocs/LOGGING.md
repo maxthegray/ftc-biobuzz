@@ -15,6 +15,42 @@ events, hub power and command history. Ivy remains the only scheduler.
   Keep wrappers in subsystem factories and around autonomous steps; preserve
   `LoggedCommand` exception handling in `core/logging/CommandHistory.kt`.
 
+### Tool lookup contract
+
+Audited against `tools/logs` and `tools/maxscope` (Python plus viewer JavaScript).
+Alongside arbitrary channels users select, built-in lookups depend on:
+
+- `Drive/motors/power`, `Drive/motors/velocityTps`, and
+  `Drive/motors/<leftFront|rightFront|leftRear|rightRear>/currentAmps`;
+  `Drive/odometryFallback` and `Localizer/faulted`.
+- `Limelight/target/visible`, `Limelight/target/txDegrees`,
+  `Limelight/target/tyDegrees`, and any subsystem's `connected` channel
+  (including `Limelight/connected` and `BallCamera/connected`).
+- Camera channels under `BallCamera/` (or any camera subsystem prefix):
+  `candidates/xPx`, `yPx`, `radiusPx`, `horizontalDeg`, `verticalDeg`,
+  `rejections`, `selectedIndex`; `frame/widthPx`, `heightPx`, `status`;
+  `target/horizontalDeg`, `target/verticalDeg`; and `mount/measured`,
+  `heightIn`, `pitchDownDeg`, `forwardIn`, `leftIn`, `yawDeg`.
+  The Vision graph preset also reads `BallCamera/frame/ageMs` and
+  `BallCamera/frame/processingMs`.
+- `Hive/RED/state`, `Hive/BLUE/state`; `hubs/control/currentAmps`,
+  `hubs/control/volts`; `pose`, `velocity`, `driveMode`, `battery`,
+  `gamepad1/axes`, `gamepad1/buttons`, `gamepad2/axes`, `gamepad2/buttons`.
+- `follow/translationalErrorIn`, `follow/headingErrorRad`, `loop/totalNanos`,
+  `loop/windowMaxTotalNanos`, `loop/<phase>Nanos`, `loop/windowMax/<phase>Nanos`;
+  `events`, `commands/events`, `commands/active`, `commands/lost`.
+- Older logs: `commands/running`, `BallAssist/tx`, `BallAssist/ty`,
+  `BallAssist/targetTy`. `MaxScope/traction/*` and `MaxScope/battery/*` are
+  derived by tools, rather than emitted by the robot.
+
+The analyzer recognizes exact `start` and the viewer exact `stop`; the viewer
+also recognizes the `LOOP OVERRUN` prefix. Fault classification searches for
+`FAULT`, `CRASH`, `FAIL`/`FAILED`/`FAILURE`, `LOST`, `INCOMPLETE`, `DISABLED`
+and `OVERRUN`. Keep the robot's `LOCALIZER FAULT`, `COMMAND FAULT`,
+`SUBSYSTEM FAULT`, `TELEMETRY FAULT`, `LOOP CRASHED`, `LOOP OVERRUN`,
+`SUBSYSTEM LOGGING DISABLED` and `HISTORY INCOMPLETE` messages unchanged.
+`HIVE TIP` and `ballVision` settings text are preserved too.
+
 ## Flight recorder and WPILOG channels
 
 `FlightRecorder` writes `/sdcard/FIRST/logs/<OpMode>-<timestamp>-<n>.wpilog`

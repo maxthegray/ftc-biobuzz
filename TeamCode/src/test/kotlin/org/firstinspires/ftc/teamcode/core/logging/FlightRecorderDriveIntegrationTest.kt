@@ -102,6 +102,43 @@ class FlightRecorderDriveIntegrationTest {
     }
 
     @Test
+    fun toolReadDriveAndLocalizerChannelsKeepTheirExactNames() {
+        val s = Session(logDir)
+        try {
+            // Cross every 200 ms current-sampling boundary to cover all four wheels.
+            repeat(4) {
+                s.hardware.clock.advanceMs(200.0)
+                s.tick()
+            }
+            s.tick {
+                Scheduler.schedule(s.drive.followCommand(Paths.line(Pose.zero(), Pose(24.0, 0.0)).constant(0.0)))
+            }
+        } finally {
+            s.robot.stop()
+        }
+
+        val log = readSingleLog()
+        val channels = listOf(
+            "Drive/motors/power", "Drive/motors/velocityTps",
+            "Drive/motors/leftFront/currentAmps", "Drive/motors/rightFront/currentAmps",
+            "Drive/motors/leftRear/currentAmps", "Drive/motors/rightRear/currentAmps",
+            "Drive/odometryFallback", "Localizer/faulted",
+            "pose", "velocity", "driveMode", "battery",
+            "follow/translationalErrorIn", "follow/headingErrorRad",
+            "gamepad1/axes", "gamepad1/buttons",
+            "loop/totalNanos", "loop/windowMaxTotalNanos",
+            "commands/events", "commands/active", "commands/lost", "events",
+        )
+        for (channel in channels) {
+            assertTrue("Missing tool-read channel: $channel", log.has(channel))
+            assertTrue("Empty tool-read channel: $channel", log.records(channel).isNotEmpty())
+        }
+        assertEquals(0, s.robot.recorderFaultCount)
+        assertEquals(0, s.robot.subsystemFaultCount)
+        assertEquals(0, s.robot.commandFaultCount)
+    }
+
+    @Test
     fun globalEventsFollowTheRecorderLifetime() {
         val stale = mutableListOf<String>()
         Events.sink = stale::add

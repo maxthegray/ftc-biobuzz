@@ -1,9 +1,8 @@
 package org.firstinspires.ftc.teamcode.vision
 
-import org.firstinspires.ftc.teamcode.core.logging.Events
-
 import com.pedropathing.math.Pose
 import com.qualcomm.robotcore.hardware.HardwareMap
+import org.firstinspires.ftc.teamcode.core.logging.Events
 import org.firstinspires.ftc.teamcode.core.sim.FakeClock
 import org.firstinspires.ftc.teamcode.subsystems.LimelightFiducial
 import org.firstinspires.ftc.teamcode.subsystems.LimelightPose

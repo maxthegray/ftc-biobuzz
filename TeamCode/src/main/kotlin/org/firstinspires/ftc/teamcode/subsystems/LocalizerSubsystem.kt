@@ -1,7 +1,5 @@
 package org.firstinspires.ftc.teamcode.subsystems
 
-import org.firstinspires.ftc.teamcode.core.logging.Events
-
 import com.bylazar.configurables.annotations.Configurable
 import com.pedropathing.follower.Follower
 import com.pedropathing.math.Pose
@@ -12,6 +10,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap
 import org.firstinspires.ftc.teamcode.RobotConfig
 import org.firstinspires.ftc.teamcode.core.Clock
 import org.firstinspires.ftc.teamcode.core.SubsystemBase
+import org.firstinspires.ftc.teamcode.core.logging.Events
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 
 /**

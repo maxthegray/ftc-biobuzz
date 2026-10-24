@@ -1,9 +1,8 @@
 package org.firstinspires.ftc.teamcode.vision
 
-import org.firstinspires.ftc.teamcode.core.logging.Events
-
 import com.pedropathing.math.Pose
 import kotlin.math.PI
+import org.firstinspires.ftc.teamcode.core.logging.Events
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.sim.ConfigSnapshot
 import org.firstinspires.ftc.teamcode.vision.BiobuzzAprilTags.Alliance

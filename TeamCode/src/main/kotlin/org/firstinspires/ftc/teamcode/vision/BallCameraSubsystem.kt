@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode.vision
 
-import org.firstinspires.ftc.teamcode.core.logging.Events
 import android.graphics.Canvas
 import android.util.Size
 import com.bylazar.configurables.annotations.Configurable
@@ -13,6 +12,7 @@ import org.firstinspires.ftc.teamcode.RobotConfig
 import org.firstinspires.ftc.teamcode.core.Clock
 import org.firstinspires.ftc.teamcode.core.HardwareConfigError
 import org.firstinspires.ftc.teamcode.core.SubsystemBase
+import org.firstinspires.ftc.teamcode.core.logging.Events
 import org.firstinspires.ftc.teamcode.core.logging.SettingsChangeLog
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.vision.VisionPortal
@@ -196,7 +196,6 @@ fun blobFilters(frameAreaPx: Double): List<BlobFilter> = with(BallCameraConfig) 
  */
 class BallCameraSubsystem(
     private val clock: Clock = Clock.SYSTEM,
-    /** Flight-log event sink, normally `robot::recordEvent`; receives the tuning values in force. */
 ) : SubsystemBase("BallCamera") {
 
     private val settingsLog = SettingsChangeLog("ballVision", clock, Events::record)

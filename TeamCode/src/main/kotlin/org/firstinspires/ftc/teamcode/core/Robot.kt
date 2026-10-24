@@ -1,7 +1,5 @@
 package org.firstinspires.ftc.teamcode.core
 
-import org.firstinspires.ftc.teamcode.core.logging.Events
-
 import com.pedropathing.ivy.Scheduler
 import com.qualcomm.hardware.lynx.LynxModule
 import com.qualcomm.robotcore.hardware.HardwareMap
@@ -10,6 +8,7 @@ import java.io.PrintWriter
 import java.io.StringWriter
 import kotlin.math.max
 import org.firstinspires.ftc.teamcode.core.logging.CommandHistory
+import org.firstinspires.ftc.teamcode.core.logging.Events
 import org.firstinspires.ftc.teamcode.core.logging.FlightRecorder
 import org.firstinspires.ftc.teamcode.core.logging.LoggedCommand
 

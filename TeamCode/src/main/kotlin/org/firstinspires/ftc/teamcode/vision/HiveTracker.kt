@@ -1,12 +1,11 @@
 package org.firstinspires.ftc.teamcode.vision
 
-import org.firstinspires.ftc.teamcode.core.logging.Events
-
 import com.pedropathing.math.Pose
 import java.util.EnumMap
 import java.util.Locale
 import org.firstinspires.ftc.teamcode.core.Clock
 import org.firstinspires.ftc.teamcode.core.SubsystemBase
+import org.firstinspires.ftc.teamcode.core.logging.Events
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.subsystems.LimelightFiducial
 import org.firstinspires.ftc.teamcode.subsystems.LimelightSubsystem

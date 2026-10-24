@@ -1,6 +1,10 @@
 package org.firstinspires.ftc.teamcode.core.logging
 
 import org.firstinspires.ftc.teamcode.core.SubsystemBase
+import org.firstinspires.ftc.teamcode.subsystems.IntakeSubsystem
+import org.firstinspires.ftc.teamcode.subsystems.TransferSubsystem
+import org.firstinspires.ftc.teamcode.subsystems.TurretSubsystem
+import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -41,6 +45,21 @@ class AutomaticStateLogTest {
         override fun put(channel: String, value: Boolean) { values[channel] = value }
         override fun put(channel: String, value: String) { values[channel] = value }
         override fun put(channel: String, value: DoubleArray) { values[channel] = value }
+    }
+
+    @Test
+    fun mechanismChannelsMatchTheirFormerExplicitLoggers() {
+        val intake = Capture().also { IntakeSubsystem().logState(it) }
+        assertEquals(mapOf("power" to 0.0), intake.values)
+        val transfer = Capture().also { TransferSubsystem().logState(it) }
+        assertEquals(
+            mapOf("motorPower" to 0.0, "blockerOpen" to false, "blockerSettled" to false, "blockerPosition" to Double.NaN),
+            transfer.values,
+        )
+        val turret = Capture().also { TurretSubsystem().logState(it) }
+        val shooter = Capture().also { ShooterSubsystem().logState(it) }
+        assertEquals(mapOf("configured" to false), turret.values)
+        assertEquals(mapOf("configured" to false), shooter.values)
     }
 
     @Test

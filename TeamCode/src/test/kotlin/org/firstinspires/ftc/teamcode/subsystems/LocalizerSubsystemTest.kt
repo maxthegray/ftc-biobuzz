@@ -1,9 +1,8 @@
 package org.firstinspires.ftc.teamcode.subsystems
 
-import org.firstinspires.ftc.teamcode.core.logging.Events
-
 import com.pedropathing.math.Pose
 import kotlin.math.PI
+import org.firstinspires.ftc.teamcode.core.logging.Events
 import org.firstinspires.ftc.teamcode.core.sim.FakeClock
 import org.junit.After
 import org.junit.Assert.assertEquals
