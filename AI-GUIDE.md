@@ -328,7 +328,7 @@ reload never run.
 | `follow/translationalErrorIn`, `follow/headingErrorRad` | double | Foresight errors, only while following/holding |
 | `gamepad1/axes`, `gamepad2/axes` | `double[]` | `[lx, ly(+up), rx, ry(+up), L2, R2]` after deadband |
 | `gamepad1/buttons`, `gamepad2/buttons` | int64 | bits: Cross Circle Square Triangle L1 R1 up down left right Options Create L3 R3 Touchpad |
-| `battery` | double | volts: the Control Hub's from `Robot.hubPower`, else the voltage sensor every 250 ms |
+| `battery` | double | volts: the Control Hub's input voltage from `Robot.hubPower` |
 | `loop/totalNanos`, `loop/<phase>Nanos`, `loop/windowMax…` | int64 | loop timing and per-window peaks |
 | `<Subsystem>/…` | any | `SubsystemBase.logState` channels |
 | `Drive/motors/power`, `Drive/motors/velocityTps` | `double[]` | every tick, `[leftFront, rightFront, leftRear, rightRear]` (Pedro's mixer order): the power Pedro commanded (0 once the drivetrain stops) and the encoder velocity in ticks/s from the bulk read |

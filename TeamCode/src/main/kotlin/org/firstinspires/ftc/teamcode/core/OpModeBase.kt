@@ -11,7 +11,6 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode
 import com.qualcomm.robotcore.hardware.DcMotorEx
 import com.qualcomm.robotcore.hardware.HardwareDevice
 import com.qualcomm.robotcore.hardware.HardwareMap
-import com.qualcomm.robotcore.hardware.VoltageSensor
 import com.qualcomm.robotcore.util.RobotLog
 import kotlin.math.cos
 import kotlin.math.sin
@@ -72,9 +71,7 @@ abstract class OpModeBase : LinearOpMode() {
     /** Set false to suppress the live robot/path drawing on the Panels field view. */
     protected open val publishFieldView: Boolean get() = true
 
-    private var voltageSensor: VoltageSensor? = null
     private var cachedVoltage = Double.NaN
-    private var lastVoltageReadNs = Long.MIN_VALUE
     private val fieldView = FieldView()
     private var fieldViewDrive: DriveTelemetrySource? = null
     private var telemetryFailures = 0
@@ -109,31 +106,10 @@ abstract class OpModeBase : LinearOpMode() {
         }
     }
 
-    private fun firstVoltageSensor(): VoltageSensor? = try {
-        val iterator = hardwareMap.voltageSensor.iterator()
-        if (iterator.hasNext()) iterator.next() else null
-    } catch (_: Throwable) {
-        null
-    }
-
-    /**
-     * Battery voltage: the Control Hub's from [Robot.hubPower], which reads it
-     * anyway; otherwise the voltage sensor, throttled to one read per 250 ms.
-     * Runs regardless of telemetry flags.
-     */
+    /** Battery voltage: the Control Hub's input voltage, which [Robot.hubPower] reads anyway. */
     private fun refreshVoltage() {
         val hubVolts = robot.hubPower.batteryVolts
-        if (hubVolts.isFinite()) {
-            cachedVoltage = hubVolts
-            return
-        }
-        val sensor = voltageSensor ?: return
-        val now = System.nanoTime()
-        if (!cachedVoltage.isNaN() && lastVoltageReadNs != Long.MIN_VALUE && now - lastVoltageReadNs < 250_000_000L) {
-            return
-        }
-        cachedVoltage = sensor.voltage
-        lastVoltageReadNs = now
+        if (hubVolts.isFinite()) cachedVoltage = hubVolts
     }
 
     private fun publishHealth(includeInitOnly: Boolean) {
@@ -175,7 +151,6 @@ abstract class OpModeBase : LinearOpMode() {
             Preflight.check(hardwareMap, requiredDevices)
             configure()
             robot.init()
-            voltageSensor = firstVoltageSensor()
             fieldViewDrive = robot.subsystems().firstOrNull { it is DriveTelemetrySource } as? DriveTelemetrySource
 
             telemetry.addLine("Init complete — ${robot.subsystems().size} subsystems")
