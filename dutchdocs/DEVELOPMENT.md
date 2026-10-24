@@ -402,9 +402,9 @@ Season vision code that runs in a match is in `vision/`:
   is raised from tag heights, with hysteresis and tip counts; `HiveTracker`, a
   subsystem, fuses each alliance's goal and exposes both alliances to op-modes.
 Tests mirror these packages. The reusable Limelight device adapter is
-`subsystems/LimelightSubsystem.kt`. The diagnostic op-modes and their tooling (lab
-records, tag-sighting history, `VisionDiagnosticsConfig`) live together in
-`opmodes/diagnostics/`; `SettingsChangeLog` is in `core/logging/`.
+`subsystems/LimelightSubsystem.kt`. The Vision Test op-mode and its tooling
+(tag-sighting history, survey memory, `VisionTestConfig`) live together in
+`opmodes/diagnostics/VisionTestTeleOp.kt`; `SettingsChangeLog` is in `core/logging/`.
 
 ## Sensors and I²C
 

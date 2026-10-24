@@ -437,7 +437,7 @@ loop keeps running.
   CELL is the goal, not a claim that it can take a score. Tags have no field
   poses (the HIVES pivot) and are never used for localization.
 - **The Limelight rotation convention is unverified.** Every use of a tag's
-  orientation goes through `GoalGeometry.tagRotation()`; if the Hive Tag Survey
+  orientation goes through `GoalGeometry.tagRotation()`; if the Vision Test's HIVE survey
   shows four tags of one CELL disagreeing, fix that one function. Raised/lowered
   uses tag position only, so it does not depend on it.
 - **HIVE goal offsets are FIRST's** (SDK 12.0.0 `AprilTagGameDatabase`), in
@@ -478,8 +478,7 @@ overrides `initialAlliance` only. Start delay on dpad in init, as in the example
 
 ## Naming op-modes
 
-Currently enabled: Drive Only, Robot Centric Drive, Ball Tracking Test, Limelight AprilTag Test,
-Hive Tag Survey.
+Currently enabled: Drive Only, Robot Centric Drive, Vision Test.
 AutoTune is a web page, not a Driver Station op-mode. `opmodes/skeletons/` holds `@Disabled` op-modes; keep them disabled unless the
 user asks.
 

@@ -203,7 +203,7 @@ object HiveField {
  *
  * Goal height, and with it raised/lowered HIVE state, is only as good as
  * [cameraHeightIn] and [cameraPitchUpDeg]. [raisedMinHeightIn] defaults to the
- * pivot height (manual §9.6.1, 43.95 in.); set it from the Hive Tag Survey to
+ * pivot height (manual §9.6.1, 43.95 in.); set it from the Vision Test's HIVE survey to
  * the midpoint of the tag heights it reports for both states.
  */
 @Configurable

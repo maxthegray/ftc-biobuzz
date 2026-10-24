@@ -111,15 +111,16 @@ error is following or battery.
 
 ## 8. Vision diagnostics (stationary, no motors)
 
-Three Diagnostics OpModes bring up the season's cameras. None commands a
-motor or applies a pose correction; only Hive Tag Survey infers HIVE state.
-All run their cameras during INIT; gamepad buttons work only after START.
+One Diagnostics OpMode, **Vision Test**, brings up the season's cameras. It
+commands no motor and applies no pose correction. It opens every camera in the
+active configuration, runs them during INIT, and shows one page at a time:
+gamepad 1 **dpad left/right** changes page, in INIT too.
 
-| OpMode | Camera | Purpose |
+| Page | Camera | Purpose |
 |---|---|---|
-| **Limelight AprilTag Test** | Limelight 3A `limelight` | Every HIVE tag: ID, BIOBUZZ meaning, camera-relative measurements, freshness |
-| **Hive Tag Survey** | Limelight 3A `limelight` on a tripod | Every tag's height and implied goal, each CELL's fused goal, each HIVE's state |
-| **Ball Tracking Test** | goBILDA 3122-0004-0001 `ballCamera` | Yellow POLLEN color/shape detection, Panels tuning, RC preview |
+| **Ball camera** | goBILDA 3122-0004-0001 `ballCamera` | Yellow POLLEN color/shape detection, Panels tuning, RC preview |
+| **Limelight tags** | Limelight 3A `limelight` | Every HIVE tag: ID, BIOBUZZ meaning, camera-relative measurements, freshness |
+| **HIVE survey** | Limelight 3A `limelight` on a tripod | Every tag's height and implied goal, each CELL's fused goal, each HIVE's state (the only page that infers HIVE state) |
 
 ### Hardware and configuration
 
@@ -132,7 +133,7 @@ All run their cameras during INIT; gamepad buttons work only after START.
 3. Save and activate the configuration. **Full APK install** — the lens
    calibration lives in `res/xml/teamwebcamcalibrations.xml`, which a Sloth hot
    reload does not deploy.
-4. Verify the calibration matched: Ball Tracking Test → *Ball Camera → lens
+4. Verify the calibration matched: Vision Test, ball camera page → *Ball Camera → lens
    calibration* must read `exact 640x480 entry`. `none …` means the camera's
    USB IDs differ from goBILDA's published `VID 0xC45, PID 0x366`; read the
    real ones and fix the `<Camera vid pid>` entry:
@@ -182,8 +183,8 @@ age and still excludes USB transport and the wait before the first poll.
 Without a device `ts`, identity falls back to receipt timestamps, so duplicates
 across polls cannot be distinguished.
 
-Tags identify a CELL. The AprilTag Test does not say which CELL faces up;
-Hive Tag Survey infers that from measured tag heights. A raised CELL is the
+Tags identify a CELL. The tag page does not say which CELL faces up; the
+HIVE survey page infers that from measured tag heights. A raised CELL is the
 goal, not a promise that it can take a score.
 
 ### Panels and the camera preview
@@ -191,19 +192,19 @@ goal, not a promise that it can take a score.
 - **Panels:** robot powered, laptop on the Control Hub Wi-Fi,
   `http://192.168.43.1:8001`. Configurables `BallCameraConfig` and
   `HiveConfig`; the same telemetry sections as the Driver Station.
-  `VisionDiagnosticsConfig` is deliberately not in Panels: change its defaults
+  `VisionTestConfig` is deliberately not in Panels: change its defaults
   in code. Panels does not stream camera images.
-- **Preview:** on the **Robot Controller** screen while either OpMode has the
+- **Preview:** on the **Robot Controller** screen while Vision Test has the
   ball camera open (INIT or running): plug an HDMI monitor into the Control
   Hub, or `tools/hub-connect.sh` then `scrcpy`. The SDK's ColorBlobLocatorProcessor
-  outlines every blob that passed the filters. After START, gamepad 1 **Circle**
-  toggles rendering (`previewEnabled`); off saves CPU for timing comparisons.
+  outlines every blob that passed the filters. On the ball camera page, gamepad 1
+  **Circle** toggles rendering (`previewEnabled`); off saves CPU for timing comparisons.
 
 ### What applies live
 
 | Live in Panels (next robot loop) | In code, then `make hot` and re-init |
 |---|---|
-| Area/circularity/aspect/density filters, max observation age, preview | Color space and channel thresholds, ROI, blur/erode/dilate, contour mode, exposure, everything in `VisionDiagnosticsConfig` |
+| Area/circularity/aspect/density filters, max observation age, preview | Color space and channel thresholds, ROI, blur/erode/dilate, contour mode, exposure, everything in `VisionTestConfig` |
 
 The SDK builds the color range, region and morphology into the processor at
 init, and Panels edits are gone by the next init, so those are changed in
@@ -249,17 +250,17 @@ something.
 4. **Moving and multiple balls.** Roll a ball across the frame: frame age stays
    small and the target never lingers after the ball leaves. With several
    balls, the target is the largest. Cover the lens: the target goes to none.
-5. **Both cameras.** Set `VisionDiagnosticsConfig.runBothCameras` true in
-   code, `make hot`, and run **each** OpMode. Compare
-   *Timing Comparison*, library fps, Limelight new-frame rate and ages against
-   the single-camera runs, then open the run in MaxScope (`make viewer`) for loop percentiles.
-6. **Limelight tags.** Limelight AprilTag Test: hold each tag still; confirm ID
+5. **Both cameras.** Vision Test opens both cameras when both are configured.
+   Run it once like that and once with `VisionTestConfig.openLimelight` false
+   (in code, `make hot`). Compare *Timing*, library fps, Limelight new-frame
+   rate and ages, then open the runs in MaxScope (`make viewer`) for loop percentiles.
+6. **Limelight tags.** Vision Test, tag page: hold each tag still; confirm ID
    and meaning against its sticker, the signs of tx/ty, and |d| against a tape
    measure; record whether the cluster's four tags appear together.
 
 Then copy the values tuned live in Panels into `BallCameraConfig` and commit.
 
-### Hive Tag Survey (real CELL and field)
+### HIVE survey (real CELL and field)
 
 Each HIVE is one alliance's. It sits tipped 30° with one CELL raised (the
 goal) and the other lowered, and a tip swaps them. Each CELL's four tags are on
@@ -278,7 +279,7 @@ Setup:
    `cameraForwardIn`/`cameraLeftIn`/`axisForwardIn`/`axisLeftIn` 0 (the tripod
    point is the reference). Set `mountMeasured` true. The turret angle is held
    at 0.
-3. Open **Hive Tag Survey**; *Survey Setup* must read `measured`.
+3. Open **Vision Test** and go to the HIVE survey page; *Survey Setup* must read `measured`.
 
 Procedure (**Circle** clears the survey memory):
 
@@ -492,8 +493,7 @@ Record results in `PROGRESS.md`.
 
 **Install and reload**
 - [ ] Full APK install succeeds; Driver Station shows Drive Only, Robot Centric
-      Drive, Ball Tracking Test, Limelight AprilTag Test, Hive Tag Survey (no Pedro
-      Tuning op-mode).
+      Drive, Vision Test (no Pedro Tuning op-mode).
 - [ ] AutoTune page loads at `http://192.168.43.1:10158` and lists Mecanum
       Tuner, Pinpoint Tuner, Foresight Tuner and Tests (Sloth 0.2.4 runtime).
 - [ ] Panels loads at `:8001`; a `DriveConfig` edit applies live and goes back
@@ -537,7 +537,7 @@ Record results in `PROGRESS.md`.
 - [ ] Unplugged Pinpoint at init: Health reports it; auto still runs and logs
       `AUTO: starting without a ready localizer`, unless the pose itself is lost.
 
-**HIVE tags** (Hive Tag Survey, above)
+**HIVE tags** (HIVE survey, above)
 - [ ] Four tags of one CELL agree on its goal within ~1 in, head-on and from the side.
 - [ ] Horizontal distance and goal height match a tape measure.
 - [ ] Raised and lowered tags separate cleanly; `raisedMinHeightIn` set between them.
