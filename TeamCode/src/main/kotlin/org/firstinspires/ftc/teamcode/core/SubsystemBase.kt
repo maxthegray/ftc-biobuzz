@@ -4,6 +4,7 @@ import com.pedropathing.ivy.Command
 import com.pedropathing.ivy.CommandBuilder
 import com.pedropathing.ivy.behaviors.ConflictBehavior
 import com.qualcomm.robotcore.hardware.HardwareMap
+import org.firstinspires.ftc.teamcode.core.logging.AutomaticStateLog
 import org.firstinspires.ftc.teamcode.core.logging.LoggedCommand
 import org.firstinspires.ftc.teamcode.core.logging.StateLog
 
@@ -68,8 +69,10 @@ abstract class SubsystemBase(val name: String) {
     /**
      * Write this subsystem's flight-log channels. Called at most 100 times a
      * second by the flight recorder; channel names are prefixed with `<name>/`.
+     * Public scalar getters declared on this class are automatic; override for
+     * arrays or specific channel names. Inherited and publicly writable state is skipped.
      */
-    open fun logState(log: StateLog) {}
+    open fun logState(log: StateLog) = AutomaticStateLog.record(this, log)
 
     /**
      * Something threw: a command using this subsystem, or an unlogged command

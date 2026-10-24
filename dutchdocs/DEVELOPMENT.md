@@ -64,8 +64,10 @@ Create `subsystems/IntakeSubsystem.kt`:
 ```kotlin
 class IntakeSubsystem : SubsystemBase("Intake") {
     private lateinit var roller: DcMotorEx
-    private var rollerPower = 0.0
-    private var ballSeen = false
+    var rollerPower = 0.0
+        private set
+    var ballSeen = false
+        private set
 
     override fun init(hardwareMap: HardwareMap) {
         roller = hardwareMap.get(DcMotorEx::class.java, "intakeRoller").apply {
@@ -93,11 +95,6 @@ class IntakeSubsystem : SubsystemBase("Intake") {
 
     override fun onCommandFault() { rollerPower = 0.0 }
     override fun stop() { rollerPower = 0.0; roller.power = 0.0 }
-
-    override fun logState(log: StateLog) {
-        log.put("rollerPower", rollerPower)
-        log.put("ballSeen", ballSeen)
-    }
 }
 ```
 
@@ -107,6 +104,8 @@ Register it in your op-mode's `configure()` (or `configureTeleop()`):
 Rules:
 
 - `periodic()` reads, commands decide, `writeHardware()` writes.
+- Public read-only scalar state logs automatically. Override `logState` only
+  for arrays or specific channel names.
 - Every command that touches the subsystem says `requiring(this)`, so Ivy
   lets only one of them run. Use `Commands.lazy { … }` when the command
   depends on state known only when it starts.
@@ -200,18 +199,14 @@ scheduled.
 
 ## Log a value
 
-Anything a subsystem knows goes in `logState`; it becomes `<Subsystem>/<name>`
-in the WPILOG (at most 100 samples a second):
+Public read-only scalar properties declared on your subsystem are logged
+at most 100 times a second as `<Subsystem>/<property>`. Double, Float, Int,
+Long, Boolean, String and enum values work automatically; nulls are skipped.
+Inherited, private and publicly writable properties are excluded. A broken
+getter is skipped without losing the rest of the state.
 
-```kotlin
-override fun logState(log: StateLog) {
-    log.put("goalTicks", goal)        // double, long, boolean or string
-    log.put("state", state.name)      // strings are only written when they change
-}
-```
-
-For a one-off moment, record an event with its exact time:
-`robot.recordEvent("AUTO: preload scored")`.
+Override `logState(log)` only for arrays or specific channel names. An override
+replaces automatic logging; existing tool-read names must stay exact.
 
 ## Trace commands in the log
 

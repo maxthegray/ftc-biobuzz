@@ -9,7 +9,6 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple
 import com.qualcomm.robotcore.hardware.HardwareMap
 import org.firstinspires.ftc.teamcode.RobotConfig
 import org.firstinspires.ftc.teamcode.core.SubsystemBase
-import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.logging.logged
 
 /**
@@ -56,9 +55,6 @@ class IntakeSubsystem : SubsystemBase("Intake") {
         motors.forEach { it.power = 0.0 }
     }
 
-    override fun logState(log: StateLog) {
-        log.put("power", power)
-    }
 
     private companion object {
         /** Motor names whose positive power runs against collecting. */

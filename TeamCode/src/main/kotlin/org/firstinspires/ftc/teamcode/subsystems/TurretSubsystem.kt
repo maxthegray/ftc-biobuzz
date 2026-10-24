@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode.subsystems
 
 import com.qualcomm.robotcore.hardware.HardwareMap
 import org.firstinspires.ftc.teamcode.core.SubsystemBase
-import org.firstinspires.ftc.teamcode.core.logging.StateLog
 
 /**
  * Geared position servos; manual and camera aiming will share this hardware owner.
@@ -16,13 +15,12 @@ import org.firstinspires.ftc.teamcode.core.logging.StateLog
  * odometry estimate until tags are seen. Shoot only when its source is VISION.
  */
 class TurretSubsystem : SubsystemBase("Turret") {
+    val configured = false
+
     override fun init(hardwareMap: HardwareMap) {
         error("Turret hardware is not configured yet")
     }
 
     override fun health(): String = "Hardware not configured"
 
-    override fun logState(log: StateLog) {
-        log.put("configured", false)
-    }
 }

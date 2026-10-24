@@ -351,8 +351,10 @@ reload never run.
 | `commands/active` | string | traced executions open after each record, `#id name` per line, `(suspended)` suffix |
 | `commands/lost` | int64 | records dropped from the bounded queue; 0 at open, rewritten when it grows |
 
-Log values with `logState(log)` (`log.put("name", value)`) and events with
-`robot.recordEvent("text")`. `put` also takes a `DoubleArray` for one row of
+Subsystem state logging is automatic: public read-only scalar getters declared on
+the subsystem class become property-name channels (enums use their names; nulls
+are skipped). Override `logState(log)` only for arrays or specific channel names;
+an override replaces the automatic logging. Record events with `Events.record("text")`. `put` also takes a `DoubleArray` for one row of
 parallel values (a per-frame detection list); its length may change per tick,
 and it is written immediately, so a cached array can be passed again.
 
@@ -462,7 +464,9 @@ Follow `dutchdocs/DEVELOPMENT.md` → *Add a subsystem*: extend `SubsystemBase`,
 hardware in `init` with the SDK's `hardwareMap.get` (set direction, mode and
 zero-power behaviour there), read in `periodic()`, flush in
 `writeHardware()`, expose Ivy command factories that `requiring(this)`, zero
-actuators in `stop()` and `onCommandFault()`, log in `logState`, register in
+actuators in `stop()` and `onCommandFault()`, expose public read-only state
+(automatically logged; override `logState` only for arrays or specific channel
+names), register in
 `configure()`. Every mechanism goes in `subsystems/`.
 There is deliberately no generic mechanism base class.
 

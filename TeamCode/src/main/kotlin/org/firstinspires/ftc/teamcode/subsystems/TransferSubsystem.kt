@@ -11,7 +11,6 @@ import com.qualcomm.robotcore.hardware.Servo
 import org.firstinspires.ftc.teamcode.RobotConfig
 import org.firstinspires.ftc.teamcode.core.Clock
 import org.firstinspires.ftc.teamcode.core.SubsystemBase
-import org.firstinspires.ftc.teamcode.core.logging.StateLog
 import org.firstinspires.ftc.teamcode.core.logging.logged
 
 /**
@@ -39,6 +38,8 @@ class TransferSubsystem(private val clock: Clock = Clock.SYSTEM) : SubsystemBase
     /** Blocker target; the servo gets it at the next `writeHardware()`. */
     var blockerOpen: Boolean = false
         private set
+
+    val blockerPosition: Double get() = blocker?.position ?: Double.NaN
 
     private var blockerOpenedAtNs: Long? = null
 
@@ -117,12 +118,6 @@ class TransferSubsystem(private val clock: Clock = Clock.SYSTEM) : SubsystemBase
         motors.forEach { it.power = 0.0 }
     }
 
-    override fun logState(log: StateLog) {
-        log.put("motorPower", motorPower)
-        log.put("blockerOpen", blockerOpen)
-        log.put("blockerSettled", blockerSettled)
-        log.put("blockerPosition", blocker?.position ?: Double.NaN)
-    }
 
     private companion object {
         /** Motor names whose positive power runs balls down instead of up. */
