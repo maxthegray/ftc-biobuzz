@@ -1,46 +1,36 @@
 # ftc-biobuzz
 
-BioBuzz's FTC robot code, built with Pedro Pathing, Ivy, Panels, and Sloth.
+robot code for biobuzz. it's command based, using ivy for commands and pedro pathing for driving.
 
-## Quick start
+you need jdk 17.
 
-Requires JDK 17.
+## make commands
 
 ```sh
-make help              # list all commands (also the default for `make`)
-
-make test              # run all host tests (TeamCode, log tools, MaxScope)
-make build             # build the debug APK
-make deploy            # deploy, picking full install or hot reload automatically
-make install           # force a full APK install
-make hot               # force a TeamCode hot reload via Sloth
-
-make connect           # wait until the Control Hub is connected
-make scrcpy            # mirror the Control Hub's screen
-
-make pull-logs         # download all 30 logs the hub keeps to robot-logs/
-make pull-logs 2       # download only the newest 2 (usually the last match)
-make viewer            # browse and summarize logs in MaxScope (http://127.0.0.1:8008)
+make help         # list all the commands
+make build        # build the apk
+make test         # run the tests
+make deploy       # put the code on the robot (use this one normally)
+make install      # full apk install
+make hot          # quick hot reload with sloth, teamcode only
+make connect      # wait for the control hub to connect
+make scrcpy       # show the control hub's screen
+make pull-logs    # download the robot logs to robot-logs/
+make pull-logs 2  # download just the newest 2 logs
+make viewer       # open maxscope to look at logs (http://127.0.0.1:8008)
 ```
 
-Commands that talk to the hub connect on their own over USB or the hub's
-Wi-Fi, waiting up to a minute while it boots. Use `make deploy` by default.
-It does a full install on the first deploy of a session and after changes to
-dependencies, the manifest, resources, or files outside TeamCode, and a hot
-reload otherwise. Follow the
-[operations guide](dutchdocs/OPERATIONS.md) for hardware setup and AutoTune.
-Paths require Foresight tuning before they can run.
+`make deploy` figures out if it needs a full install or can just hot reload.
 
-## Code
+## where stuff is
 
-- [TeamCode](TeamCode/src/main/) — robot code; `opmodes/`, `subsystems/`, and
-  `vision/` under Kotlin, Pedro configuration under Java
-- [core](TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/core/) — shared framework
+- [teamcode](TeamCode/src/main/): opmodes, subsystems, vision, and pedro config
+- [core](TeamCode/src/main/kotlin/org/firstinspires/ftc/teamcode/core/): shared framework code
 
-## Docs
+## docs
 
-- [Development](dutchdocs/DEVELOPMENT.md) — subsystems, controls, autos
-- [Operations](dutchdocs/OPERATIONS.md) — hardware, tuning, diagnostics
-- [Logging](dutchdocs/LOGGING.md) — automatic state, channels, command history, MaxScope, post-match debugging
-- [Progress](dutchdocs/PROGRESS.md) — lab notes
-- [AI guide](AI-GUIDE.md) — framework contract for coding assistants
+- [development](dutchdocs/DEVELOPMENT.md): subsystems, controls, autos
+- [operations](dutchdocs/OPERATIONS.md): hardware setup and tuning
+- [logging](dutchdocs/LOGGING.md): logs and post-match debugging
+- [progress](dutchdocs/PROGRESS.md): lab notes
+- [ai guide](AI-GUIDE.md): rules for coding assistants
