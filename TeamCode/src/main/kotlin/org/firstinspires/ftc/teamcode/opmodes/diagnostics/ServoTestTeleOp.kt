@@ -12,8 +12,8 @@ class ServoTestTeleOp : LinearOpMode() {
         val min = 0.0
         val max = 0.4
         val speed = 0.01
-        // Encoder ticks per output rev: 103.8 for the goBILDA 1620 rpm motor, 28.0 for the 6000.
-        val ticksPerRev = 103.8
+        // Encoder ticks per output rev: 28.0 for the goBILDA 6000 rpm motor, 103.8 for the 1620.
+        val ticksPerRev = 28.0
 
         val servo = hardwareMap.get(Servo::class.java, "servo")
         val motor = hardwareMap.get(DcMotorEx::class.java, "shooter_motor")
@@ -37,8 +37,8 @@ class ServoTestTeleOp : LinearOpMode() {
             val measured = motor.velocity
             telemetry.addData("target velocity (ticks/s)", velocity)
             telemetry.addData("measured velocity (ticks/s)", measured)
-            telemetry.addData("target rpm", velocity / ticksPerRev * 60.0)
-            telemetry.addData("measured rpm", measured / ticksPerRev * 60.0)
+            telemetry.addData("target RPM (for 6000 rpm motor)", velocity / ticksPerRev * 60.0)
+            telemetry.addData("measured RPM (for 6000 rpm motor)", measured / ticksPerRev * 60.0)
             telemetry.update()
         }
     }
